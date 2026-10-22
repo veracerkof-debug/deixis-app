@@ -45,7 +45,13 @@ data class Ping(val t: Long) : Msg
 // Приёмник → источник
 
 @Serializable @SerialName("welcome")
-data class Welcome(val version: Int, val receiver: ReceiverInfo, val state: ReceiverState) : Msg
+data class Welcome(
+    val version: Int,
+    val receiver: ReceiverInfo,
+    val state: ReceiverState,
+    /** Ключ страницы для зрителей: http://приёмник/view?k=ключ. */
+    val viewKey: String? = null,
+) : Msg
 
 @Serializable @SerialName("paired")
 data class Paired(val token: String) : Msg
@@ -127,6 +133,8 @@ data class ReceiverState(
     val mode: Mode = Mode.NORMAL,
     val video: VideoState? = null,
     val error: String? = null,
+    /** Сколько зрителей смотрит показ в браузере. */
+    val viewers: Int = 0,
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */

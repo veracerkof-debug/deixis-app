@@ -89,6 +89,13 @@ class SenderClient(
     var token: String? = null
         private set
 
+    private val _viewKey = MutableStateFlow<String?>(null)
+    /** Ключ страницы для зрителей этого приёмника; null, пока нет связи или приёмник старой версии. */
+    val viewKey: StateFlow<String?> = _viewKey.asStateFlow()
+
+    /** Ссылка для зрителей (её показывает QR-код на телефоне). */
+    fun viewUrl(): String? = _viewKey.value?.let { "http://$host:$port/view?k=$it" }
+
     private var loop: Job? = null
     private var outbox = Channel<Msg>(Channel.BUFFERED)
 
@@ -141,6 +148,7 @@ class SenderClient(
         when (val first = withTimeout(10_000) { (incoming.receive() as? Frame.Text)?.readText()?.let(::decodeMsg) }) {
             is Welcome -> {
                 _state.value = first.state
+                _viewKey.value = first.viewKey
                 _connection.value = Connection.Connected(first.receiver)
             }
             is Denied -> {

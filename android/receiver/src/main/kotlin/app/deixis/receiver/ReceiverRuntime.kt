@@ -5,6 +5,8 @@ import android.net.wifi.WifiManager
 import app.deixis.core.Discovery
 import app.deixis.core.FileStore
 import app.deixis.core.FileTokenStore
+import app.deixis.core.PageRenderer
+import app.deixis.core.loadViewKey
 import app.deixis.core.Pairing
 import app.deixis.core.PairingCode
 import app.deixis.core.ReceiverCore
@@ -54,11 +56,15 @@ class ReceiverRuntime(
         val metrics = appContext.resources.displayMetrics
         val info = ReceiverInfo(id, name, platform, BuildInfo.VERSION, metrics.widthPixels, metrics.heightPixels)
         val pairing = Pairing(FileTokenStore(File(dataDir, "tokens.json")))
-        core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing)
+        core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing, loadViewKey(File(dataDir, "view-key")))
         _pin = MutableStateFlow(pairing.pin)
         pin = _pin.asStateFlow()
         pairing.onPinChanged = { _pin.value = it }
         server = ReceiverServer(core, port, if (loopbackOnly) "127.0.0.1" else "0.0.0.0")
+        core.pageRenderer = PageRenderer { file, page, width ->
+            val bmp = renderPdfPage(file, page, width, width * 4)
+            java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it); bmp.recycle() }.toByteArray()
+        }
     }
 
     suspend fun start() = withContext(Dispatchers.IO) {

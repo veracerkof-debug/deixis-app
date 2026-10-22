@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,6 +88,11 @@ class Controller(private val app: Application) {
         .stateIn(scope, SharingStarted.Eagerly, Connection.Idle)
     val receiverState: StateFlow<ReceiverState?> = client.flatMapLatest { it?.state ?: flowOf(null) }
         .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Ссылка для зрителей в браузере; для кабеля HDMI её нет: тот приёмник виден только этому телефону. */
+    val viewUrl: StateFlow<String?> = client.flatMapLatest { c ->
+        c?.viewKey?.map { key -> if (key != null && active.value?.kind != Target.Kind.CABLE) c.viewUrl() else null } ?: flowOf(null)
+    }.stateIn(scope, SharingStarted.Eagerly, null)
 
     val item = MutableStateFlow<Item?>(null)
     val progress = MutableStateFlow<String?>(null)

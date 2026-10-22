@@ -6,6 +6,8 @@ import app.deixis.core.FileStore
 import app.deixis.core.FileTokenStore
 import app.deixis.core.Mode
 import app.deixis.core.Pairing
+import app.deixis.core.PageRenderer
+import app.deixis.core.loadViewKey
 import app.deixis.core.PairingCode
 import app.deixis.core.ReceiverCore
 import app.deixis.core.ReceiverInfo
@@ -80,10 +82,11 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         val screen = Toolkit.getDefaultToolkit().screenSize
         val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height)
         val pairing = Pairing(FileTokenStore(File(opts.dataDir, "tokens.json")))
-        core = ReceiverCore(info, FileStore(File(opts.dataDir, "files")), pairing)
+        core = ReceiverCore(info, FileStore(File(opts.dataDir, "files")), pairing, loadViewKey(File(opts.dataDir, "view-key")))
         pinFlow = MutableStateFlow(pairing.pin)
         pairing.onPinChanged = { pinFlow.value = it }
         renderer = SlideRenderer(core.files)
+        core.pageRenderer = PageRenderer { file, page, width -> renderPdfPagePng(file, page, width) }
         server = ReceiverServer(core, opts.port)
     }
 

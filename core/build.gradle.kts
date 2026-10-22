@@ -16,6 +16,8 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.websockets)
+    implementation(libs.ktor.server.partial.content)
+    implementation(libs.ktor.server.auto.head)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.websockets)

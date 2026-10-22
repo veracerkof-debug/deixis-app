@@ -196,10 +196,18 @@ class SlideRenderer(private val files: FileStore) {
 }
 
 object Fonts {
-    val mark: Font by lazy { load("/fonts/GFSDidot-Regular.ttf") }
-    val slide: Font by lazy { load("/fonts/NotoSans-SemiBold.ttf") }
-    val ui: Font by lazy { load("/fonts/NotoSans-SemiBold.ttf") }
+    val mark: Font by lazy { load("/web/GFSDidot-Regular.ttf") }
+    val slide: Font by lazy { load("/web/NotoSans-SemiBold.ttf") }
+    val ui: Font by lazy { load("/web/NotoSans-SemiBold.ttf") }
 
     private fun load(path: String): Font =
         Fonts::class.java.getResourceAsStream(path)!!.use { Font.createFont(Font.TRUETYPE_FONT, it) }
+}
+
+/** Страница PDF в PNG для браузеров зрителей. */
+fun renderPdfPagePng(file: java.io.File, page: Int, maxWidth: Int): ByteArray = Loader.loadPDF(file).use { doc ->
+    require(page in 0 until doc.numberOfPages) { "Нет страницы ${page + 1}" }
+    val scale = maxWidth / doc.getPage(page).cropBox.width
+    val img = PDFRenderer(doc).renderImage(page, scale, ImageType.RGB)
+    java.io.ByteArrayOutputStream().also { ImageIO.write(img, "png", it) }.toByteArray()
 }

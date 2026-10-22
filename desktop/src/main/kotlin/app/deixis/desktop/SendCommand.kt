@@ -57,7 +57,10 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             client.connect(token)
             val conn = withTimeoutOrNull(10_000) { client.connection.first { it is Connection.Connected || it is Connection.Denied } }
             when (conn) {
-                is Connection.Connected -> println("Подключено: «${conn.receiver.name}»")
+                is Connection.Connected -> {
+                    println("Подключено: «${conn.receiver.name}»")
+                    client.viewUrl()?.let { println("Для зрителей: $it") }
+                }
                 is Connection.Denied -> { saveToken(key, null); return@runBlocking fail("Приёмник не узнал этот компьютер, подключитесь заново с --pin") }
                 else -> return@runBlocking fail("Нет связи с $key: ${(client.connection.value as? Connection.Lost)?.reason ?: "таймаут"}")
             }

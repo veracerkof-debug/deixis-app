@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.security.SecureRandom
 
 /**
  * Логика приёмника без экрана: что показано, какие файлы есть, кто сопряжён.
@@ -41,12 +43,24 @@ class ReceiverCore(
     val info: ReceiverInfo,
     val files: FileStore,
     val pairing: Pairing,
+    /** Ключ страницы для зрителей. Хранится между запусками: перезагрузка ТВ не ломает уже открытые ссылки. */
+    val viewKey: String = newViewKey(),
 ) {
     private val _state = MutableStateFlow(ReceiverState())
     val state: StateFlow<ReceiverState> = _state.asStateFlow()
 
     private val _videoCommands = MutableSharedFlow<VideoCommand>(extraBufferCapacity = 16)
     val videoCommands: SharedFlow<VideoCommand> = _videoCommands.asSharedFlow()
+
+    /**
+     * Платформа рисует страницу PDF в PNG для браузеров зрителей (Safari не показывает PDF как картинку).
+     * Без него страницы PDF зрителям недоступны.
+     */
+    @Volatile
+    var pageRenderer: PageRenderer? = null
+
+    internal fun viewerJoined() = _state.update { it.copy(viewers = it.viewers + 1) }
+    internal fun viewerLeft() = _state.update { it.copy(viewers = (it.viewers - 1).coerceAtLeast(0)) }
 
     /** Применяет команду источника. Возвращает ошибку, если команду выполнить нельзя; показ при этом не меняется. */
     fun apply(msg: Msg): ErrorMsg? = when (msg) {
@@ -65,7 +79,7 @@ class ReceiverCore(
             if (files.file(ref.sha256) == null) return ErrorMsg("missing_file", "На приёмнике нет файла «${ref.name}»")
             files.touch(ref.sha256)
         }
-        _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null) }
+        _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null, viewers = it.viewers) }
         return null
     }
 
@@ -79,7 +93,24 @@ class ReceiverCore(
     fun reportError(message: String?) = _state.update { it.copy(error = message) }
 }
 
-/** Сетевой сервер приёмника: WebSocket для команд и HTTP для файлов. */
+/** Рисует страницу [page] PDF-файла шириной не больше [maxWidth] и возвращает PNG. */
+fun interface PageRenderer {
+    fun render(file: File, page: Int, maxWidth: Int): ByteArray
+}
+
+/** Читает ключ зрителей из файла или создаёт новый и сохраняет его. */
+fun loadViewKey(file: File): String {
+    file.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.length >= 8 }?.let { return it }
+    return newViewKey().also { file.parentFile?.mkdirs(); file.writeText(it) }
+}
+
+fun newViewKey(): String {
+    val alphabet = "abcdefghijkmnpqrstuvwxyz23456789"
+    val r = SecureRandom()
+    return (1..12).map { alphabet[r.nextInt(alphabet.length)] }.joinToString("")
+}
+
+/** Сетевой сервер приёмника: WebSocket для команд, HTTP для файлов и страница для зрителей. */
 /** [host] = "127.0.0.1" — только для этого устройства (вывод по кабелю с телефона), иначе вся локальная сеть. */
 class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEFAULT_PORT, private val host: String = "0.0.0.0") {
 
@@ -88,6 +119,8 @@ class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEF
     /** Запускает сервер и возвращает фактический порт (при port = 0 система выбирает свободный). */
     suspend fun start(): Int {
         val s = embeddedServer(CIO, port = port, host = host) {
+            install(io.ktor.server.plugins.partialcontent.PartialContent)
+            install(io.ktor.server.plugins.autohead.AutoHeadResponse)
             install(WebSockets) {
                 pingPeriodMillis = 1_000
                 timeoutMillis = 5_000
@@ -127,6 +160,7 @@ class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEF
                     }
                 }
                 webSocket("/ws") { handleSession(this) }
+                viewerRoutes(core)
             }
         }
         s.start(wait = false)
@@ -161,7 +195,7 @@ class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEF
         }
         if (!ok) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
 
-        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.info, core.state.value).encode()))
+        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.info, core.state.value, core.viewKey).encode()))
         val updates = launch {
             core.state.drop(1).collect { send(Frame.Text(Status(it).encode())) }
         }

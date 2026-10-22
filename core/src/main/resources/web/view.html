@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>Deixis</title>
+<style>
+@font-face { font-family: "Deixis Mark"; src: url("/view/assets/GFSDidot-Regular.ttf"); }
+@font-face { font-family: "Deixis Slide"; src: url("/view/assets/NotoSans-SemiBold.ttf"); }
+html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; }
+body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+#stage { position: absolute; background: #000; overflow: hidden; }
+#stage > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mark { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2vh; }
+.mark b { font-family: "Deixis Mark", Georgia, serif; font-weight: 400; letter-spacing: .18em; padding-left: .18em; }
+.mark span { opacity: .55; font-size: 15px; }
+.text { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 5%; text-align: center;
+        font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; white-space: pre-line; overflow-wrap: break-word; }
+.text.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
+.text .ref { position: absolute; right: 5%; bottom: 5%; font-size: .4em; opacity: .75; }
+img, video { object-fit: contain; background: #000; }
+.note { display: flex; align-items: center; justify-content: center; text-align: center; padding: 8%; box-sizing: border-box; opacity: .7; font-size: 16px; }
+#bar { transition: opacity .24s; }
+#bar.away { opacity: 0; }
+#bar.away button { pointer-events: none; }
+#bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 10px;
+       padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); pointer-events: none; }
+#bar button { pointer-events: auto; font: 600 15px/1 inherit; color: #fff; background: rgba(255,255,255,.16); border: 0;
+       border-radius: 999px; height: 40px; padding: 0 16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+#status { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; font-size: 12px; opacity: 0; transition: opacity .24s; }
+#status.on { opacity: .7; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="status"></div>
+<div id="bar"><button id="sound" class="hidden"></button><button id="full" class="hidden"></button></div>
+<script>
+"use strict";
+// Строки на трёх языках: русский (основной), узбекский латиницей, английский.
+const STRINGS = {
+  ru: { wait: "Ожидание показа", lost: "Нет связи, переподключение…", sound: "Включить звук", mute: "Выключить звук",
+        full: "Во весь экран", videoHere: "Это видео идёт на основном экране", badKey: "Ссылка устарела. Отсканируйте QR-код заново." },
+  uz: { wait: "Namoyish kutilmoqda", lost: "Aloqa yo‘q, qayta ulanmoqda…", sound: "Ovozni yoqish", mute: "Ovozni o‘chirish",
+        full: "To‘liq ekran", videoHere: "Bu video asosiy ekranda ko‘rsatilmoqda", badKey: "Havola eskirgan. QR-kodni qayta skanerlang." },
+  en: { wait: "Waiting for the show", lost: "Connection lost, reconnecting…", sound: "Turn sound on", mute: "Turn sound off",
+        full: "Full screen", videoHere: "This video is playing on the main screen", badKey: "This link has expired. Scan the QR code again." },
+};
+const lang = (navigator.language || "ru").toLowerCase();
+const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("ru") ? "ru" : (lang.startsWith("en") ? "en" : "ru")];
+document.documentElement.lang = lang.slice(0, 2);
+
+const key = new URLSearchParams(location.search).get("k") || "";
+const stage = document.getElementById("stage");
+const status = document.getElementById("status");
+const soundBtn = document.getElementById("sound");
+const fullBtn = document.getElementById("full");
+let lastKey = null, video = null, muted = true, current = null;
+
+// Сцена 16:9 по центру экрана, как в зале. Текст занимает весь экран: так его удобно читать и с вертикального телефона.
+function isText() { return current && current.content && current.content.type === "text" && current.mode !== "BLACK" && current.mode !== "LOGO"; }
+function layout() {
+  const w = innerWidth, h = innerHeight;
+  const full = isText();
+  const sw = full ? w : Math.min(w, h * 16 / 9), sh = full ? h : sw * 9 / 16;
+  Object.assign(stage.style, { width: sw + "px", height: sh + "px", left: (w - sw) / 2 + "px", top: (h - sh) / 2 + "px" });
+  if (current) fitText();
+}
+addEventListener("resize", layout);
+layout();
+
+const url = (path) => path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key);
+const argb = (n) => { const v = Number(n) >>> 0; return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${((v >>> 24) & 255) / 255})`; };
+
+function mark(sub) {
+  const d = document.createElement("div");
+  d.className = "mark";
+  const b = document.createElement("b");
+  b.textContent = "ΔΕΙΞΙΣ";
+  b.style.fontSize = stage.clientHeight * 0.13 + "px";
+  d.append(b);
+  if (sub) { const s = document.createElement("span"); s.textContent = sub; d.append(s); }
+  return d;
+}
+
+function note(text) {
+  const d = document.createElement("div");
+  d.className = "note";
+  d.textContent = text;
+  return d;
+}
+
+// Размер текста — доля высоты экрана, как на приёмнике; если не помещается, уменьшается.
+function fitText() {
+  const el = stage.querySelector(".text");
+  if (!el || !current || !current.content || current.content.type !== "text") return;
+  // Доля высоты, как в зале, но от меньшей стороны экрана: на вертикальном телефоне текст не мельчит.
+  let size = Math.min(stage.clientWidth, stage.clientHeight) * (current.content.style?.sizePercent ?? 8) / 100;
+  const min = size * 0.3;
+  el.style.fontSize = size + "px";
+  while ((el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) && size > min) {
+    size *= 0.94;
+    el.style.fontSize = size + "px";
+  }
+}
+
+function render(s) {
+  current = s;
+  const c = s.content;
+  const k = JSON.stringify([c, s.mode]);
+  if (k !== lastKey) {
+    lastKey = k;
+    layout();
+    video = null;
+    stage.replaceChildren();
+    stage.style.background = "#000";
+    if (s.mode === "BLACK") {
+      // чёрный экран
+    } else if (s.mode === "LOGO") {
+      stage.append(mark());
+    } else if (!c) {
+      stage.append(mark(t.wait));
+    } else if (c.type === "text") {
+      const st = c.style || {};
+      stage.style.background = argb(st.background ?? 0xFF000000);
+      if (s.mode !== "CLEAR") {
+        const d = document.createElement("div");
+        d.className = "text" + (st.shadow !== false ? " shadow" : "");
+        d.style.color = argb(st.color ?? 0xFFFFFFFF);
+        if (st.outline) d.style.webkitTextStroke = ".04em rgba(0,0,0,.9)";
+        d.textContent = c.text;
+        if (c.ref) { const r = document.createElement("div"); r.className = "ref"; r.textContent = c.ref; d.append(r); }
+        stage.append(d);
+        fitText();
+      }
+    } else if (s.mode === "CLEAR") {
+      // для картинок и видео «Очистить» — чёрный экран
+    } else if (c.type === "image") {
+      const img = new Image();
+      img.src = url("/view/file/" + c.file.sha256);
+      img.alt = "";
+      stage.append(img);
+    } else if (c.type === "pdf") {
+      const img = new Image();
+      const w = Math.min(2400, Math.round(stage.clientWidth * (devicePixelRatio || 1)));
+      img.src = url(`/view/page/${c.file.sha256}/${c.page}?w=${w}`);
+      img.alt = "";
+      stage.append(img);
+    } else if (c.type === "video") {
+      showVideo(c);
+    }
+    updateButtons();
+  }
+  syncVideo(s.video);
+}
+
+function showVideo(c) {
+  const v = document.createElement("video");
+  v.playsInline = true;
+  v.setAttribute("playsinline", "");
+  v.muted = muted;
+  v.loop = !!c.loop;
+  v.preload = "auto";
+  // Формат проверяет сам браузер: если не сможет играть, сработает error и появится пояснение.
+  v.src = url("/view/file/" + c.file.sha256);
+  v.addEventListener("error", () => { if (video === v) { video = null; stage.replaceChildren(note(t.videoHere)); updateButtons(); } });
+  stage.append(v);
+  video = v;
+}
+
+// Видео у зрителя идёт вместе с залом: пауза, пуск и перемотка повторяются, расхождение больше 2 секунд выравнивается.
+function syncVideo(vs) {
+  if (!video || !vs) return;
+  if (vs.playing && video.paused) video.play().catch(() => {});
+  if (!vs.playing && !video.paused) video.pause();
+  const target = vs.positionMs / 1000;
+  if (video.readyState > 0 && Math.abs(video.currentTime - target) > 2) {
+    try { video.currentTime = target; } catch (e) {}
+  }
+}
+
+function updateButtons() {
+  soundBtn.classList.toggle("hidden", !video);
+  soundBtn.textContent = muted ? t.sound : t.mute;
+  const canFull = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  fullBtn.classList.toggle("hidden", !canFull || !!(document.fullscreenElement || document.webkitFullscreenElement));
+  fullBtn.textContent = t.full;
+}
+
+soundBtn.addEventListener("click", () => {
+  muted = !muted;
+  if (video) { video.muted = muted; if (!muted) video.play().catch(() => {}); }
+  updateButtons();
+});
+fullBtn.addEventListener("click", () => {
+  const el = document.documentElement;
+  (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+});
+document.addEventListener("fullscreenchange", updateButtons);
+
+// Экран телефона не гаснет во время показа (Safari 16.4+, Chrome).
+let wakeLock = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+document.addEventListener("visibilitychange", keepAwake);
+document.addEventListener("click", keepAwake, { once: true });
+keepAwake();
+
+// Связь с приёмником: при обрыве остаётся последний кадр, переподключение само.
+let pause = 1000;
+function connect() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url("/view/ws"));
+  ws.onopen = () => { pause = 1000; status.classList.remove("on"); };
+  ws.onmessage = (e) => { try { render(JSON.parse(e.data)); } catch (err) {} };
+  ws.onclose = (e) => {
+    if (e.code === 4001) { lastKey = null; current = null; video = null; stage.replaceChildren(note(t.badKey)); updateButtons(); return; }
+    status.textContent = t.lost;
+    status.classList.add("on");
+    setTimeout(connect, pause);
+    pause = Math.min(pause * 2, 5000);
+  };
+}
+// Кнопки не закрывают показ: прячутся через 3 секунды, касание возвращает их.
+const bar = document.getElementById("bar");
+let barTimer = 0;
+function showBar() { bar.classList.remove("away"); clearTimeout(barTimer); barTimer = setTimeout(() => bar.classList.add("away"), 3000); }
+document.addEventListener("pointerdown", showBar);
+showBar();
+updateButtons();
+connect();
+</script>
+</body>
+</html>

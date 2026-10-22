@@ -55,6 +55,11 @@ import androidx.compose.ui.window.Dialog
 import app.deixis.core.Connection
 import app.deixis.core.Mode
 import app.deixis.core.VideoAction
+import app.deixis.core.qrMatrix
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import app.deixis.receiver.Didot
 
 /** Токены из DESIGN.md. */
@@ -90,6 +95,7 @@ private fun Main(c: Controller) {
     val item by c.item.collectAsState()
     val progress by c.progress.collectAsState()
     val needPin by c.needPin.collectAsState()
+    val viewUrl by c.viewUrl.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::showUri) }
@@ -113,6 +119,12 @@ private fun Main(c: Controller) {
             }
             if (targets.isEmpty()) Hint("Ищем экраны Deixis в этой сети Wi-Fi. Можно ввести адрес с экрана приёмника или подключить кабель HDMI.")
 
+            viewUrl?.let {
+                Row(Modifier.padding(start = 16.dp, top = 12.dp)) {
+                    Chip("Зрители · ${state?.viewers ?: 0}", selected = false, live = false) { dialog = "viewers" }
+                }
+            }
+
             SectionTitle("Сейчас")
             NowCard(item, state?.mode, state?.video?.let { "${it.positionMs / 1000} / ${it.durationMs / 1000} с" + if (it.playing) "" else " · пауза" })
             progress?.let { Hint(it) }
@@ -134,6 +146,43 @@ private fun Main(c: Controller) {
     when (dialog) {
         "address" -> InputDialog("Адрес приёмника", "192.168.1.20", KeyboardType.Uri, singleLine = true, onDismiss = { dialog = null }) { dialog = null; c.addManual(it) }
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
+        "viewers" -> viewUrl?.let { ViewersDialog(it, state?.viewers ?: 0) { dialog = null } }
+    }
+}
+
+/** QR-код для зрителей: iPhone или любой телефон открывает показ в браузере без установки приложения. */
+@Composable
+private fun ViewersDialog(url: String, viewers: Int, onDismiss: () -> Unit) {
+    val p = P.current
+    val matrix = remember(url) { qrMatrix(url) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.clip(RoundedCornerShape(14.dp)).background(p.bg).padding(16.dp).width(320.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BasicText("Зрители", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = p.ink))
+            Spacer(Modifier.height(12.dp))
+            Canvas(Modifier.size(240.dp).clip(RoundedCornerShape(12.dp)).background(Color.White)) {
+                val pad = size.width / 12f
+                val cell = (size.width - 2 * pad) / matrix.size
+                for (r in matrix.indices) for (col in matrix[r].indices) if (matrix[r][col]) {
+                    drawRect(Color.Black, Offset(pad + col * cell, pad + r * cell), Size(cell + 0.5f, cell + 0.5f))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            BasicText(
+                "Отсканируйте камерой телефона. Показ откроется в браузере, приложение не нужно. Телефон зрителя должен быть в этой же сети Wi-Fi.",
+                style = TextStyle(fontSize = 14.sp, color = p.l2, textAlign = TextAlign.Center),
+            )
+            Spacer(Modifier.height(8.dp))
+            BasicText(url, style = TextStyle(fontSize = 12.sp, color = p.l2, textAlign = TextAlign.Center))
+            Spacer(Modifier.height(8.dp))
+            BasicText("Смотрят сейчас: $viewers", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.fill).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                BasicText("Готово", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
+            }
+        }
     }
 }
 

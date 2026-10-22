@@ -38,3 +38,13 @@ class PairingTest {
         assertTrue(Pairing(FileTokenStore(file)).isValid(token))
     }
 }
+
+class ViewKeyTest {
+    @Test
+    fun viewKeySurvivesRestart() {
+        val file = createTempDirectory("vk").resolve("view-key").toFile()
+        val first = loadViewKey(file)
+        assertEquals(first, loadViewKey(file))
+        assertTrue(first.length >= 8)
+    }
+}
