@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deixis — прототип</title>
+<style>
+/* Токены из DESIGN.md */
+:root{
+  --bg:#F3F2EE; --cell:#FFFFFF; --ink:#161514; --l2:#87847E; --l3:#C6C3BC;
+  --tint:#9C7242; --tint-text:#765A38; --red:#A75750; --live:#A75750; --gold:#A87A00;
+  --sep:rgba(60,55,45,.15); --fill:rgba(120,115,105,.12); --fill2:rgba(120,115,105,.2);
+  --t-fast:140ms; --t-mid:240ms; --t-slow:340ms;
+  --e-out:cubic-bezier(.2,.8,.2,1); --e-in:cubic-bezier(.4,0,1,1); --e-spring:cubic-bezier(.3,1.35,.55,1);
+  --r-card:12px; --r-btn:14px;
+  color-scheme:light;
+}
+[data-theme="dark"]{
+  --bg:#000000; --cell:#1C1C1E; --ink:#FFFFFF; --l2:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --live:#B96E65; --gold:#FFD43B;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark;
+}
+[data-theme="paper"]{ --bg:#F4EFE6; --cell:#FBF8F2; --ink:#2B2620; }
+[data-theme="oled"]{
+  --bg:#000; --cell:#0E0E10; --ink:#FFFFFF; --l2:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --live:#B96E65; --gold:#FFD43B;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:17px/1.35 -apple-system,"SF Pro Text","Inter",system-ui,"Segoe UI",Roboto,sans-serif;
+  letter-spacing:-.01em; overflow:hidden;
+  transition:background var(--t-mid) var(--e-out), color var(--t-mid) var(--e-out);
+}
+button{font:inherit;color:inherit;letter-spacing:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,textarea{font:inherit;color:var(--ink);letter-spacing:inherit}
+svg{display:block}
+.ico{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* Каркас */
+.app{display:grid;grid-template-rows:1fr auto;height:100dvh}
+main{min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.tabs{display:flex;background:var(--cell);border-top:.5px solid var(--sep);padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 0 6px;font-size:11px;color:var(--l2);min-height:50px}
+.tab[aria-current="page"]{color:var(--tint)}
+.top{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;min-height:56px}
+.top h1{font-size:28px;line-height:1.1;margin:0;font-weight:700;flex:1;letter-spacing:-.02em}
+.scroll{overflow:auto;min-height:0;flex:1;-webkit-overflow-scrolling:touch}
+.pad{padding:0 16px 24px}
+
+.iconbtn{width:44px;height:44px;border-radius:999px;display:grid;place-items:center;color:var(--ink);transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.iconbtn:active{transform:scale(.92);background:var(--fill)}
+.pill{height:36px;padding:0 14px;border-radius:999px;background:var(--fill);font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:transform var(--t-fast) var(--e-spring)}
+.pill:active{transform:scale(.95)}
+.pill.tint{background:var(--tint);color:#fff}
+.btn{height:50px;border-radius:var(--r-btn);background:var(--fill);font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.btn:active{transform:scale(.97)}
+.btn.tint{background:var(--tint);color:#fff}
+.btn.red{color:var(--red)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+
+.group{background:var(--cell);border-radius:var(--r-card);overflow:hidden;margin:0 0 20px}
+.ghead{font-size:13px;color:var(--l2);text-transform:uppercase;letter-spacing:.02em;margin:0 0 6px 16px}
+.row{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:44px;width:100%;text-align:left;position:relative}
+.row+.row::before,.row+.slides+.row::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:.5px solid var(--sep)}
+.row .main{flex:1;min-width:0}
+.row .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:14px;color:var(--l2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .kind{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--fill);color:var(--tint-text);flex:none}
+.row .kind .ico{width:17px;height:17px}
+.row.open{background:var(--fill)}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;flex:none}
+.tag.live{background:var(--live);color:#fff}
+.tag.pre{background:var(--fill2);color:var(--tint-text)}
+.chev{color:var(--l3)}
+
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px;overflow-x:auto;scrollbar-width:none}
+.seg button{flex:1;min-height:32px;border-radius:7px;font-size:14px;font-weight:500;padding:0 10px;white-space:nowrap;transition:background var(--t-fast)}
+.seg button[aria-pressed="true"]{background:var(--cell);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 10px;height:40px;margin:0 0 10px}
+.search input{flex:1;border:0;background:none;outline:none;min-width:0;font-size:17px}
+.search .ico{color:var(--l2);width:18px;height:18px}
+
+.switch{width:51px;height:31px;border-radius:999px;background:var(--fill2);position:relative;flex:none;transition:background var(--t-mid) var(--e-out)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:999px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform var(--t-mid) var(--e-spring)}
+.switch[aria-checked="true"]{background:var(--tint)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+.stepper{display:flex;background:var(--fill);border-radius:9px;flex:none}
+.stepper button{width:44px;height:32px;font-size:20px}
+.stepper span{min-width:32px;display:grid;place-items:center;font-variant-numeric:tabular-nums;font-size:15px}
+.swatches{display:flex;gap:8px;flex:none}
+.sw{width:30px;height:30px;border-radius:999px;border:.5px solid var(--sep)}
+.sw[aria-pressed="true"]{outline:2px solid var(--tint);outline-offset:2px}
+
+/* Слайд: пропорции вывода, размер текста — доля высоты */
+.slide{position:relative;aspect-ratio:16/9;width:100%;border-radius:8px;overflow:hidden;background:#000;color:#fff;container-type:inline-size;display:grid;place-items:center;user-select:none}
+.slide .txt{padding:5cqw;text-align:center;white-space:pre-line;font-weight:600;line-height:1.2;font-size:calc(var(--fs,8) * .5625cqw);transition:opacity var(--t-mid) var(--e-out)}
+.slide.shadow .txt{text-shadow:0 .3cqw 1.2cqw rgba(0,0,0,.8)}
+.slide.outline .txt{-webkit-text-stroke:.15cqw rgba(0,0,0,.9)}
+.slide .ref{position:absolute;right:5cqw;bottom:4cqw;font-size:2.6cqw;opacity:.75;font-weight:500}
+.slide.bg-navy{background:linear-gradient(160deg,#18233a,#0b1120)}
+.slide.bg-warm{background:linear-gradient(160deg,#4a3420,#1c130b)}
+.slide.bg-clouds{background:linear-gradient(120deg,#5d7896,#a3b5c7,#6c86a4,#3f566f);background-size:300% 300%;animation:drift 18s ease-in-out infinite alternate}
+@keyframes drift{from{background-position:0% 50%}to{background-position:100% 50%}}
+.slide .page{width:56%;aspect-ratio:1/1.414;background:#fff;border-radius:.6cqw;padding:3cqw;display:flex;flex-direction:column;gap:1.4cqw;color:#222}
+.slide .page b{font-size:3cqw}
+.slide .page i{display:block;height:.9cqw;background:#ddd;border-radius:1cqw}
+.slide .logo{font-size:7cqw;font-weight:700;letter-spacing:.04em;color:#BC9361}
+.slide .num{position:absolute;left:6px;top:4px;font-size:11px;color:rgba(255,255,255,.75);font-weight:600}
+
+.mons{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 12px}
+.mon{display:flex;flex-direction:column;gap:6px}
+.mon .lbl{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--l2);font-weight:600;min-height:20px}
+.mon .lbl .dot{width:8px;height:8px;border-radius:99px;background:var(--live)}
+.mon .slide{touch-action:none;cursor:pointer;transition:transform var(--t-fast) var(--e-spring)}
+.mon .slide:active{transform:scale(.98)}
+.mon.now .slide{outline:2px solid var(--live);outline-offset:2px}
+.mon.pre .slide{outline:2px dashed var(--l3);outline-offset:2px}
+.mon .hint{font-size:12px;color:var(--l2);min-height:16px}
+.mon .go{margin-left:auto;height:26px;padding:0 10px;font-size:13px;border-radius:999px;background:var(--tint);color:#fff;font-weight:600}
+.mon .go[disabled]{opacity:.35;pointer-events:none}
+.changed{color:var(--tint-text)}
+
+.slides{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:4px 16px 14px}
+.slides .slide{cursor:pointer;transition:transform var(--t-fast) var(--e-spring)}
+.slides .slide:active{transform:scale(.97)}
+.slides .slide.is-live{outline:2px solid var(--live);outline-offset:2px}
+.slides .slide.is-pre{outline:2px dashed var(--tint);outline-offset:2px}
+
+.devs{display:flex;align-items:center;gap:2px;margin-left:auto}
+.dev{position:relative;width:36px;height:36px;display:grid;place-items:center;border-radius:999px;color:var(--ink)}
+.dev.offline{color:var(--l3)}
+.dev.sync::before{content:"";position:absolute;inset:3px;border-radius:999px;border:2px solid var(--tint);border-right-color:transparent;animation:spin 1.2s linear infinite}
+.dev.error::after{content:"";position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:99px;background:var(--red);border:2px solid var(--bg)}
+.dev .n{position:absolute;bottom:2px;right:0;font-size:10px;font-weight:700;background:var(--ink);color:var(--bg);border-radius:99px;padding:0 4px;line-height:14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.setpick{display:flex;align-items:center;gap:4px;font-weight:700;font-size:17px;min-height:44px;min-width:0}
+.setpick span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.bar{display:flex;gap:6px;padding:8px 12px;background:var(--cell);border-top:.5px solid var(--sep)}
+.bar button{flex:1;min-height:50px;border-radius:var(--r-btn);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:600;background:var(--fill);transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.bar button:active{transform:scale(.94)}
+.bar button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.bar .ico{width:20px;height:20px}
+
+.show{display:flex;flex-direction:column;min-height:0;flex:1}
+.show .cols{flex:1;min-height:0;display:flex;flex-direction:column}
+.show .cols>.right{flex:1;min-height:0;display:flex;flex-direction:column}
+.cn-text{display:none}
+.connect{width:44px;height:44px;padding:0;justify-content:center}
+.colslides{display:none}
+
+/* Шторки */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;transition:opacity var(--t-mid) var(--e-out);z-index:20}
+.backdrop.on{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:88dvh;background:var(--bg);border-radius:14px 14px 0 0;z-index:21;display:flex;flex-direction:column;transform:translateY(100%);transition:transform var(--t-slow) var(--e-out);padding-bottom:env(safe-area-inset-bottom)}
+.sheet.on{transform:none}
+.sheet.closing{transition:transform var(--t-mid) var(--e-in)}
+.sheet .grab{padding:8px 0 4px;touch-action:none;cursor:grab}
+.sheet .grab i{display:block;width:36px;height:5px;border-radius:99px;background:var(--l3);margin:0 auto}
+.sheet .sh{display:flex;align-items:center;padding:4px 16px 12px;gap:8px}
+.sheet .sh h2{flex:1;margin:0;font-size:20px;font-weight:700}
+.sheet .sb{overflow:auto;padding:0 16px 20px}
+textarea.big{width:100%;min-height:150px;border:0;border-radius:var(--r-card);background:var(--cell);padding:12px 14px;resize:vertical;outline:none}
+.field{width:100%;height:50px;border:0;border-radius:var(--r-card);background:var(--cell);padding:0 14px;outline:none;font-size:17px}
+.code{font-size:28px;letter-spacing:.2em;text-align:center;font-variant-numeric:tabular-nums}
+.stack{display:flex;flex-direction:column;gap:10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{font-size:14px;color:var(--l2);margin:6px 4px 16px}
+
+/* Предпросмотр во весь экран и зритель */
+.full{position:fixed;inset:0;background:#000;z-index:30;display:flex;flex-direction:column;opacity:0;transform:translateY(24px) scale(.98);transition:opacity var(--t-slow) var(--e-out),transform var(--t-slow) var(--e-out);color:#fff}
+.full.on{opacity:1;transform:none}
+.full .ft{display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top))}
+.full .ft .ttl{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.full .stage{flex:1;display:grid;place-items:center;padding:8px 12px;min-height:0;touch-action:none}
+.full .stage .slide{max-width:calc((100dvh - 190px) * 16 / 9);border-radius:4px}
+.full .fb{display:flex;gap:8px;padding:10px 12px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.full .fb .btn{background:rgba(255,255,255,.14);color:#fff}
+.full .fb .btn.tint{background:#BC9361}
+.full .cnt{font-size:14px;opacity:.7;font-variant-numeric:tabular-nums}
+.full .iconbtn{color:#fff}
+.full .iconbtn:active{background:rgba(255,255,255,.15)}
+.full .tag.live{background:#B96E65}
+.viewer .stage{padding:0}
+.viewer .stage .slide{max-width:none;max-height:100dvh;border-radius:0}
+.viewer .ft{position:absolute;left:0;right:0;top:0;background:linear-gradient(#000c,#0000);opacity:0;transition:opacity var(--t-mid) var(--e-out);pointer-events:none}
+.viewer.ui .ft{opacity:1;pointer-events:auto}
+.viewer .lost{position:absolute;right:12px;bottom:12px;font-size:12px;opacity:.7}
+
+.toasts{position:fixed;top:max(10px,env(safe-area-inset-top));left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:6px;z-index:40;pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:15px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,.18);animation:tin var(--t-mid) var(--e-out);max-width:calc(100% - 32px)}
+@keyframes tin{from{opacity:0;transform:translateY(-12px)}}
+
+.hero{display:grid;gap:10px;margin:4px 0 20px}
+.hero .btn{height:64px;font-size:18px}
+.qr{width:148px;height:148px;background:#fff;border-radius:10px;padding:8px;flex:none}
+.room{display:flex;gap:16px;align-items:center;padding:16px}
+.room .big{font-size:30px;font-weight:700;letter-spacing:.08em;font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-property:opacity!important}
+  .sheet{transform:none;opacity:0}.sheet.on{opacity:1}
+  .full{transform:none}
+}
+
+/* Телефон горизонтально и половина экрана: две колонки */
+@media (min-width:700px){
+  .cn-text{display:inline}
+  .connect{width:auto;height:36px;padding:0 14px}
+  .show .cols>.left{overflow:auto;min-height:0}
+  .show .cols{flex-direction:row}
+  .show .cols>.left{width:42%;max-width:440px;display:flex;flex-direction:column;border-right:.5px solid var(--sep)}
+  .show .cols>.left .mons{grid-template-columns:1fr;padding-top:4px}
+  .show .cols>.right{flex:1;min-width:0;display:flex;flex-direction:column}
+}
+@media (min-width:700px) and (max-height:500px){
+  .show .cols>.left .mons{grid-template-columns:1fr 1fr}
+}
+/* Планшет и окно от 1024: полоса слева 92 px, три колонки */
+@media (min-width:1024px){
+  .app{grid-template-columns:92px 1fr;grid-template-rows:1fr}
+  .tabs{order:-1;flex-direction:column;border-top:0;border-right:.5px solid var(--sep);padding:12px 0;justify-content:flex-start;gap:6px}
+  .tab{flex:none;min-height:64px}
+  .show .cols>.left{order:3;border-right:0;border-left:.5px solid var(--sep);width:380px}
+  .show .cols>.right{order:1;flex:none;width:360px;border-right:.5px solid var(--sep)}
+  .colslides{display:block;order:2;flex:1;overflow:auto}
+  .colslides .slides{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));padding-top:12px}
+  .wide-hide{display:none!important}
+  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:min(720px,calc(100% - 48px));border-radius:14px;transform:translate(-50%,-46%);opacity:0;transition:transform var(--t-slow) var(--e-out),opacity var(--t-slow) var(--e-out)}
+  .sheet.on{transform:translate(-50%,-50%);opacity:1}
+  .sheet .grab{display:none}
+  .pad,.top{padding-left:24px;padding-right:24px}
+  .lib-wide{max-width:900px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <main id="main"></main>
+  <nav class="tabs" id="tabs" aria-label="Разделы"></nav>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+/* Прототип. В приложении все строки пойдут через систему переводов (DESIGN.md → «Язык интерфейса»). */
+
+const I = {
+  show:'<path d="M3 5h18v11H3z"/><path d="M8 20h8M12 16v4"/>',
+  lib:'<path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 4.5l3.5 1-4 15-3.5-1z"/>',
+  list:'<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+  devs:'<rect x="2" y="4" width="14" height="10" rx="1.5"/><rect x="17" y="8" width="5" height="12" rx="1"/><path d="M6 18h6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  chev:'<path d="M9 6l6 6-6 6"/>', down:'<path d="M6 9l6 6 6-6"/>', close:'<path d="M6 6l12 12M18 6L6 18"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>', more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  black:'<rect x="4" y="5" width="16" height="14" rx="2" fill="currentColor"/>',
+  logo:'<circle cx="12" cy="12" r="8"/><path d="M12 7v10M8 11h8"/>',
+  clear:'<path d="M4 20h16"/><path d="M14 4l6 6-8 8H6v-6z"/>',
+  text:'<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+  brush:'<path d="M14 4l6 6-9 9H5v-6z"/><path d="M12 6l6 6"/>',
+  song:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  bible:'<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M12 8v6M9.5 10.5h5"/>',
+  file:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',
+  media:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/>',
+  proj:'<rect x="2" y="8" width="20" height="9" rx="2"/><circle cx="16" cy="12.5" r="2.5"/><path d="M6 12.5h4"/>',
+  tv:'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8"/>',
+  cast:'<path d="M3 17a4 4 0 0 1 4 4M3 13a8 8 0 0 1 8 8M3 9a12 12 0 0 1 12 12"/><path d="M3 6V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/>',
+  people:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  wifi:'<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r=".8"/>',
+  up:'<path d="M12 19V5M6 11l6-6 6 6"/>',
+};
+const ico = (n, cls='') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* Данные. Песни написаны для прототипа, библейские тексты — Синодальный перевод. */
+const TYPES = {song:['Песня','song'], text:['Текст','text'], bible:['Библия','bible'], file:['Файл','file'], media:['Медиа','media']};
+const LIB = [
+  {id:'s1',type:'song',title:'Утренняя песнь',slides:[
+    {text:'Новый день встаёт над нами,\nСвет ложится на порог'},
+    {text:'Мы приходим с благодарностью:\nС нами Бог, и с нами Бог'},
+    {text:'Свят Господь, свят и верен,\nСлава Твоя в небесах'},
+    {text:'Вся земля поёт с нами:\nСлава Твоя навсегда'}]},
+  {id:'s2',type:'song',title:'Тихий свет',slides:[
+    {text:'В тишине Ты рядом,\nСлово Твоё — свет'},
+    {text:'Сердце находит покой\nТам, где страха нет'},
+    {text:'Тихий свет, веди меня\nДо конца пути'}]},
+  {id:'s3',type:'song',title:'Дорога домой',slides:[
+    {text:'Долгой дорогой иду домой,\nТы впереди — я не один'},
+    {text:'Каждый мой шаг в Твоей руке,\nВсё начинается вновь'}]},
+  {id:'b1',type:'bible',title:'Ин 14:8–9',slides:[
+    {text:'Филипп сказал Ему: Господи!\nпокажи нам Отца,\nи довольно для нас.',ref:'Ин 14:8'},
+    {text:'Иисус сказал ему:\nВидевший Меня\nвидел Отца',ref:'Ин 14:9'}]},
+  {id:'b2',type:'bible',title:'Пс 22:1–3',slides:[
+    {text:'Господь — Пастырь мой;\nя ни в чём не буду нуждаться',ref:'Пс 22:1'},
+    {text:'Он покоит меня на злачных пажитях\nи водит меня к водам тихим',ref:'Пс 22:2'},
+    {text:'подкрепляет душу мою,\nнаправляет меня на стези правды\nради имени Своего',ref:'Пс 22:3'}]},
+  {id:'t1',type:'text',title:'Объявления',slides:[
+    {text:'Молодёжное собрание\nв пятницу в 19:00'},
+    {text:'Чай после служения\nв малом зале'}]},
+  {id:'f1',type:'file',title:'Проповедь.pdf',slides:[{page:'Покажи нам Отца'},{page:'1. Желание видеть'},{page:'2. Видевший Меня'}]},
+  {id:'m1',type:'media',title:'Фон: облака',slides:[{media:'clouds'}]},
+];
+const lib = id => LIB.find(x => x.id === id);
+
+const S = {
+  tab:'show',
+  setlists:[
+    {id:'a',title:'Воскресенье',date:'25 октября',items:['s1','b2','s2','t1','f1','s3'],past:false},
+    {id:'b',title:'Молодёжное',date:'30 октября',items:['s3','b1','s2'],past:false},
+    {id:'c',title:'Воскресенье',date:'18 октября',items:['s2','s1','t1'],past:true},
+  ],
+  active:'a', open:'s1',
+  live:{itemId:'s1',idx:0}, mode:'normal',
+  pre:null,                       // {itemId, idx} или {title, slides, idx}
+  style:{bg:'black',fs:8,color:'#FFFFFF',shadow:true,outline:false},
+  draft:null,                     // правка оформления, видна только в предпросмотре
+  session:null,                   // {role:'host'|'operator', code, pass, viewers:[]}
+  devices:[
+    {id:'hdmi',icon:'proj',name:'Проектор',via:'Кабель HDMI',state:'online'},
+    {id:'tv1',icon:'tv',name:'ТВ в холле',via:'Приёмник Deixis',state:'sync'},
+    {id:'tv2',icon:'tv',name:'ТВ на сцене',via:'Приёмник Deixis',state:'offline'},
+  ],
+  settings:{theme:'light',alwaysPre:false,darkLive:true,clicker:true,volume:false,lang:'ru'},
+  libSeg:'all', libQ:'',
+};
+const activeSet = () => S.setlists.find(s => s.id === S.active);
+const style = () => S.draft || S.style;
+
+/* Рендер слайда */
+function slideHTML(sl, st, {num, cls='', mode='normal'} = {}){
+  const bg = sl && sl.media ? 'clouds' : st.bg;
+  const c = ['slide', 'bg-'+bg, st.shadow?'shadow':'', st.outline?'outline':'', cls].join(' ');
+  let inner = '';
+  if (mode === 'black') return `<div class="${['slide',cls].join(' ')}" style="background:#000">${num?`<span class="num">${num}</span>`:''}</div>`;
+  if (mode === 'logo') inner = '<div class="logo">DEIXIS</div>';
+  else if (mode === 'clear' || !sl) inner = '';
+  else if (sl.page) inner = `<div class="page"><b>${esc(sl.page)}</b><i></i><i style="width:80%"></i><i></i><i style="width:60%"></i><i></i><i style="width:70%"></i></div>`;
+  else if (sl.text) inner = `<div class="txt" style="color:${st.color}">${esc(sl.text)}</div>${sl.ref?`<div class="ref" style="color:${st.color}">${esc(sl.ref)}</div>`:''}`;
+  const bgStyle = sl && sl.page ? 'background:#2a2a2c' : '';
+  return `<div class="${c}" style="--fs:${st.fs};${bgStyle}">${inner}${num?`<span class="num">${num}</span>`:''}</div>`;
+}
+const srcOf = ref => ref ? (ref.itemId ? {title:lib(ref.itemId).title, slides:lib(ref.itemId).slides, itemId:ref.itemId} : ref) : null;
+const liveSlide = () => { const s = srcOf(S.live); return s ? s.slides[S.live.idx] : null; };
+const preSlide = () => { const s = srcOf(S.pre); return s ? s.slides[S.pre.idx] : null; };
+
+/* Действия с выводом */
+function goLive(ref){ S.live = ref; S.mode = 'normal'; if (S.pre && sameRef(S.pre, ref)) S.pre = null; render(); }
+function sameRef(a,b){ return a && b && a.itemId && a.itemId === b.itemId && a.idx === b.idx; }
+function tapSlide(itemId, idx){
+  const ref = {itemId, idx};
+  if (S.live && S.live.itemId === itemId && !S.settings.alwaysPre) goLive(ref);
+  else { S.pre = ref; render(); }
+}
+function preToLive(){
+  if (S.draft){ S.style = S.draft; S.draft = null; }
+  if (S.pre){ goLive(S.pre); toast('В зале'); } else if (!S.pre) render();
+}
+function step(d){
+  const s = srcOf(S.live); if (!s) return;
+  const i = S.live.idx + d;
+  if (i < 0 || i >= s.slides.length) return;
+  goLive({...S.live, idx:i});
+}
+
+/* Тосты */
+function toast(t){ const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; $('#toasts').append(el); setTimeout(() => el.remove(), 1900); }
+const $ = q => document.querySelector(q);
+
+/* Жесты: касание и смахивания */
+function gest(el, h){
+  let x0 = null, y0, moved;
+  el.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; moved = false; });
+  el.addEventListener('pointerup', e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0, ax = Math.abs(dx), ay = Math.abs(dy); x0 = null;
+    if (ax < 10 && ay < 10) return h.tap && h.tap();
+    if (ax > ay && ax > 40) (dx < 0 ? h.left : h.right)?.();
+    else if (ay > 40) (dy < 0 ? h.up : h.down)?.();
+  });
+  el.addEventListener('pointercancel', () => x0 = null);
+}
+
+/* Вкладки */
+const TABS = [['show','Показ','show'],['library','Библиотека','lib'],['setlists','Сетлисты','list'],['devices','Устройства','devs']];
+function renderTabs(){
+  $('#tabs').innerHTML = TABS.map(([id,t,i]) => `<button class="tab" data-act="tab" data-id="${id}" ${S.tab===id?'aria-current="page"':''}>${ico(i)}<span>${t}</span></button>`).join('');
+}
+
+/* Главный экран */
+function devStrip(){
+  const d = S.devices.map(x => `<button class="dev ${x.state}" data-act="dev" aria-label="${esc(x.name)}: ${stateText(x.state)}">${ico(x.icon)}</button>`).join('');
+  const v = S.session ? `<button class="dev" data-act="dev" aria-label="Зрители: ${S.session.viewers.length}">${ico('people')}<span class="n">${S.session.viewers.length}</span></button>` : '';
+  return `<div class="devs">${d}${v}</div>`;
+}
+const stateText = s => ({online:'на связи',sync:'доставляются файлы',offline:'нет связи',error:'ошибка'}[s]);
+
+function monitorsHTML(){
+  const ls = S.live && liveSlide();
+  const ps = preSlide();
+  const liveName = S.mode==='black' ? 'Чёрный экран' : S.mode==='logo' ? 'Логотип' : S.mode==='clear' ? 'Очищено' : (S.live ? `${srcOf(S.live).title} · ${S.live.idx+1}/${srcOf(S.live).slides.length}` : 'Пусто');
+  const preName = ps ? `${srcOf(S.pre).title} · ${S.pre.idx+1}/${srcOf(S.pre).slides.length}` : (S.draft ? 'Новое оформление' : 'Выберите слайд');
+  return `<div class="mons">
+    <div class="mon now"><div class="lbl"><span class="dot"></span>Сейчас</div>
+      <div data-g="now">${slideHTML(ls, S.style, {mode:S.mode})}</div>
+      <div class="hint">${esc(liveName)}</div></div>
+    <div class="mon pre"><div class="lbl">Предпросмотр<button class="go" data-act="preLive" ${ps||S.draft?'':'disabled'}>В зал</button></div>
+      <div data-g="pre">${slideHTML(ps || (S.draft ? ls : null), style())}</div>
+      <div class="hint ${S.draft?'changed':''}">${esc(preName)}${S.draft&&ps?' · новое оформление':''}</div></div>
+  </div>`;
+}
+function slidesHTML(id){
+  const it = lib(id);
+  return `<div class="slides">${it.slides.map((sl,i) => {
+    const isLive = S.live && S.live.itemId===id && S.live.idx===i && S.mode!=='black';
+    const isPre = S.pre && S.pre.itemId===id && S.pre.idx===i;
+    return `<div data-act="slide" data-id="${id}" data-i="${i}" role="button" aria-label="Слайд ${i+1}">${slideHTML(sl, S.style, {num:i+1, cls:isLive?'is-live':isPre?'is-pre':''})}</div>`;
+  }).join('')}</div>`;
+}
+function setlistHTML(wide){
+  const set = activeSet();
+  const rows = set.items.map(id => {
+    const it = lib(id), open = S.open === id, isLive = S.live && S.live.itemId === id && S.mode !== 'black';
+    const first = it.slides[0].text ? it.slides[0].text.split('\n')[0] : TYPES[it.type][0];
+    return `<button class="row ${open?'open':''}" data-act="open" data-id="${id}">
+      <span class="kind">${ico(TYPES[it.type][1])}</span>
+      <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(first)}</div></span>
+      ${isLive?'<span class="tag live">В зале</span>':''}${S.pre&&S.pre.itemId===id?'<span class="tag pre">Предпросмотр</span>':''}
+      <span class="chev">${ico(open && !wide ? 'down' : 'chev')}</span></button>
+      ${open && !wide ? slidesHTML(id) : ''}`;
+  }).join('');
+  return `<div class="pad"><div class="group">${rows}</div>
+    <div class="two"><button class="btn" data-act="find">${ico('plus')}Добавить</button><button class="btn" data-act="setpick">${ico('list')}Все сетлисты</button></div></div>`;
+}
+const isWide = () => matchMedia('(min-width:1024px)').matches;
+function renderShow(){
+  const wide = isWide(), set = activeSet();
+  const bar = `<div class="bar">
+    <button data-act="mode" data-m="black" aria-pressed="${S.mode==='black'}">${ico('black')}Чёрный</button>
+    <button data-act="mode" data-m="logo" aria-pressed="${S.mode==='logo'}">${ico('logo')}Логотип</button>
+    <button data-act="mode" data-m="clear" aria-pressed="${S.mode==='clear'}">${ico('clear')}Очистить</button>
+    <button data-act="text">${ico('text')}Текст</button>
+    <button data-act="find">${ico('search')}Найти</button>
+    <button data-act="style">${ico('brush')}Вид</button></div>`;
+  return `<div class="show">
+    <header class="top">
+      <button class="setpick" data-act="setpick" aria-label="Выбрать сетлист"><span>${esc(set.title)}, ${esc(set.date)}</span>${ico('down')}</button>
+      ${devStrip()}
+      <button class="pill tint connect" data-act="connect" aria-label="${S.session?'В сети':'Подключить'}">${ico('wifi')}<span class="cn-text">${S.session?'В сети':'Подключить'}</span></button>
+      <button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button>
+    </header>
+    <div class="cols">
+      <div class="left">${monitorsHTML()}${wide?'<div style="flex:1"></div>'+bar:''}</div>
+      <div class="colslides scroll" data-key="slides">${wide && S.open ? `<div class="top" style="min-height:44px"><b>${esc(lib(S.open).title)}</b></div>${slidesHTML(S.open)}` : ''}</div>
+      <div class="right"><div class="scroll" data-key="setlist">${setlistHTML(wide)}</div></div>
+    </div>
+    ${wide?'':bar}
+  </div>`;
+}
+
+/* Библиотека */
+function renderLibrary(){
+  const segs = [['all','Все'],['song','Песни'],['text','Тексты'],['bible','Библия'],['file','Файлы'],['media','Медиа']];
+  const q = S.libQ.trim().toLowerCase();
+  const items = LIB.filter(x => (S.libSeg==='all' || x.type===S.libSeg) && (!q || (x.title + ' ' + x.slides.map(s=>s.text||'').join(' ')).toLowerCase().includes(q)));
+  const groups = {};
+  items.forEach(x => (groups[x.type] ||= []).push(x));
+  const body = Object.keys(groups).length ? Object.entries(groups).map(([t,xs]) => `<div class="ghead">${TYPES[t][0]}</div><div class="group">${xs.map(x => `
+    <button class="row" data-act="libopen" data-id="${x.id}"><span class="kind">${ico(TYPES[x.type][1])}</span>
+    <span class="main"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.slides[0].text ? x.slides[0].text.split('\n')[0] : x.slides.length + ' стр.')}</div></span><span class="chev">${ico('chev')}</span></button>`).join('')}</div>`).join('')
+    : '<p class="note">Ничего не найдено.</p>';
+  return `<header class="top"><h1>Библиотека</h1><button class="iconbtn" data-act="import" aria-label="Добавить">${ico('plus')}</button><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button></header>
+  <div class="scroll" data-key="lib"><div class="pad lib-wide">
+    <label class="search">${ico('search')}<input id="libq" type="search" placeholder="Поиск по названию и тексту" value="${esc(S.libQ)}" aria-label="Поиск"></label>
+    <div class="seg" style="margin-bottom:18px">${segs.map(([id,t]) => `<button data-act="libseg" data-id="${id}" aria-pressed="${S.libSeg===id}">${t}</button>`).join('')}</div>
+    ${body}</div></div>`;
+}
+
+/* Сетлисты */
+function renderSetlists(){
+  const row = s => `<div class="row"><button class="main" style="text-align:left" data-act="pickset" data-id="${s.id}">
+    <div class="t">${esc(s.title)}, ${esc(s.date)}</div><div class="s">${s.items.length} элем. · ${s.items.slice(0,3).map(i=>esc(lib(i).title)).join(', ')}</div></button>
+    ${s.id===S.active?'<span class="tag pre">На главном</span>':''}<button class="iconbtn" data-act="setmore" data-id="${s.id}" aria-label="Действия">${ico('more')}</button></div>`;
+  const up = S.setlists.filter(s=>!s.past), past = S.setlists.filter(s=>s.past);
+  return `<header class="top"><h1>Сетлисты</h1><button class="iconbtn" data-act="newset" aria-label="Новый сетлист">${ico('plus')}</button><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button></header>
+  <div class="scroll" data-key="sets"><div class="pad lib-wide">
+    <div class="ghead">Ближайшие</div><div class="group">${up.map(row).join('')}</div>
+    ${past.length?`<div class="ghead">Прошедшие</div><div class="group">${past.map(row).join('')}</div>`:''}
+    <p class="note">Прошлое служение удобно дублировать: оно становится основой следующего.</p>
+  </div></div>`;
+}
+
+/* Устройства */
+function qrSVG(seed){
+  let x = seed, n = 25, cells = '';
+  const rnd = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const finder = (r,c) => [[0,0],[0,n-7],[n-7,0]].some(([a,b]) => r>=a && r<a+7 && c>=b && c<b+7);
+  const fcell = (r,c) => { for (const [a,b] of [[0,0],[0,n-7],[n-7,0]]) if (r>=a&&r<a+7&&c>=b&&c<b+7){ const i=r-a,j=c-b; return i===0||i===6||j===0||j===6||(i>=2&&i<=4&&j>=2&&j<=4);} };
+  for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (finder(r,c) ? fcell(r,c) : rnd() > .52) cells += `<rect x="${c}" y="${r}" width="1" height="1"/>`;
+  return `<svg class="qr" viewBox="0 0 ${n} ${n}" role="img" aria-label="QR-код комнаты"><g fill="#161514">${cells}</g></svg>`;
+}
+function devRow(d){
+  return `<div class="row"><span class="kind">${ico(d.icon)}</span><span class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(d.via)} · ${stateText(d.state)}</div></span>
+    ${d.state==='offline'?`<button class="pill" data-act="retry" data-id="${d.id}">Повторить</button>`:''}</div>`;
+}
+function renderDevices(){
+  const head = `<header class="top"><h1>Устройства</h1><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button></header>`;
+  const outputs = `<div class="ghead">Выводы</div><div class="group">${S.devices.map(devRow).join('')}
+      <button class="row" data-act="check"><span class="kind">${ico('show')}</span><span class="main t">Проверка перед началом</span><span class="chev">${ico('chev')}</span></button></div>`;
+  if (!S.session) return `${head}<div class="scroll" data-key="dev"><div class="pad lib-wide">
+    <div class="hero"><button class="btn tint" data-act="start">${ico('wifi')}Начать показ</button>
+      <button class="btn" data-act="join">${ico('people')}Присоединиться</button></div>
+    <p class="note">«Начать показ» создаёт комнату в этой сети Wi-Fi. Зрители подключаются по коду или QR без пароля, операторы — с паролем.</p>
+    <div class="ghead">Рядом в сети</div><div class="group">
+      <button class="row" data-act="join" data-code="315 207"><span class="kind">${ico('show')}</span><span class="main"><div class="t">Зал 2 · Детское служение</div><div class="s">Код 315 207 · 4 зрителя</div></span><span class="chev">${ico('chev')}</span></button>
+    </div>${outputs}</div></div>`;
+  const s = S.session, host = s.role === 'host';
+  return `${head}<div class="scroll" data-key="dev"><div class="pad lib-wide">
+    <div class="ghead">${host?'Комната':'Подключено'}</div><div class="group"><div class="room">${qrSVG(4821)}
+      <div><div class="s" style="color:var(--l2);font-size:14px">Код комнаты</div><div class="big">${s.code}</div>
+      ${host?`<div class="s" style="color:var(--l2);font-size:14px;margin-top:6px">Пароль операторов</div><div style="font-weight:600;letter-spacing:.1em">${s.pass}</div>`:`<div class="s" style="color:var(--l2)">Роль: оператор</div>`}</div></div>
+      ${host?`<button class="row" data-act="qrhall"><span class="kind">${ico('proj')}</span><span class="main t">Показать QR в зале</span></button>`:''}</div>
+    ${outputs}
+    <div class="ghead">Операторы</div><div class="group"><div class="row"><span class="kind">${ico('people')}</span><span class="main"><div class="t">Этот телефон</div><div class="s">${host?'Ведущий':'Оператор'}</div></span></div></div>
+    <div class="ghead">Зрители · ${s.viewers.length}</div><div class="group">${s.viewers.length ? s.viewers.map((v,i) => `<div class="row"><span class="kind">${ico('people')}</span><span class="main t">${esc(v)}</span>${host?`<button class="pill" data-act="kick" data-i="${i}">Отключить</button>`:''}</div>`).join('') : '<div class="row"><span class="main s">Пока никого</span></div>'}</div>
+    <button class="btn red" data-act="${host?'end':'leave'}">${host?'Завершить показ':'Отключиться'}</button>
+  </div></div>`;
+}
+
+/* Общий рендер с сохранением прокрутки */
+function render(){
+  const keep = {}; document.querySelectorAll('[data-key]').forEach(el => keep[el.dataset.key] = el.scrollTop);
+  const dark = S.settings.darkLive && S.session;
+  document.documentElement.dataset.theme = dark && (S.settings.theme==='light'||S.settings.theme==='paper') ? 'dark' : S.settings.theme;
+  renderTabs();
+  $('#main').innerHTML = {show:renderShow, library:renderLibrary, setlists:renderSetlists, devices:renderDevices}[S.tab]();
+  document.querySelectorAll('[data-key]').forEach(el => { if (keep[el.dataset.key] != null) el.scrollTop = keep[el.dataset.key]; });
+  const now = $('[data-g="now"]'), pre = $('[data-g="pre"]');
+  if (now) gest(now, {tap:() => openFull('live'), left:() => step(1), right:() => step(-1)});
+  if (pre) gest(pre, {tap:() => S.pre && openFull('pre'), up:preToLive});
+  const q = $('#libq'); if (q) q.addEventListener('input', e => { S.libQ = e.target.value; const pos = e.target.selectionStart; render(); const n = $('#libq'); n.focus(); n.setSelectionRange(pos,pos); });
+  if (FULL) FULL.update();
+}
+
+/* Шторки */
+let SHEET = null;
+function openSheet(title, html, mount){
+  closeSheet(true);
+  const bd = document.createElement('div'); bd.className = 'backdrop';
+  const sh = document.createElement('div'); sh.className = 'sheet'; sh.setAttribute('role','dialog'); sh.setAttribute('aria-label', title);
+  sh.innerHTML = `<div class="grab"><i></i></div><div class="sh"><h2>${esc(title)}</h2><button class="iconbtn" data-act="closesheet" aria-label="Закрыть">${ico('close')}</button></div><div class="sb">${html}</div>`;
+  document.body.append(bd, sh);
+  bd.addEventListener('click', () => closeSheet());
+  gest(sh.querySelector('.grab'), {down:() => closeSheet()});
+  requestAnimationFrame(() => { bd.classList.add('on'); sh.classList.add('on'); });
+  SHEET = {bd, sh};
+  mount && mount(sh);
+}
+function closeSheet(now){
+  if (!SHEET) return; const {bd, sh} = SHEET; SHEET = null;
+  if (now) { bd.remove(); sh.remove(); return; }
+  sh.classList.add('closing'); sh.classList.remove('on'); bd.classList.remove('on');
+  setTimeout(() => { bd.remove(); sh.remove(); }, 260);
+}
+const toggle = (on, act, label) => `<button class="switch" role="switch" aria-checked="${on}" data-act="${act}" aria-label="${esc(label)}"></button>`;
+
+function sheetSetpick(){
+  openSheet('Сетлист', `<div class="group">${S.setlists.map(s => `<button class="row" data-act="pickset" data-id="${s.id}"><span class="main"><div class="t">${esc(s.title)}, ${esc(s.date)}</div><div class="s">${s.items.length} элем.${s.past?' · прошёл':''}</div></span>${s.id===S.active?'<span class="tag pre">Выбран</span>':''}</button>`).join('')}</div>
+    <button class="btn" data-act="newset">${ico('plus')}Новый сетлист</button>`);
+}
+function sheetText(){
+  openSheet('Текст', `<div class="stack"><textarea class="big" id="ftext" placeholder="Любой текст: объявление, стих, номер машины">Машина с номером А 123 ВС,\nподойдите к входу</textarea>
+    <p class="note" style="margin:0 4px">Пустая строка начинает новый слайд. Длинный текст разбивается сам, до 4 строк на слайд.</p>
+    <div class="group"><div class="row"><span class="main">Сохранить в библиотеку</span>${toggle(false,'tsave','Сохранить в библиотеку')}</div></div>
+    <div class="two"><button class="btn" data-act="textpre">В предпросмотр</button><button class="btn tint" data-act="textlive">В зал</button></div></div>`);
+}
+function splitText(t){
+  const out = [];
+  t.split(/\n\s*\n/).forEach(block => { const lines = block.split('\n').map(s=>s.trim()).filter(Boolean); for (let i=0;i<lines.length;i+=4) out.push({text:lines.slice(i,i+4).join('\n')}); });
+  return out.length ? out : [{text:t}];
+}
+function sheetFind(){
+  const list = q => LIB.filter(x => !q || (x.title+' '+x.slides.map(s=>s.text||'').join(' ')).toLowerCase().includes(q.toLowerCase()));
+  const rows = q => list(q).map(x => `<div class="row"><span class="kind">${ico(TYPES[x.type][1])}</span><button class="main" style="text-align:left" data-act="findpre" data-id="${x.id}"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.slides[0].text?x.slides[0].text.split('\n')[0]:TYPES[x.type][0])}</div></button>
+    ${activeSet().items.includes(x.id)?'<span class="tag pre">В сетлисте</span>':`<button class="pill" data-act="addset" data-id="${x.id}">В сетлист</button>`}</div>`).join('');
+  openSheet('Найти', `<label class="search">${ico('search')}<input id="fq" type="search" placeholder="Песня, стих, файл" aria-label="Поиск"></label><div class="group" id="fres">${rows('')}</div>
+    <p class="note">Найденное открывается в предпросмотре — его можно показать, даже если в сетлисте этого нет.</p>`,
+    sh => { const i = sh.querySelector('#fq'); i.addEventListener('input', () => sh.querySelector('#fres').innerHTML = rows(i.value)); });
+}
+function sheetStyle(){
+  S.draft = S.draft || {...S.style}; render();
+  const d = () => S.draft;
+  const html = () => `<div class="group">
+      <div class="row"><span class="main">Фон</span><span class="swatches">${[['black','#000'],['navy','#18233a'],['warm','#4a3420'],['clouds','#8aa0b8']].map(([v,c]) => `<button class="sw" style="background:${c}" data-act="st" data-k="bg" data-v="${v}" aria-pressed="${d().bg===v}" aria-label="Фон ${v}"></button>`).join('')}</span></div>
+      <div class="row"><span class="main">Цвет текста</span><span class="swatches">${['#FFFFFF','#F4EFE6','#FFD43B'].map(c => `<button class="sw" style="background:${c}" data-act="st" data-k="color" data-v="${c}" aria-pressed="${d().color===c}" aria-label="Цвет ${c}"></button>`).join('')}</span></div>
+      <div class="row"><span class="main">Размер текста</span><span class="stepper"><button data-act="fs" data-d="-1" aria-label="Меньше">−</button><span>${d().fs}</span><button data-act="fs" data-d="1" aria-label="Больше">+</button></span></div>
+      <div class="row"><span class="main">Тень</span>${toggle(d().shadow,'stt','Тень')}</div>
+      <div class="row"><span class="main">Обводка</span>${toggle(d().outline,'sto','Обводка')}</div>
+    </div>
+    <div class="ghead">Применить к</div><div class="seg" style="margin-bottom:16px"><button aria-pressed="false">Слайду</button><button aria-pressed="false">Элементу</button><button aria-pressed="true">Сетлисту</button><button aria-pressed="false">Всегда</button></div>
+    <p class="note">Правка видна в окне «Предпросмотр». Зал её не увидит до «Применить в зал».</p>
+    <div class="two"><button class="btn" data-act="stcancel">Отменить</button><button class="btn tint" data-act="stapply">Применить в зал</button></div>`;
+  openSheet('Оформление', `<div id="stbody">${html()}</div>`);
+  STYLE_RERENDER = () => { const b = $('#stbody'); if (b) b.innerHTML = html(); };
+}
+let STYLE_RERENDER = null;
+function sheetConnect(){
+  openSheet('Подключить', `<div class="group">${S.devices.map(devRow).join('')}</div>
+    ${S.session ? `<button class="btn" data-act="tabdev">Открыть «Устройства»</button>` : `<div class="hero"><button class="btn tint" data-act="start">${ico('wifi')}Начать показ</button><button class="btn" data-act="join">${ico('people')}Присоединиться</button></div>`}
+    <p class="note">Кабель HDMI и Miracast подключаются сами, как только телефон видит второй экран. Приёмник на ТВ — по QR или PIN с его экрана.</p>`);
+}
+function sheetJoin(code=''){
+  let role = 'viewer';
+  const body = () => `<div class="stack">
+    <input class="field code" id="jcode" inputmode="numeric" placeholder="000 000" value="${esc(code)}" aria-label="Код комнаты">
+    <button class="btn" data-act="qrscan">${ico('search')}Сканировать QR</button>
+    <div class="seg"><button data-act="jrole" data-r="viewer" aria-pressed="${role==='viewer'}">Зритель</button><button data-act="jrole" data-r="operator" aria-pressed="${role==='operator'}">Оператор</button></div>
+    ${role==='operator'?'<input class="field" id="jpass" type="password" placeholder="Пароль операторов" aria-label="Пароль">':''}
+    <p class="note" style="margin:0 4px">${role==='viewer'?'Зритель только смотрит показ на своём экране. Пароль не нужен.':'Оператор управляет показом вместе с ведущим. Пароль проверяет телефон ведущего.'}</p>
+    <button class="btn tint" data-act="jgo">Присоединиться</button></div>`;
+  openSheet('Присоединиться', `<div id="jbody">${body()}</div>`);
+  JOIN = { setRole:r => { code = $('#jcode').value; role = r; $('#jbody').innerHTML = body(); }, role:() => role };
+}
+let JOIN = null;
+function sheetSettings(){
+  const st = S.settings;
+  const html = () => `<div class="ghead">Тема</div><div class="seg" style="margin-bottom:18px">${[['light','Светлая'],['dark','Тёмная'],['paper','Бумага'],['oled','OLED']].map(([v,t]) => `<button data-act="theme" data-v="${v}" aria-pressed="${st.theme===v}">${t}</button>`).join('')}</div>
+    <div class="ghead">Показ</div><div class="group">
+      <div class="row"><span class="main"><div>Всегда через предпросмотр</div><div class="s">Любой слайд сначала идёт в предпросмотр</div></span>${toggle(st.alwaysPre,'set_alwaysPre','Всегда через предпросмотр')}</div>
+      <div class="row"><span class="main"><div>Тёмная тема во время показа</div><div class="s">Яркий экран не мешает в зале</div></span>${toggle(st.darkLive,'set_darkLive','Тёмная тема во время показа')}</div>
+      <div class="row"><span class="main">Bluetooth-кликер и педаль</span>${toggle(st.clicker,'set_clicker','Кликер')}</div>
+      <div class="row"><span class="main">Кнопки громкости листают слайды</span>${toggle(st.volume,'set_volume','Кнопки громкости')}</div></div>
+    <div class="ghead">Язык</div><div class="seg" style="margin-bottom:18px">${[['ru','Русский'],['uz','Oʻzbekcha'],['en','English']].map(([v,t]) => `<button data-act="lang" data-v="${v}" aria-pressed="${st.lang===v}">${t}</button>`).join('')}</div>
+    <p class="note">Deixis · GPL-3.0 · без рекламы, аналитики и трекеров.</p>`;
+  openSheet('Настройки', `<div id="setbody">${html()}</div>`);
+  SET_RERENDER = () => { const b = $('#setbody'); if (b) b.innerHTML = html(); };
+}
+let SET_RERENDER = null;
+
+/* Предпросмотр во весь экран и зритель */
+let FULL = null;
+function openFull(kind, ref){
+  closeFull(true);
+  const el = document.createElement('div'); el.className = 'full' + (kind==='viewer'?' viewer':''); el.setAttribute('role','dialog');
+  document.body.append(el);
+  let local = ref ? {...ref} : null;            // для библиотеки: свой указатель, вывод не трогается
+  const cur = () => kind==='live' || kind==='viewer' ? S.live : kind==='pre' ? S.pre : local;
+  const update = () => {
+    const r = cur(); if (!r && kind!=='viewer' && kind!=='live') return closeFull();
+    const src = srcOf(r), sl = r ? src.slides[r.idx] : null;
+    const mode = kind==='live'||kind==='viewer' ? S.mode : 'normal';
+    const st = kind==='pre' ? style() : S.style;
+    const count = r ? `${r.idx+1} / ${src.slides.length}` : '';
+    const inSet = r && r.itemId && activeSet().items.includes(r.itemId);
+    if (kind === 'viewer') {
+      el.innerHTML = `<div class="ft"><span class="ttl">Воскресное служение · Зал 1</span><button class="pill" data-act="leaveview" style="background:rgba(255,255,255,.18);color:#fff">Выйти</button></div>
+        <div class="stage">${slideHTML(sl, st, {mode})}</div>`;
+    } else {
+      el.innerHTML = `<div class="ft"><button class="iconbtn" data-act="closefull" aria-label="Закрыть">${ico('down')}</button>
+        <span class="ttl">${esc(src ? src.title : 'Сейчас')}</span>${kind==='live'?'<span class="tag live">В зале</span>':''}<span class="cnt">${count}</span></div>
+        <div class="stage">${slideHTML(sl, st, {mode})}</div>
+        <div class="fb">${kind==='live' ? `<button class="btn" data-act="fstep" data-d="-1">Назад</button><button class="btn" data-act="fstep" data-d="1">Дальше</button>`
+          : `<button class="btn tint" data-act="fgo">${ico('up')}В зал</button><button class="btn" data-act="fstyle">${ico('brush')}Вид</button>${r && r.itemId && !inSet ? `<button class="btn" data-act="addset" data-id="${r.itemId}">В сетлист</button>` : ''}`}</div>`;
+    }
+    const stage = el.querySelector('.stage');
+    const move = d => { const rr = cur(); if (!rr) return; const n = rr.idx + d; if (n < 0 || n >= srcOf(rr).slides.length) return;
+      if (kind==='live') step(d); else if (kind==='pre') { S.pre = {...rr, idx:n}; render(); } else { local.idx = n; update(); } };
+    if (kind === 'viewer') {
+      let t; gest(stage, {tap:() => { el.classList.add('ui'); clearTimeout(t); t = setTimeout(() => el.classList.remove('ui'), 3000); }});
+    } else gest(stage, {left:() => move(1), right:() => move(-1), down:() => closeFull(), up:() => kind!=='live' && FULL && FULL.go()});
+    FULL.move = move;
+  };
+  FULL = {el, kind, update, go:() => {
+    const r = cur(); if (!r) return;
+    if (kind==='pre') preToLive(); else { if (S.draft){ S.style = S.draft; S.draft = null; } goLive(r.itemId ? {itemId:r.itemId, idx:r.idx} : {...r}); toast('В зале'); }
+    closeFull();
+  }};
+  update();
+  requestAnimationFrame(() => el.classList.add('on'));
+}
+function closeFull(now){
+  if (!FULL) return; const el = FULL.el; FULL = null;
+  if (now) return el.remove();
+  el.classList.remove('on'); setTimeout(() => el.remove(), 260);
+}
+
+/* Обработчик всех действий */
+const A = {
+  tab:d => { S.tab = d.id; render(); },
+  open:d => { S.open = S.open === d.id && !isWide() ? null : d.id; render(); },
+  slide:d => tapSlide(d.id, +d.i),
+  preLive:() => preToLive(),
+  mode:d => { S.mode = S.mode === d.m ? 'normal' : d.m; render(); },
+  text:sheetText, find:sheetFind, style:sheetStyle, setpick:sheetSetpick, connect:sheetConnect, settings:sheetSettings,
+  closesheet:() => closeSheet(),
+  pickset:d => { S.active = d.id; S.open = activeSet().items[0]; closeSheet(); S.tab = 'show'; render(); toast('На главном: ' + activeSet().title + ', ' + activeSet().date); },
+  newset:() => { const id = 'n' + Date.now(); S.setlists.unshift({id,title:'Новый сетлист',date:'1 ноября',items:[],past:false}); S.active = id; closeSheet(); render(); toast('Сетлист создан'); },
+  setmore:d => { const s = S.setlists.find(x=>x.id===d.id); openSheet(s.title + ', ' + s.date, `<div class="stack"><button class="btn" data-act="pickset" data-id="${s.id}">На главный</button><button class="btn" data-act="dup" data-id="${s.id}">Дублировать</button><button class="btn red" data-act="delset" data-id="${s.id}">Удалить</button></div>`); },
+  dup:d => { const s = S.setlists.find(x=>x.id===d.id); S.setlists.unshift({...s,id:'d'+Date.now(),date:'1 ноября',past:false,items:[...s.items]}); closeSheet(); render(); toast('Копия создана на 1 ноября'); },
+  delset:d => { if (d.id === S.active) { closeSheet(); return toast('Сетлист на главном удалить нельзя'); } S.setlists = S.setlists.filter(x=>x.id!==d.id); closeSheet(); render(); toast('Сетлист удалён'); },
+  libseg:d => { S.libSeg = d.id; render(); },
+  libopen:d => openFull('lib', {itemId:d.id, idx:0}),
+  import:() => openSheet('Добавить', `<div class="group">${['Новая песня','Новый текст','Место из Библии','Импорт: TXT, DOCX, OpenLyrics, OpenLP','Импорт: PDF, PPTX, PPT, ODP','Картинки и видео'].map(t => `<button class="row" data-act="soon"><span class="main">${t}</span><span class="chev">${ico('chev')}</span></button>`).join('')}</div>`),
+  qrscan:() => toast('Камера в прототипе не работает'),
+  soon:() => { closeSheet(); toast('В прототипе не работает'); },
+  textpre:() => { const t = $('#ftext').value.trim(); if (!t) return; S.pre = {title:'Текст', slides:splitText(t), idx:0}; closeSheet(); render(); },
+  textlive:() => { const t = $('#ftext').value.trim(); if (!t) return; goLive({title:'Текст', slides:splitText(t), idx:0}); closeSheet(); toast('В зале'); },
+  tsave:(d, el) => el.setAttribute('aria-checked', el.getAttribute('aria-checked') !== 'true'),
+  findpre:d => { S.pre = {itemId:d.id, idx:0}; closeSheet(); S.tab = 'show'; render(); },
+  addset:d => { const s = activeSet(); if (!s.items.includes(d.id)) s.items.push(d.id); render(); toast('Добавлено в сетлист'); if (SHEET && $('#fq')) $('#fq').dispatchEvent(new Event('input')); if (FULL) FULL.update(); },
+  st:d => { S.draft[d.k] = d.v; render(); STYLE_RERENDER(); },
+  fs:d => { S.draft.fs = Math.min(14, Math.max(4, S.draft.fs + +d.d)); render(); STYLE_RERENDER(); },
+  stt:() => { S.draft.shadow = !S.draft.shadow; render(); STYLE_RERENDER(); },
+  sto:() => { S.draft.outline = !S.draft.outline; render(); STYLE_RERENDER(); },
+  stcancel:() => { S.draft = null; closeSheet(); render(); },
+  stapply:() => { S.style = S.draft; S.draft = null; closeSheet(); render(); toast('Оформление в зале'); },
+  dev:() => { S.tab = 'devices'; render(); },
+  tabdev:() => { closeSheet(); S.tab = 'devices'; render(); },
+  retry:d => { const x = S.devices.find(v=>v.id===d.id); x.state = 'sync'; render(); setTimeout(() => { x.state = 'online'; render(); toast(x.name + ': на связи'); }, 1500); },
+  check:() => { const bad = S.devices.filter(d=>d.state!=='online'); toast(bad.length ? 'Требует внимания: ' + bad.map(d=>d.name).join(', ') : 'Все выводы готовы'); },
+  start:() => { S.session = {role:'host', code:'482 913', pass:'2580', viewers:['Телефон · Анна','Планшет · звукорежиссёр','Телефон · гость']}; closeSheet(); S.tab = 'devices'; render(); toast('Показ начат'); },
+  join:d => sheetJoin(d.code || ''),
+  jrole:d => JOIN.setRole(d.r),
+  jgo:() => {
+    const code = $('#jcode').value.replace(/\D/g,'');
+    if (code.length !== 6) return toast('Код — 6 цифр');
+    if (JOIN.role() === 'operator') {
+      if (!$('#jpass').value) return toast('Нужен пароль');
+      S.session = {role:'operator', code:code.replace(/(\d{3})(\d{3})/,'$1 $2'), pass:'', viewers:['Телефон · гость']};
+      closeSheet(); S.tab = 'show'; render(); toast('Подключено как оператор');
+    } else { closeSheet(); openFull('viewer'); toast('Касание показывает «Выйти»'); }
+  },
+  leaveview:() => closeFull(),
+  qrhall:() => toast('QR выведен в зал'),
+  kick:d => { S.session.viewers.splice(+d.i, 1); render(); toast('Зритель отключён'); },
+  end:() => openSheet('Завершить показ?', `<p class="note">Комната закроется, зрители и операторы отключатся. Экран зала станет чёрным.</p><div class="two"><button class="btn" data-act="closesheet">Отмена</button><button class="btn tint" data-act="endyes" style="background:var(--red)">Завершить</button></div>`),
+  endyes:() => { S.session = null; S.mode = 'black'; closeSheet(); render(); toast('Показ завершён'); },
+  leave:() => { S.session = null; render(); toast('Отключено'); },
+  closefull:() => closeFull(),
+  fstep:d => FULL && FULL.move(+d.d),
+  fgo:() => FULL && FULL.go(),
+  fstyle:() => { closeFull(); sheetStyle(); },
+  theme:d => { S.settings.theme = d.v; render(); SET_RERENDER(); },
+  lang:d => { if (d.v !== 'ru') toast('В прототипе только русский'); },
+};
+['alwaysPre','darkLive','clicker','volume'].forEach(k => A['set_'+k] = () => { S.settings[k] = !S.settings[k]; render(); SET_RERENDER(); });
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const fn = A[el.dataset.act]; if (fn) { e.preventDefault(); fn(el.dataset, el); }
+});
+/* Клавиши кликера: вперёд и назад, B — чёрный экран */
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea') || !S.settings.clicker) return;
+  if (['ArrowRight','PageDown',' '].includes(e.key)) { e.preventDefault(); step(1); }
+  else if (['ArrowLeft','PageUp'].includes(e.key)) { e.preventDefault(); step(-1); }
+  else if (e.key === 'b' || e.key === 'и') A.mode({m:'black'});
+  else if (e.key === 'Escape') { closeSheet(); closeFull(); }
+});
+matchMedia('(min-width:1024px)').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
