@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Deixis — прототип</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=GFS+Didot&display=swap" rel="stylesheet">
 <style>
 /* Токены из DESIGN.md */
 :root{
@@ -150,6 +152,41 @@ main{min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .show{display:flex;flex-direction:column;min-height:0;flex:1}
 .show .cols{flex:1;min-height:0;display:flex;flex-direction:column}
 .show .cols>.right{flex:1;min-height:0;display:flex;flex-direction:column}
+.mark{font-family:"GFS Didot","Gentium Book Plus",Georgia,serif;letter-spacing:.18em;font-weight:400;font-size:22px;line-height:1;color:var(--ink);white-space:nowrap}
+.tiles{display:flex;gap:10px;overflow-x:auto;padding:2px 16px 14px;scrollbar-width:none}
+.tile{flex:none;width:116px;height:84px;border-radius:var(--r-card);background:var(--cell);display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:12px;font-size:14px;font-weight:600;text-align:left;transition:transform var(--t-fast) var(--e-spring)}
+.tile:active{transform:scale(.95)}
+.tile .ico{color:var(--tint-text);width:24px;height:24px}
+.lhead{display:flex;align-items:center;gap:8px;padding:0 16px 10px}
+.lhead .seg{flex:1}
+.vbar{display:flex;flex-direction:column;gap:6px;padding:8px 12px;background:var(--cell);border-top:.5px solid var(--sep)}
+.vbar .bar{padding:0;border:0;background:none}
+.vrow{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--l2);font-variant-numeric:tabular-nums}
+.vrow input[type=range]{flex:1;accent-color:var(--tint)}
+.slide.deck{background:#fff;color:#1d1b18;place-items:stretch}
+.slide.deck .dk{padding:6cqw 7cqw;display:flex;flex-direction:column;gap:2.2cqw;text-align:left}
+.slide.deck .dk h3{margin:0;font-size:5cqw;line-height:1.1;color:#1d1b18}
+.slide.deck .dk h3::after{content:"";display:block;width:8cqw;height:.6cqw;background:#9C7242;margin-top:2cqw}
+.slide.deck .dk li{font-size:3cqw;line-height:1.35;color:#3a3732}
+.slide.deck .dk ul{margin:0;padding-left:4cqw}
+.slide.photo{background:linear-gradient(180deg,#f2b880 0%,#d9825b 38%,#5b4a6b 70%,#2a2238 100%)}
+.slide.photo::after{content:"";position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,#1b1a24,#0e0d14);clip-path:polygon(0 40%,18% 10%,34% 45%,52% 0,70% 38%,86% 15%,100% 35%,100% 100%,0 100%)}
+.slide.video{background:linear-gradient(120deg,#20443a,#4f7a5c,#a1b06a,#2f5a4c);background-size:300% 300%;animation:drift 9s ease-in-out infinite alternate}
+.slide.video.paused{animation-play-state:paused}
+.slide.mirror .phone{width:22%;aspect-ratio:9/19;border-radius:2.4cqw;background:#F3F2EE;border:.6cqw solid #333;display:flex;flex-direction:column;gap:1cqw;padding:2cqw 1.6cqw}
+.slide.mirror .phone i{display:block;height:1.4cqw;border-radius:1cqw;background:#d8d4cc}
+.slide.mirror .phone b{display:block;flex:1;border-radius:1cqw;background:#9C7242;opacity:.7}
+.slide .mk{font-family:"GFS Didot",Georgia,serif;letter-spacing:.18em;font-size:7cqw;color:#fff;font-weight:400}
+.pinbox{display:flex;gap:8px;justify-content:center;margin:6px 0 14px}
+.recv{position:fixed;inset:0;background:#000;color:#fff;display:grid;place-items:center;z-index:50}
+.recv .idle{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+.recv .idle .mk{font-family:"GFS Didot",Georgia,serif;letter-spacing:.18em;font-size:clamp(40px,9vw,120px)}
+.recv .idle .nm{font-size:clamp(16px,2.2vw,26px);opacity:.85}
+.recv .idle .meta{display:flex;gap:28px;align-items:center;margin-top:18px;font-size:clamp(12px,1.4vw,17px);opacity:.6;text-align:left}
+.recv .idle .meta b{display:block;font-size:clamp(20px,3vw,36px);letter-spacing:.12em;opacity:1;color:#fff;font-weight:600}
+.recv .idle .qr{width:clamp(80px,10vw,140px);height:auto;aspect-ratio:1}
+.recv .full-slide{width:100vw;height:100vh;display:grid;place-items:center}
+.recv .full-slide .slide{border-radius:0;width:min(100vw,calc(100vh*16/9))}
 .cn-text{display:none}
 .connect{width:44px;height:44px;padding:0;justify-content:center}
 .colslides{display:none}
@@ -212,7 +249,10 @@ textarea.big{width:100%;min-height:150px;border:0;border-radius:var(--r-card);ba
 @media (min-width:700px){
   .cn-text{display:inline}
   .connect{width:auto;height:36px;padding:0 14px}
-  .show .cols>.left{overflow:auto;min-height:0}
+  .show .cols>.left{overflow:hidden;min-height:0}
+  .lscroll{flex:1}
+  .show .cols>.left .tiles{flex-wrap:wrap;overflow:visible}
+  .show .cols>.left .tile{width:calc((100% - 20px) / 3)}
   .show .cols{flex-direction:row}
   .show .cols>.left{width:42%;max-width:440px;display:flex;flex-direction:column;border-right:.5px solid var(--sep)}
   .show .cols>.left .mons{grid-template-columns:1fr;padding-top:4px}
@@ -273,13 +313,31 @@ const I = {
   people:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
   wifi:'<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r=".8"/>',
   up:'<path d="M12 19V5M6 11l6-6 6 6"/>',
+  pres:'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M12 16v4M8 20h8M7 12l3-3 2 2 4-4"/>',
+  photo:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
+  phone:'<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+  board:'<rect x="2" y="3" width="20" height="13" rx="1.5"/><path d="M7 21l2-5M17 21l-2-5M6 8h6M6 11h9"/>',
+  laptop:'<rect x="4" y="5" width="16" height="10" rx="1.5"/><path d="M2 19h20"/>',
+  prev:'<path d="M15 6l-6 6 6 6"/>', next:'<path d="M9 6l6 6-6 6"/>',
+  play:'<path d="M7 5l12 7-12 7z" fill="currentColor"/>', pause:'<path d="M8 5v14M16 5v14" stroke-width="3"/>',
+  back10:'<path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/>', fwd10:'<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v4h-4"/>',
+  loop:'<path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/>',
+  vol:'<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>',
+  stop:'<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
 };
 const ico = (n, cls='') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* Данные. Песни написаны для прототипа, библейские тексты — Синодальный перевод. */
-const TYPES = {song:['Песня','song'], text:['Текст','text'], bible:['Библия','bible'], file:['Файл','file'], media:['Медиа','media']};
+const TYPES = {pres:['Презентация','pres'], video:['Видео','media'], photo:['Фото','photo'], song:['Песня','song'], text:['Текст','text'], bible:['Библия','bible'], file:['Файл','file'], media:['Фон','media']};
 const LIB = [
+  {id:'p1',type:'pres',title:'Отчёт за год.pptx',slides:[
+    {deck:{h:'Итоги 2026 года',li:['Что сделано','Что дальше','Вопросы']}},
+    {deck:{h:'Что сделано',li:['Летний лагерь — 84 участника','Новый зал для занятий','Курс для волонтёров']}},
+    {deck:{h:'Что дальше',li:['Детская программа по субботам','Ремонт входной группы','Поездка в октябре']}},
+    {deck:{h:'Спасибо!',li:['Вопросы и предложения — после встречи']}}]},
+  {id:'v1',type:'video',title:'Фильм о лагере.mkv',slides:[{video:true,dur:742}],sub:'H.265 · 1080p · 12:22'},
+  {id:'ph1',type:'photo',title:'Закат над лагерем.heic',slides:[{photo:true}],sub:'HEIC → JPEG при отправке'},
   {id:'s1',type:'song',title:'Утренняя песнь',slides:[
     {text:'Новый день встаёт над нами,\nСвет ложится на порог'},
     {text:'Мы приходим с благодарностью:\nС нами Бог, и с нами Бог'},
@@ -321,10 +379,16 @@ const S = {
   draft:null,                     // правка оформления, видна только в предпросмотре
   session:null,                   // {role:'host'|'operator', code, pass, viewers:[]}
   devices:[
-    {id:'hdmi',icon:'proj',name:'Проектор',via:'Кабель HDMI',state:'online'},
-    {id:'tv1',icon:'tv',name:'ТВ в холле',via:'Приёмник Deixis',state:'sync'},
-    {id:'tv2',icon:'tv',name:'ТВ на сцене',via:'Приёмник Deixis',state:'offline'},
+    {id:'hdmi',icon:'proj',name:'Мобильный проектор',via:'Кабель HDMI',state:'online'},
+    {id:'tv1',icon:'tv',name:'ТВ в холле',via:'Deixis TV',state:'sync'},
+    {id:'tv2',icon:'tv',name:'ТВ на сцене',via:'Deixis TV',state:'offline'},
   ],
+  found:[
+    {id:'board',icon:'board',name:'Интерактивная доска',via:'Deixis TV · 192.168.1.41'},
+    {id:'pc',icon:'laptop',name:'Ноутбук у сцены',via:'Deixis для компьютера · 192.168.1.17'},
+  ],
+  video:{playing:true,t:0,loop:false,vol:80},
+  recent:['p1','v1','ph1'], listSeg:'set',
   settings:{theme:'light',alwaysPre:false,darkLive:true,clicker:true,volume:false,lang:'ru'},
   libSeg:'all', libQ:'',
 };
@@ -337,7 +401,11 @@ function slideHTML(sl, st, {num, cls='', mode='normal'} = {}){
   const c = ['slide', 'bg-'+bg, st.shadow?'shadow':'', st.outline?'outline':'', cls].join(' ');
   let inner = '';
   if (mode === 'black') return `<div class="${['slide',cls].join(' ')}" style="background:#000">${num?`<span class="num">${num}</span>`:''}</div>`;
-  if (mode === 'logo') inner = '<div class="logo">DEIXIS</div>';
+  if (mode === 'logo') inner = '<div class="mk">ΔΕΙΞΙΣ</div>';
+  else if (sl && sl.deck) return `<div class="slide deck ${cls}"><div class="dk"><h3>${esc(sl.deck.h)}</h3><ul>${sl.deck.li.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>${num?`<span class="num" style="color:#888">${num}</span>`:''}</div>`;
+  else if (sl && sl.photo) return `<div class="slide photo ${cls}">${num?`<span class="num">${num}</span>`:''}</div>`;
+  else if (sl && sl.video) return `<div class="slide video ${S.video.playing?'':'paused'} ${cls}">${num?`<span class="num">${num}</span>`:''}</div>`;
+  else if (sl && sl.mirror) return `<div class="slide mirror ${cls}"><div class="phone"><i></i><i style="width:60%"></i><b></b><i></i><i style="width:70%"></i></div></div>`;
   else if (mode === 'clear' || !sl) inner = '';
   else if (sl.page) inner = `<div class="page"><b>${esc(sl.page)}</b><i></i><i style="width:80%"></i><i></i><i style="width:60%"></i><i></i><i style="width:70%"></i></div>`;
   else if (sl.text) inner = `<div class="txt" style="color:${st.color}">${esc(sl.text)}</div>${sl.ref?`<div class="ref" style="color:${st.color}">${esc(sl.ref)}</div>`:''}`;
@@ -349,7 +417,7 @@ const liveSlide = () => { const s = srcOf(S.live); return s ? s.slides[S.live.id
 const preSlide = () => { const s = srcOf(S.pre); return s ? s.slides[S.pre.idx] : null; };
 
 /* Действия с выводом */
-function goLive(ref){ S.live = ref; S.mode = 'normal'; if (S.pre && sameRef(S.pre, ref)) S.pre = null; render(); }
+function goLive(ref){ S.live = ref; S.mode = 'normal'; if (ref.itemId) { S.recent = [ref.itemId, ...S.recent.filter(x=>x!==ref.itemId)].slice(0,8); if (lib(ref.itemId).type==='video' && !(S.liveVid===ref.itemId)) { S.video = {...S.video, playing:true, t:0}; S.liveVid = ref.itemId; } } if (S.pre && sameRef(S.pre, ref)) S.pre = null; render(); }
 function sameRef(a,b){ return a && b && a.itemId && a.itemId === b.itemId && a.idx === b.idx; }
 function tapSlide(itemId, idx){
   const ref = {itemId, idx};
@@ -402,12 +470,13 @@ const stateText = s => ({online:'на связи',sync:'доставляются
 function monitorsHTML(){
   const ls = S.live && liveSlide();
   const ps = preSlide();
-  const liveName = S.mode==='black' ? 'Чёрный экран' : S.mode==='logo' ? 'Логотип' : S.mode==='clear' ? 'Очищено' : (S.live ? `${srcOf(S.live).title} · ${S.live.idx+1}/${srcOf(S.live).slides.length}` : 'Пусто');
+  const isVid = liveKind()==='video';
+  const liveName = S.mode==='black' ? 'Чёрный экран' : S.mode==='logo' ? 'Логотип' : S.mode==='clear' ? 'Очищено' : (S.live ? (srcOf(S.live).slides.length>1 ? `${srcOf(S.live).title} · ${S.live.idx+1}/${srcOf(S.live).slides.length}` : srcOf(S.live).title) : 'Пусто');
   const preName = ps ? `${srcOf(S.pre).title} · ${S.pre.idx+1}/${srcOf(S.pre).slides.length}` : (S.draft ? 'Новое оформление' : 'Выберите слайд');
   return `<div class="mons">
     <div class="mon now"><div class="lbl"><span class="dot"></span>Сейчас</div>
       <div data-g="now">${slideHTML(ls, S.style, {mode:S.mode})}</div>
-      <div class="hint">${esc(liveName)}</div></div>
+      <div class="hint">${esc(liveName)}${isVid?` · <span id="vt2">${fmt(S.video.t)}</span>${S.video.playing?'':' · пауза'}`:''}</div></div>
     <div class="mon pre"><div class="lbl">Предпросмотр<button class="go" data-act="preLive" ${ps||S.draft?'':'disabled'}>В зал</button></div>
       <div data-g="pre">${slideHTML(ps || (S.draft ? ls : null), style())}</div>
       <div class="hint ${S.draft?'changed':''}">${esc(preName)}${S.draft&&ps?' · новое оформление':''}</div></div>
@@ -421,40 +490,64 @@ function slidesHTML(id){
     return `<div data-act="slide" data-id="${id}" data-i="${i}" role="button" aria-label="Слайд ${i+1}">${slideHTML(sl, S.style, {num:i+1, cls:isLive?'is-live':isPre?'is-pre':''})}</div>`;
   }).join('')}</div>`;
 }
+const subOf = it => it.sub || (it.slides[0].text ? it.slides[0].text.split('\n')[0] : it.type==='pres' ? it.slides.length + ' слайда' : it.type==='file' ? it.slides.length + ' стр.' : TYPES[it.type][0]);
+function itemRow(id, wide, act='open'){
+  const it = lib(id), open = act==='open' && S.open === id, isLive = S.live && S.live.itemId === id && S.mode !== 'black';
+  return `<button class="row ${open?'open':''}" data-act="${act}" data-id="${id}">
+    <span class="kind">${ico(TYPES[it.type][1])}</span>
+    <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(subOf(it))}</div></span>
+    ${isLive?'<span class="tag live">В зале</span>':''}${S.pre&&S.pre.itemId===id?'<span class="tag pre">Предпросмотр</span>':''}
+    <span class="chev">${ico(open && !wide ? 'down' : 'chev')}</span></button>
+    ${open && !wide ? slidesHTML(id) : ''}`;
+}
 function setlistHTML(wide){
   const set = activeSet();
-  const rows = set.items.map(id => {
-    const it = lib(id), open = S.open === id, isLive = S.live && S.live.itemId === id && S.mode !== 'black';
-    const first = it.slides[0].text ? it.slides[0].text.split('\n')[0] : TYPES[it.type][0];
-    return `<button class="row ${open?'open':''}" data-act="open" data-id="${id}">
-      <span class="kind">${ico(TYPES[it.type][1])}</span>
-      <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(first)}</div></span>
-      ${isLive?'<span class="tag live">В зале</span>':''}${S.pre&&S.pre.itemId===id?'<span class="tag pre">Предпросмотр</span>':''}
-      <span class="chev">${ico(open && !wide ? 'down' : 'chev')}</span></button>
-      ${open && !wide ? slidesHTML(id) : ''}`;
-  }).join('');
-  return `<div class="pad"><div class="group">${rows}</div>
-    <div class="two"><button class="btn" data-act="find">${ico('plus')}Добавить</button><button class="btn" data-act="setpick">${ico('list')}Все сетлисты</button></div></div>`;
+  const head = `<div class="lhead"><div class="seg"><button data-act="lseg" data-v="set" aria-pressed="${S.listSeg==='set'}">Сетлист</button><button data-act="lseg" data-v="recent" aria-pressed="${S.listSeg==='recent'}">Недавнее</button></div>
+    <button class="iconbtn" data-act="find" aria-label="Найти">${ico('search')}</button></div>`;
+  if (S.listSeg === 'recent') return head + `<div class="pad"><div class="group">${S.recent.map(id => itemRow(id, wide, 'recentpre')).join('')}</div></div>`;
+  return head + `<div class="pad"><button class="setpick" data-act="setpick" style="padding:0 4px 6px">${ico('list')}<span>${esc(set.title)}, ${esc(set.date)}</span>${ico('down')}</button>
+    <div class="group">${set.items.length ? set.items.map(id => itemRow(id, wide)).join('') : '<div class="row"><span class="main s">Пусто. Добавьте элементы через «Найти» или плитки «Показать».</span></div>'}</div></div>`;
+}
+const TILES = [['pres','Презентация','pres'],['video','Видео','media'],['photo','Фото','photo'],['text','Текст','text'],['mirror','Экран телефона','phone'],['file','Файл','file']];
+const tilesHTML = () => `<div class="tiles" role="group" aria-label="Показать">${TILES.map(([k,t,i]) => `<button class="tile" data-act="tile" data-k="${k}">${ico(i)}<span>${t}</span></button>`).join('')}</div>`;
+const fmt = t => `${String(Math.floor(t/60)).padStart(2,'0')}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+function liveKind(){
+  if (!S.live) return 'slides';
+  if (S.live.slides && S.live.slides[0].mirror) return 'mirror';
+  if (S.live.itemId && lib(S.live.itemId).type === 'video') return 'video';
+  return 'slides';
+}
+function controlBar(){
+  const k = liveKind(), black = `<button data-act="mode" data-m="black" aria-pressed="${S.mode==='black'}">${ico('black')}Чёрный</button>`;
+  if (k === 'video') {
+    const dur = lib(S.live.itemId).slides[0].dur, v = S.video;
+    return `<div class="vbar"><div class="vrow"><span id="vt">${fmt(v.t)}</span><input id="vrange" type="range" min="0" max="${dur}" value="${v.t}" aria-label="Перемотка"><span>${fmt(dur)}</span></div>
+      <div class="bar">${black}<button data-act="vseek" data-d="-10" aria-label="Назад 10 секунд">${ico('back10')}−10 с</button>
+      <button data-act="vplay" aria-pressed="false">${ico(v.playing?'pause':'play')}${v.playing?'Пауза':'Пуск'}</button>
+      <button data-act="vseek" data-d="10" aria-label="Вперёд 10 секунд">${ico('fwd10')}+10 с</button>
+      <button data-act="vloop" aria-pressed="${v.loop}">${ico('loop')}Повтор</button>
+      <button data-act="vvol" aria-label="Громкость">${ico('vol')}${v.vol}%</button></div></div>`;
+  }
+  if (k === 'mirror') return `<div class="bar">${black}<button data-act="mirrorstop">${ico('stop')}Остановить трансляцию</button></div>`;
+  return `<div class="bar">${black}
+    <button data-act="mode" data-m="logo" aria-pressed="${S.mode==='logo'}">${ico('logo')}Логотип</button>
+    <button data-act="mode" data-m="clear" aria-pressed="${S.mode==='clear'}">${ico('clear')}Очистить</button>
+    <button data-act="fstep2" data-d="-1" aria-label="Назад">${ico('prev')}Назад</button>
+    <button data-act="fstep2" data-d="1" aria-label="Дальше">${ico('next')}Дальше</button>
+    <button data-act="style">${ico('brush')}Вид</button></div>`;
 }
 const isWide = () => matchMedia('(min-width:1024px)').matches;
 function renderShow(){
-  const wide = isWide(), set = activeSet();
-  const bar = `<div class="bar">
-    <button data-act="mode" data-m="black" aria-pressed="${S.mode==='black'}">${ico('black')}Чёрный</button>
-    <button data-act="mode" data-m="logo" aria-pressed="${S.mode==='logo'}">${ico('logo')}Логотип</button>
-    <button data-act="mode" data-m="clear" aria-pressed="${S.mode==='clear'}">${ico('clear')}Очистить</button>
-    <button data-act="text">${ico('text')}Текст</button>
-    <button data-act="find">${ico('search')}Найти</button>
-    <button data-act="style">${ico('brush')}Вид</button></div>`;
+  const wide = isWide(), bar = controlBar();
   return `<div class="show">
     <header class="top">
-      <button class="setpick" data-act="setpick" aria-label="Выбрать сетлист"><span>${esc(set.title)}, ${esc(set.date)}</span>${ico('down')}</button>
+      <span class="mark" aria-label="Deixis">ΔΕΙΞΙΣ</span>
       ${devStrip()}
       <button class="pill tint connect" data-act="connect" aria-label="${S.session?'В сети':'Подключить'}">${ico('wifi')}<span class="cn-text">${S.session?'В сети':'Подключить'}</span></button>
       <button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button>
     </header>
     <div class="cols">
-      <div class="left">${monitorsHTML()}${wide?'<div style="flex:1"></div>'+bar:''}</div>
+      <div class="left"><div class="lscroll scroll" data-key="left">${monitorsHTML()}${tilesHTML()}</div>${wide?bar:''}</div>
       <div class="colslides scroll" data-key="slides">${wide && S.open ? `<div class="top" style="min-height:44px"><b>${esc(lib(S.open).title)}</b></div>${slidesHTML(S.open)}` : ''}</div>
       <div class="right"><div class="scroll" data-key="setlist">${setlistHTML(wide)}</div></div>
     </div>
@@ -464,14 +557,14 @@ function renderShow(){
 
 /* Библиотека */
 function renderLibrary(){
-  const segs = [['all','Все'],['song','Песни'],['text','Тексты'],['bible','Библия'],['file','Файлы'],['media','Медиа']];
+  const segs = [['all','Все'],['pres','Презентации'],['video','Видео'],['photo','Фото'],['file','Файлы'],['song','Песни'],['text','Тексты'],['bible','Библия']];
   const q = S.libQ.trim().toLowerCase();
   const items = LIB.filter(x => (S.libSeg==='all' || x.type===S.libSeg) && (!q || (x.title + ' ' + x.slides.map(s=>s.text||'').join(' ')).toLowerCase().includes(q)));
   const groups = {};
   items.forEach(x => (groups[x.type] ||= []).push(x));
   const body = Object.keys(groups).length ? Object.entries(groups).map(([t,xs]) => `<div class="ghead">${TYPES[t][0]}</div><div class="group">${xs.map(x => `
     <button class="row" data-act="libopen" data-id="${x.id}"><span class="kind">${ico(TYPES[x.type][1])}</span>
-    <span class="main"><div class="t">${esc(x.title)}</div><div class="s">${esc(x.slides[0].text ? x.slides[0].text.split('\n')[0] : x.slides.length + ' стр.')}</div></span><span class="chev">${ico('chev')}</span></button>`).join('')}</div>`).join('')
+    <span class="main"><div class="t">${esc(x.title)}</div><div class="s">${esc(subOf(x))}</div></span><span class="chev">${ico('chev')}</span></button>`).join('')}</div>`).join('')
     : '<p class="note">Ничего не найдено.</p>';
   return `<header class="top"><h1>Библиотека</h1><button class="iconbtn" data-act="import" aria-label="Добавить">${ico('plus')}</button><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button></header>
   <div class="scroll" data-key="lib"><div class="pad lib-wide">
@@ -509,15 +602,17 @@ function devRow(d){
 }
 function renderDevices(){
   const head = `<header class="top"><h1>Устройства</h1><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico('gear')}</button></header>`;
-  const outputs = `<div class="ghead">Выводы</div><div class="group">${S.devices.map(devRow).join('')}
+  const outputs = `<div class="ghead">Экраны</div><div class="group">${S.devices.map(devRow).join('')}
+      <button class="row" data-act="connect"><span class="kind">${ico('plus')}</span><span class="main t">Подключить экран</span><span class="chev">${ico('chev')}</span></button>
       <button class="row" data-act="check"><span class="kind">${ico('show')}</span><span class="main t">Проверка перед началом</span><span class="chev">${ico('chev')}</span></button></div>`;
   if (!S.session) return `${head}<div class="scroll" data-key="dev"><div class="pad lib-wide">
-    <div class="hero"><button class="btn tint" data-act="start">${ico('wifi')}Начать показ</button>
+    ${outputs}
+    <div class="ghead">Комната</div><div class="hero"><button class="btn" data-act="start">${ico('wifi')}Начать комнату</button>
       <button class="btn" data-act="join">${ico('people')}Присоединиться</button></div>
-    <p class="note">«Начать показ» создаёт комнату в этой сети Wi-Fi. Зрители подключаются по коду или QR без пароля, операторы — с паролем.</p>
+    <p class="note">Комната нужна, чтобы показ смотрели на своих телефонах или управляли им вдвоём. Зрители входят по коду или QR без пароля, операторы — с паролем.</p>
     <div class="ghead">Рядом в сети</div><div class="group">
       <button class="row" data-act="join" data-code="315 207"><span class="kind">${ico('show')}</span><span class="main"><div class="t">Зал 2 · Детское служение</div><div class="s">Код 315 207 · 4 зрителя</div></span><span class="chev">${ico('chev')}</span></button>
-    </div>${outputs}</div></div>`;
+    </div></div></div>`;
   const s = S.session, host = s.role === 'host';
   return `${head}<div class="scroll" data-key="dev"><div class="pad lib-wide">
     <div class="ghead">${host?'Комната':'Подключено'}</div><div class="group"><div class="room">${qrSVG(4821)}
@@ -543,8 +638,22 @@ function render(){
   if (now) gest(now, {tap:() => openFull('live'), left:() => step(1), right:() => step(-1)});
   if (pre) gest(pre, {tap:() => S.pre && openFull('pre'), up:preToLive});
   const q = $('#libq'); if (q) q.addEventListener('input', e => { S.libQ = e.target.value; const pos = e.target.selectionStart; render(); const n = $('#libq'); n.focus(); n.setSelectionRange(pos,pos); });
+  const vr = $('#vrange'); if (vr) vr.addEventListener('input', e => { S.video.t = +e.target.value; $('#vt').textContent = fmt(S.video.t); });
+  if (vr) vr.addEventListener('change', () => render());
   if (FULL) FULL.update();
+  broadcast();
 }
+/* Демо приёмника: второе окно получает то же, что зал */
+const BC = 'BroadcastChannel' in window ? new BroadcastChannel('deixis-demo') : null;
+function broadcast(){ if (!BC || IS_TV) return; BC.postMessage({slide: S.live ? liveSlide() : null, style:S.style, mode:S.mode, playing:S.video.playing, live:!!S.live}); }
+setInterval(() => {
+  if (IS_TV || liveKind() !== 'video' || !S.video.playing || S.mode === 'black') return;
+  const dur = lib(S.live.itemId).slides[0].dur;
+  S.video.t += 1;
+  if (S.video.t >= dur) { if (S.video.loop) S.video.t = 0; else { S.video.t = dur; S.video.playing = false; return render(); } }
+  const a = $('#vt'), b = $('#vt2'), r = $('#vrange');
+  if (a) a.textContent = fmt(S.video.t); if (b) b.textContent = fmt(S.video.t); if (r && document.activeElement !== r) r.value = S.video.t;
+}, 1000);
 
 /* Шторки */
 let SHEET = null;
@@ -609,9 +718,28 @@ function sheetStyle(){
 }
 let STYLE_RERENDER = null;
 function sheetConnect(){
-  openSheet('Подключить', `<div class="group">${S.devices.map(devRow).join('')}</div>
-    ${S.session ? `<button class="btn" data-act="tabdev">Открыть «Устройства»</button>` : `<div class="hero"><button class="btn tint" data-act="start">${ico('wifi')}Начать показ</button><button class="btn" data-act="join">${ico('people')}Присоединиться</button></div>`}
-    <p class="note">Кабель HDMI и Miracast подключаются сами, как только телефон видит второй экран. Приёмник на ТВ — по QR или PIN с его экрана.</p>`);
+  openSheet('Подключить', `<div class="ghead">Подключено</div><div class="group">${S.devices.map(devRow).join('')}</div>
+    <div class="ghead">Найдено в сети</div><div class="group">${S.found.length ? S.found.map(d => `<div class="row"><span class="kind">${ico(d.icon)}</span><span class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(d.via)}</div></span><button class="pill tint" data-act="pair" data-id="${d.id}">Подключить</button></div>`).join('') : '<div class="row"><span class="main s">Больше ничего не найдено</span></div>'}
+      <button class="row" data-act="manual"><span class="kind">${ico('plus')}</span><span class="main t">Ввести адрес вручную</span><span class="chev">${ico('chev')}</span></button></div>
+    <p class="note">Не видно экрана? В гостевом Wi-Fi устройства часто изолированы. Введите адрес с экрана приёмника или включите точку доступа на телефоне и подключите к ней приёмник.</p>
+    ${S.session ? '' : `<div class="hero"><button class="btn" data-act="start">${ico('people')}Комната для зрителей</button></div>`}`);
+}
+function sheetPair(d){
+  openSheet('PIN с экрана', `<p class="note" style="margin-top:0">Введите PIN, который показан на экране «${esc(d.name)}». Это нужно только при первом подключении.</p>
+    <input class="field code" id="pin" inputmode="numeric" maxlength="4" placeholder="0000" aria-label="PIN" value="">
+    <div style="height:12px"></div><button class="btn tint" data-act="pairgo" data-id="${d.id}">Подключить</button>`);
+  setTimeout(() => { const i = $('#pin'); i && i.focus(); }, 300);
+}
+function sheetPick(k){
+  const type = {pres:'pres', video:'video', photo:'photo', file:'file'}[k];
+  const items = LIB.filter(x => x.type === type || (k==='pres' && x.type==='file'));
+  const fmts = {pres:'PDF, PPTX, PPT, ODP', video:'любой формат: MP4, MKV, MOV, AVI, WMV, WebM…', photo:'JPEG, PNG, WebP, GIF, HEIC', file:'PDF, DOCX, TXT, OpenLyrics'}[k];
+  openSheet(TILES.find(t=>t[0]===k)[1], `<div class="ghead">Недавние</div><div class="group">${items.map(x => itemRow(x.id, true, 'pickpre')).join('')}</div>
+    <button class="btn" data-act="soon">${ico('file')}Файлы телефона…</button><p class="note">${fmts}</p>`);
+}
+function sheetMirror(){
+  openSheet('Экран телефона', `<p class="note" style="margin-top:0">Всё, что на экране телефона, уйдёт в зал. Подходит для презентаций с анимацией в PowerPoint или Google Slides и для любого приложения. Android спросит разрешение.</p>
+    <button class="btn tint" data-act="mirrorgo">${ico('phone')}Начать трансляцию</button>`);
 }
 function sheetJoin(code=''){
   let role = 'viewer';
@@ -635,7 +763,8 @@ function sheetSettings(){
       <div class="row"><span class="main">Bluetooth-кликер и педаль</span>${toggle(st.clicker,'set_clicker','Кликер')}</div>
       <div class="row"><span class="main">Кнопки громкости листают слайды</span>${toggle(st.volume,'set_volume','Кнопки громкости')}</div></div>
     <div class="ghead">Язык</div><div class="seg" style="margin-bottom:18px">${[['ru','Русский'],['uz','Oʻzbekcha'],['en','English']].map(([v,t]) => `<button data-act="lang" data-v="${v}" aria-pressed="${st.lang===v}">${t}</button>`).join('')}</div>
-    <p class="note">Deixis · GPL-3.0 · без рекламы, аналитики и трекеров.</p>`;
+    <div class="ghead">Прототип</div><div class="group"><button class="row" data-act="tvdemo"><span class="kind">${ico('tv')}</span><span class="main"><div class="t">Открыть экран приёмника</div><div class="s">Во втором окне: так выглядит Deixis TV</div></span><span class="chev">${ico('chev')}</span></button></div>
+    <p class="note"><span class="mark" style="font-size:15px">ΔΕΙΞΙΣ</span> · GPL-3.0 · без рекламы, аналитики и трекеров.</p>`;
   openSheet('Настройки', `<div id="setbody">${html()}</div>`);
   SET_RERENDER = () => { const b = $('#setbody'); if (b) b.innerHTML = html(); };
 }
@@ -690,6 +819,24 @@ function closeFull(now){
 
 /* Обработчик всех действий */
 const A = {
+  lseg:d => { S.listSeg = d.v; render(); },
+  recentpre:d => { S.pre = {itemId:d.id, idx:0}; render(); },
+  pickpre:d => { S.pre = {itemId:d.id, idx:0}; S.open = d.id; closeSheet(); render(); },
+  tile:d => d.k==='text' ? sheetText() : d.k==='mirror' ? sheetMirror() : sheetPick(d.k),
+  mirrorgo:() => { closeSheet(); goLive({title:'Экран телефона', slides:[{mirror:true}], idx:0}); toast('Трансляция экрана идёт'); },
+  mirrorstop:() => { S.live = null; render(); toast('Трансляция остановлена'); },
+  fstep2:d => step(+d.d),
+  vplay:() => { S.video.playing = !S.video.playing; render(); },
+  vseek:d => { const dur = lib(S.live.itemId).slides[0].dur; S.video.t = Math.min(dur, Math.max(0, S.video.t + +d.d)); render(); },
+  vloop:() => { S.video.loop = !S.video.loop; render(); },
+  vvol:() => { S.video.vol = S.video.vol >= 100 ? 0 : S.video.vol + 20; render(); },
+  pair:d => sheetPair(S.found.find(x=>x.id===d.id)),
+  pairgo:d => { if (!/^\d{4}$/.test($('#pin').value)) return toast('PIN — 4 цифры');
+    const x = S.found.find(v=>v.id===d.id); S.found = S.found.filter(v=>v.id!==d.id);
+    S.devices.push({id:x.id, icon:x.icon, name:x.name, via:x.via.split(' · ')[0], state:'sync'}); closeSheet(); render(); toast(x.name + ': подключено');
+    setTimeout(() => { const y = S.devices.find(v=>v.id===x.id); if (y) { y.state = 'online'; render(); } }, 1500); },
+  manual:() => openSheet('Адрес приёмника', `<input class="field" id="addr" inputmode="decimal" placeholder="192.168.1.20" aria-label="Адрес"><div style="height:12px"></div><button class="btn tint" data-act="soon">Подключить</button><p class="note">Адрес показан внизу экрана приёмника.</p>`),
+  tvdemo:() => { window.open(location.pathname + '#tv', 'deixis-tv'); },
   tab:d => { S.tab = d.id; render(); },
   open:d => { S.open = S.open === d.id && !isWide() ? null : d.id; render(); },
   slide:d => tapSlide(d.id, +d.i),
@@ -761,8 +908,28 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'b' || e.key === 'и') A.mode({m:'black'});
   else if (e.key === 'Escape') { closeSheet(); closeFull(); }
 });
-matchMedia('(min-width:1024px)').addEventListener('change', render);
-render();
+const IS_TV = location.hash === '#tv';
+function renderTV(msg){
+  const el = $('#recv');
+  if (!msg || !msg.live && msg.mode === 'normal') {
+    el.innerHTML = `<div class="idle"><div class="mk">ΔΕΙΞΙΣ</div><div class="nm">ТВ в холле</div>
+      <div class="meta">${qrSVG(9137)}<div>PIN для подключения<b>7 2 4 1</b>192.168.1.23 · Deixis TV</div></div>
+      <div class="nm" style="opacity:.5;font-size:clamp(12px,1.4vw,17px);margin-top:10px">Откройте Deixis на телефоне и выберите это устройство</div></div>`;
+    return;
+  }
+  S.video.playing = msg.playing;
+  el.innerHTML = `<div class="full-slide">${slideHTML(msg.slide, msg.style, {mode:msg.mode})}</div>`;
+}
+if (IS_TV) {
+  document.title = 'Deixis TV — прототип';
+  $('#app').remove();
+  const el = document.createElement('div'); el.className = 'recv'; el.id = 'recv'; document.body.append(el);
+  renderTV(null);
+  if (BC) BC.onmessage = e => renderTV(e.data);
+} else {
+  matchMedia('(min-width:1024px)').addEventListener('change', render);
+  render();
+}
 </script>
 </body>
 </html>
