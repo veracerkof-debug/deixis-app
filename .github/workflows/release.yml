@@ -1,16 +1,28 @@
 name: Release
 
-# Метка vX.Y.Z публикует релиз. Ручной запуск собирает те же файлы без релиза — для проверки.
+# Релиз: метка vX.Y.Z или ручной запуск с версией и галочкой «Опубликовать».
+# Ручной запуск без галочки собирает те же файлы без релиза — для проверки.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия, например 0.1.0"
+        required: false
+        default: ""
+      publish:
+        description: "Опубликовать релиз"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 env:
   VLC_VERSION: "3.0.21"
+  RELEASE_VERSION: ${{ inputs.version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/') || inputs.publish }}
 
 jobs:
   android:
@@ -25,15 +37,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Версия
         shell: bash
-        run: echo "DEIXIS_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "DEIXIS_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
+        if: env.RELEASE_VERSION != ''
       - name: Ключ подписи
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.DEIXIS_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [ "$PUBLISH" = true ]; then
               echo "::error::Нет секрета DEIXIS_KEYSTORE_BASE64: релиз без постоянного ключа подписи выпускать нельзя"
               exit 1
             fi
@@ -90,8 +102,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Версия
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          [[ "$GITHUB_REF" == refs/tags/* ]] || v="0.1.0"
+          v="${RELEASE_VERSION#v}"
+          [ -n "$v" ] || v="0.1.0"
           v="${v%%-*}"
           # macOS не принимает версию с нулём в начале: 0.Y.Z превращается в 1.0.(Y*100+Z) только для пакета Mac.
           if [ "${{ runner.os }}" = macOS ] && [ "${v%%.*}" = 0 ]; then
@@ -157,7 +169,7 @@ jobs:
 
   release:
     name: Релиз
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.publish
     needs: [android, desktop]
     runs-on: ubuntu-latest
     steps:
@@ -165,9 +177,17 @@ jobs:
         with:
           path: files
           merge-multiple: true
+      - name: Номер версии
+        id: ver
+        shell: bash
+        run: |
+          v="${RELEASE_VERSION#v}"
+          echo "v=${v:-0.1.0}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          name: Deixis ${{ github.ref_name }}
+          tag_name: v${{ steps.ver.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          name: Deixis v${{ steps.ver.outputs.v }}
           prerelease: true
           files: files/*
           body: |
