@@ -300,10 +300,11 @@ class Controller(private val app: Application) {
 
     /** Если система не знает размер файла, он копируется во временный: без размера нельзя докачивать. */
     private suspend fun uriSource(uri: Uri, meta: Meta): UploadSource = withContext(Dispatchers.IO) {
-        if (meta.size != null && meta.size >= 0) {
+        val known = meta.size
+        if (known != null && known >= 0) {
             object : UploadSource {
                 override val name = meta.name
-                override val size = meta.size
+                override val size: Long = known
                 override val mime = mimeOf(meta.name)
                 override fun open(): InputStream = app.contentResolver.openInputStream(uri) ?: error("Файл недоступен")
             }
