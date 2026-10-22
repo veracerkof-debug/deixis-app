@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "app.deixis.tv"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "app.deixis.tv"
         minSdk = 26

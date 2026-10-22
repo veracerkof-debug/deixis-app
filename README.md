@@ -16,4 +16,24 @@
 | [DECISIONS.md](DECISIONS.md) | журнал решений |
 | [prototype/index.html](prototype/index.html) | кликабельный прототип; `#tv` в адресе — экран приёмника |
 
+## Сборка и запуск
+
+Нужна Java 17 или новее. Для видео на компьютере нужен установленный VLC 3.
+
+```sh
+./gradlew :core:test :desktop:test      # тесты
+./gradlew :desktop:installDist          # приложение для компьютера
+desktop/build/install/deixis/bin/deixis                     # приёмник во весь экран (выход — Ctrl+Q)
+desktop/build/install/deixis/bin/deixis list                # приёмники в сети
+desktop/build/install/deixis/bin/deixis send --to 192.168.1.23 --pin 1234 film.mkv
+```
+
+Android-приложения собираются там, где есть Android SDK (Android Studio или CI):
+
+```sh
+./gradlew :android:phone:assembleDebug :android:tv:assembleDebug
+```
+
+Готовые APK и архив для компьютера CI выкладывает в артефакты каждой сборки на вкладке Actions.
+
 Сделано при помощи Claude Code (Anthropic).

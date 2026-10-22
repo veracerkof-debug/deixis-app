@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "app.deixis.phone"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "app.deixis.phone"
         minSdk = 26
