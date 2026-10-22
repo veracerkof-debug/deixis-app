@@ -96,6 +96,7 @@ private fun Main(c: Controller) {
     val progress by c.progress.collectAsState()
     val needPin by c.needPin.collectAsState()
     val viewUrl by c.viewUrl.collectAsState()
+    val viewLocalUrl by c.viewLocalUrl.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::showUri) }
@@ -146,13 +147,13 @@ private fun Main(c: Controller) {
     when (dialog) {
         "address" -> InputDialog("Адрес приёмника", "192.168.1.20", KeyboardType.Uri, singleLine = true, onDismiss = { dialog = null }) { dialog = null; c.addManual(it) }
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
-        "viewers" -> viewUrl?.let { ViewersDialog(it, state?.viewers ?: 0) { dialog = null } }
+        "viewers" -> viewUrl?.let { ViewersDialog(it, viewLocalUrl, state?.viewers ?: 0) { dialog = null } }
     }
 }
 
 /** QR-код для зрителей: iPhone или любой телефон открывает показ в браузере без установки приложения. */
 @Composable
-private fun ViewersDialog(url: String, viewers: Int, onDismiss: () -> Unit) {
+private fun ViewersDialog(url: String, localUrl: String?, viewers: Int, onDismiss: () -> Unit) {
     val p = P.current
     val matrix = remember(url) { qrMatrix(url) }
     Dialog(onDismissRequest = onDismiss) {
@@ -175,7 +176,13 @@ private fun ViewersDialog(url: String, viewers: Int, onDismiss: () -> Unit) {
                 style = TextStyle(fontSize = 14.sp, color = p.l2, textAlign = TextAlign.Center),
             )
             Spacer(Modifier.height(8.dp))
-            BasicText(url, style = TextStyle(fontSize = 12.sp, color = p.l2, textAlign = TextAlign.Center))
+            BasicText("Адрес в сети:", style = TextStyle(fontSize = 12.sp, color = p.l2, textAlign = TextAlign.Center))
+            BasicText(url, style = TextStyle(fontSize = 13.sp, color = p.ink, textAlign = TextAlign.Center))
+            localUrl?.let {
+                Spacer(Modifier.height(4.dp))
+                BasicText("Или по имени (iPhone, компьютер):", style = TextStyle(fontSize = 12.sp, color = p.l2, textAlign = TextAlign.Center))
+                BasicText(it, style = TextStyle(fontSize = 13.sp, color = p.ink, textAlign = TextAlign.Center))
+            }
             Spacer(Modifier.height(8.dp))
             BasicText("Смотрят сейчас: $viewers", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
             Spacer(Modifier.height(12.dp))

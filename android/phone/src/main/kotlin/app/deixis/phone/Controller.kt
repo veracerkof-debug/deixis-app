@@ -89,6 +89,11 @@ class Controller(private val app: Application) {
     val receiverState: StateFlow<ReceiverState?> = client.flatMapLatest { it?.state ?: flowOf(null) }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** Ссылка для зрителей по имени в локальной сети, например http://deixis-ab12.local:47820/view?k=… */
+    val viewLocalUrl: StateFlow<String?> = client.flatMapLatest { c ->
+        c?.viewKey?.map { key -> if (key != null && active.value?.kind != Target.Kind.CABLE) c.viewLocalUrl() else null } ?: flowOf(null)
+    }.stateIn(scope, SharingStarted.Eagerly, null)
+
     /** Ссылка для зрителей в браузере; для кабеля HDMI её нет: тот приёмник виден только этому телефону. */
     val viewUrl: StateFlow<String?> = client.flatMapLatest { c ->
         c?.viewKey?.map { key -> if (key != null && active.value?.kind != Target.Kind.CABLE) c.viewUrl() else null } ?: flowOf(null)

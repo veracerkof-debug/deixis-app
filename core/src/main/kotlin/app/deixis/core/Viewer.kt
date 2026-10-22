@@ -28,11 +28,22 @@ data class ViewerState(val content: Content?, val mode: Mode, val video: VideoSt
 /** Код закрытия WebSocket, если ключ в ссылке неверный или устарел. */
 const val VIEW_BAD_KEY: Short = 4001
 
+/** Сигнал «связь жива» раз в 2 секунды: браузер переподключается, если его нет 6 секунд. */
+internal const val VIEW_TICK_MS = 2_000L
+const val VIEW_TICK = """{"tick":1}"""
+
+/**
+ * Сколько зрителей одновременно получают видеофайл. Каждый тянет поток с приёмника по Wi-Fi;
+ * без предела полсотни телефонов забьют сеть. Остальные видят «Видео идёт на основном экране».
+ */
+const val MAX_VIDEO_STREAMS = 20
+
 /**
  * Страница для зрителей: любой телефон в той же сети открывает ссылку из QR-кода
  * и смотрит показ в браузере без установки приложения. Только просмотр.
  */
 internal fun Route.viewerRoutes(core: ReceiverCore) {
+    val videoStreams = java.util.concurrent.atomic.AtomicInteger()
     val pages = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 12
     }
@@ -64,9 +75,16 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
                 .distinctUntilChanged()
                 .collect { send(Frame.Text(DeixisJson.encodeToString(ViewerState.serializer(), it))) }
         }
+        val ticks = launch {
+            while (true) {
+                kotlinx.coroutines.delay(VIEW_TICK_MS)
+                send(Frame.Text(VIEW_TICK))
+            }
+        }
         try {
             for (frame in incoming) Unit // зритель ничего не отправляет
         } finally {
+            ticks.cancel()
             updates.cancel()
             core.viewerLeft()
         }
@@ -76,8 +94,18 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
     get("/view/file/{sha}") {
         val ref = call.currentFile(core) ?: return@get
         val file = core.files.file(ref.sha256) ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
-        call.response.header("Cache-Control", "private, max-age=3600")
-        call.respond(LocalFileContent(file, runCatching { ContentType.parse(ref.mime) }.getOrDefault(ContentType.Application.OctetStream)))
+        val type = runCatching { ContentType.parse(ref.mime) }.getOrDefault(ContentType.Application.OctetStream)
+        val isStream = type.contentType == "video" || type.contentType == "audio"
+        if (isStream && videoStreams.incrementAndGet() > MAX_VIDEO_STREAMS) {
+            videoStreams.decrementAndGet()
+            return@get call.respondText("", status = HttpStatusCode.ServiceUnavailable)
+        }
+        try {
+            call.response.header("Cache-Control", "private, max-age=3600")
+            call.respond(LocalFileContent(file, type))
+        } finally {
+            if (isStream) videoStreams.decrementAndGet()
+        }
     }
 
     get("/view/page/{sha}/{page}") {

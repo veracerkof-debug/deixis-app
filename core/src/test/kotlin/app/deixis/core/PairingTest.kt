@@ -48,3 +48,12 @@ class ViewKeyTest {
         assertTrue(first.length >= 8)
     }
 }
+
+class LocalNameTest {
+    @Test
+    fun localNameIsStableAndValid() {
+        assertEquals("deixis-3f2a", localHostName("3F2A-91c0-ffff"))
+        assertEquals("deixis-tv", localHostName("---"))
+        assertEquals("deixis-12", localHostName("Ёж-12"), "в имени сети только латиница и цифры")
+    }
+}

@@ -18,6 +18,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.io.InputStream
@@ -97,7 +99,12 @@ class ViewerTest {
     fun viewerSeesShowLiveAndIsCounted() = runBlocking {
         val sender = connectedSender()
         http.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = port, path = "/view/ws?k=${core.viewKey}") {
-            suspend fun next() = DeixisJson.decodeFromString(ViewerState.serializer(), (incoming.receive() as Frame.Text).readText())
+            suspend fun next(): ViewerState {
+                while (true) {
+                    val text = (incoming.receive() as Frame.Text).readText()
+                    if (text != VIEW_TICK) return DeixisJson.decodeFromString(ViewerState.serializer(), text)
+                }
+            }
             assertNull(withTimeout(5_000) { next() }.content)
             withTimeout(5_000) { sender.state.first { it?.viewers == 1 } }
             sender.show(TextContent("Слайд для зала"))
@@ -106,6 +113,37 @@ class ViewerTest {
             assertEquals(Mode.BLACK, withTimeout(5_000) { next() }.mode)
         }
         withTimeout(5_000) { sender.state.first { it?.viewers == 0 } }
+        sender.close()
+    }
+
+    @Test
+    fun fiftyViewersAllGetLatestSlideFast() = runBlocking {
+        val sender = connectedSender()
+        val viewers = 50
+        val last = java.util.concurrent.ConcurrentHashMap<Int, String>()
+        val ready = java.util.concurrent.CountDownLatch(viewers)
+        val jobs = (1..viewers).map { n ->
+            scope.launch {
+                http.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = port, path = "/view/ws?k=${core.viewKey}") {
+                    ready.countDown()
+                    for (frame in incoming) {
+                        val text = (frame as? Frame.Text)?.readText() ?: continue
+                        if (text == VIEW_TICK) continue
+                        val c = DeixisJson.decodeFromString(ViewerState.serializer(), text).content as? TextContent ?: continue
+                        last[n] = c.text
+                    }
+                }
+            }
+        }
+        withContext(Dispatchers.IO) { ready.await(10, java.util.concurrent.TimeUnit.SECONDS) }
+        withTimeout(10_000) { sender.state.first { (it?.viewers ?: 0) == viewers } }
+        val started = System.nanoTime()
+        repeat(30) { sender.show(TextContent("Слайд $it")) }
+        withTimeout(5_000) { while (last.size < viewers || last.values.any { it != "Слайд 29" }) kotlinx.coroutines.delay(20) }
+        val ms = (System.nanoTime() - started) / 1_000_000
+        println("50 зрителей получили последний из 30 слайдов за $ms мс")
+        assertTrue(ms < 2_000, "все зрители получают слайд быстрее 2 секунд, было $ms мс")
+        jobs.forEach { it.cancel() }
         sender.close()
     }
 

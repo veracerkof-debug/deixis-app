@@ -60,6 +60,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
                 is Connection.Connected -> {
                     println("Подключено: «${conn.receiver.name}»")
                     client.viewUrl()?.let { println("Для зрителей: $it") }
+                    client.viewLocalUrl()?.let { println("Или по имени в сети: $it") }
                 }
                 is Connection.Denied -> { saveToken(key, null); return@runBlocking fail("Приёмник не узнал этот компьютер, подключитесь заново с --pin") }
                 else -> return@runBlocking fail("Нет связи с $key: ${(client.connection.value as? Connection.Lost)?.reason ?: "таймаут"}")

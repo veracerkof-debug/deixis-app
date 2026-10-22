@@ -93,8 +93,18 @@ class SenderClient(
     /** Ключ страницы для зрителей этого приёмника; null, пока нет связи или приёмник старой версии. */
     val viewKey: StateFlow<String?> = _viewKey.asStateFlow()
 
-    /** Ссылка для зрителей (её показывает QR-код на телефоне). */
+    @Volatile
+    private var receiverId: String? = null
+
+    /** Ссылка для зрителей по IP-адресу (её показывает QR-код на телефоне). */
     fun viewUrl(): String? = _viewKey.value?.let { "http://$host:$port/view?k=$it" }
+
+    /** Та же ссылка по имени в локальной сети (deixis-ab12.local): работает, даже если у приёмника сменился IP. */
+    fun viewLocalUrl(): String? {
+        val key = _viewKey.value ?: return null
+        val id = receiverId ?: return null
+        return "http://${localHostName(id)}.local:$port/view?k=$key"
+    }
 
     private var loop: Job? = null
     private var outbox = Channel<Msg>(Channel.BUFFERED)
@@ -148,6 +158,7 @@ class SenderClient(
         when (val first = withTimeout(10_000) { (incoming.receive() as? Frame.Text)?.readText()?.let(::decodeMsg) }) {
             is Welcome -> {
                 _state.value = first.state
+                receiverId = first.receiver.id
                 _viewKey.value = first.viewKey
                 _connection.value = Connection.Connected(first.receiver)
             }

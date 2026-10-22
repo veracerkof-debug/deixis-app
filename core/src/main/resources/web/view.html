@@ -114,6 +114,17 @@ function render(s) {
   const k = JSON.stringify([c, s.mode]);
   if (k !== lastKey) {
     lastKey = k;
+    // Фото и страницы PDF сначала загружаются, потом подменяют прежний кадр: без чёрной вспышки между слайдами.
+    if (s.mode === "NORMAL" && c && (c.type === "image" || c.type === "pdf")) {
+      const img = new Image();
+      img.alt = "";
+      img.decoding = "async";
+      if (c.type === "image") img.src = url("/view/file/" + c.file.sha256);
+      else img.src = url(`/view/page/${c.file.sha256}/${c.page}?w=${Math.min(2400, Math.round(Math.max(stage.clientWidth, 640) * (devicePixelRatio || 1)))}`);
+      const swap = () => { if (lastKey !== k) return; video = null; layout(); stage.style.background = "#000"; stage.replaceChildren(img); updateButtons(); };
+      (img.decode ? img.decode() : Promise.reject()).then(swap, () => { img.onload = swap; img.onerror = swap; if (img.complete) swap(); });
+      return;
+    }
     layout();
     video = null;
     stage.replaceChildren();
@@ -139,17 +150,6 @@ function render(s) {
       }
     } else if (s.mode === "CLEAR") {
       // для картинок и видео «Очистить» — чёрный экран
-    } else if (c.type === "image") {
-      const img = new Image();
-      img.src = url("/view/file/" + c.file.sha256);
-      img.alt = "";
-      stage.append(img);
-    } else if (c.type === "pdf") {
-      const img = new Image();
-      const w = Math.min(2400, Math.round(stage.clientWidth * (devicePixelRatio || 1)));
-      img.src = url(`/view/page/${c.file.sha256}/${c.page}?w=${w}`);
-      img.alt = "";
-      stage.append(img);
     } else if (c.type === "video") {
       showVideo(c);
     }
@@ -172,16 +172,30 @@ function showVideo(c) {
   video = v;
 }
 
-// Видео у зрителя идёт вместе с залом: пауза, пуск и перемотка повторяются, расхождение больше 2 секунд выравнивается.
+// Видео у зрителя идёт вместе с залом. Пауза и пуск повторяются сразу. Небольшое расхождение выравнивается
+// лёгким ускорением или замедлением, без рывков; прыжок — только при расхождении больше 3 секунд.
+let lastVideo = null, lastVideoAt = 0;
 function syncVideo(vs) {
-  if (!video || !vs) return;
-  if (vs.playing && video.paused) video.play().catch(() => {});
-  if (!vs.playing && !video.paused) video.pause();
-  const target = vs.positionMs / 1000;
-  if (video.readyState > 0 && Math.abs(video.currentTime - target) > 2) {
+  if (vs) { lastVideo = vs; lastVideoAt = performance.now(); }
+  if (!video || !lastVideo) return;
+  const v = lastVideo;
+  if (v.playing && video.paused) video.play().catch(() => {});
+  if (!v.playing && !video.paused) video.pause();
+  if (video.readyState < 2) return;
+  // На паузе и после конца ролика только сбрасываем скорость: по окончании приёмник может прислать нулевую позицию.
+  if (!v.playing || video.ended) { video.playbackRate = 1; if (v.playing || video.ended) return; }
+  const target = (v.positionMs + (v.playing ? performance.now() - lastVideoAt : 0)) / 1000;
+  const drift = video.currentTime - target;
+  if (Math.abs(drift) > 3) {
     try { video.currentTime = target; } catch (e) {}
+    video.playbackRate = 1;
+  } else if (v.playing && Math.abs(drift) > 0.25) {
+    video.playbackRate = drift > 0 ? 0.95 : 1.05;
+  } else {
+    video.playbackRate = 1;
   }
 }
+setInterval(() => syncVideo(null), 500);
 
 function updateButtons() {
   soundBtn.classList.toggle("hidden", !video);
@@ -215,9 +229,17 @@ keepAwake();
 let pause = 1000;
 function connect() {
   const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url("/view/ws"));
-  ws.onopen = () => { pause = 1000; status.classList.remove("on"); };
-  ws.onmessage = (e) => { try { render(JSON.parse(e.data)); } catch (err) {} };
+  let lastMessage = performance.now();
+  // Если 6 секунд нет даже сигнала «жив», связь считается потерянной: переподключаемся, а не висим с замёрзшим кадром.
+  const watchdog = setInterval(() => { if (performance.now() - lastMessage > 6000) ws.close(); }, 1000);
+  ws.onopen = () => { pause = 1000; lastMessage = performance.now(); status.classList.remove("on"); };
+  ws.onmessage = (e) => {
+    lastMessage = performance.now();
+    if (e.data === '{"tick":1}') return;
+    try { render(JSON.parse(e.data)); } catch (err) {}
+  };
   ws.onclose = (e) => {
+    clearInterval(watchdog);
     if (e.code === 4001) { lastKey = null; current = null; video = null; stage.replaceChildren(note(t.badKey)); updateButtons(); return; }
     status.textContent = t.lost;
     status.classList.add("on");

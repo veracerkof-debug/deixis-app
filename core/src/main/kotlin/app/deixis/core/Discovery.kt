@@ -11,6 +11,10 @@ import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceInfo
 import javax.jmdns.ServiceListener
 
+/** Постоянное имя приёмника в локальной сети без «.local», например deixis-ab12. */
+fun localHostName(receiverId: String): String =
+    "deixis-" + receiverId.lowercase().filter { it in 'a'..'z' || it in '0'..'9' }.take(4).ifEmpty { "tv" }
+
 /** Приёмник, найденный в сети. */
 data class FoundReceiver(val id: String, val name: String, val host: String, val port: Int, val platform: String)
 
@@ -22,7 +26,8 @@ object Discovery {
 
     /** Объявляет приёмник в сети. Закрыть — вызвать `close()` у результата. */
     fun advertise(info: ReceiverInfo, port: Int, address: InetAddress? = localAddress()): AutoCloseable {
-        val jmdns = JmDNS.create(address, info.id)
+        // Имя в сети вида deixis-ab12.local: его понимают iPhone и компьютеры, и оно не меняется, если роутер выдал новый IP.
+        val jmdns = JmDNS.create(address, localHostName(info.id))
         val props = mapOf("id" to info.id, "v" to PROTOCOL_VERSION.toString(), "platform" to info.platform)
         jmdns.registerService(ServiceInfo.create(SERVICE_TYPE, info.name, port, 0, 0, props))
         return AutoCloseable {
