@@ -24,6 +24,7 @@ rootProject.name = "deixis"
 include(":core", ":desktop")
 
 // Android-модули собираются только там, где есть Android SDK (CI, Android Studio).
+// DEIXIS_SKIP_ANDROID=1 отключает их явно (задание CI для ядра и компьютера).
 val hasAndroidSdk = file("local.properties").exists() ||
     System.getenv("ANDROID_HOME") != null || System.getenv("ANDROID_SDK_ROOT") != null
-if (hasAndroidSdk) include(":android:phone", ":android:tv")
+if (hasAndroidSdk && System.getenv("DEIXIS_SKIP_ANDROID") == null) include(":android:receiver", ":android:tv", ":android:phone")

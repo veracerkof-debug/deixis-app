@@ -5,12 +5,10 @@ import app.deixis.core.FileStore
 import app.deixis.core.ImageContent
 import app.deixis.core.Mode
 import app.deixis.core.PdfContent
-import app.deixis.core.SAFE_MARGIN
 import app.deixis.core.TextContent
 import app.deixis.core.VideoContent
-import app.deixis.core.fitFontSize
+import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
-import app.deixis.core.wrapLine
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.rendering.ImageType
 import org.apache.pdfbox.rendering.PDFRenderer
@@ -121,37 +119,22 @@ class SlideRenderer(private val files: FileStore) {
         g.fillRect(0, 0, w, h)
         if (clear) return
         val color = Color(c.style.color.toInt(), true)
-        val marginX = w * SAFE_MARGIN
-        val marginY = h * SAFE_MARGIN
-        val refH = if (c.ref != null) h * 0.06f else 0f
-        val boxW = w - 2 * marginX
-        val boxH = h - 2 * marginY - refH
-        val maxSize = h * c.style.sizePercent / 100f
-        val minSize = maxSize * 0.45f
         val base = Fonts.slide
-        val measure = { s: String, size: Float -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() }
-        var lines = c.text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        var size = fitFontSize(lines, boxW, boxH, maxSize, minSize, measure = measure)
-        if (lines.any { measure(it, size) > boxW }) {
-            lines = lines.flatMap { line -> wrapLine(line, boxW) { measure(it, size) } }
-            size = fitFontSize(lines, boxW, boxH, size, minSize * 0.6f, measure = measure)
-        }
-        val font = base.deriveFont(size)
-        val lineH = size * 1.2f
-        var y = marginY + (boxH - lines.size * lineH) / 2f
-        for (line in lines) {
-            val layout = TextLayout(line, font, frc)
-            val x = (w - layout.advance) / 2f
-            val baseline = y + (lineH - (layout.ascent + layout.descent)) / 2f + layout.ascent
-            drawStyledLine(g, layout, x, baseline, color, size, c.style.shadow, c.style.outline)
-            y += lineH
+        val layout = layoutSlideText(
+            c.text, c.ref != null, w.toFloat(), h.toFloat(), c.style.sizePercent,
+            measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
+            ascent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).ascent },
+            descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
+        )
+        val font = base.deriveFont(layout.fontSize)
+        for (line in layout.lines) {
+            drawStyledLine(g, TextLayout(line.text, font, frc), line.x, line.baseline, color, layout.fontSize, c.style.shadow, c.style.outline)
         }
         c.ref?.let {
-            val f = Fonts.ui.deriveFont(h * 0.032f)
-            val layout = TextLayout(it, f, frc)
+            val ref = TextLayout(it, Fonts.ui.deriveFont(layout.refFontSize), frc)
             g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f)
             g.color = color
-            layout.draw(g, w - marginX - layout.advance, h - marginY)
+            ref.draw(g, layout.refRight - ref.advance, layout.refBaseline)
             g.composite = AlphaComposite.SrcOver
         }
     }

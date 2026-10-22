@@ -65,3 +65,46 @@ fun wrapLine(line: String, maxWidth: Float, measure: (String) -> Float): List<St
     if (current.isNotEmpty()) out += current
     return out
 }
+
+/** Строка слайда с готовыми координатами: x — левый край, baseline — базовая линия. */
+data class PlacedLine(val text: String, val x: Float, val baseline: Float)
+
+data class SlideTextLayout(val fontSize: Float, val lines: List<PlacedLine>, val refFontSize: Float, val refRight: Float, val refBaseline: Float)
+
+/**
+ * Полная раскладка текстового слайда: безопасные поля, подбор размера, перенос, центрирование.
+ * Платформа только измеряет шрифт и рисует, поэтому слайд одинаков на телефоне, ТВ и компьютере.
+ */
+fun layoutSlideText(
+    text: String,
+    hasRef: Boolean,
+    width: Float,
+    height: Float,
+    sizePercent: Float,
+    measure: (String, Float) -> Float,
+    ascent: (Float) -> Float,
+    descent: (Float) -> Float,
+    lineHeight: Float = 1.2f,
+): SlideTextLayout {
+    val marginX = width * SAFE_MARGIN
+    val marginY = height * SAFE_MARGIN
+    val refH = if (hasRef) height * 0.06f else 0f
+    val boxW = width - 2 * marginX
+    val boxH = height - 2 * marginY - refH
+    val maxSize = height * sizePercent / 100f
+    val minSize = maxSize * 0.45f
+    var lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    var size = fitFontSize(lines, boxW, boxH, maxSize, minSize, lineHeight, measure)
+    if (lines.any { measure(it, size) > boxW }) {
+        lines = lines.flatMap { line -> wrapLine(line, boxW) { measure(it, size) } }
+        size = fitFontSize(lines, boxW, boxH, size, minSize * 0.6f, lineHeight, measure)
+    }
+    val lineH = size * lineHeight
+    var top = marginY + (boxH - lines.size * lineH) / 2f
+    val placed = lines.map { line ->
+        val baseline = top + (lineH - (ascent(size) + descent(size))) / 2f + ascent(size)
+        top += lineH
+        PlacedLine(line, (width - measure(line, size)) / 2f, baseline)
+    }
+    return SlideTextLayout(size, placed, height * 0.032f, width - marginX, height - marginY)
+}

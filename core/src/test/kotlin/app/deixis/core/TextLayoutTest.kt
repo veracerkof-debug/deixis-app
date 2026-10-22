@@ -56,3 +56,28 @@ class WrapAndCodeTest {
         assertTrue(m.size >= 21 && m.all { it.size == m.size })
     }
 }
+
+class SlideLayoutTest {
+    private val measure = { s: String, size: Float -> s.length * size * 0.55f }
+
+    @Test
+    fun linesAreCenteredInsideSafeMargins() {
+        val l = layoutSlideText("короткая\nстрока подлиннее", false, 1280f, 720f, 8f, measure, { it * 0.8f }, { it * 0.2f })
+        assertEquals(2, l.lines.size)
+        for (line in l.lines) {
+            val w = measure(line.text, l.fontSize)
+            assertEquals(640f, line.x + w / 2, 0.5f)
+            assertTrue(line.x >= 64f && line.x + w <= 1216f)
+            assertTrue(line.baseline in 36f..684f)
+        }
+        assertTrue(l.lines[0].baseline < l.lines[1].baseline)
+    }
+
+    @Test
+    fun overlongLineIsWrapped() {
+        val long = "слово ".repeat(40).trim()
+        val l = layoutSlideText(long, true, 1280f, 720f, 8f, measure, { it * 0.8f }, { it * 0.2f })
+        assertTrue(l.lines.size > 1)
+        assertTrue(l.lines.all { it.x >= 64f - 0.5f })
+    }
+}

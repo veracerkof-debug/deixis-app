@@ -80,13 +80,14 @@ class ReceiverCore(
 }
 
 /** Сетевой сервер приёмника: WebSocket для команд и HTTP для файлов. */
-class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEFAULT_PORT) {
+/** [host] = "127.0.0.1" — только для этого устройства (вывод по кабелю с телефона), иначе вся локальная сеть. */
+class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEFAULT_PORT, private val host: String = "0.0.0.0") {
 
     private var server: EmbeddedServer<*, *>? = null
 
     /** Запускает сервер и возвращает фактический порт (при port = 0 система выбирает свободный). */
     suspend fun start(): Int {
-        val s = embeddedServer(CIO, port = port, host = "0.0.0.0") {
+        val s = embeddedServer(CIO, port = port, host = host) {
             install(WebSockets) {
                 pingPeriodMillis = 1_000
                 timeoutMillis = 5_000
