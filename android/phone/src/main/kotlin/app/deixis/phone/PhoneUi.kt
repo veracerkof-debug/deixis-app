@@ -1,5 +1,11 @@
 package app.deixis.phone
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -41,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -100,6 +107,36 @@ private fun Main(c: Controller) {
     val viewUrl by c.viewUrl.collectAsState()
     val viewLocalUrl by c.viewLocalUrl.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
+    val sharing by c.sharing.collectAsState()
+    val tooLarge by c.tooLarge.collectAsState()
+    val context = LocalContext.current
+
+    // Демонстрация экрана: разрешение на уведомление (Android 13+), затем системный запрос на захват.
+    var openAfterShare by remember { mutableStateOf<LargeFile?>(null) }
+    val capture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val data = r.data
+        if (r.resultCode == Activity.RESULT_OK && data != null) {
+            ScreenShareService.start(context, r.resultCode, data)
+            // Большой файл открывается в проигрывателе телефона, а в зал идёт экран.
+            openAfterShare?.let { f ->
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(f.uri, f.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                }
+            }
+        }
+        openAfterShare = null
+    }
+    val requestCapture = { capture.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent()) }
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { requestCapture() }
+    val startShare = {
+        when {
+            connection !is Connection.Connected -> c.messages.tryEmit("Сначала выберите экран")
+            Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
+                notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else -> requestCapture()
+        }
+        Unit
+    }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::showUri) }
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::showUri) }
@@ -141,8 +178,9 @@ private fun Main(c: Controller) {
             }
             SectionTitle("Ещё")
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile(if (sharing) "Стоп экран" else "Экран") { if (sharing) ScreenShareService.stop(context) else startShare() }
                 Tile("Библия") { dialog = "bible" }
-                Spacer(Modifier.weight(3f))
+                Spacer(Modifier.weight(2f))
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -150,12 +188,43 @@ private fun Main(c: Controller) {
         ControlBar(c, item, state?.mode, state?.video?.playing)
     }
 
+    tooLarge?.let { f ->
+        LargeFileDialog(f.name, onDismiss = { c.tooLarge.value = null }) {
+            c.tooLarge.value = null
+            openAfterShare = f
+            startShare()
+        }
+    }
     needPin?.let { t -> InputDialog("PIN с экрана «${t.name}»", "0000", KeyboardType.NumberPassword, singleLine = true, onDismiss = { c.needPin.value = null }) { c.pair(t, it) } }
     when (dialog) {
         "address" -> InputDialog("Адрес приёмника", "192.168.1.20", KeyboardType.Uri, singleLine = true, onDismiss = { dialog = null }) { dialog = null; c.addManual(it) }
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
         "bible" -> BibleDialog(c) { dialog = null }
         "viewers" -> viewUrl?.let { ViewersDialog(it, viewLocalUrl, state?.viewers ?: 0) { dialog = null } }
+    }
+}
+
+/** Файл больше 1 ГБ: предлагаем показать его через демонстрацию экрана. */
+@Composable
+private fun LargeFileDialog(name: String, onDismiss: () -> Unit, onShare: () -> Unit) {
+    val p = P.current
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.clip(RoundedCornerShape(14.dp)).background(p.bg).padding(16.dp).width(320.dp)) {
+            BasicText("Файл больше 1 ГБ", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = p.ink))
+            Spacer(Modifier.height(8.dp))
+            BasicText(
+                "«$name» слишком большой, чтобы передать его на экран. Его можно показать демонстрацией экрана: файл откроется на этом телефоне, а в зале будет видно то же, что на телефоне.",
+                style = TextStyle(fontSize = 15.sp, color = p.l2),
+            )
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.red).clickable(onClick = onShare), contentAlignment = Alignment.Center) {
+                BasicText("Показать экран", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White))
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.fill).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                BasicText("Отмена", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
+            }
+        }
     }
 }
 

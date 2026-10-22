@@ -5,11 +5,14 @@ import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -47,6 +51,7 @@ import app.deixis.core.ImageContent
 import app.deixis.core.Mode
 import app.deixis.core.PdfContent
 import app.deixis.core.ScriptureContent
+import app.deixis.core.ScreenContent
 import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
 import app.deixis.core.VideoContent
@@ -101,6 +106,8 @@ fun ReceiverScreen(runtime: ReceiverRuntime, player: VlcPlayer, showIdleInfo: Bo
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (video != null) VideoSurface(player)
+        // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
+        (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
         when {
             mode == Mode.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
             mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { Wordmark(0.13f) }
@@ -111,6 +118,7 @@ fun ReceiverScreen(runtime: ReceiverRuntime, player: VlcPlayer, showIdleInfo: Bo
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
             content is VideoContent -> Unit
+            content is ScreenContent -> Unit
         }
     }
 }
@@ -122,6 +130,33 @@ private fun VideoSurface(player: VlcPlayer) {
         modifier = Modifier.fillMaxSize(),
         onRelease = { player.detach() },
     )
+}
+
+/** Поверхность для трансляции экрана с пропорциями источника, по центру на чёрном. */
+@Composable
+private fun ScreenSurface(runtime: ReceiverRuntime, c: ScreenContent) {
+    val scope = rememberCoroutineScope()
+    val ratio = if (c.width > 0 && c.height > 0) c.width.toFloat() / c.height else 16f / 9
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AndroidView(
+            factory = { ctx ->
+                SurfaceView(ctx).apply {
+                    var decoder: ScreenDecoder? = null
+                    holder.addCallback(object : SurfaceHolder.Callback {
+                        override fun surfaceCreated(h: SurfaceHolder) {
+                            decoder = ScreenDecoder(runtime.core.stream, h.surface) { runtime.core.reportError(it) }.also { it.start(scope) }
+                        }
+                        override fun surfaceChanged(h: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+                        override fun surfaceDestroyed(h: SurfaceHolder) {
+                            decoder?.stop()
+                            decoder = null
+                        }
+                    })
+                }
+            },
+            modifier = Modifier.aspectRatio(ratio),
+        )
+    }
 }
 
 /** Знак ΔΕΙΞΙΣ. [heightFraction] — размер буквы как доля высоты экрана. */

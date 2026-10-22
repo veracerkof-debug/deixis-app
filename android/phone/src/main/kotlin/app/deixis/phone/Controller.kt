@@ -24,6 +24,9 @@ import app.deixis.core.PairingException
 import app.deixis.core.PdfContent
 import app.deixis.core.ReceiverServer
 import app.deixis.core.ScriptureContent
+import app.deixis.core.ScreenContent
+import app.deixis.core.ScreenStream
+import app.deixis.core.FILE_LIMIT_BYTES
 import app.deixis.core.ScriptureOptions
 import app.deixis.core.buildScriptureSlides
 import app.deixis.core.parseBibleRef
@@ -68,10 +71,14 @@ sealed interface Item {
     data class Pdf(val ref: FileRef, val pages: Int, val index: Int) : Item { override val title = ref.name }
     data class Image(val ref: FileRef) : Item { override val title = ref.name }
     data class Video(val ref: FileRef) : Item { override val title = ref.name }
+    data class Screen(val width: Int, val height: Int) : Item { override val title = "Экран телефона" }
     data class Scripture(val slides: List<ScriptureContent>, val index: Int) : Item {
         override val title = slides[index].ref ?: slides[index].blocks.firstOrNull()?.ref ?: "Писание"
     }
 }
+
+/** Файл, который не передаётся из-за размера. */
+data class LargeFile(val uri: Uri, val name: String, val mime: String)
 
 /** Логика пульта без экрана: поиск, сопряжение, отправка, управление. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -114,6 +121,13 @@ class Controller(private val app: Application) {
     val bible = BibleLibrary(app)
     /** Модули Библии на телефоне; обновляется после импорта и удаления. */
     val bibleModules = MutableStateFlow(runCatching { bible.modules() }.getOrDefault(emptyList()))
+
+    /** Идёт демонстрация экрана телефона. */
+    val sharing = MutableStateFlow(false)
+    private var screenStream: ScreenStream? = null
+
+    /** Файл больше 1 ГБ: не передаётся, телефон предлагает показать его демонстрацией экрана. */
+    val tooLarge = MutableStateFlow<LargeFile?>(null)
 
     private var browseJob: Job? = null
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -221,6 +235,7 @@ class Controller(private val app: Application) {
     }
 
     fun disconnect() {
+        if (sharing.value || screenStream != null) ScreenShareService.stop(app)
         clientJobs.forEach { it.cancel() }
         clientJobs = emptyList()
         client.value?.close()
@@ -242,7 +257,13 @@ class Controller(private val app: Application) {
         }
         try {
             val meta = withContext(Dispatchers.IO) { query(uri) }
-            when (mediaKindOf(meta.name) ?: kindFromMime(app.contentResolver.getType(uri))) {
+            val kind = mediaKindOf(meta.name) ?: kindFromMime(app.contentResolver.getType(uri))
+            // Большие файлы не гоняются по Wi-Fi: долго, а место на приёмнике не бесконечно.
+            if ((meta.size ?: 0) > FILE_LIMIT_BYTES && kind != MediaKind.TEXT) {
+                tooLarge.value = LargeFile(uri, meta.name, app.contentResolver.getType(uri) ?: mimeOf(meta.name))
+                return@launch
+            }
+            when (kind) {
                 MediaKind.PRESENTATION -> messages.emit("PPTX, PPT и ODP пока нужно сохранить как PDF")
                 MediaKind.TEXT -> showText(withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } })
                 MediaKind.IMAGE -> {
@@ -300,6 +321,34 @@ class Controller(private val app: Application) {
         }
     }
 
+    /** Поток для службы демонстрации экрана; null, если экран не выбран или нет связи. */
+    fun openScreenStream(): ScreenStream? {
+        val c = client.value ?: return null
+        if (connection.value !is Connection.Connected) return null
+        screenStream?.close()
+        return c.openStream().also { screenStream = it }
+    }
+
+    /** Кодировщик запущен или сменил размер (поворот телефона). Вызывается с потока захвата. */
+    fun showScreen(width: Int, height: Int) = scope.launch {
+        sharing.value = true
+        show(Item.Screen(width, height))
+    }
+
+    /** Трансляция закончилась: по кнопке, из шторки или из-за ошибки ([error]). */
+    fun screenStopped(error: String?) = scope.launch {
+        screenStream?.close()
+        screenStream = null
+        val wasSharing = sharing.value
+        sharing.value = false
+        if (item.value is Item.Screen) {
+            item.value = null
+            // Последний кадр мог захватить шторку уведомлений: в зале остаётся чёрный экран, а не он.
+            if (wasSharing) client.value?.mode(Mode.BLACK)
+        }
+        error?.let { messages.emit(it) }
+    }
+
     fun step(delta: Int) {
         when (val it = item.value) {
             is Item.Scripture -> it.copy(index = (it.index + delta).coerceIn(0, it.slides.lastIndex)).takeIf { n -> n != it }?.let(::show)
@@ -331,6 +380,7 @@ class Controller(private val app: Application) {
             is Item.Image -> ImageContent(it.ref)
             is Item.Video -> VideoContent(it.ref)
             is Item.Scripture -> it.slides[it.index]
+            is Item.Screen -> ScreenContent(it.width, it.height)
         }
         if (client.value?.show(content) == true) item.value = it
         else scope.launch { messages.emit("Нет связи с экраном") }

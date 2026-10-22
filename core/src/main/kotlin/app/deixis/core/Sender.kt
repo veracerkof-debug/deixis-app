@@ -261,7 +261,7 @@ class SenderClient(
      * Открывает демонстрацию экрана на приёмнике. [onKeyRequest] вызывается, когда нужен ключевой кадр:
      * подключился зритель, оборвалась связь или кадры пришлось выбросить.
      */
-    fun openStream(onKeyRequest: () -> Unit): ScreenStream {
+    fun openStream(onKeyRequest: () -> Unit = {}): ScreenStream {
         val t = token ?: error("Нет сопряжения")
         return ScreenStream(scope, onKeyRequest) { session ->
             http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/stream", request = {
@@ -316,7 +316,8 @@ class SenderClient(
  */
 class ScreenStream internal constructor(
     scope: CoroutineScope,
-    private val onKeyRequest: () -> Unit,
+    /** Нужен ключевой кадр. Кодировщик подставляет сюда свой обработчик, когда создан. */
+    @Volatile var onKeyRequest: () -> Unit,
     private val open: suspend (suspend (DefaultClientWebSocketSession) -> Unit) -> Unit,
 ) {
     private val queue = Channel<StreamFrame>(QUEUE_FRAMES)
