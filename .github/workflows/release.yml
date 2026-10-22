@@ -1,0 +1,171 @@
+name: Release
+
+# Метка vX.Y.Z публикует релиз. Ручной запуск собирает те же файлы без релиза — для проверки.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VLC_VERSION: "3.0.21"
+
+jobs:
+  android:
+    name: APK телефона и ТВ
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Версия
+        shell: bash
+        run: echo "DEIXIS_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        if: startsWith(github.ref, 'refs/tags/')
+      - name: Ключ подписи
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DEIXIS_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              echo "::error::Нет секрета DEIXIS_KEYSTORE_BASE64: релиз без постоянного ключа подписи выпускать нельзя"
+              exit 1
+            fi
+            echo "::warning::Ключа подписи нет, APK будут неподписанными (только для проверки сборки)"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/deixis-release.jks"
+          echo "DEIXIS_KEYSTORE_FILE=$RUNNER_TEMP/deixis-release.jks" >> "$GITHUB_ENV"
+      - name: Сборка
+        env:
+          DEIXIS_KEYSTORE_PASSWORD: ${{ secrets.DEIXIS_KEYSTORE_PASSWORD }}
+          DEIXIS_KEY_ALIAS: ${{ secrets.DEIXIS_KEY_ALIAS }}
+          DEIXIS_KEY_PASSWORD: ${{ secrets.DEIXIS_KEY_PASSWORD }}
+        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease --continue
+      - name: Имена файлов
+        shell: bash
+        run: |
+          v="${DEIXIS_VERSION:-dev}"
+          mkdir -p out
+          for app in phone tv; do
+            name=$([ "$app" = phone ] && echo "Deixis" || echo "Deixis-TV")
+            for f in android/$app/build/outputs/apk/release/*.apk; do
+              abi=$(basename "$f" .apk | sed -E "s/^$app-//; s/-release(-unsigned)?$//")
+              [ "$abi" = universal ] && abi="all"
+              cp "$f" "out/$name-$v-$abi.apk"
+            done
+          done
+          ls -la out
+          rm -f "$RUNNER_TEMP/deixis-release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+
+  desktop:
+    name: Установщик ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-latest, type: msi }
+          - { name: macOS, os: macos-latest, type: dmg }
+          - { name: Linux, os: ubuntu-latest, type: deb }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Версия
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF" == refs/tags/* ]] || v="0.1.0"
+          v="${v%%-*}"
+          # macOS не принимает версию с нулём в начале: 0.Y.Z превращается в 1.0.(Y*100+Z) только для пакета Mac.
+          if [ "${{ runner.os }}" = macOS ] && [ "${v%%.*}" = 0 ]; then
+            IFS=. read -r _ minor patch <<< "$v"
+            v="1.0.$(( ${minor:-0} * 100 + ${patch:-0} ))"
+          fi
+          echo "APP_VERSION=$v" >> "$GITHUB_ENV"
+      - name: Сборка программы
+        env:
+          DEIXIS_SKIP_ANDROID: "1"
+        run: ./gradlew :desktop:installDist
+      - name: VLC для Windows
+        if: runner.os == 'Windows'
+        run: |
+          curl -fsSL -o vlc.zip "https://get.videolan.org/vlc/$VLC_VERSION/win64/vlc-$VLC_VERSION-win64.zip"
+          7z x -y vlc.zip > /dev/null
+          mkdir -p content/vlc
+          cp vlc-$VLC_VERSION/libvlc.dll vlc-$VLC_VERSION/libvlccore.dll content/vlc/
+          cp -r vlc-$VLC_VERSION/plugins content/vlc/
+          echo "VLC_OPT=-Djna.library.path=\$APPDIR\\..\\vlc" >> "$GITHUB_ENV"
+          choco install wixtoolset --version 3.14.1 -y --no-progress
+          echo "C:\\Program Files (x86)\\WiX Toolset v3.14\\bin" >> "$GITHUB_PATH"
+      - name: VLC для macOS
+        if: runner.os == 'macOS'
+        run: |
+          curl -fsSL -o vlc.dmg "https://get.videolan.org/vlc/$VLC_VERSION/macosx/vlc-$VLC_VERSION-arm64.dmg"
+          hdiutil attach -nobrowse -mountpoint /tmp/vlc vlc.dmg
+          mkdir -p content/vlc
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib content/vlc/lib
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/plugins content/vlc/plugins
+          hdiutil detach /tmp/vlc
+          echo "VLC_OPT=-Djna.library.path=\$APPDIR/../vlc/lib" >> "$GITHUB_ENV"
+      - name: Установщик
+        run: |
+          args=(
+            --type "${{ matrix.type }}"
+            --name Deixis
+            --app-version "$APP_VERSION"
+            --vendor "Deixis"
+            --description "Показ с телефона на любой экран"
+            --input desktop/build/install/deixis/lib
+            --main-jar desktop.jar
+            --main-class app.deixis.desktop.MainKt
+            --java-options "-Dfile.encoding=UTF-8"
+            --dest out
+          )
+          [ -n "$VLC_OPT" ] && args+=(--java-options "$VLC_OPT" --app-content content/vlc)
+          case "${{ runner.os }}" in
+            Windows) args+=(--win-menu --win-shortcut --win-dir-chooser --win-upgrade-uuid 6f3c1a52-8d0b-4c1e-9a77-2b5e4d1c9f10) ;;
+            Linux) args+=(--linux-shortcut --linux-package-name deixis --linux-package-deps "libvlc5, vlc-plugin-base, vlc-plugin-video-output") ;;
+          esac
+          jpackage "${args[@]}"
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: out/*
+
+  release:
+    name: Релиз
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Deixis ${{ github.ref_name }}
+          prerelease: true
+          files: files/*
+          body: |
+            **Телефон:** `Deixis-…-arm64-v8a.apk` подходит почти всем современным телефонам; `…-all.apk` — любому устройству.
+            **Телевизор, приставка, проектор, доска:** `Deixis-TV-…-armeabi-v7a.apk` или `…-arm64-v8a.apk`; если не уверены — `Deixis-TV-…-all.apk`.
+            **Компьютер:** `.msi` для Windows, `.dmg` для Mac на Apple Silicon, `.deb` для Ubuntu и Debian.
