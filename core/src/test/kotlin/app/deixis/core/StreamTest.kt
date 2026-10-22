@@ -51,6 +51,14 @@ class StreamUnitTest {
     }
 
     @Test
+    fun frameSizeHonoursCropping() {
+        // 1080 не делится на 16: кодировщик пишет 1088 и обрезку, размер должен быть 1080.
+        assertEquals(1920 to 1080, avcFrameSize(byteArrayOf(103, 66, -64, 40, -39, 0, 120, 2, 39, -27, -64, 68, 0, 0, 3, 0, 4, 0, 0, 3, 0, -16, 60, 96, -55, 32)))
+        assertEquals(1080 to 2400, avcFrameSize(byteArrayOf(103, 66, -64, 50, -39, 0, 68, 1, 45, -27, -16, 17, 0, 0, 3, 0, 1, 0, 0, 3, 0, 60, 15, 24, 50, 72)))
+        assertEquals(1L shl 30, FILE_LIMIT_BYTES)
+    }
+
+    @Test
     fun frameRoundTrips() {
         val f = StreamFrame(true, false, 42, 123_456, byteArrayOf(0, 0, 0, 1, 0x65, 7))
         val back = StreamFrame.decode(f.encode())!!
