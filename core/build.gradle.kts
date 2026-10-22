@@ -26,6 +26,7 @@ dependencies {
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.sqlite.jdbc)
 }
 
 tasks.test { useJUnitPlatform() }

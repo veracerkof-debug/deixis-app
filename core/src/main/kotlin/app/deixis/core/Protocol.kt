@@ -164,4 +164,5 @@ val Content.file: FileRef?
         is VideoContent -> file
         is PdfContent -> file
         is TextContent -> null
+        is ScriptureContent -> null
     }

@@ -15,6 +15,7 @@ dependencies {
     implementation(libs.vlcj)
     implementation(libs.pdfbox)
     implementation(libs.imageio.webp)
+    implementation(libs.sqlite.jdbc)
     runtimeOnly(libs.slf4j.nop)
 
     testImplementation(libs.kotlin.test)

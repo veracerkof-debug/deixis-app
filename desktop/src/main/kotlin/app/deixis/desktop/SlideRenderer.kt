@@ -5,6 +5,8 @@ import app.deixis.core.FileStore
 import app.deixis.core.ImageContent
 import app.deixis.core.Mode
 import app.deixis.core.PdfContent
+import app.deixis.core.ScriptureContent
+import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
 import app.deixis.core.VideoContent
 import app.deixis.core.layoutSlideText
@@ -54,6 +56,7 @@ class SlideRenderer(private val files: FileStore) {
                 mode == Mode.LOGO -> drawWordmark(g, width, height, height / 2f, height * 0.13f)
                 content == null -> if (idle != null) drawIdle(g, width, height, idle)
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)
+                content is ScriptureContent -> drawScripture(g, width, height, content, clear = mode == Mode.CLEAR)
                 mode == Mode.CLEAR -> Unit
                 content is ImageContent -> drawFitted(g, width, height, loadImage(content))
                 content is PdfContent -> drawFitted(g, width, height, loadPdfPage(content, width, height))
@@ -136,6 +139,31 @@ class SlideRenderer(private val files: FileStore) {
             g.color = color
             ref.draw(g, layout.refRight - ref.advance, layout.refBaseline)
             g.composite = AlphaComposite.SrcOver
+        }
+    }
+
+    private fun drawScripture(g: Graphics2D, w: Int, h: Int, c: ScriptureContent, clear: Boolean) {
+        g.color = Color(c.style.background.toInt(), true)
+        g.fillRect(0, 0, w, h)
+        if (clear) return
+        val color = Color(c.style.color.toInt(), true)
+        val base = Fonts.slide
+        val lines = layoutScripture(
+            c, w.toFloat(), h.toFloat(),
+            measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
+            ascent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).ascent },
+            descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
+        )
+        for (l in lines) {
+            val layout = TextLayout(l.text, base.deriveFont(l.size), frc)
+            if (l.ref) {
+                g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f)
+                g.color = color
+                layout.draw(g, l.x, l.baseline)
+                g.composite = AlphaComposite.SrcOver
+            } else {
+                drawStyledLine(g, layout, l.x, l.baseline, color, l.size, c.style.shadow, c.style.outline)
+            }
         }
     }
 

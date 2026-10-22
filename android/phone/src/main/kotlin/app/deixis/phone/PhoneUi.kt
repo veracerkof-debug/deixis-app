@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import app.deixis.core.Connection
 import app.deixis.core.Mode
+import app.deixis.core.RefMode
+import app.deixis.core.RefPosition
 import app.deixis.core.VideoAction
 import app.deixis.core.qrMatrix
 import androidx.compose.foundation.Canvas
@@ -137,6 +139,11 @@ private fun Main(c: Controller) {
                 Tile("PDF") { pickFile.launch(arrayOf("application/pdf", "text/plain")) }
                 Tile("Текст") { dialog = "text" }
             }
+            SectionTitle("Ещё")
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile("Библия") { dialog = "bible" }
+                Spacer(Modifier.weight(3f))
+            }
             Spacer(Modifier.height(24.dp))
         }
 
@@ -147,6 +154,7 @@ private fun Main(c: Controller) {
     when (dialog) {
         "address" -> InputDialog("Адрес приёмника", "192.168.1.20", KeyboardType.Uri, singleLine = true, onDismiss = { dialog = null }) { dialog = null; c.addManual(it) }
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
+        "bible" -> BibleDialog(c) { dialog = null }
         "viewers" -> viewUrl?.let { ViewersDialog(it, viewLocalUrl, state?.viewers ?: 0) { dialog = null } }
     }
 }
@@ -238,6 +246,7 @@ private fun NowCard(item: Item?, mode: Mode?, videoText: String?) {
             mode == Mode.BLACK -> "Чёрный экран"
             mode == Mode.LOGO -> "ΔΕΙΞΙΣ"
             item is Item.Text -> item.slides[item.index]
+            item is Item.Scripture -> item.slides[item.index].let { s -> s.blocks.first().text.take(160) + "\n" + (s.ref ?: s.blocks.first().ref ?: "") + " · ${item.index + 1}/${item.slides.size}" }
             item is Item.Pdf -> "${item.title}\nстраница ${item.index + 1} из ${item.pages}"
             item is Item.Video -> item.title + (videoText?.let { "\n$it" } ?: "")
             item != null -> item.title
@@ -272,8 +281,8 @@ private fun ControlBar(c: Controller, item: Item?, mode: Mode?, playing: Boolean
                 BarButton("+10 с") { c.video(VideoAction.SEEK, 10_000) }
                 BarButton("Повтор") { c.video(VideoAction.LOOP) }
             } else {
-                BarButton("Назад", enabled = item is Item.Text || item is Item.Pdf) { c.step(-1) }
-                BarButton("Дальше", enabled = item is Item.Text || item is Item.Pdf) { c.step(1) }
+                BarButton("Назад", enabled = item is Item.Text || item is Item.Pdf || item is Item.Scripture) { c.step(-1) }
+                BarButton("Дальше", enabled = item is Item.Text || item is Item.Pdf || item is Item.Scripture) { c.step(1) }
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -338,3 +347,104 @@ private fun InputDialog(title: String, placeholder: String, keyboard: KeyboardTy
     }
 }
 
+
+/**
+ * Писание из модулей MyBible: один или два перевода, 1–3 стиха на слайд,
+ * адрес одной строкой или у каждого перевода, сверху или снизу, сокращённо или полностью.
+ */
+@Composable
+private fun BibleDialog(c: Controller, onDismiss: () -> Unit) {
+    val p = P.current
+    val modules by c.bibleModules.collectAsState()
+    var selected by remember { mutableStateOf(c.bible.selected.filter { f -> modules.any { it.fileName == f } }) }
+    var options by remember { mutableStateOf(c.bible.options) }
+    var ref by remember { mutableStateOf(c.bible.lastRef) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::importBible) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.clip(RoundedCornerShape(14.dp)).background(p.bg).padding(16.dp).width(340.dp).verticalScroll(rememberScrollState())) {
+            BasicText("Библия", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = p.ink))
+            Spacer(Modifier.height(4.dp))
+            BasicText("Модули MyBible (.SQLite3). Первый выбранный — основной, второй — параллельный.", style = TextStyle(fontSize = 13.sp, color = p.l2))
+            Spacer(Modifier.height(10.dp))
+            FlowChips {
+                modules.forEach { m ->
+                    val order = selected.indexOf(m.fileName)
+                    Chip((if (order >= 0) "${order + 1}. " else "") + m.abbreviation, selected = order >= 0, live = false) {
+                        selected = when {
+                            order >= 0 -> selected - m.fileName
+                            selected.size >= 2 -> listOf(selected.first(), m.fileName)
+                            else -> selected + m.fileName
+                        }
+                    }
+                }
+                Chip("+ Модуль", selected = false, live = false) { pick.launch(arrayOf("*/*")) }
+            }
+            if (modules.isEmpty()) {
+                BasicText("Добавьте модуль, например RST.SQLite3 из приложения MyBible или с mybible.zone.", style = TextStyle(fontSize = 13.sp, color = p.l2))
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.cell).padding(14.dp)) {
+                if (ref.isEmpty()) BasicText("Ин 3:16-18", style = TextStyle(fontSize = 17.sp, color = p.l3))
+                BasicTextField(ref, { ref = it }, Modifier.fillMaxWidth(), textStyle = TextStyle(fontSize = 17.sp, color = p.ink), singleLine = true)
+            }
+
+            OptionRow("Стихов на слайде", listOf("1", "2", "3"), options.versesPerSlide - 1) { options = options.copy(versesPerSlide = it + 1) }
+            if (selected.size > 1) {
+                OptionRow("Два перевода", listOf("Друг под другом", "Рядом"), if (options.sideBySide) 1 else 0) { options = options.copy(sideBySide = it == 1) }
+            }
+            OptionRow("Адрес", listOf("Одной строкой", "У каждого", "Без"), options.refMode.ordinal) { options = options.copy(refMode = RefMode.entries[it]) }
+            if (options.refMode != RefMode.NONE) {
+                OptionRow("Где адрес", listOf("Снизу", "Сверху"), if (options.refPosition == RefPosition.TOP) 1 else 0) {
+                    options = options.copy(refPosition = if (it == 1) RefPosition.TOP else RefPosition.BOTTOM)
+                }
+                OptionRow("Название книги", listOf("Сокращённо", "Полностью"), if (options.fullBookName) 1 else 0) { options = options.copy(fullBookName = it == 1) }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f).height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.fill).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                    BasicText("Закрыть", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
+                }
+                val ready = selected.isNotEmpty() && ref.isNotBlank()
+                Box(
+                    Modifier.weight(1f).height(50.dp).clip(RoundedCornerShape(14.dp)).background(if (ready) p.tint else p.fill)
+                        .clickable(enabled = ready) { c.showScripture(ref, selected, options); onDismiss() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicText("Показать", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (ready) Color.White else p.l3))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionRow(title: String, values: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val p = P.current
+    Spacer(Modifier.height(12.dp))
+    BasicText(title, style = TextStyle(fontSize = 13.sp, color = p.l2))
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(p.fill).padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        values.forEachIndexed { i, v ->
+            Box(
+                Modifier.weight(1f).heightIn(min = 36.dp).clip(RoundedCornerShape(7.dp))
+                    .background(if (i == selected) p.cell else Color.Transparent)
+                    .clickable { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                BasicText(v, style = TextStyle(fontSize = 14.sp, fontWeight = if (i == selected) FontWeight.SemiBold else FontWeight.Normal, color = p.ink, textAlign = TextAlign.Center))
+            }
+        }
+    }
+}
+
+/** Фишки с переносом на новую строку. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FlowChips(content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) { content() }
+}

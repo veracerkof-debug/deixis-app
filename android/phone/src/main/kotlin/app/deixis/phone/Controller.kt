@@ -23,6 +23,10 @@ import app.deixis.core.PairingCode
 import app.deixis.core.PairingException
 import app.deixis.core.PdfContent
 import app.deixis.core.ReceiverServer
+import app.deixis.core.ScriptureContent
+import app.deixis.core.ScriptureOptions
+import app.deixis.core.buildScriptureSlides
+import app.deixis.core.parseBibleRef
 import app.deixis.core.ReceiverState
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
@@ -64,6 +68,9 @@ sealed interface Item {
     data class Pdf(val ref: FileRef, val pages: Int, val index: Int) : Item { override val title = ref.name }
     data class Image(val ref: FileRef) : Item { override val title = ref.name }
     data class Video(val ref: FileRef) : Item { override val title = ref.name }
+    data class Scripture(val slides: List<ScriptureContent>, val index: Int) : Item {
+        override val title = slides[index].ref ?: slides[index].blocks.firstOrNull()?.ref ?: "Писание"
+    }
 }
 
 /** Логика пульта без экрана: поиск, сопряжение, отправка, управление. */
@@ -103,6 +110,10 @@ class Controller(private val app: Application) {
     val progress = MutableStateFlow<String?>(null)
     val needPin = MutableStateFlow<Target?>(null)
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    val bible = BibleLibrary(app)
+    /** Модули Библии на телефоне; обновляется после импорта и удаления. */
+    val bibleModules = MutableStateFlow(runCatching { bible.modules() }.getOrDefault(emptyList()))
 
     private var browseJob: Job? = null
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -254,8 +265,44 @@ class Controller(private val app: Application) {
         }
     }
 
+    fun importBible(uri: Uri) = scope.launch {
+        try {
+            val m = withContext(Dispatchers.IO) { bible.import(uri) }
+            bibleModules.value = withContext(Dispatchers.IO) { bible.modules() }
+            if (bible.selected.isEmpty()) bible.selected = listOf(m.fileName)
+            messages.emit("Добавлен перевод «${m.title}»")
+        } catch (e: Exception) {
+            messages.emit(e.message ?: "Не удалось добавить модуль")
+        }
+    }
+
+    fun removeBible(fileName: String) {
+        bible.remove(fileName)
+        bible.selected = bible.selected - fileName
+        bibleModules.value = bible.modules()
+    }
+
+    /** Показывает место Писания на выбранных переводах с текущими настройками. */
+    fun showScripture(refText: String, selected: List<String>, options: ScriptureOptions) = scope.launch {
+        bible.options = options
+        bible.selected = selected
+        bible.lastRef = refText
+        val modules = selected.mapNotNull { f -> bibleModules.value.firstOrNull { it.fileName == f } }
+        if (modules.isEmpty()) return@launch messages.emit("Выберите перевод")
+        val slides = withContext(Dispatchers.IO) {
+            val ref = parseBibleRef(refText, modules.first().books) ?: return@withContext null
+            buildScriptureSlides(ref, modules, options)
+        }
+        when {
+            slides == null -> messages.emit("Не понял место «$refText». Пример: Ин 3:16-18")
+            slides.isEmpty() -> messages.emit("В переводе нет такого места")
+            else -> show(Item.Scripture(slides, 0))
+        }
+    }
+
     fun step(delta: Int) {
         when (val it = item.value) {
+            is Item.Scripture -> it.copy(index = (it.index + delta).coerceIn(0, it.slides.lastIndex)).takeIf { n -> n != it }?.let(::show)
             is Item.Text -> it.copy(index = (it.index + delta).coerceIn(0, it.slides.lastIndex)).takeIf { n -> n != it }?.let(::show)
             is Item.Pdf -> it.copy(index = (it.index + delta).coerceIn(0, it.pages - 1)).takeIf { n -> n != it }?.let(::show)
             else -> Unit
@@ -283,6 +330,7 @@ class Controller(private val app: Application) {
             is Item.Pdf -> PdfContent(it.ref, it.index)
             is Item.Image -> ImageContent(it.ref)
             is Item.Video -> VideoContent(it.ref)
+            is Item.Scripture -> it.slides[it.index]
         }
         if (client.value?.show(content) == true) item.value = it
         else scope.launch { messages.emit("Нет связи с экраном") }

@@ -1,6 +1,12 @@
 package app.deixis.desktop
 
+import app.deixis.core.BibleModule
 import app.deixis.core.Connection
+import app.deixis.core.RefMode
+import app.deixis.core.RefPosition
+import app.deixis.core.ScriptureOptions
+import app.deixis.core.buildScriptureSlides
+import app.deixis.core.parseBibleRef
 import app.deixis.core.Content
 import app.deixis.core.DeixisJson
 import app.deixis.core.Discovery
@@ -96,7 +102,37 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         }
     }
 
+    /** `--bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"`: Писание из модулей MyBible. */
+    private fun scripture(): Content? {
+        val files = opts.getValue("bible").split(',').map { File(it.trim()) }
+        files.firstOrNull { !it.isFile }?.let { fail("Нет файла модуля ${it.path}"); return null }
+        val modules = files.map { BibleModule(JdbcSql(it), it.name) }
+        try {
+            val refText = opts["ref"] ?: run { fail("Укажите место: --ref \"Ин 3:16\""); return null }
+            val ref = parseBibleRef(refText, modules.first().books) ?: run { fail("Не понял место «$refText»"); return null }
+            val options = ScriptureOptions(
+                versesPerSlide = opts["verses"]?.toIntOrNull() ?: 1,
+                refMode = when {
+                    "ref-each" in opts -> RefMode.PER_TRANSLATION
+                    "no-ref" in opts -> RefMode.NONE
+                    else -> RefMode.ONE_LINE
+                },
+                refPosition = if ("ref-top" in opts) RefPosition.TOP else RefPosition.BOTTOM,
+                fullBookName = "ref-full" in opts,
+                sideBySide = "side" in opts,
+            )
+            val slides = buildScriptureSlides(ref, modules, options)
+            if (slides.isEmpty()) { fail("В модуле нет такого места"); return null }
+            val n = (opts["slide"]?.toIntOrNull() ?: 1).coerceIn(1, slides.size)
+            println("Слайд $n из ${slides.size}")
+            return slides[n - 1]
+        } finally {
+            modules.forEach { it.close() }
+        }
+    }
+
     private suspend fun prepare(client: SenderClient): Content? {
+        if ("bible" in opts) return scripture()
         opts["text"]?.let { text ->
             val slides = splitIntoSlides(text)
             if (slides.isEmpty()) { fail("Пустой текст"); return null }

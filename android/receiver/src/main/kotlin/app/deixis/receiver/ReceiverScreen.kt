@@ -46,6 +46,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import app.deixis.core.ImageContent
 import app.deixis.core.Mode
 import app.deixis.core.PdfContent
+import app.deixis.core.ScriptureContent
+import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
 import app.deixis.core.VideoContent
 import app.deixis.core.layoutSlideText
@@ -104,6 +106,7 @@ fun ReceiverScreen(runtime: ReceiverRuntime, player: VlcPlayer, showIdleInfo: Bo
             mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { Wordmark(0.13f) }
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
             content is TextContent -> TextSlide(content, clear = mode == Mode.CLEAR)
+            content is ScriptureContent -> ScriptureSlide(content, clear = mode == Mode.CLEAR)
             mode == Mode.CLEAR -> Box(Modifier.fillMaxSize().background(Color.Black))
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
@@ -215,6 +218,37 @@ private fun TextSlide(c: TextContent, clear: Boolean) {
                     textAlign = Paint.Align.RIGHT
                 }
                 nc.drawText(it, layout.refRight, layout.refBaseline, refPaint)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScriptureSlide(c: ScriptureContent, clear: Boolean) {
+    val context = LocalContext.current
+    val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(Color(c.style.background.toInt()))
+        if (clear) return@Canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
+        val lines = layoutScripture(
+            c, size.width, size.height,
+            measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
+            ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
+            descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
+        )
+        drawIntoCanvas { canvas ->
+            val nc = canvas.nativeCanvas
+            for (l in lines) {
+                paint.textSize = l.size
+                paint.color = c.style.color.toInt()
+                if (l.ref) {
+                    paint.clearShadowLayer()
+                    paint.alpha = 190
+                } else if (c.style.shadow) {
+                    paint.setShadowLayer(l.size * 0.08f, 0f, l.size * 0.05f, 0xB4000000.toInt())
+                }
+                nc.drawText(l.text, l.x, l.baseline, paint)
             }
         }
     }

@@ -21,6 +21,13 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
         font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; white-space: pre-line; overflow-wrap: break-word; }
 .text.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
 .text .ref { position: absolute; right: 5%; bottom: 5%; font-size: .4em; opacity: .75; }
+.scripture { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; padding: 5%; gap: .6em; text-align: center;
+             font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; overflow: hidden; }
+.scripture.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
+.scripture .blocks { display: flex; flex-direction: column; gap: .6em; }
+.scripture.side .blocks { flex-direction: row; gap: 4%; }
+.scripture.side .blocks > div { flex: 1; }
+.scripture .r { font-size: .55em; opacity: .75; }
 img, video { object-fit: contain; background: #000; }
 .note { display: flex; align-items: center; justify-content: center; text-align: center; padding: 8%; box-sizing: border-box; opacity: .7; font-size: 16px; }
 #bar { transition: opacity .24s; }
@@ -62,7 +69,7 @@ const fullBtn = document.getElementById("full");
 let lastKey = null, video = null, muted = true, current = null;
 
 // Сцена 16:9 по центру экрана, как в зале. Текст занимает весь экран: так его удобно читать и с вертикального телефона.
-function isText() { return current && current.content && current.content.type === "text" && current.mode !== "BLACK" && current.mode !== "LOGO"; }
+function isText() { return current && current.content && (current.content.type === "text" || current.content.type === "scripture") && current.mode !== "BLACK" && current.mode !== "LOGO"; }
 function layout() {
   const w = innerWidth, h = innerHeight;
   const full = isText();
@@ -97,6 +104,8 @@ function note(text) {
 // Размер текста — доля высоты экрана, как на приёмнике; если не помещается, уменьшается.
 function fitText() {
   const el = stage.querySelector(".text");
+  const sc = stage.querySelector(".scripture");
+  if (sc && current && current.content && current.content.type === "scripture") return fitBox(sc, current.content.style);
   if (!el || !current || !current.content || current.content.type !== "text") return;
   // Доля высоты, как в зале, но от меньшей стороны экрана: на вертикальном телефоне текст не мельчит.
   let size = Math.min(stage.clientWidth, stage.clientHeight) * (current.content.style?.sizePercent ?? 8) / 100;
@@ -106,6 +115,44 @@ function fitText() {
     size *= 0.94;
     el.style.fontSize = size + "px";
   }
+}
+
+function fitBox(el, style) {
+  let size = Math.min(stage.clientWidth, stage.clientHeight) * ((style && style.sizePercent) || 8) / 100;
+  const min = size * 0.3;
+  el.style.fontSize = size + "px";
+  while ((el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) && size > min) {
+    size *= 0.94;
+    el.style.fontSize = size + "px";
+  }
+}
+
+// Писание: один или два перевода (друг под другом или рядом), адрес у каждого или одной строкой, сверху или снизу.
+function scripture(c, clear) {
+  const st = c.style || {};
+  stage.style.background = argb(st.background ?? 0xFF000000);
+  if (clear) return;
+  const d = document.createElement("div");
+  d.className = "scripture" + (st.shadow !== false ? " shadow" : "") + (c.sideBySide ? " side" : "");
+  d.style.color = argb(st.color ?? 0xFFFFFFFF);
+  const top = c.refPosition === "TOP";
+  const ref = (text) => { const r = document.createElement("div"); r.className = "r"; r.textContent = text; return r; };
+  if (c.ref && top) d.append(ref(c.ref));
+  const blocks = document.createElement("div");
+  blocks.className = "blocks";
+  for (const b of c.blocks) {
+    const bd = document.createElement("div");
+    if (b.ref && top) bd.append(ref(b.ref));
+    const t = document.createElement("div");
+    t.textContent = b.text;
+    bd.append(t);
+    if (b.ref && !top) bd.append(ref(b.ref));
+    blocks.append(bd);
+  }
+  d.append(blocks);
+  if (c.ref && !top) d.append(ref(c.ref));
+  stage.append(d);
+  fitBox(d, st);
 }
 
 function render(s) {
@@ -148,6 +195,8 @@ function render(s) {
         stage.append(d);
         fitText();
       }
+    } else if (c.type === "scripture") {
+      scripture(c, s.mode === "CLEAR");
     } else if (s.mode === "CLEAR") {
       // для картинок и видео «Очистить» — чёрный экран
     } else if (c.type === "video") {
