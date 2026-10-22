@@ -66,6 +66,26 @@ class FileStoreTest {
     }
 
     @Test
+    fun filesOlderThanDayAreRemovedExceptCurrent() {
+        val store = FileStore(dir)
+        val day = 24L * 60 * 60 * 1000
+        val now = System.currentTimeMillis()
+        val old = Random(11).nextBytes(1000).let { b -> sha256Of(b.inputStream()).also { store.append(it, 1000, 0, b.inputStream()) } }
+        val onScreen = Random(12).nextBytes(1000).let { b -> sha256Of(b.inputStream()).also { store.append(it, 1000, 0, b.inputStream()) } }
+        val fresh = Random(13).nextBytes(1000).let { b -> sha256Of(b.inputStream()).also { store.append(it, 1000, 0, b.inputStream()) } }
+        val half = Random(14).nextBytes(1000).let { b -> sha256Of(b.inputStream()).also { store.append(it, 1000, 0, b.copyOfRange(0, 300).inputStream()) } }
+        File(dir, old).setLastModified(now - day - 60_000)
+        File(dir, onScreen).setLastModified(now - 3 * day)
+        File(dir, "$half.part").setLastModified(now - 2 * day)
+
+        assertEquals(2, store.purgeOlderThan(day, keep = setOf(onScreen), now = now))
+        assertNull(store.file(old), "суточный файл удалён")
+        assertNotNull(store.file(onScreen), "то, что на экране, остаётся")
+        assertNotNull(store.file(fresh), "свежий файл остаётся")
+        assertEquals(0, store.status(half).bytes, "брошенная недокачка удалена")
+    }
+
+    @Test
     fun invalidIdIsRejected() {
         val store = FileStore(dir)
         assertFailsWith<StoreException> { store.status("../etc/passwd") }

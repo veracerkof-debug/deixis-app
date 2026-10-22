@@ -112,9 +112,16 @@ fun newViewKey(): String {
 
 /** Сетевой сервер приёмника: WebSocket для команд, HTTP для файлов и страница для зрителей. */
 /** [host] = "127.0.0.1" — только для этого устройства (вывод по кабелю с телефона), иначе вся локальная сеть. */
-class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEFAULT_PORT, private val host: String = "0.0.0.0") {
+class ReceiverServer(
+    private val core: ReceiverCore,
+    private val port: Int = DEFAULT_PORT,
+    private val host: String = "0.0.0.0",
+    /** Файлы хранятся сутки после последнего показа, потом удаляются: приёмник не копит чужие фото и видео. */
+    private val fileTtlMs: Long = FILE_TTL_MS,
+) {
 
     private var server: EmbeddedServer<*, *>? = null
+    private var cleaner: kotlinx.coroutines.Job? = null
 
     /** Запускает сервер и возвращает фактический порт (при port = 0 система выбирает свободный). */
     suspend fun start(): Int {
@@ -165,10 +172,19 @@ class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEF
         }
         s.start(wait = false)
         server = s
+        cleaner = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+            while (true) {
+                val keep = setOfNotNull(core.state.value.content?.file?.sha256)
+                runCatching { core.files.purgeOlderThan(fileTtlMs, keep) }
+                kotlinx.coroutines.delay(CLEAN_EVERY_MS)
+            }
+        }
         return s.engine.resolvedConnectors().first().port
     }
 
     fun stop() {
+        cleaner?.cancel()
+        cleaner = null
         server?.stop(500, 2_000)
         server = null
     }
@@ -227,5 +243,7 @@ class ReceiverServer(private val core: ReceiverCore, private val port: Int = DEF
     companion object {
         const val DEFAULT_PORT = 47820
         const val HEADER_SIZE = "Deixis-Size"
+        const val FILE_TTL_MS = 24L * 60 * 60 * 1000
+        private const val CLEAN_EVERY_MS = 60L * 60 * 1000
     }
 }

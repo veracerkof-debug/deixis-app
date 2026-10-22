@@ -59,6 +59,21 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
         }
     }
 
+    /**
+     * Удаляет файлы, которые не показывались дольше [maxAgeMs], и брошенные недокачки.
+     * [keep] — то, что сейчас на экране: его не трогаем, даже если показ идёт очень долго.
+     * Возвращает число удалённых файлов.
+     */
+    fun purgeOlderThan(maxAgeMs: Long, keep: Set<String> = emptySet(), now: Long = System.currentTimeMillis()): Int {
+        var removed = 0
+        dir.listFiles()?.forEach { f ->
+            val sha = f.name.removeSuffix(".part")
+            if (!f.isFile || sha in keep || sha in writing) return@forEach
+            if (now - f.lastModified() > maxAgeMs && f.delete()) removed++
+        }
+        return removed
+    }
+
     /** Отмечает использование файла, чтобы очистка кэша удаляла давно не нужные. */
     fun touch(sha256: String) {
         complete(sha256).takeIf { it.isFile }?.setLastModified(System.currentTimeMillis())
