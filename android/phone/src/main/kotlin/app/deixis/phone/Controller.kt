@@ -33,6 +33,7 @@ import app.deixis.core.parseBibleRef
 import app.deixis.core.ReceiverState
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
+import app.deixis.core.TextStyle
 import app.deixis.core.UploadSource
 import app.deixis.core.VideoAction
 import app.deixis.core.VideoCommand
@@ -121,6 +122,28 @@ class Controller(private val app: Application) {
     val bible = BibleLibrary(app)
     /** Модули Библии на телефоне; обновляется после импорта и удаления. */
     val bibleModules = MutableStateFlow(runCatching { bible.modules() }.getOrDefault(emptyList()))
+
+    private val settings = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    /** Текст на экране зала заглавными буквами. */
+    val caps = MutableStateFlow(settings.getBoolean("caps", false))
+
+    /** Церковный режим: раздел «Библия» (позже песни и сетлисты). По умолчанию включён. */
+    val churchMode = MutableStateFlow(settings.getBoolean("church", true))
+
+    fun setCaps(on: Boolean) {
+        settings.edit().putBoolean("caps", on).apply()
+        caps.value = on
+        // Текущий слайд сразу перерисовывается в новом регистре.
+        item.value?.takeIf { it is Item.Text || it is Item.Scripture }?.let(::show)
+    }
+
+    fun setChurchMode(on: Boolean) {
+        settings.edit().putBoolean("church", on).apply()
+        churchMode.value = on
+    }
+
+    private fun style() = TextStyle(caps = caps.value)
 
     /** Идёт демонстрация экрана телефона. */
     val sharing = MutableStateFlow(false)
@@ -375,11 +398,11 @@ class Controller(private val app: Application) {
 
     private fun show(it: Item) {
         val content: Content = when (it) {
-            is Item.Text -> TextContent(it.slides[it.index])
+            is Item.Text -> TextContent(it.slides[it.index], style = style())
             is Item.Pdf -> PdfContent(it.ref, it.index)
             is Item.Image -> ImageContent(it.ref)
             is Item.Video -> VideoContent(it.ref)
-            is Item.Scripture -> it.slides[it.index]
+            is Item.Scripture -> it.slides[it.index].let { sc -> sc.copy(style = sc.style.copy(caps = caps.value)) }
             is Item.Screen -> ScreenContent(it.width, it.height)
         }
         if (client.value?.show(content) == true) item.value = it

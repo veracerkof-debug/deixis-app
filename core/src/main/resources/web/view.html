@@ -17,11 +17,11 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
 .mark { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2vh; }
 .mark b { font-family: "Deixis Mark", Georgia, serif; font-weight: 400; letter-spacing: .18em; padding-left: .18em; }
 .mark span { opacity: .55; font-size: 15px; }
-.text { display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 5%; text-align: center;
-        font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; white-space: pre-line; overflow-wrap: break-word; }
+.text { display: flex; align-items: center; justify-content: center; box-sizing: border-box; text-align: center; text-wrap: balance; overflow-wrap: normal; hyphens: none;
+        font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; white-space: pre-line; }
 .text.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
-.text .ref { position: absolute; right: 5%; bottom: 5%; font-size: .4em; opacity: .75; }
-.scripture { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; padding: 5%; gap: .6em; text-align: center;
+.text .ref { position: absolute; opacity: .75; text-transform: inherit; }
+.scripture { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; gap: .6em; text-align: center; text-wrap: balance; overflow-wrap: normal; hyphens: none;
              font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; overflow: hidden; }
 .scripture.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
 .scripture .blocks { display: flex; flex-direction: column; gap: .6em; }
@@ -81,6 +81,8 @@ function layout() {
   if (current) fitText();
 }
 addEventListener("resize", layout);
+// Шрифт слайда грузится с приёмника: после загрузки ширина букв другая, размер подбирается заново.
+if (document.fonts) document.fonts.addEventListener("loadingdone", () => fitText());
 layout();
 
 const url = (path) => path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key);
@@ -110,24 +112,41 @@ function fitText() {
   const sc = stage.querySelector(".scripture");
   if (sc && current && current.content && current.content.type === "scripture") return fitBox(sc, current.content.style);
   if (!el || !current || !current.content || current.content.type !== "text") return;
-  // Доля высоты, как в зале, но от меньшей стороны экрана: на вертикальном телефоне текст не мельчит.
-  let size = Math.min(stage.clientWidth, stage.clientHeight) * (current.content.style?.sizePercent ?? 8) / 100;
-  const min = size * 0.3;
-  el.style.fontSize = size + "px";
-  while ((el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) && size > min) {
-    size *= 0.94;
-    el.style.fontSize = size + "px";
-  }
+  fitBox(el, current.content.style);
 }
 
+// Как в зале: поля от меньшей стороны экрана, одинаковые со всех краёв; наибольший размер, при котором
+// текст помещается в поля без разрыва слов. Строки выравниваются по длине (text-wrap: balance).
 function fitBox(el, style) {
-  let size = Math.min(stage.clientWidth, stage.clientHeight) * ((style && style.sizePercent) || 8) / 100;
-  const min = size * 0.3;
-  el.style.fontSize = size + "px";
-  while ((el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) && size > min) {
-    size *= 0.94;
-    el.style.fontSize = size + "px";
+  const st = style || {};
+  const short = Math.min(stage.clientWidth, stage.clientHeight);
+  const pad = short * 0.055;
+  el.style.padding = pad + "px";
+  // Подпись — своим кеглем от экрана, внутри полей; под неё оставлено место, как в зале.
+  const refEl = el.querySelector(":scope > .ref");
+  if (refEl) {
+    const rs = short * 0.045;
+    refEl.style.fontSize = rs + "px"; refEl.style.right = pad + "px"; refEl.style.bottom = pad + "px";
+    el.style.paddingBottom = (pad + rs * 1.2 * 1.5) + "px";
   }
+  el.style.textTransform = st.caps ? "uppercase" : "none";
+  // Сравниваются настоящие границы текста с полем: центрированный текст вылезает и вверх, и вниз,
+  // а scrollHeight видит только низ.
+  const fits = (size) => {
+    el.style.fontSize = size + "px";
+    const box = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    if (refEl) range.setEndBefore(refEl);
+    const r = range.getBoundingClientRect();
+    return r.top >= box.top + parseFloat(cs.paddingTop) - 1 && r.bottom <= box.bottom - parseFloat(cs.paddingBottom) + 1
+      && r.left >= box.left + pad - 1 && r.right <= box.right - pad + 1
+      && el.scrollWidth <= el.clientWidth + 1;
+  };
+  let lo = short * 0.015, hi = short * (st.sizePercent || 20) / 100;
+  if (fits(hi)) return;
+  for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+  el.style.fontSize = lo + "px";
 }
 
 // Писание: один или два перевода (друг под другом или рядом), адрес у каждого или одной строкой, сверху или снизу.

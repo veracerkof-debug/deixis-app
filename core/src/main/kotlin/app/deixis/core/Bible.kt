@@ -200,66 +200,69 @@ fun layoutScripture(
     measure: (String, Float) -> Float,
     ascent: (Float) -> Float,
     descent: (Float) -> Float,
-    lineHeight: Float = 1.2f,
+    overscan: Boolean = false,
+    lineHeight: Float = SLIDE_LINE_HEIGHT,
 ): List<ScriptureLine> {
-    val marginX = width * SAFE_MARGIN
-    val marginY = height * SAFE_MARGIN
-    val maxSize = height * c.style.sizePercent / 100f
-    val gap = height * 0.04f
+    val area = safeArea(width, height, overscan)
+    val short = minOf(width, height)
+    val maxSize = maxFontSize(width, height, c.style)
+    val gap = short * 0.04f
     val refRatio = 0.55f
-    val columns = if (c.sideBySide) c.blocks.size else 1
-    val colGap = if (columns > 1) width * 0.04f else 0f
-    val colW = (width - 2 * marginX - colGap * (columns - 1)) / columns
-    val globalRefH = if (c.ref != null) maxSize * refRatio * lineHeight + gap / 2 else 0f
-    val areaTop = marginY + if (c.ref != null && c.refPosition == RefPosition.TOP) globalRefH else 0f
-    val areaH = height - 2 * marginY - globalRefH
+    val blocks = c.blocks.map { b -> ScriptureBlock(styledText(b.text, c.style), b.ref?.let { styledText(it, c.style) }) }
+    val globalRef = c.ref?.let { styledText(it, c.style) }
+    val columns = if (c.sideBySide) blocks.size else 1
+    val colGap = if (columns > 1) short * 0.05f else 0f
+    val colW = (area.width - colGap * (columns - 1)) / columns
+    // Адрес одной строкой — своим кеглем от экрана, текст стихов подбирается под оставшееся место.
+    val globalRefSize = short * 0.045f
+    val globalRefH = if (globalRef != null) globalRefSize * lineHeight + gap / 2 else 0f
+    val areaTop = area.top + if (globalRef != null && c.refPosition == RefPosition.TOP) globalRefH else 0f
+    val areaH = area.height - globalRefH
+    val w = colW * 0.985f
 
-    fun wrap(text: String, size: Float) = text.lines().flatMap { wrapLine(it.trim(), colW) { s -> measure(s, size) } }.filter { it.isNotEmpty() }
-    fun blockHeight(b: ScriptureBlock, size: Float): Float {
-        val refLines = if (b.ref != null) 1 else 0
-        return wrap(b.text, size).size * size * lineHeight + refLines * size * refRatio * lineHeight
-    }
-    fun fits(size: Float): Boolean = if (columns > 1) {
-        c.blocks.all { blockHeight(it, size) <= areaH }
-    } else {
-        c.blocks.sumOf { blockHeight(it, size).toDouble() } + gap * (c.blocks.size - 1) <= areaH
+    fun paras(b: ScriptureBlock) = b.text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    fun blockLines(b: ScriptureBlock, size: Float) = balance(paras(b), size, w, measure)
+    fun blockHeight(b: ScriptureBlock, size: Float, lines: Int = blockLines(b, size).size): Float =
+        lines * size * lineHeight + (if (b.ref != null) size * refRatio * lineHeight else 0f)
+    fun fits(size: Float): Boolean {
+        if (blocks.any { b -> paras(b).any { p -> p.split(' ').any { measure(it, size) > w } } }) return false
+        if (blocks.any { b -> b.ref != null && measure(b.ref, size * refRatio) > w }) return false
+        val heights = blocks.map { b -> blockHeight(b, size, paras(b).sumOf { p -> wrapLine(p, w) { measure(it, size) }.size }) }
+        return if (columns > 1) heights.all { it <= areaH } else heights.sum() + gap * (blocks.size - 1) <= areaH
     }
 
-    // Наибольший размер, при котором всё помещается; не меньше трети от заданного.
-    var lo = maxSize / 3
-    var hi = maxSize
-    if (fits(hi)) lo = hi else repeat(18) { val mid = (lo + hi) / 2; if (fits(mid)) lo = mid else hi = mid }
-    val size = lo
+    val size = largestFitting(short * 0.015f, maxSize, ::fits)
     val refSize = size * refRatio
     val out = mutableListOf<ScriptureLine>()
 
-    fun place(text: String, s: Float, isRef: Boolean, left: Float, w: Float, top: Float): Float {
+    fun place(text: String, s: Float, isRef: Boolean, left: Float, width: Float, top: Float): Float {
         val lh = s * lineHeight
         val baseline = top + (lh - (ascent(s) + descent(s))) / 2f + ascent(s)
-        out += ScriptureLine(text, left + (w - measure(text, s)) / 2f, baseline, s, isRef)
+        out += ScriptureLine(text, left + (width - measure(text, s)) / 2f, baseline, s, isRef)
         return top + lh
     }
-    fun placeBlock(b: ScriptureBlock, left: Float, top: Float): Float {
+    fun placeBlock(b: ScriptureBlock, lines: List<String>, left: Float, top: Float): Float {
         var y = top
         if (b.ref != null && c.refPosition == RefPosition.TOP) y = place(b.ref, refSize, true, left, colW, y)
-        for (line in wrap(b.text, size)) y = place(line, size, false, left, colW, y)
+        for (line in lines) y = place(line, size, false, left, colW, y)
         if (b.ref != null && c.refPosition == RefPosition.BOTTOM) y = place(b.ref, refSize, true, left, colW, y)
         return y
     }
 
+    val laid = blocks.map { it to blockLines(it, size) }
     if (columns > 1) {
-        c.blocks.forEachIndexed { i, b ->
-            val left = marginX + i * (colW + colGap)
-            placeBlock(b, left, areaTop + (areaH - blockHeight(b, size)) / 2f)
+        laid.forEachIndexed { i, (b, lines) ->
+            val left = area.left + i * (colW + colGap)
+            placeBlock(b, lines, left, areaTop + (areaH - blockHeight(b, size, lines.size)) / 2f)
         }
     } else {
-        val total = c.blocks.sumOf { blockHeight(it, size).toDouble() }.toFloat() + gap * (c.blocks.size - 1)
+        val total = laid.sumOf { (b, lines) -> blockHeight(b, size, lines.size).toDouble() }.toFloat() + gap * (blocks.size - 1)
         var y = areaTop + (areaH - total) / 2f
-        c.blocks.forEach { y = placeBlock(it, marginX, y) + gap }
+        laid.forEach { (b, lines) -> y = placeBlock(b, lines, area.left, y) + gap }
     }
-    c.ref?.let { r ->
-        val top = if (c.refPosition == RefPosition.TOP) marginY else height - marginY - refSize * lineHeight
-        place(r, refSize, true, marginX, width - 2 * marginX, top)
+    globalRef?.let { r ->
+        val top = if (c.refPosition == RefPosition.TOP) area.top else area.bottom - globalRefSize * lineHeight
+        place(r, globalRefSize, true, area.left, area.width, top)
     }
     return out
 }

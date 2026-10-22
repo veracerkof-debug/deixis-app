@@ -71,9 +71,10 @@ class BibleTest {
             val slide = buildScriptureSlides(ref, listOf(rst, kjv), opts).single()
             val lines = layoutScripture(slide, 1920f, 1080f, measure, asc, desc)
             assertTrue(lines.isNotEmpty())
+            val a = safeArea(1920f, 1080f)
             for (l in lines) {
-                assertTrue(l.x >= 1920 * SAFE_MARGIN - 1 && l.x + measure(l.text, l.size) <= 1920 * (1 - SAFE_MARGIN) + 1, "по ширине: $opts ${l.text}")
-                assertTrue(l.baseline <= 1080 * (1 - SAFE_MARGIN) + 1 && l.baseline - l.size * 0.8f >= 1080 * SAFE_MARGIN - 1, "по высоте: $opts ${l.text}")
+                assertTrue(l.x >= a.left - 1 && l.x + measure(l.text, l.size) <= a.right + 1, "по ширине: $opts ${l.text}")
+                assertTrue(l.baseline + l.size * 0.2f <= a.bottom + 1 && l.baseline - l.size * 0.8f >= a.top - 1, "по высоте: $opts ${l.text}")
             }
             val body = lines.filter { !it.ref }.map { it.size }.distinct()
             assertEquals(1, body.size, "один размер текста для всех переводов")
@@ -86,6 +87,22 @@ class BibleTest {
             if (opts.sideBySide) {
                 val xs = lines.filter { !it.ref }.map { it.x }
                 assertTrue(xs.any { it < 960 } && xs.any { it > 960 }, "два перевода в две колонки")
+            }
+        }
+    }
+
+    @Test
+    fun scriptureFitsAnyScreenAndHonoursCaps() {
+        val ref = parseBibleRef("Ин 3:16-18", rst.books)!!
+        val measure = { s: String, size: Float -> s.length * size * 0.5f }
+        val slide = buildScriptureSlides(ref, listOf(rst, kjv), ScriptureOptions(versesPerSlide = 3), TextStyle(caps = true)).single()
+        for ((w, h) in listOf(1920f to 1080f, 1080f to 1920f, 1024f to 768f, 3840f to 1080f)) {
+            val lines = layoutScripture(slide, w, h, measure, { it * 0.8f }, { it * 0.2f }, overscan = true)
+            val a = safeArea(w, h, overscan = true)
+            for (l in lines) {
+                assertTrue(l.x >= a.left - 1 && l.x + measure(l.text, l.size) <= a.right + 1, "по ширине на ${w}×$h")
+                assertTrue(l.baseline - l.size * 0.8f >= a.top - 1 && l.baseline + l.size * 0.2f <= a.bottom + 1, "по высоте на ${w}×$h")
+                assertEquals(l.text.uppercase(), l.text)
             }
         }
     }

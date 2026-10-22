@@ -108,6 +108,7 @@ private fun Main(c: Controller) {
     val viewLocalUrl by c.viewLocalUrl.collectAsState()
     var dialog by remember { mutableStateOf<String?>(null) }
     val sharing by c.sharing.collectAsState()
+    val churchMode by c.churchMode.collectAsState()
     val tooLarge by c.tooLarge.collectAsState()
     val context = LocalContext.current
 
@@ -179,8 +180,9 @@ private fun Main(c: Controller) {
             SectionTitle("Ещё")
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile(if (sharing) "Стоп экран" else "Экран") { if (sharing) ScreenShareService.stop(context) else startShare() }
-                Tile("Библия") { dialog = "bible" }
-                Spacer(Modifier.weight(2f))
+                if (churchMode) Tile("Библия") { dialog = "bible" }
+                Tile("Настройки") { dialog = "settings" }
+                Spacer(Modifier.weight(if (churchMode) 1f else 2f))
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -200,7 +202,34 @@ private fun Main(c: Controller) {
         "address" -> InputDialog("Адрес приёмника", "192.168.1.20", KeyboardType.Uri, singleLine = true, onDismiss = { dialog = null }) { dialog = null; c.addManual(it) }
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
         "bible" -> BibleDialog(c) { dialog = null }
+        "settings" -> SettingsDialog(c) { dialog = null }
         "viewers" -> viewUrl?.let { ViewersDialog(it, viewLocalUrl, state?.viewers ?: 0) { dialog = null } }
+    }
+}
+
+/** Настройки показа: регистр текста в зале и церковный режим. */
+@Composable
+private fun SettingsDialog(c: Controller, onDismiss: () -> Unit) {
+    val p = P.current
+    val caps by c.caps.collectAsState()
+    val church by c.churchMode.collectAsState()
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.clip(RoundedCornerShape(14.dp)).background(p.bg).padding(16.dp).width(320.dp)) {
+            BasicText("Настройки", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = p.ink))
+            OptionRow("Текст на экране", listOf("Обычный", "ЗАГЛАВНЫЕ"), if (caps) 1 else 0) { c.setCaps(it == 1) }
+            Spacer(Modifier.height(6.dp))
+            BasicText(
+                "Размер текста подбирается сам: самый крупный, который помещается в поля экрана.",
+                style = TextStyle(fontSize = 13.sp, color = p.l2),
+            )
+            OptionRow("Церковный режим", listOf("Включён", "Выключен"), if (church) 0 else 1) { c.setChurchMode(it == 0) }
+            Spacer(Modifier.height(6.dp))
+            BasicText("Раздел «Библия» с модулями MyBible.", style = TextStyle(fontSize = 13.sp, color = p.l2))
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.fill).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                BasicText("Готово", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.ink))
+            }
+        }
     }
 }
 

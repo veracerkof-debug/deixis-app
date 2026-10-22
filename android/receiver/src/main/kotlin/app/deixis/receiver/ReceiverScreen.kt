@@ -71,7 +71,13 @@ val NotoSans = FontFamily(Font(R.font.noto_sans_semibold))
  * а здесь остаётся чёрный экран.
  */
 @Composable
-fun ReceiverScreen(runtime: ReceiverRuntime, player: VlcPlayer, showIdleInfo: Boolean = true) {
+fun ReceiverScreen(
+    runtime: ReceiverRuntime,
+    player: VlcPlayer,
+    showIdleInfo: Boolean = true,
+    /** Экран может обрезать края (телевизор): текст отступает дальше от краёв. */
+    overscan: Boolean = false,
+) {
     val state by runtime.core.state.collectAsState()
     val pin by runtime.pin.collectAsState()
     val address by runtime.address.collectAsState()
@@ -112,8 +118,8 @@ fun ReceiverScreen(runtime: ReceiverRuntime, player: VlcPlayer, showIdleInfo: Bo
             mode == Mode.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
             mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { Wordmark(0.13f) }
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
-            content is TextContent -> TextSlide(content, clear = mode == Mode.CLEAR)
-            content is ScriptureContent -> ScriptureSlide(content, clear = mode == Mode.CLEAR)
+            content is TextContent -> TextSlide(content, clear = mode == Mode.CLEAR, overscan)
+            content is ScriptureContent -> ScriptureSlide(content, clear = mode == Mode.CLEAR, overscan)
             mode == Mode.CLEAR -> Box(Modifier.fillMaxSize().background(Color.Black))
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
@@ -215,7 +221,7 @@ private fun QrCode(text: String, modifier: Modifier) {
 }
 
 @Composable
-private fun TextSlide(c: TextContent, clear: Boolean) {
+private fun TextSlide(c: TextContent, clear: Boolean, overscan: Boolean) {
     val context = LocalContext.current
     val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
     Canvas(Modifier.fillMaxSize()) {
@@ -223,10 +229,11 @@ private fun TextSlide(c: TextContent, clear: Boolean) {
         if (clear) return@Canvas
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
         val layout = layoutSlideText(
-            c.text, c.ref != null, size.width, size.height, c.style.sizePercent,
+            c.text, c.ref, size.width, size.height, c.style,
             measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
             ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
             descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
+            overscan = overscan,
         )
         paint.textSize = layout.fontSize
         drawIntoCanvas { canvas ->
@@ -245,7 +252,7 @@ private fun TextSlide(c: TextContent, clear: Boolean) {
                 if (c.style.shadow) paint.setShadowLayer(layout.fontSize * 0.08f, 0f, layout.fontSize * 0.05f, 0xB4000000.toInt())
                 nc.drawText(line.text, line.x, line.baseline, paint)
             }
-            c.ref?.let {
+            layout.ref?.let {
                 val refPaint = Paint(paint).apply {
                     textSize = layout.refFontSize
                     clearShadowLayer()
@@ -259,7 +266,7 @@ private fun TextSlide(c: TextContent, clear: Boolean) {
 }
 
 @Composable
-private fun ScriptureSlide(c: ScriptureContent, clear: Boolean) {
+private fun ScriptureSlide(c: ScriptureContent, clear: Boolean, overscan: Boolean) {
     val context = LocalContext.current
     val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
     Canvas(Modifier.fillMaxSize()) {
@@ -271,6 +278,7 @@ private fun ScriptureSlide(c: ScriptureContent, clear: Boolean) {
             measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
             ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
             descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
+            overscan = overscan,
         )
         drawIntoCanvas { canvas ->
             val nc = canvas.nativeCanvas

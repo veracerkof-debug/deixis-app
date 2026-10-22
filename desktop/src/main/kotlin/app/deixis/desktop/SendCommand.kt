@@ -18,6 +18,7 @@ import app.deixis.core.PdfContent
 import app.deixis.core.ReceiverServer
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
+import app.deixis.core.TextStyle
 import app.deixis.core.UploadSource
 import app.deixis.core.VideoAction
 import app.deixis.core.VideoCommand
@@ -141,6 +142,9 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         return 0
     }
 
+    /** Оформление текста из ключей: `--caps` — всё заглавными. */
+    private fun style() = TextStyle(caps = "caps" in opts)
+
     /** `--bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"`: Писание из модулей MyBible. */
     private fun scripture(): Content? {
         val files = opts.getValue("bible").split(',').map { File(it.trim()) }
@@ -160,7 +164,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
                 fullBookName = "ref-full" in opts,
                 sideBySide = "side" in opts,
             )
-            val slides = buildScriptureSlides(ref, modules, options)
+            val slides = buildScriptureSlides(ref, modules, options, style())
             if (slides.isEmpty()) { fail("В модуле нет такого места"); return null }
             val n = (opts["slide"]?.toIntOrNull() ?: 1).coerceIn(1, slides.size)
             println("Слайд $n из ${slides.size}")
@@ -176,7 +180,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             val slides = splitIntoSlides(text)
             if (slides.isEmpty()) { fail("Пустой текст"); return null }
             val n = (opts["slide"]?.toIntOrNull() ?: 1).coerceIn(1, slides.size)
-            return TextContent(slides[n - 1])
+            return TextContent(slides[n - 1], style = style())
         }
         val path = opts["file"] ?: run { fail("Укажите файл или --text"); return null }
         val file = File(path)
@@ -184,7 +188,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         val kind = mediaKindOf(file.name)
         if (kind == null) { fail("Формат «${file.name}» пока не поддерживается"); return null }
         if (kind == MediaKind.PRESENTATION) { fail("PPTX, PPT и ODP пока нужно сохранить как PDF"); return null }
-        if (kind == MediaKind.TEXT) return TextContent(splitIntoSlides(file.readText()).firstOrNull() ?: "")
+        if (kind == MediaKind.TEXT) return TextContent(splitIntoSlides(file.readText()).firstOrNull() ?: "", style = style())
         val source = object : UploadSource {
             override val name = file.name
             override val size = file.length()

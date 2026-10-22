@@ -13,15 +13,15 @@ private const val USAGE = """Deixis для компьютера
       Найти приёмники Deixis в сети.
 
   deixis send --to АДРЕС[:ПОРТ] [--pin PIN] ФАЙЛ [--page N] [--loop]
-  deixis send --to АДРЕС[:ПОРТ] --text "ТЕКСТ" [--slide N]
+  deixis send --to АДРЕС[:ПОРТ] --text "ТЕКСТ" [--slide N] [--caps]
   deixis send --to АДРЕС[:ПОРТ] --bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"
-               [--verses 1|2|3] [--ref-each] [--ref-top] [--ref-full] [--no-ref] [--side] [--slide N]
+               [--verses 1|2|3] [--ref-each] [--ref-top] [--ref-full] [--no-ref] [--side] [--slide N] [--caps]
       Писание из модулей MyBible: один или два перевода.
   deixis send --to АДРЕС[:ПОРТ] --stream ЗАПИСЬ.h264 [--fps 30] [--seconds N]
       Трансляция записи H.264 так же, как телефон показывает свой экран (для проверки).
   deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal
   deixis send --to АДРЕС[:ПОРТ] --video play|pause|seek=МС|volume=0..200
-      Показать файл, текст или переключить режим. Ключ --watch N печатает состояние N секунд.
+      Показать файл, текст или переключить режим. --caps — текст заглавными буквами. Ключ --watch N печатает состояние N секунд.
 """
 
 fun main(args: Array<String>) {

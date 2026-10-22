@@ -96,9 +96,12 @@ data class FileRef(val sha256: String, val name: String, val size: Long, val mim
 data class TextStyle(
     val background: Long = 0xFF000000,
     val color: Long = 0xFFFFFFFF,
-    val sizePercent: Float = 8f,
+    /** Предел размера текста: доля меньшей стороны экрана. Обычно текст упирается в поля раньше. */
+    val sizePercent: Float = 20f,
     val shadow: Boolean = true,
     val outline: Boolean = false,
+    /** Всё заглавными буквами. */
+    val caps: Boolean = false,
 )
 
 @Serializable

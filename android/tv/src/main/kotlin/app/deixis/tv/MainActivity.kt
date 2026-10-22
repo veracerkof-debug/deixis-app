@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         val runtime = (application as DeixisTvApp).runtime
         player = VlcPlayer(this) { runtime.core.reportError(it) }
-        setContent { ReceiverScreen(runtime, player) }
+        setContent { ReceiverScreen(runtime, player, overscan = true) }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

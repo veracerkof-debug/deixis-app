@@ -124,7 +124,7 @@ class SlideRenderer(private val files: FileStore) {
         val color = Color(c.style.color.toInt(), true)
         val base = Fonts.slide
         val layout = layoutSlideText(
-            c.text, c.ref != null, w.toFloat(), h.toFloat(), c.style.sizePercent,
+            c.text, c.ref, w.toFloat(), h.toFloat(), c.style,
             measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
             ascent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).ascent },
             descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
@@ -133,7 +133,7 @@ class SlideRenderer(private val files: FileStore) {
         for (line in layout.lines) {
             drawStyledLine(g, TextLayout(line.text, font, frc), line.x, line.baseline, color, layout.fontSize, c.style.shadow, c.style.outline)
         }
-        c.ref?.let {
+        layout.ref?.let {
             val ref = TextLayout(it, Fonts.ui.deriveFont(layout.refFontSize), frc)
             g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f)
             g.color = color
