@@ -54,6 +54,24 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/deixis-release.jks"
           echo "DEIXIS_KEYSTORE_FILE=$RUNNER_TEMP/deixis-release.jks" >> "$GITHUB_ENV"
+      - name: Проверка ключа
+        if: env.DEIXIS_KEYSTORE_FILE != ''
+        shell: bash
+        env:
+          PASS: ${{ secrets.DEIXIS_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.DEIXIS_KEY_ALIAS }}
+        run: |
+          # Понятная ошибка вместо длинного отчёта Gradle; значения секретов не печатаются.
+          if ! keytool -list -keystore "$DEIXIS_KEYSTORE_FILE" -storepass "$PASS" > /dev/null 2>&1; then
+            [ "$PASS" != "$(echo "$PASS" | xargs)" ] && echo "::error::В секрете DEIXIS_KEYSTORE_PASSWORD лишний пробел в начале или в конце"
+            echo "::error::Пароль из DEIXIS_KEYSTORE_PASSWORD не подходит к ключу из DEIXIS_KEYSTORE_BASE64"
+            exit 1
+          fi
+          if ! keytool -list -keystore "$DEIXIS_KEYSTORE_FILE" -storepass "$PASS" -alias "$ALIAS" > /dev/null 2>&1; then
+            echo "::error::В ключе нет имени из DEIXIS_KEY_ALIAS (должно быть deixis)"
+            exit 1
+          fi
+          echo "Ключ и пароль подходят друг к другу"
       - name: Сборка
         env:
           DEIXIS_KEYSTORE_PASSWORD: ${{ secrets.DEIXIS_KEYSTORE_PASSWORD }}
