@@ -51,11 +51,14 @@ img, video { object-fit: contain; background: #000; }
 // Строки на трёх языках: русский (основной), узбекский латиницей, английский.
 const STRINGS = {
   ru: { wait: "Ожидание показа", lost: "Нет связи, переподключение…", sound: "Включить звук", mute: "Выключить звук",
-        full: "Во весь экран", videoHere: "Это видео идёт на основном экране", badKey: "Ссылка устарела. Отсканируйте QR-код заново." },
+        full: "Во весь экран", videoHere: "Это видео идёт на основном экране", badKey: "Ссылка устарела. Отсканируйте QR-код заново.",
+        screenHere: "Трансляция экрана идёт на основном экране" },
   uz: { wait: "Namoyish kutilmoqda", lost: "Aloqa yo‘q, qayta ulanmoqda…", sound: "Ovozni yoqish", mute: "Ovozni o‘chirish",
-        full: "To‘liq ekran", videoHere: "Bu video asosiy ekranda ko‘rsatilmoqda", badKey: "Havola eskirgan. QR-kodni qayta skanerlang." },
+        full: "To‘liq ekran", videoHere: "Bu video asosiy ekranda ko‘rsatilmoqda", badKey: "Havola eskirgan. QR-kodni qayta skanerlang.",
+        screenHere: "Ekran namoyishi asosiy ekranda ko‘rsatilmoqda" },
   en: { wait: "Waiting for the show", lost: "Connection lost, reconnecting…", sound: "Turn sound on", mute: "Turn sound off",
-        full: "Full screen", videoHere: "This video is playing on the main screen", badKey: "This link has expired. Scan the QR code again." },
+        full: "Full screen", videoHere: "This video is playing on the main screen", badKey: "This link has expired. Scan the QR code again.",
+        screenHere: "The screen is being shown on the main display" },
 };
 const lang = (navigator.language || "ru").toLowerCase();
 const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("ru") ? "ru" : (lang.startsWith("en") ? "en" : "ru")];
@@ -168,11 +171,12 @@ function render(s) {
       img.decoding = "async";
       if (c.type === "image") img.src = url("/view/file/" + c.file.sha256);
       else img.src = url(`/view/page/${c.file.sha256}/${c.page}?w=${Math.min(2400, Math.round(Math.max(stage.clientWidth, 640) * (devicePixelRatio || 1)))}`);
-      const swap = () => { if (lastKey !== k) return; video = null; layout(); stage.style.background = "#000"; stage.replaceChildren(img); updateButtons(); };
+      const swap = () => { if (lastKey !== k) return; stopScreen(); video = null; layout(); stage.style.background = "#000"; stage.replaceChildren(img); updateButtons(); };
       (img.decode ? img.decode() : Promise.reject()).then(swap, () => { img.onload = swap; img.onerror = swap; if (img.complete) swap(); });
       return;
     }
     layout();
+    stopScreen();
     video = null;
     stage.replaceChildren();
     stage.style.background = "#000";
@@ -201,6 +205,8 @@ function render(s) {
       // для картинок и видео «Очистить» — чёрный экран
     } else if (c.type === "video") {
       showVideo(c);
+    } else if (c.type === "screen") {
+      showScreen();
     }
     updateButtons();
   }
@@ -219,6 +225,87 @@ function showVideo(c) {
   v.addEventListener("error", () => { if (video === v) { video = null; stage.replaceChildren(note(t.videoHere)); updateButtons(); } });
   stage.append(v);
   video = v;
+}
+
+// Демонстрация экрана: кадры приходят фрагментами MP4 и сразу идут в Media Source. Плеер держится
+// у самого свежего кадра: отстал больше чем на секунду — прыгает вперёд; поток встал — переподключается.
+// WebCodecs здесь не подходит: он работает только на HTTPS-страницах.
+let screen = null;
+function stopScreen() { if (screen) { screen.stop(); screen = null; } }
+function showScreen() {
+  const MS = window.ManagedMediaSource || window.MediaSource;
+  if (!MS) { stage.append(note(t.screenHere)); return; }
+  const v = document.createElement("video");
+  v.muted = true; v.autoplay = true; v.playsInline = true; v.setAttribute("playsinline", "");
+  v.disableRemotePlayback = true;
+  stage.append(v);
+  let ws = null, ms = null, sb = null, queue = [], stopped = false, lastData = 0, restarting = 0;
+  const fail = () => { stop(); if (screen === self) { screen = null; stage.replaceChildren(note(t.screenHere)); } };
+  function open() {
+    ms = new MS(); sb = null; queue = [];
+    v.src = URL.createObjectURL(ms);
+    ms.addEventListener("sourceopen", () => {
+      if (stopped) return;
+      ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url("/view/stream"));
+      ws.binaryType = "arraybuffer";
+      lastData = performance.now();
+      ws.onmessage = (e) => {
+        lastData = performance.now();
+        if (typeof e.data === "string") {
+          const type = `video/mp4; codecs="${JSON.parse(e.data).codec}"`;
+          if (!MS.isTypeSupported(type)) return fail();
+          if (!sb) {
+            sb = ms.addSourceBuffer(type);
+            // Пропущенные при слабой сети кадры не оставляют дыр: каждый новый встаёт сразу за прежним.
+            sb.mode = "sequence";
+            sb.addEventListener("updateend", pump);
+          } else if (sb.changeType) { try { sb.changeType(type); } catch (err) {} }
+          return;
+        }
+        ws.send("a"); // подтверждение: приёмник не шлёт больше, чем доходит
+        if (!sb) return;
+        if (queue.length > 30) return restart(); // браузер не успевает: начать заново со свежего кадра
+        queue.push(e.data);
+        pump();
+      };
+      ws.onclose = () => { if (!stopped) restart(); };
+    }, { once: true });
+  }
+  function pump() {
+    if (!sb || sb.updating || !queue.length || stopped) return;
+    try { sb.appendBuffer(queue.shift()); }
+    catch (err) { if (err.name === "QuotaExceededError") { queue.length = 0; trim(true); } else restart(); }
+  }
+  function trim(all) {
+    if (!sb || sb.updating || !v.buffered.length) return;
+    const from = v.buffered.start(0), to = v.currentTime - (all ? 0.5 : 10);
+    if (to > from) { try { sb.remove(from, to); } catch (err) {} }
+  }
+  function restart() {
+    if (stopped || restarting) return;
+    restarting = setTimeout(() => { restarting = 0; close(); if (!stopped) open(); }, 500);
+  }
+  function close() {
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    if (v.src) { URL.revokeObjectURL(v.src); v.removeAttribute("src"); v.load(); }
+  }
+  const timer = setInterval(() => {
+    if (stopped) return;
+    // 4 секунды без данных при открытом потоке — переподключение. Неподвижный экран телефон всё равно
+    // повторяет не реже раза в секунду, так что тишина означает обрыв.
+    if (performance.now() - lastData > 4000) return restart();
+    if (!v.buffered.length) return;
+    const end = v.buffered.end(v.buffered.length - 1);
+    const behind = end - v.currentTime;
+    if (behind > 1 || v.currentTime < v.buffered.start(0)) { v.currentTime = Math.max(v.buffered.start(0), end - 0.1); v.playbackRate = 1; }
+    else v.playbackRate = behind > 0.4 ? 1.1 : 1;
+    if (v.paused) v.play().catch(() => {});
+    trim(false);
+  }, 250);
+  function stop() { stopped = true; clearInterval(timer); clearTimeout(restarting); close(); }
+  const self = { stop };
+  screen = self;
+  open();
 }
 
 // Видео у зрителя идёт вместе с залом. Пауза и пуск повторяются сразу. Небольшое расхождение выравнивается

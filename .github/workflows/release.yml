@@ -187,7 +187,8 @@ jobs:
 
   release:
     name: Релиз
-    if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+    # Mac-машины GitHub иногда так и не выдаются; релиз выходит и без .dmg, если APK собраны.
+    if: always() && needs.android.result == 'success' && (startsWith(github.ref, 'refs/tags/') || inputs.publish)
     needs: [android, desktop]
     runs-on: ubuntu-latest
     steps:

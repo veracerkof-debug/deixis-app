@@ -23,6 +23,12 @@ import app.deixis.core.VideoAction
 import app.deixis.core.VideoCommand
 import app.deixis.core.VideoContent
 import app.deixis.core.mediaKindOf
+import app.deixis.core.NAL_SPS
+import app.deixis.core.ScreenContent
+import app.deixis.core.annexBSamples
+import app.deixis.core.avcFrameSize
+import app.deixis.core.nalType
+import app.deixis.core.splitNalUnits
 import app.deixis.core.mimeOf
 import app.deixis.core.splitIntoSlides
 import kotlinx.coroutines.CoroutineScope
@@ -76,6 +82,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             when {
                 "mode" in opts -> client.mode(Mode.valueOf(opts.getValue("mode").uppercase()))
                 "video" in opts -> client.video(parseVideo(opts.getValue("video")) ?: return@runBlocking fail("Неизвестная команда видео"))
+                "stream" in opts -> return@runBlocking stream(client, File(opts.getValue("stream")))
                 else -> {
                     val content = prepare(client) ?: return@runBlocking 2
                     client.show(content)
@@ -100,6 +107,38 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         } finally {
             client.close()
         }
+    }
+
+    /**
+     * `--stream ЗАПИСЬ.h264`: передаёт запись H.264 (Annex-B) так же, как телефон передаёт свой экран.
+     * Для проверки приёмника и зрителей без телефона. `--seconds N` — сколько передавать, по умолчанию по кругу до Ctrl+C.
+     */
+    private suspend fun stream(client: SenderClient, file: File): Int {
+        if (!file.isFile) return fail("Нет файла ${file.path}")
+        val frames = annexBSamples(file.readBytes())
+        val sps = frames.firstNotNullOfOrNull { f -> f.config?.let { splitNalUnits(it).firstOrNull { n -> nalType(n) == NAL_SPS } } }
+            ?: return fail("В записи нет SPS: нужен поток H.264 Annex-B")
+        val (w, h) = avcFrameSize(sps) ?: (1280 to 720)
+        val fps = opts["fps"]?.toIntOrNull() ?: 30
+        val stream = client.openStream { }
+        client.show(ScreenContent(w, h))
+        println("Трансляция ${w}×$h, $fps кадров/с, ${frames.size} кадров в записи")
+        val until = opts["seconds"]?.toLongOrNull()?.let { System.currentTimeMillis() + it * 1000 } ?: Long.MAX_VALUE
+        val start = System.nanoTime()
+        var n = 0L
+        while (System.currentTimeMillis() < until) {
+            val f = frames[(n % frames.size).toInt()]
+            val pts = n * 1_000_000 / fps
+            f.config?.let { stream.send(false, true, pts, it) }
+            stream.send(f.key, false, pts, f.data)
+            n++
+            // Темп по часам, а не по сумме задержек: кадры не уплывают.
+            val next = start + n * 1_000_000_000L / fps
+            delay(((next - System.nanoTime()) / 1_000_000).coerceAtLeast(0))
+        }
+        println("Передано кадров: $n, выброшено из-за сети: ${stream.dropped}")
+        stream.close()
+        return 0
     }
 
     /** `--bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"`: Писание из модулей MyBible. */

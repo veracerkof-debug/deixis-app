@@ -58,6 +58,22 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
         if (!mp.media().play(file.absolutePath, *options)) onError("Не удалось открыть «$name»")
     }
 
+    /** Демонстрация экрана: поток с приёмника на этом же компьютере, с минимальной буферизацией. */
+    fun playStream(url: String) {
+        val mp = component?.mediaPlayer() ?: return
+        currentName = "трансляция экрана"
+        voutChecked = false
+        stuckReported = false
+        userPaused = false
+        startedAt = 0L // у потока нет длины: проверка «застрял» не применяется
+        mp.controls().repeat = false
+        // Опоздавшие кадры не выбрасываются: выброшенный ключевой кадр дал бы серую кашу до следующего.
+        mp.media().play(
+            url, ":network-caching=$STREAM_CACHING_MS", ":live-caching=$STREAM_CACHING_MS", ":no-audio", ":demux=mp4",
+            ":clock-jitter=0", ":avcodec-hurry-up=0", ":avcodec-skip-frame=0", ":no-drop-late-frames", ":no-skip-frames",
+        )
+    }
+
     fun apply(cmd: VideoCommand) {
         val mp = component?.mediaPlayer() ?: return
         when (cmd.action) {
@@ -123,6 +139,11 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
             volume = mp.audio().volume().coerceAtLeast(0),
             loop = mp.controls().repeat,
         )
+    }
+
+    companion object {
+        /** Запас на неровный Wi-Fi. Меньше — заметнее рывки, больше — заметнее отставание от телефона. */
+        const val STREAM_CACHING_MS = 150
     }
 
     fun release() {

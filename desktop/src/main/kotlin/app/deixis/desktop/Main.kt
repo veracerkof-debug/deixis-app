@@ -17,6 +17,8 @@ private const val USAGE = """Deixis для компьютера
   deixis send --to АДРЕС[:ПОРТ] --bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"
                [--verses 1|2|3] [--ref-each] [--ref-top] [--ref-full] [--no-ref] [--side] [--slide N]
       Писание из модулей MyBible: один или два перевода.
+  deixis send --to АДРЕС[:ПОРТ] --stream ЗАПИСЬ.h264 [--fps 30] [--seconds N]
+      Трансляция записи H.264 так же, как телефон показывает свой экран (для проверки).
   deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal
   deixis send --to АДРЕС[:ПОРТ] --video play|pause|seek=МС|volume=0..200
       Показать файл, текст или переключить режим. Ключ --watch N печатает состояние N секунд.

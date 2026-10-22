@@ -9,6 +9,8 @@ import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.request.header
 import io.ktor.server.request.receiveChannel
+import io.ktor.server.response.header
+import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.put
@@ -16,9 +18,11 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.utils.io.jvm.javaio.toInputStream
+import io.ktor.utils.io.writeFully
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -58,6 +62,9 @@ class ReceiverCore(
      */
     @Volatile
     var pageRenderer: PageRenderer? = null
+
+    /** Поток демонстрации экрана от источника; экран зала и зрители подписываются на него сами. */
+    val stream = StreamHub()
 
     internal fun viewerJoined() = _state.update { it.copy(viewers = it.viewers + 1) }
     internal fun viewerLeft() = _state.update { it.copy(viewers = (it.viewers - 1).coerceAtLeast(0)) }
@@ -131,7 +138,7 @@ class ReceiverServer(
             install(WebSockets) {
                 pingPeriodMillis = 1_000
                 timeoutMillis = 5_000
-                maxFrameSize = 1L * 1024 * 1024
+                maxFrameSize = 8L * 1024 * 1024
             }
             routing {
                 get("/info") {
@@ -167,6 +174,16 @@ class ReceiverServer(
                     }
                 }
                 webSocket("/ws") { handleSession(this) }
+                webSocket("/stream") { handleStream(this) }
+                // Поток экрана для своего же проигрывателя (VLC на компьютере): тот же MP4, что у зрителей,
+                // с метками времени — без них VLC играл бы с угаданной частотой кадров и копил отставание.
+                get("/stream/mp4") {
+                    if (call.request.local.remoteAddress !in LOOPBACK) return@get call.respondText("", status = HttpStatusCode.Forbidden)
+                    call.response.header("Cache-Control", "no-store")
+                    call.respondBytesWriter(ContentType("video", "mp4")) {
+                        fmp4Stream(core, onCodec = {}, onData = { writeFully(it); flush() }, endOnNewConfig = true)
+                    }
+                }
                 viewerRoutes(core)
             }
         }
@@ -181,6 +198,9 @@ class ReceiverServer(
         }
         return s.engine.resolvedConnectors().first().port
     }
+
+    /** Адрес потока экрана для проигрывателя на этом же устройстве. */
+    fun localStreamUrl(port: Int) = "http://127.0.0.1:$port/stream/mp4"
 
     fun stop() {
         cleaner?.cancel()
@@ -229,6 +249,29 @@ class ReceiverServer(
         }
     }
 
+    private val streamSource = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Источник шлёт кадры экрана двоичными сообщениями. Новый источник вытесняет прежний. */
+    private suspend fun handleStream(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
+        if (!call.authorized()) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
+        val me = streamSource.incrementAndGet()
+        core.stream.start()
+        val keys = launch { core.stream.keyRequests.collect { send(Frame.Text(STREAM_KEY_REQUEST)) } }
+        try {
+            for (frame in incoming) {
+                if (streamSource.get() != me) break
+                if (frame !is Frame.Binary) continue
+                val f = StreamFrame.decode(frame.readBytes()) ?: continue
+                core.stream.publish(f)
+                // Подтверждение: по нему телефон видит настоящее отставание, которое прячут буферы сети.
+                if (!f.config) send(Frame.Text("""{"ack":${f.seq}}"""))
+            }
+        } finally {
+            keys.cancel()
+            if (streamSource.get() == me) core.stream.stop()
+        }
+    }
+
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.deny(reason: DenyReason): Boolean {
         send(Frame.Text(Denied(reason).encode()))
         return false
@@ -244,6 +287,9 @@ class ReceiverServer(
         const val DEFAULT_PORT = 47820
         const val HEADER_SIZE = "Deixis-Size"
         const val FILE_TTL_MS = 24L * 60 * 60 * 1000
+        private val LOOPBACK = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")
+        /** Приёмник просит у источника ключевой кадр: подключился новый зритель. */
+        const val STREAM_KEY_REQUEST = """{"key":1}"""
         private const val CLEAN_EVERY_MS = 60L * 60 * 1000
     }
 }

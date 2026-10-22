@@ -165,4 +165,5 @@ val Content.file: FileRef?
         is PdfContent -> file
         is TextContent -> null
         is ScriptureContent -> null
+        is ScreenContent -> null
     }

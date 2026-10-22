@@ -13,6 +13,7 @@ import app.deixis.core.ReceiverCore
 import app.deixis.core.ReceiverInfo
 import app.deixis.core.ReceiverServer
 import app.deixis.core.VideoContent
+import app.deixis.core.ScreenContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -103,8 +104,8 @@ class ReceiverApp(private val opts: ReceiverOptions) {
 
     private fun buildWindow() {
         video = VideoPlayer(
-            onError = { msg -> core.reportError(msg); showSlide() },
-            onFinished = { core.reportVideo(video.state()) },
+            onError = { msg -> if (playingSha == STREAM) restartStream() else { core.reportError(msg); showSlide() } },
+            onFinished = { if (playingSha == STREAM) restartStream() else core.reportVideo(video.state()) },
         )
         frame = JFrame("Deixis").apply {
             defaultCloseOperation = JFrame.DO_NOTHING_ON_CLOSE
@@ -141,7 +142,7 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         slide.addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent?) { redraw() }
         })
-        Timer(500) { if (playingSha != null) core.reportVideo(video.state()) }.start()
+        Timer(500) { if (playingSha != null && playingSha != STREAM) core.reportVideo(video.state()) }.start()
     }
 
     private data class Key(val content: Content?, val mode: Mode, val pin: String)
@@ -179,10 +180,26 @@ class ReceiverApp(private val opts: ReceiverOptions) {
                 video.play(file, content.file.name, content.loop, content.startMs)
             }
             if (key.mode == Mode.NORMAL) { video.unhide(); showVideo() } else { video.hide(); showSlide() }
+        } else if (content is ScreenContent && video.available) {
+            if (playingSha != STREAM) {
+                if (playingSha != null) core.reportVideo(null)
+                playingSha = STREAM
+                video.playStream(server.localStreamUrl(port))
+            }
+            // «Чёрный» и «Логотип» закрывают трансляцию, но поток не рвут: картинка вернётся сразу.
+            if (key.mode == Mode.NORMAL) showVideo() else showSlide()
         } else {
+            if (content is ScreenContent) core.reportError("На этом компьютере не найден VLC: трансляцию экрана показать нельзя")
             if (playingSha != null) { video.stop(); playingSha = null; core.reportVideo(null) }
             showSlide()
         }
+    }
+
+    /** Поток экрана закончился (смена размера, сбой): открыть заново, пока трансляция на экране. */
+    private fun restartStream() {
+        Timer(300) {
+            if (playingSha == STREAM && current.content is ScreenContent) video.playStream(server.localStreamUrl(port))
+        }.apply { isRepeats = false }.start()
     }
 
     private fun showVideo() {
@@ -207,7 +224,7 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         // Кадр готовится в фоне: тяжёлая страница PDF не должна подвешивать окно.
         scope.launch {
             val img = try {
-                renderer.render(w, h, key.content.takeUnless { it is VideoContent && key.mode == Mode.NORMAL }, key.mode, idle)
+                renderer.render(w, h, key.content.takeUnless { (it is VideoContent || it is ScreenContent) && key.mode == Mode.NORMAL }, key.mode, idle)
             } catch (e: Throwable) {
                 core.reportError(e.message ?: "Не удалось показать файл")
                 BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
@@ -242,5 +259,7 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         const val APP_VERSION = "0.1.0"
         private const val CARD_SLIDE = "slide"
         private const val CARD_VIDEO = "video"
+        /** Метка в playingSha: в проигрывателе идёт трансляция экрана, а не файл. */
+        private const val STREAM = "screen"
     }
 }

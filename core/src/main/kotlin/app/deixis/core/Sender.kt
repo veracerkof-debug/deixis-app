@@ -257,6 +257,19 @@ class SenderClient(
         return DeixisJson.decodeFromString(FileStatus.serializer(), r.bodyAsText())
     }
 
+    /**
+     * Открывает демонстрацию экрана на приёмнике. [onKeyRequest] вызывается, когда нужен ключевой кадр:
+     * подключился зритель, оборвалась связь или кадры пришлось выбросить.
+     */
+    fun openStream(onKeyRequest: () -> Unit): ScreenStream {
+        val t = token ?: error("Нет сопряжения")
+        return ScreenStream(scope, onKeyRequest) { session ->
+            http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/stream", request = {
+                header("Authorization", "Bearer $t")
+            }) { session(this) }
+        }
+    }
+
     fun close() {
         loop?.cancel()
         loop = null
@@ -294,5 +307,101 @@ class SenderClient(
                 }
             }
         }
+    }
+}
+
+/**
+ * Поток кадров экрана на приёмник. Кадры не копятся: если сеть не успевает, всё до следующего
+ * ключевого кадра выбрасывается. Зал видит короткую остановку, но не отстаёт от телефона.
+ */
+class ScreenStream internal constructor(
+    scope: CoroutineScope,
+    private val onKeyRequest: () -> Unit,
+    private val open: suspend (suspend (DefaultClientWebSocketSession) -> Unit) -> Unit,
+) {
+    private val queue = Channel<StreamFrame>(QUEUE_FRAMES)
+    private val queued = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var config: StreamFrame? = null
+    @Volatile private var dropping = true
+    private var seq = 0L
+    /** Последний кадр, о котором приёмник сообщил, что получил его. */
+    @Volatile private var acked = -1L
+
+    private val _connected = MutableStateFlow(false)
+    val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    /** Сколько кадров выброшено из-за медленной сети: для подсказки «слабый Wi-Fi». */
+    @Volatile var dropped = 0L
+        private set
+
+    private val job = scope.launch(Dispatchers.IO) {
+        while (isActive) {
+            try {
+                open { ws ->
+                    synchronized(this@ScreenStream) { acked = seq - 1 }
+                    config?.let { ws.send(Frame.Binary(true, it.encode())) }
+                    _connected.value = true
+                    val keys = launch {
+                        for (f in ws.incoming) {
+                            if (f !is Frame.Text) continue
+                            val text = f.readText()
+                            if (text.contains("\"key\"")) onKeyRequest()
+                            ACK.find(text)?.groupValues?.get(1)?.toLongOrNull()?.let { a -> if (a > acked) acked = a }
+                        }
+                    }
+                    try {
+                        for (f in queue) {
+                            queued.decrementAndGet()
+                            ws.send(Frame.Binary(true, f.encode()))
+                        }
+                    } finally {
+                        keys.cancel()
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+            _connected.value = false
+            // После обрыва приёмник начинает с ключевого кадра.
+            dropping = true
+            while (queue.tryReceive().isSuccess) queued.decrementAndGet()
+            onKeyRequest()
+            delay(500)
+        }
+    }
+
+    /** Кадр от кодировщика (Annex-B). Не блокирует: кодировщик никогда не ждёт сеть. */
+    @Synchronized
+    fun send(key: Boolean, isConfig: Boolean, ptsUs: Long, data: ByteArray) {
+        if (isConfig) {
+            val f = StreamFrame(false, true, 0, ptsUs, data)
+            config = f
+            if (!queue.trySend(f).isSuccess) dropping = true else queued.incrementAndGet()
+            return
+        }
+        if (dropping && !key) { dropped++; return }
+        // В пути больше LAG_FRAMES кадров — сеть не успевает, даже если очередь пуста: данные осели в буферах.
+        if (queued.get() >= LAG_FRAMES || seq - 1 - acked >= LAG_FRAMES || !queue.trySend(StreamFrame(key, false, seq++, ptsUs, data)).isSuccess) {
+            dropping = true
+            dropped++
+            onKeyRequest()
+            return
+        }
+        queued.incrementAndGet()
+        dropping = false
+    }
+
+    fun close() {
+        job.cancel()
+        queue.close()
+        _connected.value = false
+    }
+
+    private companion object {
+        val ACK = Regex("\"ack\":(\\d+)")
+        const val QUEUE_FRAMES = 64
+        /** Больше этого в очереди — сеть не успевает (около трети секунды при 30 кадрах). */
+        const val LAG_FRAMES = 10
     }
 }

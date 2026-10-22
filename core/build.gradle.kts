@@ -29,4 +29,8 @@ dependencies {
     testImplementation(libs.sqlite.jdbc)
 }
 
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    // Для ручной проверки: -Ddeixis.dumpStream=файл сохраняет поток зрителя (fMP4).
+    System.getProperty("deixis.dumpStream")?.let { systemProperty("deixis.dumpStream", it) }
+}

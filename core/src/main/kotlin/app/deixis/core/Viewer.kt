@@ -17,6 +17,7 @@ import io.ktor.websocket.close
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -37,6 +38,9 @@ const val VIEW_TICK = """{"tick":1}"""
  * без предела полсотни телефонов забьют сеть. Остальные видят «Видео идёт на основном экране».
  */
 const val MAX_VIDEO_STREAMS = 20
+
+/** Сколько кадров трансляции экрана может быть в пути к браузеру без подтверждения (около трети секунды). */
+internal const val VIEW_STREAM_WINDOW = 10
 
 /**
  * Страница для зрителей: любой телефон в той же сети открывает ссылку из QR-кода
@@ -90,6 +94,28 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         }
     }
 
+    // Демонстрация экрана для браузера: фрагментированный MP4, кадр за кадром. Перед каждым новым набором
+    // SPS/PPS идёт текстовое сообщение с кодеком и начальный сегмент.
+    webSocket("/view/stream") {
+        if (call.request.queryParameters["k"] != core.viewKey) {
+            close(CloseReason(VIEW_BAD_KEY, "bad key"))
+            return@webSocket
+        }
+        // Браузер подтверждает каждое полученное сообщение. Буферы сети и браузера способны спрятать
+        // секунды видео, поэтому отставание считается по неподтверждённым кадрам, а не по скорости отправки.
+        val sent = java.util.concurrent.atomic.AtomicLong()
+        val acked = java.util.concurrent.atomic.AtomicLong()
+        val acks = launch { for (frame in incoming) if (frame is Frame.Text) acked.incrementAndGet() }
+        try {
+            fmp4Stream(core,
+                onCodec = { send(Frame.Text("""{"codec":"$it"}""")) },
+                onData = { sent.incrementAndGet(); send(Frame.Binary(true, it)) },
+                canSend = { sent.get() - acked.get() < VIEW_STREAM_WINDOW })
+        } finally {
+            acks.cancel()
+        }
+    }
+
     // Отдаётся только файл, который сейчас на экране: по ссылке зрителя нельзя скачать остальной кэш.
     get("/view/file/{sha}") {
         val ref = call.currentFile(core) ?: return@get
@@ -122,6 +148,44 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         }
         call.response.header("Cache-Control", "private, max-age=3600")
         call.respondBytes(png, ContentType.Image.PNG)
+    }
+}
+
+/**
+ * Поток экрана в виде фрагментированного MP4 для одного подписчика. Перед каждым новым набором SPS/PPS
+ * вызывается [onCodec] (строка вроде avc1.42E01F) и отдаётся начальный сегмент, затем — по фрагменту на кадр.
+ */
+internal suspend fun fmp4Stream(
+    core: ReceiverCore,
+    onCodec: suspend (String) -> Unit,
+    onData: suspend (ByteArray) -> Unit,
+    /** Закончить поток при смене SPS/PPS (поворот экрана): проигрыватель откроет его заново с новым размером. */
+    endOnNewConfig: Boolean = false,
+    /** false — подписчик не успевает: кадры выбрасываются до следующего ключевого. */
+    canSend: () -> Boolean = { true },
+) {
+    var skipping = false
+    var mux: Fmp4Muxer? = null
+    var sentConfig: ByteArray? = null
+    core.stream.subscribe().takeWhile { s ->
+        !(endOnNewConfig && sentConfig != null && s.key && s.config != null && !s.config.contentEquals(sentConfig))
+    }.collect { s ->
+        if (skipping && !s.key) return@collect
+        if (!canSend()) { skipping = true; return@collect }
+        skipping = false
+        val cfg = s.config
+        if (s.key && cfg != null && !cfg.contentEquals(sentConfig)) {
+            val sps = splitNalUnits(cfg).firstOrNull { nalType(it) == NAL_SPS } ?: return@collect
+            val screen = core.state.value.content as? ScreenContent
+            val (w, h) = avcFrameSize(sps) ?: ((screen?.width ?: 1280) to (screen?.height ?: 720))
+            val m = mux?.takeIf { it.width == w && it.height == h } ?: Fmp4Muxer(w, h)
+            val init = m.init(cfg) ?: return@collect
+            onCodec(avcCodecString(sps))
+            onData(init)
+            mux = m
+            sentConfig = cfg
+        }
+        mux?.let { onData(it.fragment(s)) }
     }
 }
 
