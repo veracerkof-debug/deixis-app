@@ -112,8 +112,13 @@ jobs:
           cp vlc-$VLC_VERSION/libvlc.dll vlc-$VLC_VERSION/libvlccore.dll content/vlc/
           cp -r vlc-$VLC_VERSION/plugins content/vlc/
           echo "VLC_OPT=-Djna.library.path=\$APPDIR\\..\\vlc" >> "$GITHUB_ENV"
-          choco install wixtoolset --version 3.14.1 -y --no-progress
-          echo "C:\\Program Files (x86)\\WiX Toolset v3.14\\bin" >> "$GITHUB_PATH"
+          # WiX 3 обычно уже есть на машинах GitHub; ставим, только если его нет.
+          wix=$(ls -d "/c/Program Files (x86)"/WiX\ Toolset\ v3*/bin 2>/dev/null | head -1)
+          if [ -z "$wix" ]; then
+            choco install wixtoolset -y --no-progress
+            wix=$(ls -d "/c/Program Files (x86)"/WiX\ Toolset\ v3*/bin | head -1)
+          fi
+          cygpath -w "$wix" >> "$GITHUB_PATH"
       - name: VLC для macOS
         if: runner.os == 'macOS'
         run: |
