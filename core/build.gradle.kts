@@ -20,6 +20,7 @@ dependencies {
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.websockets)
     implementation(libs.jmdns)
+    implementation(libs.zxing)
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.coroutines.test)

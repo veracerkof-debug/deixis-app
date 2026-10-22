@@ -47,3 +47,21 @@ fun fitFontSize(
     }
     return lo
 }
+
+/** Переносит строку по словам, если она не помещается в [maxWidth] при уже подобранном размере. */
+fun wrapLine(line: String, maxWidth: Float, measure: (String) -> Float): List<String> {
+    if (measure(line) <= maxWidth) return listOf(line)
+    val out = mutableListOf<String>()
+    var current = ""
+    for (word in line.split(' ').filter { it.isNotEmpty() }) {
+        val candidate = if (current.isEmpty()) word else "$current $word"
+        if (current.isNotEmpty() && measure(candidate) > maxWidth) {
+            out += current
+            current = word
+        } else {
+            current = candidate
+        }
+    }
+    if (current.isNotEmpty()) out += current
+    return out
+}

@@ -36,3 +36,23 @@ class TextLayoutTest {
         assertTrue(4 * tall * 1.2f <= 120f)
     }
 }
+
+class WrapAndCodeTest {
+    @Test
+    fun longLineWrapsByWords() {
+        val measure = { s: String -> s.length.toFloat() }
+        assertEquals(listOf("один два", "три"), wrapLine("один два три", 9f, measure))
+        assertEquals(listOf("коротко"), wrapLine("коротко", 100f, measure))
+        assertEquals(listOf("оченьдлинноеслово"), wrapLine("оченьдлинноеслово", 5f, measure))
+    }
+
+    @Test
+    fun pairingCodeRoundTrip() {
+        val code = PairingCode("192.168.1.23", 47820, "7241", "tv-1", "ТВ в холле")
+        assertEquals(code, PairingCode.parse(code.toUri()))
+        assertEquals(null, PairingCode.parse("https://example.com"))
+        assertEquals(null, PairingCode.parse("deixis://1.2.3.4:1?pin=12"))
+        val m = qrMatrix(code.toUri())
+        assertTrue(m.size >= 21 && m.all { it.size == m.size })
+    }
+}
