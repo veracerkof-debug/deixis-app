@@ -108,13 +108,17 @@ data class TableCell(val text: DeckText?, val fill: DeckPaint?, val borders: Dec
 
 data class DeckSlide(val number: Int, val background: DeckPaint?, val items: List<DeckItem>)
 
-class Deck(val width: Float, val height: Float, val slides: List<DeckSlide>, val warnings: List<String>, private val zip: File) {
-    private val images = mutableMapOf<String, ByteArray?>()
+/** Презентация для отрисовки. Картинки читаются по требованию из [images] (архив PPTX или поток PPT). */
+class Deck(val width: Float, val height: Float, val slides: List<DeckSlide>, val warnings: List<String>, private val images: (String) -> ByteArray?) {
+    private val cache = mutableMapOf<String, ByteArray?>()
 
-    /** Картинка из архива: читается один раз. */
+    /** Картинка: читается один раз. */
     @Synchronized
-    fun image(path: String): ByteArray? = images.getOrPut(path) {
-        runCatching { ZipFile(zip).use { z -> z.getEntry(path)?.let { e -> z.getInputStream(e).use { it.readBytes() } } } }.getOrNull()
+    fun image(path: String): ByteArray? = cache.getOrPut(path) { runCatching { images(path) }.getOrNull() }
+
+    companion object {
+        /** Картинки из архива PPTX. */
+        fun zipImages(zip: File): (String) -> ByteArray? = { path -> ZipFile(zip).use { z -> z.getEntry(path)?.let { e -> z.getInputStream(e).use { it.readBytes() } } } }
     }
 }
 
@@ -158,7 +162,7 @@ object Pptx {
                 slides += slide(sp, n)
             }
             if (slides.isEmpty()) throw PptxException("В презентации нет слайдов для показа")
-            return Deck(w.toFloat(), h.toFloat(), slides, warnings.toList(), file)
+            return Deck(w.toFloat(), h.toFloat(), slides, warnings.toList(), Deck.zipImages(file))
         }
 
         // ——— Части архива ———
