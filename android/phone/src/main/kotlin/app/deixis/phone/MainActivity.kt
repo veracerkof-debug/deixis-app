@@ -7,6 +7,17 @@ import app.deixis.core.HolyricsLink
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
@@ -14,6 +25,26 @@ class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
     val controller by lazy { Controller(this) }
     val holyrics by lazy { HolyricsSource(this, controller) }
+
+    /** Падение в прошлый раз: при следующем запуске приложение показывает причину, а не закрывается молча. */
+    var lastCrash: String? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        val file = java.io.File(filesDir, "last-crash.txt")
+        lastCrash = file.takeIf { it.isFile }?.readText()?.also { file.delete() }
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching {
+                val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull()
+                file.writeText(
+                    "Deixis $version · Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT}) · " +
+                        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n" + e.stackTraceToString().lines().take(16).joinToString("\n"),
+                )
+            }
+            previous?.uncaughtException(t, e)
+        }
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +53,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val app = application as PhoneApp
+        app.lastCrash?.let { crash ->
+            // Прошлый запуск упал: показываем причину; «Продолжить» открывает приложение как обычно.
+            app.lastCrash = null
+            setContent { CrashScreen(crash) { recreate() } }
+            return
+        }
         // На телевизоре и приставке универсальный Deixis сразу работает экраном; пульт — с телефона.
         if (savedInstanceState == null && intent?.data == null && ScreenActivity.isTelevision(this)) {
             startActivity(Intent(this, ScreenActivity::class.java))
@@ -66,5 +104,25 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         if (isFinishing && ::hdmi.isInitialized) hdmi.stop()
         super.onDestroy()
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun CrashScreen(text: String, onContinue: () -> Unit) {
+    androidx.compose.foundation.layout.Column(
+        androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black).safeDrawingPadding()
+            .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp),
+    ) {
+        androidx.compose.foundation.text.BasicText("Deixis закрылся из-за ошибки", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 22.sp))
+        androidx.compose.foundation.text.BasicText(
+            "Сделайте снимок экрана и отправьте разработчику.",
+            androidx.compose.ui.Modifier.padding(top = 8.dp), style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f), fontSize = 15.sp),
+        )
+        androidx.compose.foundation.text.BasicText(text, androidx.compose.ui.Modifier.padding(top = 16.dp), style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), fontSize = 12.sp))
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.padding(top = 20.dp).fillMaxWidth().height(50.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f)).clickable(onClick = onContinue),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) { androidx.compose.foundation.text.BasicText("Продолжить", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 17.sp)) }
     }
 }
