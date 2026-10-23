@@ -54,7 +54,7 @@ import app.deixis.core.ScriptureContent
 import app.deixis.core.ScreenContent
 import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
-import app.deixis.core.TextStyle
+import app.deixis.core.TextStyle as SlideStyle
 import app.deixis.core.VideoContent
 import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
@@ -296,7 +296,7 @@ private fun ScriptureSlide(runtime: ReceiverRuntime, c: ScriptureContent, clear:
 
 /** Картинка фона оформления, уменьшенная под экран; null — фона-картинки нет или он не читается. */
 @Composable
-private fun rememberBackground(runtime: ReceiverRuntime, style: TextStyle): Bitmap? {
+private fun rememberBackground(runtime: ReceiverRuntime, style: SlideStyle): Bitmap? {
     val ref = style.backgroundImage ?: return null
     val metrics = LocalContext.current.resources.displayMetrics
     val bitmap by produceState<Bitmap?>(null, ref.sha256) {
@@ -308,7 +308,7 @@ private fun rememberBackground(runtime: ReceiverRuntime, style: TextStyle): Bitm
 }
 
 /** Цвет фона, поверх — картинка во весь экран с обрезкой краёв. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: TextStyle, bg: Bitmap?) {
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: SlideStyle, bg: Bitmap?) {
     drawRect(Color(style.background.toInt()))
     bg ?: return
     val scale = maxOf(size.width / bg.width, size.height / bg.height)
@@ -319,13 +319,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground
     }
 }
 
-private fun drawBox(nc: android.graphics.Canvas, style: TextStyle, l: Float, t: Float, r: Float, b: Float, size: Float) {
+private fun drawBox(nc: android.graphics.Canvas, style: SlideStyle, l: Float, t: Float, r: Float, b: Float, size: Float) {
     val color = style.box ?: return
     nc.drawRoundRect(l, t, r, b, size * 0.1f, size * 0.1f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color.toInt() })
 }
 
 /** Строка слайда с обводкой и тенью цветов оформления. */
-private fun drawStyledText(nc: android.graphics.Canvas, text: String, x: Float, baseline: Float, size: Float, paint: Paint, style: TextStyle) {
+private fun drawStyledText(nc: android.graphics.Canvas, text: String, x: Float, baseline: Float, size: Float, paint: Paint, style: SlideStyle) {
     paint.textSize = size
     paint.clearShadowLayer()
     if (style.outline) {
