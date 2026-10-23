@@ -134,7 +134,7 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
                 FullBtn("Вид", "brush", Modifier.weight(1f)) {
                     if (spec is FullSpec.Local) local?.let { c.toPreview(it) }
                     ui.full = null
-                    ui.tab = Tab.SHOW
+                    ui.tab = AppTab.SHOW
                     openStyle(c, ui)
                 }
                 val id = cue?.source?.itemId

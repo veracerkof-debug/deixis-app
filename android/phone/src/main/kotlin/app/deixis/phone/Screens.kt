@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -122,7 +123,7 @@ private fun SetGroup(c: Controller, ui: Ui, sets: List<Setlist>, data: StoreData
             if (i > 0) Sep(T.gutter)
             val names = s.items.take(3).mapNotNull { id -> data.items.firstOrNull { it.id == id }?.title }.joinToString(", ")
             Cell("${s.title}, ${s.dateText}", "${s.items.size} элем." + if (names.isNotEmpty()) " · $names" else "", chevron = null, onClick = {
-                c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.listSeg = 0; ui.tab = Tab.SHOW
+                c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.listSeg = 0; ui.tab = AppTab.SHOW
                 ui.toast("На главном: ${s.title}, ${s.dateText}")
             }) {
                 if (s.id == data.active) Tag("На главном", false)
@@ -135,7 +136,7 @@ private fun SetGroup(c: Controller, ui: Ui, sets: List<Setlist>, data: StoreData
 @Composable
 private fun SetMenu(c: Controller, ui: Ui, s: Setlist) {
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Btn("На главный") { c.pickSet(s.id); ui.closeAll(); ui.tab = Tab.SHOW; ui.toast("На главном: ${s.title}, ${s.dateText}") }
+        Btn("На главный") { c.pickSet(s.id); ui.closeAll(); ui.tab = AppTab.SHOW; ui.toast("На главном: ${s.title}, ${s.dateText}") }
         Btn("Дублировать") { ui.push("Дублировать") { NewSetSheet(c, ui, copyOf = s) } }
         Btn("Переименовать") {
             ui.push("Переименовать") {

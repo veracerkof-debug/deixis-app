@@ -170,10 +170,10 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
                     Btn("В предпросмотр", Modifier.weight(1f)) {
-                        keep(); source()?.let { ui.closeAll(); ui.tab = Tab.SHOW; c.toPreview(Cue(it, 0)) }
+                        keep(); source()?.let { ui.closeAll(); ui.tab = AppTab.SHOW; c.toPreview(Cue(it, 0)) }
                     }
                     Btn("В зал", Modifier.weight(1f), kind = BtnKind.TINT) {
-                        keep(); source()?.let { ui.closeAll(); ui.tab = Tab.SHOW; c.goLive(Cue(it, 0)); ui.toast("В зале") }
+                        keep(); source()?.let { ui.closeAll(); ui.tab = AppTab.SHOW; c.goLive(Cue(it, 0)); ui.toast("В зале") }
                     }
                 }
                 Spacer(Modifier.height(T.gap))

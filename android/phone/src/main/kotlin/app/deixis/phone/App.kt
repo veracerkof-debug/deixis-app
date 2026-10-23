@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-enum class Tab(val title: String, val icon: String) {
+enum class AppTab(val title: String, val icon: String) {
     SHOW("Показ", "show"), LIBRARY("Библиотека", "lib"), SETLISTS("Сетлисты", "list"), DEVICES("Устройства", "devs"),
 }
 
@@ -75,7 +75,7 @@ internal data class ToastMsg(val id: Long, val text: String)
 
 /** Состояние экрана пульта: вкладка, шторка, полноэкранный слайд, тосты. Вывод от него не зависит. */
 class Ui {
-    var tab by mutableStateOf(Tab.SHOW)
+    var tab by mutableStateOf(AppTab.SHOW)
     private val stack = mutableStateListOf<SheetSpec>()
     val sheet: SheetSpec? get() = stack.lastOrNull()
     var full by mutableStateOf<FullSpec?>(null)
@@ -146,17 +146,17 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
 @Composable
 private fun Screen(c: Controller, h: HolyricsSource, ui: Ui) {
     when (ui.tab) {
-        Tab.SHOW -> ShowScreen(c, h, ui)
-        Tab.LIBRARY -> LibraryScreen(c, h, ui)
-        Tab.SETLISTS -> SetlistsScreen(c, ui)
-        Tab.DEVICES -> DevicesScreen(c, h, ui)
+        AppTab.SHOW -> ShowScreen(c, h, ui)
+        AppTab.LIBRARY -> LibraryScreen(c, h, ui)
+        AppTab.SETLISTS -> SetlistsScreen(c, ui)
+        AppTab.DEVICES -> DevicesScreen(c, h, ui)
     }
 }
 
 @Composable
 private fun Tabs(ui: Ui, vertical: Boolean) {
     val p = P.current
-    val content: @Composable (Tab, Modifier) -> Unit = { t, m ->
+    val content: @Composable (AppTab, Modifier) -> Unit = { t, m ->
         val on = ui.tab == t
         Column(
             m.heightIn(min = if (vertical) 64.dp else T.tabMin).clickable(role = Role.Tab) { ui.tab = t; ui.closeAll() }.padding(top = 7.dp, bottom = T.gapS),
@@ -167,10 +167,10 @@ private fun Tabs(ui: Ui, vertical: Boolean) {
         }
     }
     if (vertical) Column(Modifier.width(92.dp).fillMaxHeight().background(p.cell).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Tab.entries.forEach { content(it, Modifier.fillMaxWidth()) }
+        AppTab.entries.forEach { content(it, Modifier.fillMaxWidth()) }
     } else Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
-        Row(Modifier.fillMaxWidth()) { Tab.entries.forEach { content(it, Modifier.weight(1f)) } }
+        Row(Modifier.fillMaxWidth()) { AppTab.entries.forEach { content(it, Modifier.weight(1f)) } }
     }
 }
 
@@ -189,7 +189,7 @@ private fun SheetHost(ui: Ui) {
                 .clickable(remember { MutableInteractionSource() }, null) { ui.close() },
         )
     }
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = if (maxWidth >= 1024.dp) Alignment.Center else Alignment.BottomCenter) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 1024.dp
         val maxH = maxHeight * 0.88f
         AnimatedVisibility(
@@ -199,6 +199,7 @@ private fun SheetHost(ui: Ui) {
             exit = if (wide) fadeOut(tween(T.mid, easing = T.eIn)) else slideOutVertically(tween(T.mid, easing = T.eIn)) { it },
         ) {
             val s = shown ?: return@AnimatedVisibility
+            Box(Modifier.fillMaxSize(), contentAlignment = if (wide) Alignment.Center else Alignment.BottomCenter) {
             val shape = if (wide) RoundedCornerShape(T.rBtn) else RoundedCornerShape(topStart = T.rBtn, topEnd = T.rBtn)
             Column(
                 Modifier.then(if (wide) Modifier.widthIn(max = 720.dp).padding(24.dp) else Modifier.fillMaxWidth())
@@ -215,6 +216,7 @@ private fun SheetHost(ui: Ui) {
                     IconBtn("close", "Закрыть") { ui.close() }
                 }
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) { s.content(this) }
+            }
             }
         }
     }

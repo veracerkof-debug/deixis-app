@@ -233,7 +233,7 @@ fun showItem(c: Controller, ui: Ui, item: LibItem) {
     c.addToSet(item.id)
     ui.listSeg = 0
     ui.open = item.id
-    ui.tab = Tab.SHOW
+    ui.tab = AppTab.SHOW
     val big = c.largeFor(item)
     if (big != null) { ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }; return }
     c.toPreview(Cue(c.sourceOf(item), 0))
@@ -319,7 +319,7 @@ fun FindSheet(c: Controller, ui: Ui) {
         found.forEachIndexed { i, it ->
             if (i > 0) Sep()
             Cell(it.title, subOf(c, it), it.kind.icon, chevron = null, onClick = {
-                ui.closeAll(); ui.tab = Tab.SHOW
+                ui.closeAll(); ui.tab = AppTab.SHOW
                 tapToPreview(c, ui, it)
             }) {
                 if (set?.items?.contains(it.id) == true) Tag("В сетлисте", false)
@@ -344,7 +344,7 @@ fun SetPickSheet(c: Controller, ui: Ui) {
         data.setlists.sortedBy { it.date }.forEachIndexed { i, s ->
             if (i > 0) Sep(T.gutter)
             Cell("${s.title}, ${s.dateText}", "${s.items.size} элем." + if (s.past) " · прошёл" else "", chevron = null, onClick = {
-                c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.closeAll(); ui.tab = Tab.SHOW
+                c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.closeAll(); ui.tab = AppTab.SHOW
                 ui.toast("На главном: ${s.title}, ${s.dateText}")
             }) { if (s.id == data.active) Tag("Выбран", false) }
         }
@@ -378,7 +378,7 @@ fun ItemMenu(c: Controller, ui: Ui, item: LibItem, inSet: Boolean) {
     val set by c.activeSet.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
         Btn("Во весь экран", icon = "show") { ui.closeAll(); ui.full = FullSpec.Local(Cue(c.sourceOf(item), 0)) }
-        Btn("В предпросмотр", icon = "up") { ui.closeAll(); ui.tab = Tab.SHOW; tapToPreview(c, ui, item) }
+        Btn("В предпросмотр", icon = "up") { ui.closeAll(); ui.tab = AppTab.SHOW; tapToPreview(c, ui, item) }
         if (item.kind == Kind.SONG || item.kind == Kind.TEXT) Btn("Править", icon = "edit") { ui.push("Править") { EditSheet(c, ui, item.kind, item) } }
         if (item.kind == Kind.BIBLE) Btn("Другое место", icon = "bible") { ui.push("Библия") { BiblePicker(c, ui, item) } }
         if (inSet) {

@@ -145,7 +145,10 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
 @Composable
 private fun SlideText(paras: List<String>, ref: String?, style: SlideStyle) {
     val color = Color(style.color)
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = maxWidth * S.pad, vertical = maxHeight * S.pad), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+      val outerW = maxWidth
+      val outerH = maxHeight
+      BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = outerW * S.pad, vertical = outerH * S.pad), contentAlignment = Alignment.Center) {
         val text = paras.joinToString("\n").let { if (style.caps) it.uppercase() else it }
         val lines = text.lines().size.coerceAtLeast(1)
         val longest = text.lines().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
@@ -174,6 +177,7 @@ private fun SlideText(paras: List<String>, ref: String?, style: SlideStyle) {
             val rs = with(density) { (h * S.ref * 2).toSp() }
             BasicText(it, Modifier.align(Alignment.BottomEnd), style = TextStyle(fontSize = rs, color = color.copy(alpha = 0.75f), fontWeight = FontWeight.Medium))
         }
+      }
     }
 }
 

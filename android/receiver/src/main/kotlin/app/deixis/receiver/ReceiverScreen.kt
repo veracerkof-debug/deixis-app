@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -130,13 +132,20 @@ fun ReceiverScreen(
     }
 }
 
+/** Видео вписано целиком по своим пропорциям: вертикальное — с полями по бокам, без обрезки. */
 @Composable
 private fun VideoSurface(player: VlcPlayer) {
-    AndroidView(
-        factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it) } },
-        modifier = Modifier.fillMaxSize(),
-        onRelease = { player.detach() },
-    )
+    val aspect = player.aspect.value
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val m = if (aspect == null || aspect <= 0f) Modifier.fillMaxSize()
+        else if (aspect >= maxWidth / maxHeight) Modifier.fillMaxWidth().aspectRatio(aspect)
+        else Modifier.fillMaxHeight().aspectRatio(aspect)
+        AndroidView(
+            factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it) } },
+            modifier = m,
+            onRelease = { player.detach() },
+        )
+    }
 }
 
 /** Поверхность для трансляции экрана с пропорциями источника, по центру на чёрном. */

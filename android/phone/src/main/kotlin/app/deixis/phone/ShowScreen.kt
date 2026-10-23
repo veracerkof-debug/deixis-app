@@ -106,10 +106,12 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.fillMaxSize()) {
         TopBar(c, ui)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            if (maxWidth >= 700.dp) Row(Modifier.fillMaxSize()) {
-                Column(Modifier.width(minOf(maxWidth * 0.42f, 440.dp)).fillMaxHeight()) {
+            val w = maxWidth
+            val tall = maxHeight > 500.dp
+            if (w >= 700.dp) Row(Modifier.fillMaxSize()) {
+                Column(Modifier.width(minOf(w * 0.42f, 440.dp)).fillMaxHeight()) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = maxHeight > 500.dp)
+                        if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = tall)
                         Tiles(c, h, ui, wrap = true)
                     }
                     if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
@@ -139,8 +141,8 @@ private fun TopBar(c: Controller, ui: Ui) {
     ) {
         Mark()
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(T.gapXs, Alignment.End)) {
-            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}") { ui.tab = Tab.DEVICES } }
-            if (viewUrl != null) Dev("people", OutState.ONLINE, "Зрители: ${state?.viewers ?: 0}", count = state?.viewers ?: 0) { ui.tab = Tab.DEVICES }
+            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}") { ui.tab = AppTab.DEVICES } }
+            if (viewUrl != null) Dev("people", OutState.ONLINE, "Зрители: ${state?.viewers ?: 0}", count = state?.viewers ?: 0) { ui.tab = AppTab.DEVICES }
         }
         Pill(if (outputs.isEmpty()) "Подключить" else "", "wifi", tint = true, label = "Подключить") { ui.sheet("Подключить") { ConnectSheet(c, ui) } }
         IconBtn("gear", "Настройки") { ui.sheet("Настройки") { SettingsSheet(c) } }
