@@ -1,0 +1,192 @@
+<title>Демо Deixis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script src="hub.js"></script>
+<!-- PDF.js нужен только для своего PDF; грузится не мешая показу. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+/* Витрина: экран зала слева, телефон с пультом справа; на узком экране — экран сверху, пульт под ним.
+   Токены те же, что у пульта (DESIGN.md). */
+@font-face { font-family: "Deixis Mark"; src: url("assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
+:root {
+  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #6F6C66; --l3: #C6C3BC; --tint: #9C7242; --tint-text: #765A38;
+  --hall: #0E0E0F; --hall-wall: #E4E1DA; --frame: #1A1A1B; --sep: rgba(60,55,45,.15); --fill: rgba(120,115,105,.12);
+  --on-color: #FFFFFF;
+  --f-mark: "Deixis Mark", "Didot", Georgia, serif;
+  --f-body: -apple-system, "SF Pro Text", "Noto Sans", system-ui, "Segoe UI", Roboto, sans-serif;
+  --r-card: 12px; --r-pill: 999px; --r-phone: 46px; --gap: 10px; --pad: 16px;
+  --t-fast: 140ms; --e-spring: cubic-bezier(.3,1.35,.55,1);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #9A9AA0; --l3: #48484A; --tint: #BC9361; --tint-text: #BC9361;
+  --hall-wall: #121213; --frame: #2A2A2C; --sep: rgba(84,84,88,.55); --fill: rgba(118,118,128,.24); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #9A9AA0; --l3: #48484A; --tint: #BC9361; --tint-text: #BC9361;
+  --hall-wall: #121213; --frame: #2A2A2C; --sep: rgba(84,84,88,.55); --fill: rgba(118,118,128,.24); color-scheme: dark }
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; } }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.45 var(--f-body);
+       padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 22px; }
+header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.mark { font-family: var(--f-mark); font-size: 30px; letter-spacing: .2em; }
+.tag { font-size: 13px; font-weight: 600; color: var(--tint-text); text-transform: uppercase; letter-spacing: .08em; }
+.lead { margin: 0; color: var(--l2); max-width: 62ch; text-wrap: pretty; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start; }
+.label { font-size: 13px; font-weight: 600; color: var(--l2); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; }
+.hallBox { min-width: 0; display: grid; gap: 14px; }
+.wall { background: var(--hall-wall); border-radius: var(--r-card); padding: clamp(10px, 3vw, 34px); }
+.screen { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: var(--hall); border-radius: 4px; overflow: hidden;
+          box-shadow: 0 18px 40px -18px rgba(0,0,0,.45); }
+.screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.caption { font-size: 13px; color: var(--l2); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.examples { display: flex; flex-wrap: wrap; gap: 8px; }
+.examples button { font: 600 15px/1 var(--f-body); color: var(--ink); background: var(--fill); border: 0; border-radius: var(--r-pill);
+                   padding: 11px 16px; cursor: pointer; transition: transform var(--t-fast) var(--e-spring); }
+.examples button:active { transform: scale(.96); }
+.examples button:focus-visible, .phone iframe:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.notes { display: grid; gap: 6px; font-size: 14px; color: var(--l2); max-width: 70ch; }
+.notes p { margin: 0; }
+.phoneBox { display: grid; justify-items: center; }
+.phone { width: 380px; max-width: 100%; height: 780px; border-radius: var(--r-phone); background: var(--frame); padding: 12px; }
+.phone iframe { width: 100%; height: 100%; border: 0; border-radius: calc(var(--r-phone) - 12px); background: var(--bg); display: block; }
+footer { font-size: 13px; color: var(--l2); border-top: 1px solid var(--sep); padding-top: 14px; }
+@media (max-width: 920px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .phone { width: 100%; max-width: 420px; height: 720px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="mark">ΔΕΙΞΙΣ</span>
+    <span class="tag" data-t="tag"></span>
+  </header>
+  <p class="lead" data-t="lead"></p>
+
+  <div class="stage">
+    <section class="hallBox" aria-labelledby="hallLabel">
+      <div>
+        <p class="label" id="hallLabel" data-t="hall"></p>
+        <div class="wall"><div class="screen"><iframe id="hall" title="Экран" src="view.html?k=demo"></iframe></div></div>
+      </div>
+      <div class="caption" id="caption"></div>
+      <div>
+        <p class="label" data-t="examples"></p>
+        <div class="examples">
+          <button id="exLecture" data-t="lecture"></button>
+          <button id="exPhoto" data-t="photo"></button>
+          <button id="exVideo" data-t="video"></button>
+          <button id="exText" data-t="poem"></button>
+          <button id="exBible" data-t="bible"></button>
+        </div>
+      </div>
+      <div class="notes">
+        <p data-t="hint1"></p>
+        <p data-t="hint2"></p>
+        <p data-t="hint3"></p>
+      </div>
+    </section>
+
+    <section class="phoneBox" aria-labelledby="phoneLabel">
+      <p class="label" id="phoneLabel" data-t="remote"></p>
+      <div class="phone"><iframe id="remote" title="Пульт" src="remote.html?pin=0000"></iframe></div>
+    </section>
+  </div>
+
+  <footer data-t="footer"></footer>
+</div>
+
+<script>
+const STRINGS = {
+  ru: {
+    tag: "Демо", hall: "Экран в зале", remote: "Пульт на телефоне", examples: "Примеры",
+    lead: "Показ без установки: пульт, как на телефоне, и экран в зале на одной странице. Нажатое на пульте сразу появляется на экране.",
+    lecture: "Лекция, 5 слайдов", photo: "Фото", video: "Видео", poem: "Стихи", bible: "Библия",
+    hint1: "Слайды листаются кнопками «Назад» и «Дальше» или смахиванием по превью. «Чёрный» и «Логотип» убирают показ с экрана, повторное нажатие возвращает его.",
+    hint2: "Свой файл открывается здесь же через плитки «Фото», «Видео» и «Файл» (PDF): он остаётся в этом браузере и никуда не отправляется.",
+    hint3: "В настоящем Deixis пульт работает по Wi-Fi с телевизором, проектором, доской или компьютером, а зрители смотрят показ по QR-коду.",
+    footer: "Демо: данные примерные, сеть не используется. Deixis — открытое приложение, лицензия GPL-3.0.",
+    poemTitle: "Стихи",
+    poemText: "Я помню чудное мгновенье:\nПередо мной явилась ты,\nКак мимолётное виденье,\nКак гений чистой красоты.\n\nВ томленьях грусти безнадежной,\nВ тревогах шумной суеты,\nЗвучал мне долго голос нежный\nИ снились милые черты.",
+    bibleRef: "Ин 3:16-17",
+    now: "Сейчас на экране", page: "страница", of: "из", black: "чёрный экран", logo: "логотип", empty: "ничего не показано",
+  },
+  uz: {
+    tag: "Namoyish", hall: "Zal ekrani", remote: "Telefondagi pult", examples: "Namunalar",
+    lead: "O‘rnatmasdan ko‘rsatish: telefondagidek pult va zal ekrani bir sahifada. Pultda bosilgan narsa darhol ekranda paydo bo‘ladi.",
+    lecture: "Ma’ruza, 5 slayd", photo: "Rasm", video: "Video", poem: "She’r", bible: "Bibliya",
+    hint1: "Slaydlar «Orqaga» va «Oldinga» tugmalari yoki ko‘rinish ustida surish bilan varaqlanadi. «Qora» va «Logotip» ko‘rsatuvni ekrandan oladi, qayta bosish uni qaytaradi.",
+    hint2: "O‘z fayli «Rasm», «Video» va «Fayl» (PDF) tugmalari orqali shu yerda ochiladi: u shu brauzerda qoladi va hech qayerga yuborilmaydi.",
+    hint3: "Haqiqiy Deixis’da pult Wi-Fi orqali televizor, proyektor, doska yoki kompyuter bilan ishlaydi, tomoshabinlar esa QR-kod orqali ko‘radi.",
+    footer: "Namoyish: ma’lumotlar namunaviy, tarmoq ishlatilmaydi. Deixis — ochiq ilova, GPL-3.0 litsenziyasi.",
+    poemTitle: "She’r",
+    poemText: "Я помню чудное мгновенье:\nПередо мной явилась ты,\nКак мимолётное виденье,\nКак гений чистой красоты.\n\nВ томленьях грусти безнадежной,\nВ тревогах шумной суеты,\nЗвучал мне долго голос нежный\nИ снились милые черты.",
+    bibleRef: "Ин 3:16-17",
+    now: "Hozir ekranda", page: "sahifa", of: "/", black: "qora ekran", logo: "logotip", empty: "hech narsa ko‘rsatilmagan",
+  },
+  en: {
+    tag: "Demo", hall: "Hall screen", remote: "Remote on the phone", examples: "Examples",
+    lead: "A show with nothing to install: the remote, as on a phone, and the hall screen on one page. Whatever is pressed on the remote appears on the screen at once.",
+    lecture: "Lecture, 5 slides", photo: "Photo", video: "Video", poem: "Poem", bible: "Bible",
+    hint1: "Slides turn with the Back and Next buttons or by swiping the preview. Black and Logo take the show off the screen; pressing again brings it back.",
+    hint2: "Own files open right here through the Photo, Video and File (PDF) tiles: they stay in this browser and are not sent anywhere.",
+    hint3: "In the real Deixis the remote works over Wi-Fi with a TV, projector, board or computer, and the audience follows the show by QR code.",
+    footer: "Demo: sample data, no network is used. Deixis is an open app under GPL-3.0.",
+    poemTitle: "Poem",
+    poemText: "Shall I compare thee to a summer’s day?\nThou art more lovely and more temperate:\nRough winds do shake the darling buds of May,\nAnd summer’s lease hath all too short a date.",
+    bibleRef: "John 3:16-17",
+    now: "On screen now", page: "page", of: "of", black: "black screen", logo: "logo", empty: "nothing shown",
+  },
+};
+const lang = (navigator.language || "ru").toLowerCase();
+const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("en") ? "en" : "ru"];
+document.documentElement.lang = lang.slice(0, 2);
+document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
+
+// Свои PDF рисует PDF.js без отдельного потока: в демо отдельные файлы потоков не загружаются.
+addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; });
+
+const demo = window.DeixisDemo;
+const remote = document.getElementById("remote");
+const rw = () => remote.contentWindow;
+
+// Подпись под экраном: что сейчас в зале.
+function caption(s) {
+  const c = s.content;
+  let text = t.empty;
+  if (s.mode === "BLACK") text = t.black;
+  else if (s.mode === "LOGO") text = t.logo;
+  else if (c && c.type === "pdf") text = `${c.file.name} · ${t.page} ${c.page + 1}`;
+  else if (c && (c.type === "image" || c.type === "video")) text = c.file.name + (s.video ? ` · ${Math.floor(s.video.positionMs / 1000)} / ${Math.floor(s.video.durationMs / 1000)} с` : "");
+  else if (c && c.type === "text") text = c.text.split("\n")[0];
+  else if (c && c.type === "scripture") text = c.ref || (c.blocks[0] && c.blocks[0].ref) || "";
+  document.getElementById("caption").textContent = `${t.now}: ${text}`;
+}
+demo.onChange((s, event) => {
+  caption(s);
+  // Пульт подключился: лекция уже на экране, пульт берёт её, чтобы листать.
+  if (event === "welcome" && !started) { started = true; setTimeout(lecture, 150); }
+});
+let started = false;
+caption(demo.state);
+
+const lecture = () => rw().showItem({ kind: "pdf", ref: demo.LECTURE, pages: 5, index: 0 });
+document.getElementById("exLecture").onclick = lecture;
+document.getElementById("exPhoto").onclick = () => rw().showItem({ kind: "image", ref: demo.PHOTO });
+document.getElementById("exVideo").onclick = () => rw().showItem({ kind: "video", ref: demo.VIDEO });
+document.getElementById("exText").onclick = () => rw().showText(t.poemText, t.poemTitle);
+// Библия открывается настоящей шторкой пульта с уже набранным местом.
+document.getElementById("exBible").onclick = () => {
+  rw().bibleSheet();
+  let tries = 0;
+  const fill = setInterval(() => {
+    const doc = remote.contentDocument;
+    const ref = doc && doc.getElementById("ref");
+    if (ref || ++tries > 30) {
+      clearInterval(fill);
+      if (ref) { ref.value = t.bibleRef; const go = doc.getElementById("go"); if (go) go.focus(); }
+    }
+  }, 50);
+};
+</script>
