@@ -85,17 +85,17 @@ private val Dark = Palette(
     Color(0xFF000000), Color(0xFF1C1C1E), Color(0xFFFFFFFF), Color(0xFF8D8D93), Color(0xFF48484A),
     Color(0xFFBC9361), Color(0xFFBC9361), Color(0xFFB96E65), Color(0x3D767680),
 )
-private val P = staticCompositionLocalOf { Light }
+internal val P = staticCompositionLocalOf { Light }
 
 @Composable
-fun DeixisPhone(controller: Controller) {
+fun DeixisPhone(controller: Controller, holyrics: HolyricsSource) {
     CompositionLocalProvider(P provides if (isSystemInDarkTheme()) Dark else Light) {
-        Main(controller)
+        Main(controller, holyrics)
     }
 }
 
 @Composable
-private fun Main(c: Controller) {
+private fun Main(c: Controller, h: HolyricsSource) {
     val p = P.current
     val targets by c.targets.collectAsState()
     val active by c.active.collectAsState()
@@ -109,6 +109,7 @@ private fun Main(c: Controller) {
     var dialog by remember { mutableStateOf<String?>(null) }
     val sharing by c.sharing.collectAsState()
     val churchMode by c.churchMode.collectAsState()
+    val holyricsRemote by h.remote.collectAsState()
     val tooLarge by c.tooLarge.collectAsState()
     val context = LocalContext.current
 
@@ -167,7 +168,9 @@ private fun Main(c: Controller) {
             }
 
             SectionTitle("Сейчас")
-            NowCard(item, state?.mode, state?.video?.let { "${it.positionMs / 1000} / ${it.durationMs / 1000} с" + if (it.playing) "" else " · пауза" })
+            // Пульт Holyrics: «Сейчас» показывает то, что идёт в Holyrics, а не на экране Deixis.
+            if (holyricsRemote) HolyricsLiveCard(h)
+            else NowCard(item, state?.mode, state?.video?.let { "${it.positionMs / 1000} / ${it.durationMs / 1000} с" + if (it.playing) "" else " · пауза" })
             progress?.let { Hint(it) }
 
             SectionTitle("Показать")
@@ -181,13 +184,14 @@ private fun Main(c: Controller) {
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile(if (sharing) "Стоп экран" else "Экран") { if (sharing) ScreenShareService.stop(context) else startShare() }
                 if (churchMode) Tile("Библия") { dialog = "bible" }
+                Tile("Holyrics") { dialog = "holyrics" }
                 Tile("Настройки") { dialog = "settings" }
-                Spacer(Modifier.weight(if (churchMode) 1f else 2f))
+                if (!churchMode) Spacer(Modifier.weight(1f))
             }
             Spacer(Modifier.height(24.dp))
         }
 
-        ControlBar(c, item, state?.mode, state?.video?.playing)
+        if (holyricsRemote) HolyricsBar(h) else ControlBar(c, item, state?.mode, state?.video?.playing)
     }
 
     tooLarge?.let { f ->
@@ -203,6 +207,7 @@ private fun Main(c: Controller) {
         "text" -> InputDialog("Текст", "Пустая строка начинает новый слайд", KeyboardType.Text, singleLine = false, onDismiss = { dialog = null }) { dialog = null; c.showText(it) }
         "bible" -> BibleDialog(c) { dialog = null }
         "settings" -> SettingsDialog(c) { dialog = null }
+        "holyrics" -> HolyricsDialog(h) { dialog = null }
         "viewers" -> viewUrl?.let { ViewersDialog(it, viewLocalUrl, state?.viewers ?: 0) { dialog = null } }
     }
 }
@@ -388,6 +393,22 @@ private fun ControlBar(c: Controller, item: Item?, mode: Mode?, playing: Boolean
             BarButton("Чёрный", pressed = mode == Mode.BLACK) { c.mode(Mode.BLACK) }
             BarButton("Логотип", pressed = mode == Mode.LOGO) { c.mode(Mode.LOGO) }
             BarButton("Очистить", pressed = mode == Mode.CLEAR) { c.mode(Mode.CLEAR) }
+        }
+    }
+}
+
+/** Полоса пульта Holyrics: листать показ в Holyrics, выйти из пульта. */
+@Composable
+private fun HolyricsBar(h: HolyricsSource) {
+    val p = P.current
+    Column(Modifier.fillMaxWidth().background(p.cell).padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarButton("Назад") { h.previous() }
+            BarButton("Дальше") { h.next() }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarButton("Выйти из пульта Holyrics") { h.setRemote(false) }
         }
     }
 }

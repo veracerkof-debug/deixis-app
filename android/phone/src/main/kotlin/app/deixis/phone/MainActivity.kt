@@ -1,7 +1,9 @@
 package app.deixis.phone
 
 import android.app.Application
+import android.content.Intent
 import android.os.Bundle
+import app.deixis.core.HolyricsLink
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +13,7 @@ import kotlinx.coroutines.launch
 class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
     val controller by lazy { Controller(this) }
+    val holyrics by lazy { HolyricsSource(this, controller) }
 }
 
 class MainActivity : ComponentActivity() {
@@ -24,7 +27,21 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             controller.messages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() }
         }
-        setContent { DeixisPhone(controller) }
+        setContent { DeixisPhone(controller, (application as PhoneApp).holyrics) }
+        handleLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleLink(intent)
+    }
+
+    /** Ссылки из QR-кодов, открытые камерой: экран Deixis (deixis://) или Holyrics (deixis-holyrics://). */
+    private fun handleLink(intent: Intent?) {
+        val uri = intent?.data?.toString() ?: return
+        val app = application as PhoneApp
+        HolyricsLink.parse(uri)?.let { app.holyrics.connect(it); return }
+        if (uri.startsWith("deixis://")) app.controller.addManual(uri)
     }
 
     override fun onStart() {

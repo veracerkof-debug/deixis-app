@@ -68,7 +68,15 @@ data class Target(val id: String, val name: String, val host: String, val port: 
 /** Что сейчас показывается с телефона. */
 sealed interface Item {
     val title: String
-    data class Text(val slides: List<String>, val index: Int) : Item { override val title = "Текст" }
+    data class Text(
+        val slides: List<String>,
+        val index: Int,
+        override val title: String = "Текст",
+        /** Оформление, например тема Holyrics; null — обычное. */
+        val style: TextStyle? = null,
+        /** Подписи слайдов («Куплет 1», «Припев») для пульта. */
+        val labels: List<String?> = emptyList(),
+    ) : Item
     data class Pdf(val ref: FileRef, val pages: Int, val index: Int) : Item { override val title = ref.name }
     data class Image(val ref: FileRef) : Item { override val title = ref.name }
     data class Video(val ref: FileRef) : Item { override val title = ref.name }
@@ -372,6 +380,27 @@ class Controller(private val app: Application) {
         error?.let { messages.emit(it) }
     }
 
+    /** Экран, к которому подключён пульт, как он себя описал; null — нет связи. */
+    val receiverInfo: StateFlow<app.deixis.core.ReceiverInfo?> = connection.map { (it as? Connection.Connected)?.receiver }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Слайды из другой программы (Holyrics): с её оформлением и подписями. */
+    fun showSlides(title: String, slides: List<String>, style: TextStyle?, labels: List<String?> = emptyList(), index: Int = 0) {
+        if (slides.isEmpty()) return
+        show(Item.Text(slides, index.coerceIn(0, slides.lastIndex), title, style, labels))
+    }
+
+    fun showImage(ref: FileRef) = show(Item.Image(ref))
+    fun showVideo(ref: FileRef) = show(Item.Video(ref))
+
+    /** Файл из Holyrics через приёмник на том же компьютере; null — этот экран так не умеет. */
+    suspend fun importFromHolyrics(req: app.deixis.core.HolyricsMediaRequest): FileRef? {
+        val c = client.value ?: return null
+        if (receiverInfo.value?.holyrics != true) return null
+        progress.value = "«${req.name}»: из Holyrics"
+        return try { c.importFromHolyrics(req) } finally { progress.value = null }
+    }
+
     fun step(delta: Int) {
         when (val it = item.value) {
             is Item.Scripture -> it.copy(index = (it.index + delta).coerceIn(0, it.slides.lastIndex)).takeIf { n -> n != it }?.let(::show)
@@ -398,7 +427,7 @@ class Controller(private val app: Application) {
 
     private fun show(it: Item) {
         val content: Content = when (it) {
-            is Item.Text -> TextContent(it.slides[it.index], style = style())
+            is Item.Text -> TextContent(it.slides[it.index], style = it.style?.let { st -> if (caps.value) st.copy(caps = true) else st } ?: style())
             is Item.Pdf -> PdfContent(it.ref, it.index)
             is Item.Image -> ImageContent(it.ref)
             is Item.Video -> VideoContent(it.ref)
