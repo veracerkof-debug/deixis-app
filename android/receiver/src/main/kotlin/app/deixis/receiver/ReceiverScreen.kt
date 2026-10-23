@@ -319,13 +319,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground
     }
 }
 
-private fun drawBox(nc: android.graphics.Canvas, style: SlideStyle, l: Float, t: Float, r: Float, b: Float, size: Float) {
+internal fun drawBox(nc: android.graphics.Canvas, style: SlideStyle, l: Float, t: Float, r: Float, b: Float, size: Float) {
     val color = style.box ?: return
     nc.drawRoundRect(l, t, r, b, size * 0.1f, size * 0.1f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color.toInt() })
 }
 
 /** Строка слайда с обводкой и тенью цветов оформления. */
-private fun drawStyledText(nc: android.graphics.Canvas, text: String, x: Float, baseline: Float, size: Float, paint: Paint, style: SlideStyle) {
+internal fun drawStyledText(nc: android.graphics.Canvas, text: String, x: Float, baseline: Float, size: Float, paint: Paint, style: SlideStyle) {
     paint.textSize = size
     paint.clearShadowLayer()
     if (style.outline) {

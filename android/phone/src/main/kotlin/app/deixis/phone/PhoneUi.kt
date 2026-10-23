@@ -155,7 +155,7 @@ private fun Main(c: Controller, h: HolyricsSource) {
             SectionTitle("Экраны")
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(targets, key = { it.kind.name + it.id }) { t ->
-                    Chip(t.name, selected = t == active, live = t == active && connection is Connection.Connected) { c.select(t) }
+                    Chip(t.name, selected = t == active, live = t == active && (connection is Connection.Connected || t.kind == Target.Kind.DLNA)) { c.select(t) }
                 }
                 item { Chip("+ Адрес", selected = false, live = false) { dialog = "address" } }
             }
@@ -306,6 +306,7 @@ private fun ViewersDialog(url: String, localUrl: String?, viewers: Int, onDismis
 
 private fun statusText(t: Target?, conn: Connection): String = when {
     t == null -> "Экран не выбран"
+    t.kind == Target.Kind.DLNA -> t.name
     conn is Connection.Connected -> t.name
     conn is Connection.Connecting -> "Подключение…"
     conn is Connection.Lost -> "Нет связи, переподключение…"

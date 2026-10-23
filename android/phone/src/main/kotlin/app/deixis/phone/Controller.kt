@@ -62,7 +62,7 @@ import java.io.InputStream
 
 /** Экран, на который можно показать. */
 data class Target(val id: String, val name: String, val host: String, val port: Int, val kind: Kind) {
-    enum class Kind { NETWORK, CABLE, MANUAL }
+    enum class Kind { NETWORK, CABLE, MANUAL, DLNA }
 }
 
 /** Что сейчас показывается с телефона. */
@@ -102,14 +102,20 @@ class Controller(private val app: Application) {
     private val manual = MutableStateFlow<List<Target>>(emptyList())
 
     /** Все экраны: кабель первым, затем найденные в сети и введённые вручную. */
-    val targets: StateFlow<List<Target>> = combine(cable, found, manual) { c, f, m -> listOfNotNull(c) + f + m.filter { x -> f.none { it.host == x.host && it.port == x.port } } }
+    /** Обычные телевизоры с DLNA — запасной путь, в конце списка. */
+    val dlna = DlnaOutput(app)
+
+    val targets: StateFlow<List<Target>> = combine(cable, found, manual, dlna.found) { c, f, m, d ->
+        listOfNotNull(c) + f + m.filter { x -> f.none { it.host == x.host && it.port == x.port } } +
+            d.map { Target(it.id, it.name + " · DLNA", it.host, 0, Target.Kind.DLNA) }
+    }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     val active = MutableStateFlow<Target?>(null)
     private val client = MutableStateFlow<SenderClient?>(null)
     val connection: StateFlow<Connection> = client.flatMapLatest { it?.connection ?: flowOf(Connection.Idle) }
         .stateIn(scope, SharingStarted.Eagerly, Connection.Idle)
-    val receiverState: StateFlow<ReceiverState?> = client.flatMapLatest { it?.state ?: flowOf(null) }
+    val receiverState: StateFlow<ReceiverState?> = client.flatMapLatest { it?.state ?: dlna.state }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Ссылка для зрителей по имени в локальной сети, например http://deixis-ab12.local:47820/view?k=… */
@@ -161,6 +167,7 @@ class Controller(private val app: Application) {
     val tooLarge = MutableStateFlow<LargeFile?>(null)
 
     private var browseJob: Job? = null
+    private var dlnaSearch: Job? = null
     private var multicastLock: WifiManager.MulticastLock? = null
     private var clientJobs: List<Job> = emptyList()
 
@@ -173,15 +180,27 @@ class Controller(private val app: Application) {
                 Discovery.browse().collect { list -> found.value = list.map { Target(it.id, it.name, it.host, it.port, Target.Kind.NETWORK) } }
             }
         }
+        dlnaSearch = dlna.search(scope)
     }
 
     fun stopDiscovery() {
         browseJob?.cancel()
         browseJob = null
+        dlnaSearch?.cancel()
+        dlnaSearch = null
         runCatching { multicastLock?.release() }
     }
 
     fun select(t: Target) {
+        if (t.kind == Target.Kind.DLNA) {
+            if (active.value == t && dlna.tv != null) return
+            val r = dlna.found.value.firstOrNull { it.id == t.id } ?: return
+            scope.launch {
+                disconnect()
+                runCatching { dlna.open(r, scope) }.onSuccess { active.value = t }.onFailure { messages.emit("«${r.name}»: ${it.message}") }
+            }
+            return
+        }
         if (active.value == t && connection.value is Connection.Connected) return
         val token = prefs.getString(key(t), null)
         if (token == null) needPin.value = t else open(t, token)
@@ -266,6 +285,7 @@ class Controller(private val app: Application) {
     }
 
     fun disconnect() {
+        dlna.close()
         if (sharing.value || screenStream != null) ScreenShareService.stop(app)
         clientJobs.forEach { it.cancel() }
         clientJobs = emptyList()
@@ -282,10 +302,13 @@ class Controller(private val app: Application) {
 
     fun showUri(uri: Uri) = scope.launch {
         val c = client.value
-        if (c == null || connection.value !is Connection.Connected) {
+        val toTv = dlna.tv != null
+        if (!toTv && (c == null || connection.value !is Connection.Connected)) {
             messages.emit("Сначала выберите экран")
             return@launch
         }
+        // На DLNA-телевизор файл не передаётся заранее: телевизор берёт его с телефона сам.
+        suspend fun send(source: UploadSource): FileRef = if (toTv) dlna.register(source) else upload(c!!, source)
         try {
             val meta = withContext(Dispatchers.IO) { query(uri) }
             val kind = mediaKindOf(meta.name) ?: kindFromMime(app.contentResolver.getType(uri))
@@ -299,14 +322,14 @@ class Controller(private val app: Application) {
                 MediaKind.TEXT -> showText(withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } })
                 MediaKind.IMAGE -> {
                     val source = if (meta.name.lowercase().let { it.endsWith(".heic") || it.endsWith(".heif") }) heicToJpeg(uri, meta.name) else uriSource(uri, meta)
-                    show(Item.Image(upload(c, source)))
+                    show(Item.Image(send(source)))
                 }
-                MediaKind.VIDEO -> show(Item.Video(upload(c, uriSource(uri, meta))))
+                MediaKind.VIDEO -> show(Item.Video(send(uriSource(uri, meta))))
                 MediaKind.PDF -> {
                     val pages = withContext(Dispatchers.IO) {
                         app.contentResolver.openFileDescriptor(uri, "r")!!.use { fd -> PdfRenderer(fd).use { it.pageCount } }
                     }
-                    show(Item.Pdf(upload(c, uriSource(uri, meta)), pages, 0))
+                    show(Item.Pdf(send(uriSource(uri, meta)), pages, 0))
                 }
                 null -> messages.emit("Формат «${meta.name}» не поддерживается")
             }
@@ -411,11 +434,19 @@ class Controller(private val app: Application) {
     }
 
     fun mode(m: Mode) {
+        if (dlna.tv != null) {
+            scope.launch { runCatching { dlna.toggle(m) }.onFailure { messages.emit(it.message ?: "Телевизор не ответил") } }
+            return
+        }
         val current = receiverState.value?.mode
         client.value?.mode(if (current == m) Mode.NORMAL else m)
     }
 
     fun video(action: VideoAction, deltaMs: Long = 0) {
+        if (dlna.tv != null) {
+            scope.launch { runCatching { dlna.video(action, deltaMs) }.onFailure { messages.emit(it.message ?: "Телевизор не ответил") } }
+            return
+        }
         val v = receiverState.value?.video
         val cmd = when (action) {
             VideoAction.SEEK -> VideoCommand(action, positionMs = ((v?.positionMs ?: 0) + deltaMs).coerceAtLeast(0))
@@ -433,6 +464,11 @@ class Controller(private val app: Application) {
             is Item.Video -> VideoContent(it.ref)
             is Item.Scripture -> it.slides[it.index].let { sc -> sc.copy(style = sc.style.copy(caps = caps.value)) }
             is Item.Screen -> ScreenContent(it.width, it.height)
+        }
+        if (dlna.tv != null) {
+            item.value = it
+            scope.launch { runCatching { dlna.show(content) }.onFailure { e -> messages.emit(e.message ?: "Телевизор не ответил") } }
+            return
         }
         if (client.value?.show(content) == true) item.value = it
         else scope.launch { messages.emit("Нет связи с экраном") }

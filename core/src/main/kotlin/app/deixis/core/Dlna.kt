@@ -15,7 +15,7 @@ import io.ktor.http.isSuccess
 import io.ktor.server.application.install
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.http.content.LocalFileContent
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
@@ -189,7 +189,7 @@ class DlnaController(val renderer: DlnaRenderer, private val http: HttpClient = 
  * Ссылки случайные и действуют, пока файл зарегистрирован.
  */
 class DlnaFileServer(private val bindHost: String = "0.0.0.0") {
-    private val files: MutableMap<String, Pair<File, String>> = java.util.Collections.synchronizedMap(LinkedHashMap())
+    private val files: MutableMap<String, UploadSource> = java.util.Collections.synchronizedMap(LinkedHashMap())
     private var server: EmbeddedServer<*, *>? = null
     var port = 0
         private set
@@ -200,11 +200,12 @@ class DlnaFileServer(private val bindHost: String = "0.0.0.0") {
             install(io.ktor.server.plugins.autohead.AutoHeadResponse)
             routing {
                 get("/dlna/{id}/{name}") {
-                    val (file, mime) = files[call.parameters["id"]] ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
+                    val src = files[call.parameters["id"]] ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
+                    val mime = src.mime
                     // Заголовки DLNA: без них часть телевизоров не начинает воспроизведение.
                     call.response.header("transferMode.dlna.org", if (mime.startsWith("image/")) "Interactive" else "Streaming")
                     call.response.header("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000")
-                    call.respond(LocalFileContent(file, ContentType.parse(mime)))
+                    call.respond(SourceContent(src))
                 }
             }
         }
@@ -215,11 +216,47 @@ class DlnaFileServer(private val bindHost: String = "0.0.0.0") {
     }
 
     /** Ссылка на файл для телевизора; [address] — адрес этого устройства в той же сети. */
-    fun share(file: File, mime: String, address: String): String {
+    fun share(file: File, mime: String, address: String): String = share(object : UploadSource {
+        override val name = file.name
+        override val size = file.length()
+        override val mime = mime
+        override fun open(): java.io.InputStream = file.inputStream()
+    }, address)
+
+    /** Любой источник: файл телефона по content://, картинка слайда в памяти. */
+    fun share(source: UploadSource, address: String): String {
         val id = UUID.randomUUID().toString().replace("-", "").take(16)
-        files[id] = file to mime
-        val ext = file.name.substringAfterLast('.', "bin")
+        files[id] = source
+        val ext = source.name.substringAfterLast('.', "bin")
         return "http://$address:$port/dlna/$id/media.$ext"
+    }
+
+    /** Отдача источника с поддержкой Range: телевизоры перематывают видео запросами частей файла. */
+    private class SourceContent(private val src: UploadSource) : io.ktor.http.content.OutgoingContent.ReadChannelContent() {
+        override val contentLength: Long = src.size
+        override val contentType: ContentType = ContentType.parse(src.mime)
+        override fun readFrom(): io.ktor.utils.io.ByteReadChannel = src.open().toByteReadChannel()
+        override fun readFrom(range: LongRange): io.ktor.utils.io.ByteReadChannel {
+            val input = src.open()
+            var skipped = 0L
+            while (skipped < range.first) {
+                val n = input.skip(range.first - skipped)
+                if (n <= 0) break
+                skipped += n
+            }
+            return LimitedStream(input, range.last - range.first + 1).toByteReadChannel()
+        }
+    }
+
+    private class LimitedStream(private val input: java.io.InputStream, private var left: Long) : java.io.InputStream() {
+        override fun read(): Int = if (left <= 0) -1 else input.read().also { if (it >= 0) left-- }
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (left <= 0) return -1
+            val n = input.read(b, off, minOf(len.toLong(), left).toInt())
+            if (n > 0) left -= n
+            return n
+        }
+        override fun close() = input.close()
     }
 
     /** Убирает старые ссылки, оставляя последние [keep]. */
