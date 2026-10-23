@@ -34,8 +34,24 @@ def main():
         ('href="/remote/icon.png"', 'href="assets/remote-icon.png"'),
         ('<link rel="manifest" href="/remote/manifest.webmanifest">\n', ""),
         ('url("/view/assets/', 'url("assets/'),
-        ("`/view?k=", "`view.html?k="),
+        # Превью файлов и страниц: в демо — файлы демо-приёмника, QR рисует библиотека витрины.
+        ("const fileUrl = (ref) => LOCAL[ref.sha256] || ",
+         "const fileUrl = (ref) => LOCAL[ref.sha256] || window.DeixisDemoUrl(`/view/file/${ref.sha256}`) || "),
+        ("const pageUrl = (ref, page, w) => ",
+         "const pageUrl = (ref, page, w) => window.DeixisDemoUrl(`/view/page/${ref.sha256}/${page}`) || "),
         ('"/remote/keepawake.mp4"', '"assets/keepawake.mp4"'),
+        # Витрина (shell.html) показывает примеры, вызывая пульт напрямую.
+        ("</script>\n</body>", """// Витрина симулятора вызывает пульт напрямую: пример становится элементом библиотеки и уходит в зал.
+window.showItem = (x) => {
+  const type = { pdf: "file", image: "photo", video: "video" }[x.kind];
+  const it = D.items.find((i) => i.ref && i.ref.sha256 === x.ref.sha256) || addItem({ id: newId(), type, title: x.ref.name, ref: x.ref, pages: x.pages });
+  S.tab = "show"; S.open = it.id; render();
+  goLive({ src: srcOf(it), idx: x.index || 0 });
+};
+window.showText = (text, title) => goLive({ src: { id: null, title: title || t.tText, type: "text", slides: splitSlides(text).map((s) => ({ text: s })), style: null }, idx: 0 });
+window.bibleSheet = () => A.tab({ id: "bible" });
+</script>
+</body>"""),
     ], "remote.html")
     view = open(os.path.join(WEB, "view.html"), encoding="utf-8").read()
     view = patch(view, [

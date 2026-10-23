@@ -212,6 +212,10 @@
     }
     if (path === "/bible") return reply(BIBLE.modules);
     if (path === "/bible/slides") return bibleSlides(JSON.parse(opts.body));
+    // Вкладка «Библия» веб-пульта: книги, глава и поиск по демо-местам.
+    if (path === "/bible/books") return reply(bibleBooks(q.get("module")).map((b) => ({ number: b.number, shortName: b.short, longName: b.long, chapters: b.chapters })));
+    if (path === "/bible/chapter") return bibleChapter((q.get("modules") || "").split(","), Number(q.get("book")), Number(q.get("chapter")));
+    if (path === "/bible/search") return bibleSearch(q.get("module"), q.get("q") || "");
     if (path.startsWith("/bible")) return reply("В демо модули Библии не добавляются: на настоящем экране это файл MyBible", 501);
     if (path.startsWith("/holyrics")) return reply("Holyrics в демо не подключён: он работает с Holyrics на компьютере в той же сети", 501);
     if (path === "/convert") return reply("В демо PPTX не переводится: это делает Deixis для компьютера", 501);
@@ -270,6 +274,12 @@
   function bibleSlides(req) {
     const mods = (req.modules || []).map((f) => f.replace(".SQLite3", "")).filter((a) => a === "RST" || a === "KJV");
     if (!mods.length) return reply("Выберите перевод", 422);
+    // Место номерами (веб-пульт): переводится в адрес основного перевода.
+    if (req.book != null && req.chapter != null) {
+      const b = Object.values(BIBLE.books).find((x) => x.number === req.book);
+      if (!b) return reply(ONLY, 422);
+      req = Object.assign({}, req, { ref: `${b.names[0]} ${b[mods[0]].chapter === req.chapter ? b.RST.chapter : req.chapter}${req.from ? ":" + req.from + (req.to ? "-" + req.to : "") : ""}` });
+    }
     const m = String(req.ref || "").trim().match(/^(.+?)\s*(\d+)(?:\s*:\s*(\d+)(?:\s*[-–—]\s*(\d+))?)?$/);
     if (!m) return reply(ONLY, 422);
     const key = m[1].toLowerCase().replace(/[.\s-]/g, "").replace(/ё/g, "е");
@@ -311,6 +321,28 @@
       number: b.number, names: b.names.slice(), short: b[mod].short, long: b[mod].long, chapters: b.chapterCount,
       chapter: b[mod].chapter, verseCount: b[mod].verseCount, verses: Object.assign({}, b[mod].verses),
     }));
+  }
+
+  function bibleChapter(files, number, chapter) {
+    const mods = files.map((f) => f.replace(".SQLite3", "")).filter((a) => a === "RST" || a === "KJV");
+    const b = Object.values(BIBLE.books).find((x) => x.number === number);
+    if (!mods.length || !b || b[mods[0]].chapter !== chapter) return reply(ONLY, 422);
+    const verses = (mod) => Object.entries(b[mod].verses).map(([n, text]) => ({ number: Number(n), text }));
+    return reply({ book: b.number, chapter, chapters: b.chapterCount, shortName: b[mods[0]].short, longName: b[mods[0]].long, primary: verses(mods[0]), second: mods[1] ? verses(mods[1]) : null });
+  }
+  function bibleSearch(file, query) {
+    const mod = String(file || "").replace(".SQLite3", "");
+    const words = query.toLowerCase().replace(/ё/g, "е").split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2);
+    const hits = [];
+    for (const b of Object.values(BIBLE.books)) {
+      const t = b[mod];
+      if (!t) continue;
+      for (const [n, text] of Object.entries(t.verses)) {
+        const norm = text.toLowerCase().replace(/ё/g, "е");
+        if (words.length && words.every((w) => norm.includes(w))) hits.push({ book: b.number, chapter: t.chapter, verse: Number(n), text, label: `${t.short} ${t.chapter}:${n}` });
+      }
+    }
+    return reply({ ref: null, hits, more: false });
   }
 
   function url(path, key) {

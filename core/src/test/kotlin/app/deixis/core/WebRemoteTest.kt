@@ -129,6 +129,79 @@ class WebRemoteTest {
         assertEquals(HttpStatusCode.UnprocessableEntity, postJson("/bible/slides", """{"ref":"Ин 3:16","modules":[]}""").status)
     }
 
+    private suspend fun authedGet(p: String, auth: Boolean = true): HttpResponse = http.get(url(p)) { if (auth) header("Authorization", "Bearer $token") }
+
+    @Test
+    fun bibleTabReadsBooksChaptersAndSearch() = runBlocking<Unit> {
+        // Встроенные RST и KJV: книги с числом глав.
+        assertEquals(HttpStatusCode.Unauthorized, authedGet("/bible/books?module=RST.SQLite3", auth = false).status)
+        val books = DeixisJson.decodeFromString(ListSerializer(BibleBookInfo.serializer()), authedGet("/bible/books?module=RST.SQLite3").bodyAsText())
+        val john = books.first { it.number == 500 }
+        assertEquals(21, john.chapters)
+        assertEquals(66, books.size)
+        assertEquals(151, books.first { it.number == 230 }.chapters, "в Синодальном 151 псалом")
+        assertEquals(HttpStatusCode.UnprocessableEntity, authedGet("/bible/books?module=NONE.SQLite3").status)
+
+        // Глава сразу на двух переводах: стихи идут парами по номеру.
+        assertEquals(HttpStatusCode.Unauthorized, authedGet("/bible/chapter?modules=RST.SQLite3&book=500&chapter=3", auth = false).status)
+        val r = authedGet("/bible/chapter?modules=RST.SQLite3,KJV.SQLite3&book=500&chapter=3")
+        assertEquals(HttpStatusCode.OK, r.status, r.bodyAsText())
+        val ch = DeixisJson.decodeFromString(ChapterInfo.serializer(), r.bodyAsText())
+        assertEquals(21, ch.chapters)
+        assertEquals("От Иоанна", ch.longName)
+        assertTrue(ch.primary.first { it.number == 16 }.text.startsWith("Ибо так возлюбил Бог"))
+        assertTrue(ch.second!!.first { it.number == 16 }.text.startsWith("For God so loved"))
+        val one = DeixisJson.decodeFromString(ChapterInfo.serializer(), authedGet("/bible/chapter?modules=KJV.SQLite3&book=500&chapter=3").bodyAsText())
+        assertEquals(null, one.second)
+        assertEquals(HttpStatusCode.UnprocessableEntity, authedGet("/bible/chapter?modules=RST.SQLite3&book=500&chapter=99").status)
+        assertEquals(HttpStatusCode.BadRequest, authedGet("/bible/chapter?modules=RST.SQLite3&book=500").status)
+
+        // Поиск: все слова, без учёта регистра; адрес — переход, а не поиск.
+        assertEquals(HttpStatusCode.Unauthorized, authedGet("/bible/search?module=RST.SQLite3&q=x", auth = false).status)
+        val found = DeixisJson.decodeFromString(BibleSearchResult.serializer(), authedGet("/bible/search?module=RST.SQLite3&q=" + URLEncoder.encode("так возлюбил", "UTF-8")).bodyAsText())
+        assertEquals(null, found.ref)
+        val hit = found.hits.first { it.book == 500 && it.chapter == 3 && it.verse == 16 }
+        assertEquals("Ин 3:16", hit.label)
+        val ref = DeixisJson.decodeFromString(BibleSearchResult.serializer(), authedGet("/bible/search?module=RST.SQLite3&q=" + URLEncoder.encode("Ин 3:16-18", "UTF-8")).bodyAsText()).ref!!
+        assertEquals(BibleRefInfo(500, 3, 16, 18, "Ин 3:16–18"), ref)
+        val many = DeixisJson.decodeFromString(BibleSearchResult.serializer(), authedGet("/bible/search?module=RST.SQLite3&q=" + URLEncoder.encode("бог", "UTF-8")).bodyAsText())
+        assertEquals(BibleStore.SEARCH_LIMIT, many.hits.size)
+        assertTrue(many.more)
+
+        // Слайды по номерам книги и главы, без разбора адреса.
+        val slides = postJson("/bible/slides", """{"modules":["RST.SQLite3","KJV.SQLite3"],"book":500,"chapter":3,"from":16,"to":16,"options":{"sideBySide":true}}""")
+        assertEquals(HttpStatusCode.OK, slides.status, slides.bodyAsText())
+        val sc = DeixisJson.decodeFromString(ListSerializer(ScriptureContent.serializer()), slides.bodyAsText()).single()
+        assertEquals(2, sc.blocks.size)
+        assertTrue(sc.sideBySide)
+        assertEquals("Ин 3:16", sc.ref)
+    }
+
+    @Test
+    fun remoteGetsQrAndFilePreviews() = runBlocking<Unit> {
+        val qr = http.get(url("/remote/qr.svg?text=" + URLEncoder.encode("http://192.168.1.5:47820/view?k=abc", "UTF-8")))
+        assertEquals(HttpStatusCode.OK, qr.status)
+        assertTrue(qr.bodyAsText().startsWith("<svg"))
+        assertEquals(HttpStatusCode.BadRequest, http.get(url("/remote/qr.svg")).status)
+
+        val data = ByteArray(1000) { it.toByte() }
+        val up = put("preview0001", "фото.jpg", data.size.toLong(), 0, data).bodyAsText()
+        val ref = DeixisJson.decodeFromString(FileRef.serializer(), DeixisJson.parseToJsonElement(up).jsonObject["file"].toString())
+        assertEquals(HttpStatusCode.Unauthorized, http.get(url("/remote/file/${ref.sha256}")).status)
+        // Картинка в превью: токен параметром, раз браузер не шлёт заголовок для <img>.
+        val f = http.get(url("/remote/file/${ref.sha256}?t=$token&n=a.jpg"))
+        assertEquals(HttpStatusCode.OK, f.status)
+        assertEquals("image/jpeg", f.headers["Content-Type"])
+        assertEquals(HttpStatusCode.NotFound, http.get(url("/remote/file/${"0".repeat(64)}?t=$token")).status)
+        // Страница PDF: без рисовальщика на приёмнике — 501, с ним — PNG.
+        assertEquals(HttpStatusCode.NotImplemented, http.get(url("/remote/page/${ref.sha256}/0?t=$token")).status)
+        core.pageRenderer = PageRenderer { _, page, w -> byteArrayOf(page.toByte(), (w / 10).toByte()) }
+        val png = http.get(url("/remote/page/${ref.sha256}/2?w=320")) { header("Authorization", "Bearer $token") }
+        assertEquals(HttpStatusCode.OK, png.status)
+        assertEquals("image/png", png.headers["Content-Type"])
+        assertEquals(HttpStatusCode.Unauthorized, http.get(url("/remote/page/${ref.sha256}/2?t=wrong")).status)
+    }
+
     @Test
     fun presentationBecomesPdfOnTheReceiver() = runBlocking<Unit> {
         var runs = 0
