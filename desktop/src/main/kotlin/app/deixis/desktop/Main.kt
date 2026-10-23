@@ -5,9 +5,11 @@ import kotlin.system.exitProcess
 
 private const val USAGE = """Deixis для компьютера
 
-  deixis [receive] [--name ИМЯ] [--port ПОРТ] [--screen N] [--windowed]
-      Принимать показ на этом компьютере (по умолчанию — на последнем мониторе, во весь экран).
-      Выход — Ctrl+Q.
+  deixis [receive] [--name ИМЯ] [--port ПОРТ] [--screen N] [--windowed] [--operator | --no-operator]
+      Принимать показ на этом компьютере. Один монитор — зал на нём во весь экран; несколько — зал на всех,
+      кроме монитора пульта, а пульт открывается окном браузера. Мониторы, раскладки (зал, сцена, титры,
+      хромакей) и пульт — в значке Deixis в области уведомлений. --screen N — зал только на мониторе N.
+      Пульт — Ctrl+O, выход — Ctrl+Q или «Выйти» в значке.
 
   deixis list [--seconds N]
       Найти приёмники Deixis в сети.
@@ -42,6 +44,11 @@ fun main(args: Array<String>) {
                 windowed = "windowed" in opts,
                 dataDir = opts["data"]?.let(::File) ?: File(home, "receiver"),
                 snapshotDir = opts["snapshots"]?.let(::File),
+                operator = when {
+                    "no-operator" in opts -> false
+                    "operator" in opts -> true
+                    else -> null
+                },
             ),
         ).run()
         "send" -> exitProcess(SendCommand(opts, File(home, "sender-tokens.json")).run())

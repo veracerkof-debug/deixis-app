@@ -8,6 +8,10 @@
 <meta name="theme-color" content="#000000">
 <title>Deixis</title>
 <style>
+/* Токены вывода. Зал, титры и хромакей — содержимое; «Сцену» видит только ведущий, её подписи — оттенки тёмной темы. */
+:root { --out-bg: #000000; --out-ink: #FFFFFF; --chroma: #00FF00; --tap-bg: rgba(0,0,0,.72); --l2: #8D8D93; --cell: #1C1C1E; --tint: #BC9361; --live: #B96E65;
+        --t-mid: 240ms; --e-out: cubic-bezier(.2,.8,.2,1);
+        --st-pad: 3.5vmin; --st-label: 3.2vmin; --st-clock: 17vmin; --st-timer: 8.5vmin; --st-note: 4.5vmin; --st-radius: 1.8vmin; --st-cur: 62%; }
 @font-face { font-family: "Deixis Mark"; src: url("/view/assets/GFSDidot-Regular.ttf"); }
 @font-face { font-family: "Deixis Slide"; src: url("/view/assets/NotoSans-SemiBold.ttf"); }
 html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden; }
@@ -40,34 +44,75 @@ img, video { object-fit: contain; background: #000; }
 #status { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; font-size: 12px; opacity: 0; transition: opacity .24s; }
 #status.on { opacity: .7; }
 .hidden { display: none !important; }
+/* Экран в браузере (?screen=1): только вывод — без кнопок, без подсказок связи, без курсора. */
+.screen, .screen * { cursor: none !important; }
+.screen #bar, .screen #status { display: none !important; }
+.screen.layout-chroma, .screen.layout-chroma body { background: var(--chroma); }
+#tap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 8vmin; box-sizing: border-box; z-index: 2; }
+#tap span { font-size: max(16px, 2.6vmin); text-align: center; color: var(--out-ink); background: var(--tap-bg); border-radius: 999px; padding: .6em 1.2em; }
+/* На хромакее подпись непрозрачная: полупрозрачный текст после вырезания зелёного становится зелёным. */
+.layout-chroma .text .ref, .layout-chroma .scripture .r { opacity: 1; }
+/* Вид «Сцена»: сейчас крупно слева, далее справа, под ним часы и время показа. */
+#stageView { position: absolute; inset: 0; display: flex; gap: var(--st-pad); padding: var(--st-pad); box-sizing: border-box; background: var(--out-bg); color: var(--out-ink); }
+#stageView .col { display: flex; flex-direction: column; min-width: 0; }
+#stageView .cur { flex: 0 0 calc(var(--st-cur) - var(--st-pad)); }
+#stageView .side { flex: 1; }
+#stageView .lbl { display: flex; justify-content: space-between; align-items: center; height: calc(var(--st-label) * 2); font-size: var(--st-label); color: var(--l2); }
+#stageView .pill { background: var(--live); color: var(--out-ink); border-radius: 999px; padding: .15em .7em; }
+#stageView .panel { position: relative; flex: 1; border-radius: var(--st-radius); background: var(--cell); overflow: hidden; }
+#stageView .panel.slide { background: var(--out-bg); }
+#stageView .next { flex: 0 0 auto; aspect-ratio: 16 / 9; max-height: 45%; }
+#stageView .panel > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#stageView .panel > .text, #stageView .panel > .scripture { position: absolute; inset: 0; width: 100%; height: 100%; }
+#stageView .pnote { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 5%; box-sizing: border-box; font-size: var(--st-note); color: var(--l2); }
+#stageView .vid { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 1.2em; padding: 0 8%; font-size: calc(var(--st-note) * 1.4); }
+#stageView .vid .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#stageView .vid .bar { height: .18em; border-radius: 999px; background: var(--l2); overflow: hidden; }
+#stageView .vid .bar > div { height: 100%; width: 0; background: var(--tint); }
+#stageView .clock { margin-top: auto; font-size: var(--st-clock); line-height: 1; font-variant-numeric: tabular-nums; }
+#stageView .timer { font-size: var(--st-timer); line-height: 1.2; color: var(--tint); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <div id="stage"></div>
 <div id="status"></div>
 <div id="bar"><button id="sound" class="hidden"></button><button id="full" class="hidden"></button></div>
+<div id="tap" class="hidden"></div>
 <script>
 "use strict";
 // Строки на трёх языках: русский (основной), узбекский латиницей, английский.
 const STRINGS = {
   ru: { wait: "Ожидание показа", lost: "Нет связи, переподключение…", sound: "Включить звук", mute: "Выключить звук",
         full: "Во весь экран", videoHere: "Это видео идёт на основном экране", badKey: "Ссылка устарела. Отсканируйте QR-код заново.",
-        screenHere: "Трансляция экрана идёт на основном экране" },
+        screenHere: "Трансляция экрана идёт на основном экране",
+        tap: "Нажмите, чтобы показывать на весь экран", now: "Сейчас", next: "Далее", noNext: "Нет следующего слайда",
+        since: "С начала показа", black: "В зале чёрный экран", logo: "В зале логотип", clear: "В зале текст скрыт", screenShare: "Трансляция экрана" },
   uz: { wait: "Namoyish kutilmoqda", lost: "Aloqa yo‘q, qayta ulanmoqda…", sound: "Ovozni yoqish", mute: "Ovozni o‘chirish",
         full: "To‘liq ekran", videoHere: "Bu video asosiy ekranda ko‘rsatilmoqda", badKey: "Havola eskirgan. QR-kodni qayta skanerlang.",
-        screenHere: "Ekran namoyishi asosiy ekranda ko‘rsatilmoqda" },
+        screenHere: "Ekran namoyishi asosiy ekranda ko‘rsatilmoqda",
+        tap: "To‘liq ekranda ko‘rsatish uchun bosing", now: "Hozir", next: "Keyingi", noNext: "Keyingi slayd yo‘q",
+        since: "Namoyish boshidan", black: "Zalda qora ekran", logo: "Zalda logotip", clear: "Zalda matn yashirilgan", screenShare: "Ekran namoyishi" },
   en: { wait: "Waiting for the show", lost: "Connection lost, reconnecting…", sound: "Turn sound on", mute: "Turn sound off",
         full: "Full screen", videoHere: "This video is playing on the main screen", badKey: "This link has expired. Scan the QR code again.",
-        screenHere: "The screen is being shown on the main display" },
+        screenHere: "The screen is being shown on the main display",
+        tap: "Tap to show full screen", now: "Now", next: "Next", noNext: "No next slide",
+        since: "Since start", black: "Black screen in the hall", logo: "Logo in the hall", clear: "Text hidden in the hall", screenShare: "Screen sharing" },
 };
 const lang = (navigator.language || "ru").toLowerCase();
 const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("ru") ? "ru" : (lang.startsWith("en") ? "en" : "ru")];
 document.documentElement.lang = lang.slice(0, 2);
 
-const key = new URLSearchParams(location.search).get("k") || "";
+const params = new URLSearchParams(location.search);
+const key = params.get("k") || "";
 // Превью в пульте: та же картинка, что в зале, но без кнопок и без второй закачки видео по Wi-Fi.
-const preview = new URLSearchParams(location.search).get("preview") === "1";
+const preview = params.get("preview") === "1";
 if (preview) document.documentElement.classList.add("preview");
+// Экран в браузере: страница становится выводом (ТВ с браузером, ноутбук, планшет). Раскладки — как у мониторов
+// Deixis для компьютера: зал, «Сцена» (stage), титры на чёрном (lower) и на зелёном (chroma).
+const screenMode = params.get("screen") === "1" && !preview;
+const outLayout = screenMode ? ({ stage: "stage", lower: "lower", chroma: "chroma" }[params.get("layout")] || "hall") : "hall";
+const captions = outLayout === "lower" || outLayout === "chroma";
+if (screenMode) document.documentElement.classList.add("screen", "layout-" + outLayout);
 const stage = document.getElementById("stage");
 const status = document.getElementById("status");
 const soundBtn = document.getElementById("sound");
@@ -78,14 +123,15 @@ let lastKey = null, video = null, muted = true, current = null;
 function isText() { return current && current.content && (current.content.type === "text" || current.content.type === "scripture") && current.mode !== "BLACK" && current.mode !== "LOGO"; }
 function layout() {
   const w = innerWidth, h = innerHeight;
-  const full = isText();
+  const full = isText() || captions || outLayout === "stage";
   const sw = full ? w : Math.min(w, h * 16 / 9), sh = full ? h : sw * 9 / 16;
   Object.assign(stage.style, { width: sw + "px", height: sh + "px", left: (w - sw) / 2 + "px", top: (h - sh) / 2 + "px" });
   if (current) fitText();
+  if (outLayout === "stage") fitStage();
 }
 addEventListener("resize", layout);
 // Шрифт слайда грузится с приёмника: после загрузки ширина букв другая, размер подбирается заново.
-if (document.fonts) document.fonts.addEventListener("loadingdone", () => fitText());
+if (document.fonts) document.fonts.addEventListener("loadingdone", () => { fitText(); if (outLayout === "stage") fitStage(); });
 layout();
 
 const url = (path) => path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key);
@@ -106,7 +152,8 @@ function mark(sub, full) {
 function note(text) {
   const d = document.createElement("div");
   d.className = "note";
-  d.textContent = text;
+  // На экране вывода пояснений нет: вместо них чёрный экран.
+  if (!screenMode) d.textContent = text;
   return d;
 }
 
@@ -154,12 +201,13 @@ function applyStyle(d, st, boxEl) {
 
 // Как в зале: поля от меньшей стороны экрана, одинаковые со всех краёв; наибольший размер, при котором
 // текст помещается в поля без разрыва слов. Строки выравниваются по длине (text-wrap: balance).
-function fitBox(el, style) {
+function fitBox(el, style, box) {
   const st = style || {};
-  const short = Math.min(stage.clientWidth, stage.clientHeight);
+  const frame = box || stage;
+  const short = Math.min(frame.clientWidth, frame.clientHeight);
   const pad = short * 0.055;
   // Поля оформления (тема Holyrics) соблюдаются, но не уже безопасных — как в зале.
-  const m = st.margins || {}, W = stage.clientWidth, H = stage.clientHeight;
+  const m = st.margins || {}, W = frame.clientWidth, H = frame.clientHeight;
   const side = (p, of) => Math.max(pad, (p || 0) * of / 100);
   el.style.padding = `${side(m.top, H)}px ${side(m.right, W)}px ${side(m.bottom, H)}px ${side(m.left, W)}px`;
   // Подпись — своим кеглем от экрана, внутри полей; под неё оставлено место, как в зале.
@@ -179,7 +227,9 @@ function fitBox(el, style) {
     range.selectNodeContents(el);
     if (refEl) range.setEndBefore(refEl);
     const r = range.getBoundingClientRect();
-    return r.top >= box.top + parseFloat(cs.paddingTop) - 1 && r.bottom <= box.bottom - parseFloat(cs.paddingBottom) + 1
+    // Титры прижаты к низу: буквы шрифта выше строки 1.2 и выступают за неё на доли кегля — это не выход за поля.
+    const tol = captions ? Math.max(1, size * 0.12) : 1;
+    return r.top >= box.top + parseFloat(cs.paddingTop) - tol && r.bottom <= box.bottom - parseFloat(cs.paddingBottom) + tol
       && r.left >= box.left + parseFloat(cs.paddingLeft) - 1 && r.right <= box.right - parseFloat(cs.paddingRight) + 1
       && el.scrollWidth <= el.clientWidth + 1;
   };
@@ -194,6 +244,11 @@ function scripture(c, clear) {
   const st = c.style || {};
   stageBackground(st);
   if (clear) return;
+  const d = scriptureEl(c, st);
+  stage.append(d);
+  fitBox(d, st);
+}
+function scriptureEl(c, st) {
   const d = document.createElement("div");
   d.className = "scripture" + (c.sideBySide ? " side" : "");
   const top = c.refPosition === "TOP";
@@ -213,11 +268,35 @@ function scripture(c, clear) {
   d.append(blocks);
   if (c.ref && !top) d.append(ref(c.ref));
   applyStyle(d, st, blocks);
-  stage.append(d);
-  fitBox(d, st);
+  return d;
+}
+function textEl(c, st) {
+  const d = document.createElement("div");
+  d.className = "text";
+  const t = document.createElement("div");
+  t.className = "t";
+  // Каждая строка слайда — свой абзац: перенос выравнивается внутри него, как в зале.
+  for (const line of c.text.split("\n")) { const p = document.createElement("div"); p.textContent = line; t.append(p); }
+  d.append(t);
+  applyStyle(d, st, t);
+  if (c.ref) { const r = document.createElement("div"); r.className = "ref"; r.textContent = c.ref; d.append(r); }
+  return d;
+}
+
+// Титры: текст и Писание внизу экрана на чёрном или на чистом зелёном; остальное в титры не попадает.
+// Те же правила, что у монитора «Титры» и «Хромакей» в Deixis для компьютера.
+function captionContent(c, mode) {
+  if (mode !== "NORMAL" || !c || (c.type !== "text" && c.type !== "scripture")) return null;
+  const chroma = outLayout === "chroma", src = c.style || {};
+  const style = { background: chroma ? 0xFF00FF00 : 0xFF000000, color: 0xFFFFFFFF, sizePercent: 8, shadow: !chroma, outline: chroma,
+                  outlineColor: 0xFF000000, outlineWidth: 0.08, caps: !!src.caps, align: "CENTER", valign: "BOTTOM",
+                  margins: { left: 6, top: 64, right: 6, bottom: 7 }, lineHeight: src.lineHeight || 1.2 };
+  return Object.assign({}, c, { style }, c.type === "scripture" ? { refPosition: "BOTTOM" } : {});
 }
 
 function render(s) {
+  if (outLayout === "stage") return renderStage(s);
+  if (captions) s = Object.assign({}, s, { content: captionContent(s.content, s.mode), mode: "NORMAL", video: null });
   current = s;
   const c = s.content;
   const k = JSON.stringify([c, s.mode]);
@@ -238,8 +317,11 @@ function render(s) {
     stopScreen();
     video = null;
     stage.replaceChildren();
-    stage.style.background = "#000";
-    if (s.mode === "BLACK") {
+    stage.style.background = outLayout === "chroma" ? "var(--chroma)" : "#000";
+    stage.style.backgroundImage = "";
+    if (captions && !c) {
+      // титров нет: чистый фон
+    } else if (s.mode === "BLACK") {
       // чёрный экран
     } else if (s.mode === "LOGO") {
       stage.append(mark(null, true));
@@ -249,16 +331,7 @@ function render(s) {
       const st = c.style || {};
       stageBackground(st);
       if (s.mode !== "CLEAR") {
-        const d = document.createElement("div");
-        d.className = "text";
-        const t = document.createElement("div");
-        t.className = "t";
-        // Каждая строка слайда — свой абзац: перенос выравнивается внутри него, как в зале.
-        for (const line of c.text.split("\n")) { const p = document.createElement("div"); p.textContent = line; t.append(p); }
-        d.append(t);
-        applyStyle(d, st, t);
-        if (c.ref) { const r = document.createElement("div"); r.className = "ref"; r.textContent = c.ref; d.append(r); }
-        stage.append(d);
+        stage.append(textEl(c, st));
         fitText();
       }
     } else if (c.type === "scripture") {
@@ -424,10 +497,137 @@ document.addEventListener("visibilitychange", keepAwake);
 document.addEventListener("click", keepAwake, { once: true });
 keepAwake();
 
+// Вид «Сцена» для ведущего: что сейчас в зале (крупно), следующий слайд, часы и время с начала показа.
+// «Чёрный», «Логотип» и «Очистить» видны меткой, сам слайд у ведущего не гаснет никогда.
+let stageKey = null, stageState = null, clockOffset = 0;
+function readable(c) {
+  if (!c || (c.type !== "text" && c.type !== "scripture")) return c;
+  return Object.assign({}, c, { style: { caps: !!(c.style && c.style.caps), shadow: false } });
+}
+function stagePanel(c, isNext) {
+  const p = document.createElement("div");
+  p.className = "panel" + (isNext ? " next" : "");
+  const pnote = (text) => { const d = document.createElement("div"); d.className = "pnote"; d.textContent = text; p.append(d); };
+  if (!c) { pnote(isNext ? t.noNext : t.wait); return p; }
+  p.classList.add("slide");
+  if (c.type === "text" || c.type === "scripture") {
+    const r = readable(c);
+    p.append(c.type === "text" ? textEl(r, r.style) : scriptureEl(r, r.style));
+  } else if (c.type === "image" || c.type === "pdf") {
+    const img = new Image();
+    img.alt = "";
+    img.decoding = "async";
+    img.src = c.type === "image" ? url("/view/file/" + c.file.sha256)
+      : url(`/view/page/${c.file.sha256}/${c.page}?w=${Math.min(2400, Math.round(innerWidth * (isNext ? 0.4 : 0.65) * (devicePixelRatio || 1)))}`);
+    p.append(img);
+  } else if (c.type === "video") {
+    p.classList.remove("slide");
+    const v = document.createElement("div");
+    v.className = "vid";
+    const name = document.createElement("div"); name.className = "name"; name.textContent = c.file.name;
+    v.append(name);
+    if (!isNext) {
+      const bar = document.createElement("div"); bar.className = "bar"; bar.append(document.createElement("div"));
+      const time = document.createElement("div"); time.className = "time";
+      v.append(bar, time);
+    }
+    p.append(v);
+  } else if (c.type === "screen") {
+    p.classList.remove("slide");
+    pnote(t.screenShare);
+  }
+  return p;
+}
+function fitStage() {
+  for (const p of document.querySelectorAll("#stageView .panel")) {
+    const el = p.querySelector(":scope > .text, :scope > .scripture");
+    const c = p === document.querySelector("#stageView .cur .panel") ? stageState && stageState.content : stageState && stageState.next;
+    if (el && c) fitBox(el, readable(c).style, p);
+  }
+}
+function renderStage(s) {
+  current = null;
+  stageState = s;
+  if (s.now) clockOffset = Date.now() - s.now;
+  if (s.video) lastVideoAt = performance.now();
+  const k = JSON.stringify([s.content, s.next, s.mode]);
+  if (k !== stageKey) {
+    stageKey = k;
+    layout();
+    const root = document.createElement("div");
+    root.id = "stageView";
+    const col = (cls, label, pill) => {
+      const d = document.createElement("div"); d.className = "col " + cls;
+      const l = document.createElement("div"); l.className = "lbl";
+      const n = document.createElement("span"); n.textContent = label; l.append(n);
+      if (pill) { const p = document.createElement("span"); p.className = "pill"; p.textContent = pill; l.append(p); }
+      d.append(l);
+      return d;
+    };
+    const pill = { BLACK: t.black, LOGO: t.logo, CLEAR: t.clear }[s.mode];
+    const cur = col("cur", t.now, pill);
+    cur.append(stagePanel(s.content, false));
+    const side = col("side", t.next);
+    side.append(stagePanel(s.next, true));
+    const clock = document.createElement("div"); clock.className = "clock";
+    const timer = document.createElement("div"); timer.className = "timer";
+    const since = document.createElement("div"); since.className = "lbl"; since.textContent = t.since;
+    side.append(clock, timer, since);
+    root.append(cur, side);
+    stage.style.background = "#000";
+    stage.replaceChildren(root);
+    fitStage();
+  }
+  tickStage();
+}
+const two = (n) => String(n).padStart(2, "0");
+const hms = (sec) => `${Math.floor(sec / 3600)}:${two(Math.floor(sec / 60) % 60)}:${two(sec % 60)}`;
+const mmss = (x) => { const s = Math.max(0, Math.floor(x / 1000)); return s >= 3600 ? hms(s) : `${Math.floor(s / 60)}:${two(s % 60)}`; };
+function tickStage() {
+  if (outLayout !== "stage") return;
+  const root = document.getElementById("stageView");
+  if (!root) return;
+  const now = new Date();
+  root.querySelector(".clock").textContent = `${two(now.getHours())}:${two(now.getMinutes())}`;
+  const s = stageState;
+  const started = s && s.startedAt;
+  root.querySelector(".timer").textContent = hms(started ? Math.max(0, Math.floor((Date.now() - clockOffset - started) / 1000)) : 0);
+  const v = s && s.video, vid = root.querySelector(".cur .vid");
+  if (v && vid && vid.querySelector(".bar")) {
+    const pos = v.positionMs + (v.playing ? performance.now() - lastVideoAt : 0);
+    const shown = v.durationMs > 0 ? Math.min(pos, v.durationMs) : pos;
+    vid.querySelector(".bar > div").style.width = (v.durationMs > 0 ? Math.min(100, shown / v.durationMs * 100) : 0) + "%";
+    vid.querySelector(".time").textContent = mmss(shown) + (v.durationMs > 0 ? " / " + mmss(v.durationMs) : "");
+  }
+}
+if (outLayout === "stage") setInterval(tickStage, 250);
+
+// Экран в браузере: браузер даёт перейти во весь экран только по касанию или щелчку. До него на экране одна
+// подсказка; после него — никогда, даже если полноэкранный режим потом закрыли.
+const tap = document.getElementById("tap");
+let tapped = false;
+function onGesture() {
+  if (tapped) return;
+  tapped = true;
+  tap.classList.add("hidden");
+  const el = document.documentElement;
+  try { const r = (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el, { navigationUI: "hide" }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  keepAwake();
+  // Касание разрешает звук: зал слышит видео.
+  if (outLayout === "hall") { muted = false; if (video) { video.muted = false; video.play().catch(() => {}); } }
+}
+if (screenMode) {
+  tap.replaceChildren(Object.assign(document.createElement("span"), { textContent: t.tap }));
+  tap.classList.remove("hidden");
+  for (const ev of ["pointerdown", "keydown", "touchend"]) document.addEventListener(ev, onGesture, { capture: true });
+  // Блокировка снова, если система её сняла (вкладка скрывалась).
+  setInterval(() => { if (!wakeLock || wakeLock.released) keepAwake(); }, 10000);
+}
+
 // Связь с приёмником: при обрыве остаётся последний кадр, переподключение само.
 let pause = 1000;
 function connect() {
-  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url(preview ? "/view/ws?preview=1" : "/view/ws"));
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url(preview ? "/view/ws?preview=1" : screenMode ? "/view/ws?screen=1" : "/view/ws"));
   let lastMessage = performance.now();
   // Если 6 секунд нет даже сигнала «жив», связь считается потерянной: переподключаемся, а не висим с замёрзшим кадром.
   const watchdog = setInterval(() => { if (performance.now() - lastMessage > 6000) ws.close(); }, 1000);
@@ -439,6 +639,12 @@ function connect() {
   };
   ws.onclose = (e) => {
     clearInterval(watchdog);
+    if (e.code === 4001 && screenMode) {
+      // На выводе — чёрный экран; пояснение видно только до первого касания, пока экран настраивают.
+      if (!tapped) tap.replaceChildren(Object.assign(document.createElement("span"), { textContent: t.badKey }));
+      setTimeout(connect, 5000);
+      return;
+    }
     if (e.code === 4001) { lastKey = null; current = null; video = null; stage.replaceChildren(note(t.badKey)); updateButtons(); return; }
     status.textContent = t.lost;
     status.classList.add("on");

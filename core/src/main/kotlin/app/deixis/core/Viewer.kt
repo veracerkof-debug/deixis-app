@@ -24,7 +24,17 @@ import kotlinx.serialization.Serializable
 
 /** Что получает браузер зрителя: только то, что видит зал. Ошибки и служебные сведения сюда не попадают. */
 @Serializable
-data class ViewerState(val content: Content?, val mode: Mode, val video: VideoState?)
+data class ViewerState(
+    val content: Content?,
+    val mode: Mode,
+    val video: VideoState?,
+    /** Следующий слайд — только экрану в браузере (`screen=1`) для вида «Сцена». */
+    val next: Content? = null,
+    /** Когда начался показ, по часам приёмника: таймер на виде «Сцена». */
+    val startedAt: Long? = null,
+    /** Часы приёмника в момент отправки: браузер поправляет по ним свои. */
+    val now: Long? = null,
+)
 
 /** Код закрытия WebSocket, если ключ в ссылке неверный или устарел. */
 const val VIEW_BAD_KEY: Short = 4001
@@ -52,6 +62,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?) = size > 12
     }
 
+    // `?screen=1` — та же страница в роли экрана вывода (телевизор с браузером, ноутбук, планшет).
     get("/view") {
         call.response.header("Cache-Control", "no-store")
         call.respondText(resource("/web/view.html").decodeToString(), ContentType.Text.Html)
@@ -72,14 +83,15 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
-        // Превью в пульте — не зритель: его не считаем.
-        val preview = call.request.queryParameters["preview"] == "1"
+        // Превью в пульте и экран в браузере (`screen=1`) — не зрители: их не считаем.
+        val screen = call.request.queryParameters["screen"] == "1"
+        val preview = call.request.queryParameters["preview"] == "1" || screen
         if (!preview) core.viewerJoined()
         val updates = launch {
             core.state
-                .map { ViewerState(it.content, it.mode, it.video) }
+                .map { ViewerState(it.content, it.mode, it.video, next = if (screen) it.next else null, startedAt = core.showStartedAt) }
                 .distinctUntilChanged()
-                .collect { send(Frame.Text(DeixisJson.encodeToString(ViewerState.serializer(), it))) }
+                .collect { send(Frame.Text(DeixisJson.encodeToString(ViewerState.serializer(), it.copy(now = System.currentTimeMillis())))) }
         }
         val ticks = launch {
             while (true) {
@@ -198,8 +210,9 @@ private suspend fun ApplicationCall.currentFile(core: ReceiverCore): FileRef? {
         respondText("", status = HttpStatusCode.Forbidden)
         return null
     }
-    // Файл показа или картинка фона его оформления.
-    val ref = core.state.value.content?.files.orEmpty().firstOrNull { it.sha256 == parameters["sha"] }
+    // Файл показа или картинка фона его оформления; для вида «Сцена» — и следующего слайда.
+    val state = core.state.value
+    val ref = (state.content?.files.orEmpty() + state.next?.files.orEmpty()).firstOrNull { it.sha256 == parameters["sha"] }
     if (ref == null) {
         respondText("", status = HttpStatusCode.NotFound)
         return null

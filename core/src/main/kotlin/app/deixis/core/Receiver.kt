@@ -91,6 +91,11 @@ class ReceiverCore(
     /** Поток демонстрации экрана от источника; экран зала и зрители подписываются на него сами. */
     val stream = StreamHub()
 
+    /** Когда пошёл первый слайд после запуска: от него считается время на виде «Сцена». */
+    @Volatile
+    var showStartedAt: Long? = null
+        private set
+
     internal fun viewerJoined() = _state.update { it.copy(viewers = it.viewers + 1) }
     internal fun viewerLeft() = _state.update { it.copy(viewers = (it.viewers - 1).coerceAtLeast(0)) }
 
@@ -110,6 +115,7 @@ class ReceiverCore(
             if (files.file(ref.sha256) == null) return ErrorMsg("missing_file", "На приёмнике нет файла «${ref.name}»")
             files.touch(ref.sha256)
         }
+        if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
         _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next) }
         return null
     }

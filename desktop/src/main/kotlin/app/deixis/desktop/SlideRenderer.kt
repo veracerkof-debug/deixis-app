@@ -35,7 +35,11 @@ data class IdleInfo(val name: String, val pin: String, val address: String, val 
  * Рисует кадр приёмника в картинку. Отдельно от окна, поэтому кадр можно проверить в тесте
  * и сохранить снимком. Видео рисует VLC, сюда оно попадает только чёрным фоном.
  */
-class SlideRenderer(private val files: FileStore) {
+class SlideRenderer(
+    private val files: FileStore,
+    /** Прозрачность подписи (адреса). Для хромакея — 1: полупрозрачный текст после вырезания зелёного становится зелёным. */
+    private val refAlpha: Float = REF_ALPHA,
+) {
 
     private val frc = FontRenderContext(null, true, true)
     private var imageCache: Pair<String, BufferedImage>? = null
@@ -156,7 +160,7 @@ class SlideRenderer(private val files: FileStore) {
         }
         layout.ref?.let {
             val ref = TextLayout(it, Fonts.ui.deriveFont(layout.refFontSize), frc)
-            g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f)
+            g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, refAlpha)
             g.color = color
             ref.draw(g, layout.refRight - ref.advance, layout.refBaseline)
             g.composite = AlphaComposite.SrcOver
@@ -186,7 +190,7 @@ class SlideRenderer(private val files: FileStore) {
         for (l in lines) {
             val layout = TextLayout(l.text, base.deriveFont(l.size), frc)
             if (l.ref) {
-                g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.75f)
+                g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, refAlpha)
                 g.color = color
                 layout.draw(g, l.x, l.baseline)
                 g.composite = AlphaComposite.SrcOver
@@ -260,6 +264,9 @@ class SlideRenderer(private val files: FileStore) {
         return img
     }
 }
+
+/** Подпись чуть тише основного текста. */
+const val REF_ALPHA = 0.75f
 
 object Fonts {
     val mark: Font by lazy { load("/web/GFSDidot-Regular.ttf") }

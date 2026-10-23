@@ -46,7 +46,8 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
         })
     }
 
-    fun play(file: File, name: String, loop: Boolean, startMs: Long) {
+    /** [audio] = false — второй монитор зала: звук идёт только из одного проигрывателя. */
+    fun play(file: File, name: String, loop: Boolean, startMs: Long, audio: Boolean = true) {
         val mp = component?.mediaPlayer() ?: return
         currentName = name
         voutChecked = false
@@ -54,7 +55,10 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
         userPaused = false
         startedAt = System.currentTimeMillis()
         mp.controls().repeat = loop
-        val options = if (startMs > 0) arrayOf(":start-time=${startMs / 1000.0}") else emptyArray()
+        val options = listOfNotNull(
+            if (startMs > 0) ":start-time=${startMs / 1000.0}" else null,
+            if (audio) null else ":no-audio",
+        ).toTypedArray()
         if (!mp.media().play(file.absolutePath, *options)) onError("Не удалось открыть «$name»")
     }
 

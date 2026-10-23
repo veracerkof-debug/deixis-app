@@ -31,4 +31,8 @@ application {
     applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
 }
 
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    // Для ручной проверки раскладок мониторов: -Ddeixis.outputsPng=папка сохраняет кадры в PNG.
+    System.getProperty("deixis.outputsPng")?.let { systemProperty("deixis.outputsPng", it) }
+}
