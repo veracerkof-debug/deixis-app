@@ -318,11 +318,23 @@ function connect(pin) {
 }
 function reconnectNow() {
   if (!token) return;
-  if (!ws || ws.readyState > 1 || performance.now() - lastPong > 2500) { pause = 500; connect(); }
+  if (!ws || ws.readyState > 1 || (online && performance.now() - lastPong > 2500)) { pause = 500; connect(); }
+}
+// Молчание 4 секунды — связь мертва. Закрывать вежливо нельзя: закрытие ждёт ответа, которого не будет,
+// и пульт так и считал бы себя на связи. Сокет бросается сразу, новое подключение начинается без паузы.
+function drop() {
+  const dead = ws;
+  ws = null;
+  if (dead) { dead.onopen = dead.onmessage = dead.onclose = null; try { dead.close(); } catch (e) {} }
+  setOnline(false);
+  fails++;
+  setNet(fails >= 3 ? t.noNet : t.lost);
+  clearTimeout(retry);
+  retry = setTimeout(() => connect(), Math.min(pause, 1000));
 }
 setInterval(() => {
-  if (!ws || ws.readyState !== 1) return;
-  if (performance.now() - lastPong > 4000) { ws.close(); return; }
+  if (!ws || ws.readyState !== 1 || !online) return;
+  if (performance.now() - lastPong > 4000) { drop(); return; }
   ws.send(JSON.stringify({ type: "ping", t: Date.now() }));
 }, 1000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { reconnectNow(); keepAwake(); } });
@@ -450,7 +462,6 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "
 
 // Слайд текущего элемента в протокол показа.
 function showItem(it) {
-  item = it;
   let content;
   const caps = (st) => settings.caps ? Object.assign({}, st || {}, { caps: true }) : (st || {});
   if (it.kind === "text") content = { type: "text", text: it.slides[it.index], style: caps(it.style) };
@@ -458,7 +469,9 @@ function showItem(it) {
   else if (it.kind === "pdf") content = { type: "pdf", file: it.ref, page: it.index };
   else if (it.kind === "image") content = { type: "image", file: it.ref };
   else if (it.kind === "video") content = { type: "video", file: it.ref };
+  // Слайд считается показанным, только если команда ушла: без связи номер слайда на пульте не сдвигается.
   if (!send({ type: "show", content })) return;
+  item = it;
   // Если экран не подтвердил показ за 4 секунды — подпись красным: оператор видит, что в зале не то.
   if (awaiting) clearTimeout(awaiting.timer);
   awaiting = { content, timer: setTimeout(() => { $("nowText").classList.add("warn"); $("nowText").textContent = t.notConfirmed; awaiting = null; }, 4000) };
