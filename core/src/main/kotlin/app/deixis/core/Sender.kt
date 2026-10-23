@@ -8,6 +8,7 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -249,6 +250,20 @@ class SenderClient(
             delay(500L * (attempt + 1))
         }
         throw IOException("Не удалось передать «${source.name}»: ${lastError?.message}", lastError)
+    }
+
+    /**
+     * Просит приёмник взять файл из Holyrics на его компьютере (фото, видео, фон темы).
+     * Работает, если приёмник — Deixis для компьютера на том же ПК, что и Holyrics ([ReceiverInfo.holyrics]).
+     */
+    suspend fun importFromHolyrics(req: HolyricsMediaRequest): FileRef {
+        val t = token ?: error("Нет сопряжения")
+        val r = http.post("http://$host:$port/holyrics/media") {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(HolyricsMediaRequest.serializer(), req))
+        }
+        if (r.status != HttpStatusCode.OK) throw IOException(r.bodyAsText().ifBlank { "Приёмник не взял файл из Holyrics" })
+        return DeixisJson.decodeFromString(FileRef.serializer(), r.bodyAsText())
     }
 
     private suspend fun fileStatus(sha: String, token: String): FileStatus {

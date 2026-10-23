@@ -142,6 +142,8 @@ data class ReceiverInfo(
     val appVersion: String,
     val screenWidth: Int = 0,
     val screenHeight: Int = 0,
+    /** Приёмник берёт фото и видео из Holyrics на своём компьютере. */
+    val holyrics: Boolean = false,
 )
 
 @Serializable

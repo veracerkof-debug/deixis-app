@@ -13,6 +13,7 @@ import app.deixis.core.ReceiverCore
 import app.deixis.core.ReceiverInfo
 import app.deixis.core.ReceiverServer
 import app.deixis.core.VideoContent
+import app.deixis.core.HolyricsBridge
 import app.deixis.core.ScreenContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -81,13 +82,15 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
         val screen = Toolkit.getDefaultToolkit().screenSize
-        val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height)
+        // Компьютер может стоять рядом с Holyrics: тогда фото и видео из Holyrics берутся прямо из его папки.
+        val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height, holyrics = true)
         val pairing = Pairing(FileTokenStore(File(opts.dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(opts.dataDir, "files")), pairing, loadViewKey(File(opts.dataDir, "view-key")))
         pinFlow = MutableStateFlow(pairing.pin)
         pairing.onPinChanged = { pinFlow.value = it }
         renderer = SlideRenderer(core.files)
         core.pageRenderer = PageRenderer { file, page, width -> renderPdfPagePng(file, page, width) }
+        core.holyrics = HolyricsBridge(core.files)
         server = ReceiverServer(core, opts.port)
     }
 

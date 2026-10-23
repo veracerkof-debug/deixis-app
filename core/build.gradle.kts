@@ -31,6 +31,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Имена файлов с кириллицей (папки Holyrics) читаются верно только в UTF-8.
+    environment("LC_ALL", "C.UTF-8")
+    environment("LANG", "C.UTF-8")
     // Для ручной проверки: -Ddeixis.dumpStream=файл сохраняет поток зрителя (fMP4).
     System.getProperty("deixis.dumpStream")?.let { systemProperty("deixis.dumpStream", it) }
 }

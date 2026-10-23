@@ -9,10 +9,12 @@ import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.request.header
 import io.ktor.server.request.receiveChannel
+import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
@@ -62,6 +64,10 @@ class ReceiverCore(
      */
     @Volatile
     var pageRenderer: PageRenderer? = null
+
+    /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
+    @Volatile
+    var holyrics: HolyricsBridge? = null
 
     /** Поток демонстрации экрана от источника; экран зала и зрители подписываются на него сами. */
     val stream = StreamHub()
@@ -170,6 +176,17 @@ class ReceiverServer(
                             else -> HttpStatusCode.BadRequest
                         }
                         call.respondText(e.code + ": " + e.message, status = code)
+                    }
+                }
+                post("/holyrics/media") {
+                    if (!call.authorized()) return@post call.respondText("", status = HttpStatusCode.Unauthorized)
+                    val bridge = core.holyrics ?: return@post call.respondText("Этот приёмник не берёт файлы из Holyrics", status = HttpStatusCode.NotImplemented)
+                    try {
+                        val req = DeixisJson.decodeFromString(HolyricsMediaRequest.serializer(), call.receiveText())
+                        val ref = withContext(Dispatchers.IO) { bridge.import(req) }
+                        call.respondText(DeixisJson.encodeToString(FileRef.serializer(), ref), ContentType.Application.Json)
+                    } catch (e: Exception) {
+                        call.respondText(e.message ?: "Не удалось взять файл из Holyrics", status = HttpStatusCode.UnprocessableEntity)
                     }
                 }
                 webSocket("/ws") { handleSession(this) }

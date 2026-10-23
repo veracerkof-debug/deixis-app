@@ -10,6 +10,8 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.http.ContentType
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -24,6 +26,7 @@ import kotlin.test.assertTrue
  */
 class FakeHolyrics(private val token: String = "secret") {
     var slide = 1
+    var baseDir = "C:\\\\Holyrics\\\\Holyrics"
     val calls = mutableListOf<String>()
     private val sessions = mutableMapOf<String, Pair<String, Long>>() // sid -> nonce, последний rid
     private var server: EmbeddedServer<*, *>? = null
@@ -55,7 +58,7 @@ class FakeHolyrics(private val token: String = "secret") {
                     calls += action
                     when (action) {
                         "Auth" -> call.ok(null)
-                        "GetVersion" -> call.ok("""{"version":"2.26.0","platform":"win","baseDir":"C:\\Holyrics\\Holyrics"}""")
+                        "GetVersion" -> call.ok("""{"version":"2.26.0","platform":"win","baseDir":"$baseDir"}""")
                         "GetSongs" -> call.ok("""[{"id":"1","title":"Великий Бог","artist":"","author":"","key":"C","bpm":"72","archived":false},
                             {"id":"2","title":"Старая","archived":true}]""")
                         "GetSong" -> call.ok(
@@ -211,5 +214,66 @@ class HolyricsTest {
         assertEquals(link, HolyricsLink.parse(link.toUri()))
         assertNull(HolyricsLink.parse("deixis://1.2.3.4"))
         assertEquals(8091, HolyricsLink.parse("deixis-holyrics://10.0.0.5?token=x")!!.port)
+    }
+}
+
+class HolyricsBridgeTest {
+    private val fake = FakeHolyrics()
+    private var hPort = 0
+    private val root = kotlin.io.path.createTempDirectory("holyrics").toFile()
+    private val core = ReceiverCore(
+        ReceiverInfo("pc", "Компьютер", "test", "0", holyrics = true),
+        FileStore(java.io.File(kotlin.io.path.createTempDirectory("rx").toFile(), "files")),
+        Pairing(MemoryTokenStore()),
+    )
+    private val server = ReceiverServer(core, port = 0)
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    private var port = 0
+
+    @BeforeTest
+    fun start() = runBlocking {
+        java.io.File(root, "files/media/image/пасха").mkdirs()
+        java.io.File(root, "files/media/image/пасха/рассвет.jpg").writeBytes(ByteArray(2048) { it.toByte() })
+        java.io.File(root, "files/media/video/море.mp4").apply { parentFile.mkdirs(); writeBytes(ByteArray(4096) { 7 }) }
+        java.io.File(root, "settings/secret.jpg").apply { parentFile.mkdirs(); writeText("не отдавать") }
+        java.io.File(root, "files/media/image/notes.txt").writeText("текст")
+        fake.baseDir = root.invariantSeparatorsPath
+        hPort = fake.start()
+        core.holyrics = HolyricsBridge(core.files)
+        port = server.start()
+    }
+
+    @AfterTest
+    fun stop() { scope.cancel(); server.stop(); fake.stop() }
+
+    private suspend fun sender(): SenderClient {
+        val c = SenderClient("127.0.0.1", port, "Телефон", scope)
+        c.connect(c.pair(core.pairing.pin))
+        kotlinx.coroutines.withTimeout(10_000) { c.connection.first { it is Connection.Connected } }
+        return c
+    }
+
+    @Test
+    fun photoAndVideoComeFromHolyricsFolder() = runBlocking<Unit> {
+        val c = sender()
+        assertTrue((c.connection.value as Connection.Connected).receiver.holyrics)
+        val img = c.importFromHolyrics(HolyricsMediaRequest(hPort, "secret", HolyricsMedia.IMAGE, "пасха/рассвет.jpg"))
+        assertEquals(2048, img.size)
+        assertEquals("image/jpeg", img.mime)
+        assertTrue(c.show(ImageContent(img)))
+        kotlinx.coroutines.withTimeout(5_000) { core.state.first { it.content is ImageContent } }
+        assertEquals(4096, c.importFromHolyrics(HolyricsMediaRequest(hPort, "secret", HolyricsMedia.VIDEO, "море.mp4")).size)
+        c.close()
+    }
+
+    @Test
+    fun refusesWhatIsNotHolyricsMedia() = runBlocking<Unit> {
+        val c = sender()
+        for (bad in listOf("../settings/secret.jpg", "notes.txt", "нет-такого.jpg")) {
+            assertFailsWith<java.io.IOException>(bad) { c.importFromHolyrics(HolyricsMediaRequest(hPort, "secret", HolyricsMedia.IMAGE, bad)) }
+        }
+        // Чужой токен: Holyrics не подтвердил — файлы не читаются.
+        assertFailsWith<java.io.IOException> { c.importFromHolyrics(HolyricsMediaRequest(hPort, "wrong", HolyricsMedia.IMAGE, "пасха/рассвет.jpg")) }
+        c.close()
     }
 }
