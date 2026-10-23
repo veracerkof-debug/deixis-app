@@ -15,6 +15,8 @@ import app.deixis.core.ReceiverServer
 import app.deixis.core.VideoContent
 import app.deixis.core.HolyricsBridge
 import app.deixis.core.BibleStore
+import app.deixis.core.Conversions
+import app.deixis.core.LibreOfficeConverter
 import app.deixis.core.ScreenContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +86,9 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
         val screen = Toolkit.getDefaultToolkit().screenSize
         // Компьютер может стоять рядом с Holyrics: тогда фото и видео из Holyrics берутся прямо из его папки.
-        val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height, holyrics = true)
+        // Если стоит LibreOffice, презентации PPTX переводятся в PDF прямо здесь.
+        val office = LibreOfficeConverter.find()
+        val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height, holyrics = true, convert = office != null)
         val pairing = Pairing(FileTokenStore(File(opts.dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(opts.dataDir, "files")), pairing, loadViewKey(File(opts.dataDir, "view-key")))
         pinFlow = MutableStateFlow(pairing.pin)
@@ -95,6 +99,7 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         // Для веб-пульта: модули Библии хранятся здесь, страницы PDF считаются здесь.
         core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
         core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
+        office?.let { core.conversions = Conversions(core, it, File(opts.dataDir, "convert")) }
         server = ReceiverServer(core, opts.port)
     }
 

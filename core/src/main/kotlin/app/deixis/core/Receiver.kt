@@ -76,6 +76,10 @@ class ReceiverCore(
     @Volatile
     var pageCounter: ((File) -> Int)? = null
 
+    /** Перевод презентаций в PDF; null — не умеет (нет LibreOffice, ТВ). */
+    @Volatile
+    var conversions: Conversions? = null
+
     /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
     @Volatile
     var holyrics: HolyricsBridge? = null

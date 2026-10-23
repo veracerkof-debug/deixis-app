@@ -219,6 +219,19 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
         call.respondText("""{"pages":$n}""", ContentType.Application.Json)
     }
 
+    // Презентация → PDF на этом приёмнике. Источник сначала передаёт файл как обычно, потом просит перевод.
+    post("/convert") {
+        if (!call.authorized()) return@post call.respondText("", status = HttpStatusCode.Unauthorized)
+        val conv = core.conversions ?: return@post call.respondText("На этом экране нет LibreOffice: сохраните презентацию как PDF", status = HttpStatusCode.NotImplemented)
+        try {
+            val ref = DeixisJson.decodeFromString(FileRef.serializer(), call.receiveText())
+            val result = withContext(Dispatchers.IO) { conv.convert(ref) }
+            call.respondText(DeixisJson.encodeToString(Converted.serializer(), result), ContentType.Application.Json)
+        } catch (e: StoreException) {
+            call.respondText(e.message.orEmpty(), status = HttpStatusCode.UnprocessableEntity)
+        }
+    }
+
     get("/bible") {
         if (!call.authorized()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
         val store = core.bible ?: return@get call.respondText("[]", ContentType.Application.Json)

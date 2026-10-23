@@ -144,6 +144,8 @@ data class ReceiverInfo(
     val screenHeight: Int = 0,
     /** Приёмник берёт фото и видео из Holyrics на своём компьютере. */
     val holyrics: Boolean = false,
+    /** Приёмник сам переводит PPTX, PPT, ODP и KEY в PDF (LibreOffice на компьютере). */
+    val convert: Boolean = false,
 )
 
 @Serializable

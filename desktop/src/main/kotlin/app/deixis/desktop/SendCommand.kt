@@ -218,7 +218,8 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         if (!file.isFile) { fail("Нет файла $path"); return null }
         val kind = mediaKindOf(file.name)
         if (kind == null) { fail("Формат «${file.name}» пока не поддерживается"); return null }
-        if (kind == MediaKind.PRESENTATION) { fail("PPTX, PPT и ODP пока нужно сохранить как PDF"); return null }
+        val canConvert = (client.connection.value as? Connection.Connected)?.receiver?.convert == true
+        if (kind == MediaKind.PRESENTATION && !canConvert) { fail("На этом экране нет LibreOffice: сохраните презентацию как PDF"); return null }
         if (kind == MediaKind.TEXT) return TextContent(splitIntoSlides(file.readText()).firstOrNull() ?: "", style = style())
         val source = object : UploadSource {
             override val name = file.name
@@ -235,7 +236,13 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             MediaKind.IMAGE -> ImageContent(ref)
             MediaKind.VIDEO -> VideoContent(ref, loop = "loop" in opts)
             MediaKind.PDF -> PdfContent(ref, page = (opts["page"]?.toIntOrNull() ?: 1) - 1)
-            MediaKind.PRESENTATION, MediaKind.TEXT -> null
+            MediaKind.PRESENTATION -> {
+                println("Перевод в PDF…")
+                val pdf = client.convert(ref)
+                println("Страниц: ${pdf.pages}")
+                PdfContent(pdf.file, page = ((opts["page"]?.toIntOrNull() ?: 1) - 1).coerceIn(0, (pdf.pages - 1).coerceAtLeast(0)))
+            }
+            MediaKind.TEXT -> null
         }
     }
 

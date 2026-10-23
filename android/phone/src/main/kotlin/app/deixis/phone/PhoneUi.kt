@@ -177,7 +177,13 @@ private fun Main(c: Controller, h: HolyricsSource) {
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile("Фото") { pickImage.launch(arrayOf("image/*")) }
                 Tile("Видео") { pickVideo.launch(arrayOf("video/*", "audio/*")) }
-                Tile("PDF") { pickFile.launch(arrayOf("application/pdf", "text/plain")) }
+                Tile("PDF, PPTX") {
+                    pickFile.launch(arrayOf(
+                        "application/pdf", "text/plain",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/vnd.ms-powerpoint", "application/vnd.oasis.opendocument.presentation",
+                    ))
+                }
                 Tile("Текст") { dialog = "text" }
             }
             SectionTitle("Ещё")

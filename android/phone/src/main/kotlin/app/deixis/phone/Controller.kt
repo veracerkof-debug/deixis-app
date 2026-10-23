@@ -318,7 +318,16 @@ class Controller(private val app: Application) {
                 return@launch
             }
             when (kind) {
-                MediaKind.PRESENTATION -> messages.emit("PPTX, PPT и ODP пока нужно сохранить как PDF")
+                MediaKind.PRESENTATION -> {
+                    // PPTX переводит в PDF экран — Deixis для компьютера с LibreOffice.
+                    if (toTv || receiverInfo.value?.convert != true) messages.emit("На этом экране нет LibreOffice: сохраните презентацию как PDF")
+                    else {
+                        val src = upload(c!!, uriSource(uri, meta))
+                        progress.value = "«${meta.name}»: перевод в PDF…"
+                        val pdf = c.convert(src)
+                        show(Item.Pdf(pdf.file, pdf.pages, 0))
+                    }
+                }
                 MediaKind.TEXT -> showText(withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } })
                 MediaKind.IMAGE -> {
                     val source = if (meta.name.lowercase().let { it.endsWith(".heic") || it.endsWith(".heif") }) heicToJpeg(uri, meta.name) else uriSource(uri, meta)

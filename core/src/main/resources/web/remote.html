@@ -159,7 +159,7 @@ label.opt { display: block; color: var(--l2); font-size: var(--fs-xs); margin: 1
 
 <input type="file" id="pickPhoto" accept="image/*" class="hidden">
 <input type="file" id="pickVideo" accept="video/*,audio/*" class="hidden">
-<input type="file" id="pickPdf" accept="application/pdf,text/plain,.txt" class="hidden">
+<input type="file" id="pickPdf" accept="application/pdf,text/plain,.txt,.pptx,.ppt,.odp,.key,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint" class="hidden">
 <input type="file" id="pickModule" accept=".SQLite3,.sqlite3,application/octet-stream,application/x-sqlite3" class="hidden">
 
 <div class="scrim" id="scrim"></div>
@@ -172,7 +172,7 @@ label.opt { display: block; color: var(--l2); font-size: var(--fs-xs); margin: 1
 const STRINGS = {
   ru: {
     pairTitle: "Подключение", pairHint: "Введите PIN с экрана, на который нужно показывать.", connect: "Подключить",
-    now: "Сейчас", show: "Показать", more: "Ещё", photo: "Фото", video: "Видео", pdf: "PDF", text: "Текст",
+    now: "Сейчас", show: "Показать", more: "Ещё", photo: "Фото", video: "Видео", pdf: "PDF, PPTX", text: "Текст",
     bible: "Библия", holyrics: "Holyrics", settings: "Настройки", openApp: "В приложении",
     hint: "Пульт управляет только этим экраном. Экран телефона должен оставаться включённым.",
     prev: "Назад", next: "Дальше", back10: "−10 с", fwd10: "+10 с", play: "Пуск", pause: "Пауза",
@@ -182,7 +182,7 @@ const STRINGS = {
     oldVersion: "Версии Deixis не совпадают", forgot: "Экран не узнал этот телефон. Введите PIN",
     textTitle: "Текст", textHint: "Пустая строка начинает новый слайд", showBtn: "Показать", close: "Готово",
     sending: "передаётся", tooBig: "Файл больше 1 ГБ. Такой файл лучше показать с компьютера.", failed: "Не удалось",
-    unsupported: "Этот формат не поддерживается", pptx: "PPTX, PPT и ODP нужно сохранить как PDF",
+    unsupported: "Этот формат не поддерживается", pptx: "На этом экране нет LibreOffice: сохраните презентацию как PDF",
     caseLbl: "Текст на экране", normal: "Обычный", caps: "ЗАГЛАВНЫЕ", churchLbl: "Церковный режим", on: "Включён", off: "Выключен",
     churchHint: "Библия и Holyrics.", autoFit: "Размер текста подбирается сам: самый крупный, который помещается в поля экрана.",
     modules: "Переводы", addModule: "+ Модуль", noModules: "Модулей нет. Добавьте файл .SQLite3 из MyBible.", place: "Место, например Ин 3:16-18",
@@ -195,10 +195,11 @@ const STRINGS = {
     shownInHolyrics: "Показано в Holyrics",
     noNet: "Нет связи с экраном. Телефон и экран должны быть в одной сети Wi-Fi.", byName: "Открыть экран по имени в сети", notConfirmed: "Экран не подтвердил показ",
     preparing: "подготовка",
+    converting: "перевод в PDF…",
   },
   uz: {
     pairTitle: "Ulanish", pairHint: "Ko‘rsatish kerak bo‘lgan ekrandagi PIN kodni kiriting.", connect: "Ulash",
-    now: "Hozir", show: "Ko‘rsatish", more: "Yana", photo: "Rasm", video: "Video", pdf: "PDF", text: "Matn",
+    now: "Hozir", show: "Ko‘rsatish", more: "Yana", photo: "Rasm", video: "Video", pdf: "PDF, PPTX", text: "Matn",
     bible: "Bibliya", holyrics: "Holyrics", settings: "Sozlamalar", openApp: "Ilovada",
     hint: "Pult faqat shu ekranni boshqaradi. Telefon ekrani yoniq turishi kerak.",
     prev: "Orqaga", next: "Oldinga", back10: "−10 s", fwd10: "+10 s", play: "Boshlash", pause: "Pauza",
@@ -208,7 +209,7 @@ const STRINGS = {
     oldVersion: "Deixis versiyalari mos emas", forgot: "Ekran bu telefonni tanimadi. PIN kiriting",
     textTitle: "Matn", textHint: "Bo‘sh qator yangi slaydni boshlaydi", showBtn: "Ko‘rsatish", close: "Tayyor",
     sending: "yuborilmoqda", tooBig: "Fayl 1 GB dan katta. Uni kompyuterdan ko‘rsatgan ma’qul.", failed: "Bo‘lmadi",
-    unsupported: "Bu format qo‘llab-quvvatlanmaydi", pptx: "PPTX, PPT va ODP ni PDF qilib saqlash kerak",
+    unsupported: "Bu format qo‘llab-quvvatlanmaydi", pptx: "Bu ekranda LibreOffice yo‘q: taqdimotni PDF qilib saqlang",
     caseLbl: "Ekrandagi matn", normal: "Oddiy", caps: "KATTA HARFLAR", churchLbl: "Cherkov rejimi", on: "Yoqilgan", off: "O‘chirilgan",
     churchHint: "Bibliya va Holyrics.", autoFit: "Matn o‘lchami o‘zi tanlanadi: ekran chegarasiga sig‘adigan eng katta o‘lcham.",
     modules: "Tarjimalar", addModule: "+ Modul", noModules: "Modul yo‘q. MyBible dan .SQLite3 faylini qo‘shing.", place: "Joy, masalan Yuh 3:16-18",
@@ -221,10 +222,11 @@ const STRINGS = {
     shownInHolyrics: "Holyrics da ko‘rsatildi",
     noNet: "Ekran bilan aloqa yo‘q. Telefon va ekran bitta Wi-Fi tarmog‘ida bo‘lishi kerak.", byName: "Ekranni tarmoqdagi nomi bilan ochish", notConfirmed: "Ekran ko‘rsatishni tasdiqlamadi",
     preparing: "tayyorlanmoqda",
+    converting: "PDF ga o‘girilmoqda…",
   },
   en: {
     pairTitle: "Connect", pairHint: "Enter the PIN from the screen to show on.", connect: "Connect",
-    now: "Now", show: "Show", more: "More", photo: "Photo", video: "Video", pdf: "PDF", text: "Text",
+    now: "Now", show: "Show", more: "More", photo: "Photo", video: "Video", pdf: "PDF, PPTX", text: "Text",
     bible: "Bible", holyrics: "Holyrics", settings: "Settings", openApp: "In the app",
     hint: "This remote controls this screen only. Keep the phone screen on.",
     prev: "Back", next: "Next", back10: "−10 s", fwd10: "+10 s", play: "Play", pause: "Pause",
@@ -234,7 +236,7 @@ const STRINGS = {
     oldVersion: "Deixis versions differ", forgot: "The screen did not recognise this phone. Enter the PIN",
     textTitle: "Text", textHint: "An empty line starts a new slide", showBtn: "Show", close: "Done",
     sending: "sending", tooBig: "The file is over 1 GB. Show it from a computer instead.", failed: "Failed",
-    unsupported: "This format is not supported", pptx: "Save PPTX, PPT and ODP as PDF first",
+    unsupported: "This format is not supported", pptx: "This screen has no LibreOffice: save the presentation as PDF",
     caseLbl: "Text on screen", normal: "Normal", caps: "ALL CAPS", churchLbl: "Church mode", on: "On", off: "Off",
     churchHint: "Bible and Holyrics.", autoFit: "Text size is chosen automatically: the largest that fits the screen margins.",
     modules: "Translations", addModule: "+ Module", noModules: "No modules. Add a MyBible .SQLite3 file.", place: "Reference, e.g. John 3:16-18",
@@ -247,6 +249,7 @@ const STRINGS = {
     shownInHolyrics: "Shown in Holyrics",
     noNet: "No connection to the screen. The phone and the screen must be on the same Wi-Fi.", byName: "Open the screen by its network name", notConfirmed: "The screen did not confirm",
     preparing: "preparing",
+    converting: "converting to PDF…",
   },
 };
 const lang = (navigator.language || "ru").toLowerCase();
@@ -586,7 +589,17 @@ async function pickFile(file) {
   if (!file) return;
   const kind = kindOf(file);
   try {
-    if (kind === "pptx") return toast(t.pptx);
+    if (kind === "pptx" && !(receiver && receiver.convert)) return toast(t.pptx);
+    if (kind === "pptx") {
+      // Презентацию переводит в PDF сам экран (LibreOffice на компьютере), дальше — как обычный PDF.
+      const src = await upload(file);
+      const p = $("progress"); p.classList.remove("hidden"); p.textContent = `«${file.name}»: ${t.converting}`;
+      try {
+        const r = await postJson("/convert", src);
+        showItem({ kind: "pdf", ref: r.file, pages: r.pages, index: 0 });
+      } finally { p.classList.add("hidden"); }
+      return;
+    }
     if (!kind) return toast(t.unsupported);
     if (kind === "text") return showText(await file.text());
     const ref = await upload(kind === "image" ? await preparePhoto(file) : file);

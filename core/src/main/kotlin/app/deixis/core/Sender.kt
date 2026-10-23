@@ -266,6 +266,17 @@ class SenderClient(
         return DeixisJson.decodeFromString(FileRef.serializer(), r.bodyAsText())
     }
 
+    /** Просит приёмник перевести переданную презентацию в PDF ([ReceiverInfo.convert]). */
+    suspend fun convert(ref: FileRef): Converted {
+        val t = token ?: error("Нет сопряжения")
+        val r = http.post("http://$host:$port/convert") {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(FileRef.serializer(), ref))
+        }
+        if (r.status != HttpStatusCode.OK) throw IOException(r.bodyAsText().ifBlank { "Приёмник не перевёл презентацию" })
+        return DeixisJson.decodeFromString(Converted.serializer(), r.bodyAsText())
+    }
+
     private suspend fun fileStatus(sha: String, token: String): FileStatus {
         val r = http.get("http://$host:$port/files/$sha") { header("Authorization", "Bearer $token") }
         if (r.status != HttpStatusCode.OK) throw IOException("Приёмник ответил ${r.status}")

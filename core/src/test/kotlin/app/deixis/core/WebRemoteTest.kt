@@ -130,6 +130,28 @@ class WebRemoteTest {
     }
 
     @Test
+    fun presentationBecomesPdfOnTheReceiver() = runBlocking<Unit> {
+        var runs = 0
+        // Вместо LibreOffice — переводчик, который «печатает» PDF; важна обвязка: расширение, хранилище, повтор.
+        core.conversions = Conversions(core, DocConverter { input, dir ->
+            runs++
+            assertEquals("pptx", input.extension, "LibreOffice получает файл с родным расширением")
+            File(dir, "out.pdf").apply { writeText("%PDF-1.4 " + input.readText()) }
+        }, File(dir, "convert"))
+        val pptx = "слайды".toByteArray()
+        val src = DeixisJson.parseToJsonElement(put("pptx000001", "Лекция 3.pptx", pptx.size.toLong(), 0, pptx).bodyAsText()).jsonObject["file"].toString()
+        val r = postJson("/convert", src)
+        assertEquals(HttpStatusCode.OK, r.status, r.bodyAsText())
+        val conv = DeixisJson.decodeFromString(Converted.serializer(), r.bodyAsText())
+        assertEquals("Лекция 3.pdf", conv.file.name)
+        assertEquals("application/pdf", conv.file.mime)
+        assertEquals(7, conv.pages)
+        assertEquals(null, core.apply(Show(PdfContent(conv.file, 3))), "PDF сразу можно показывать")
+        assertEquals(conv, DeixisJson.decodeFromString(Converted.serializer(), postJson("/convert", src).bodyAsText()))
+        assertEquals(1, runs, "повторно файл не переводится")
+    }
+
+    @Test
     fun holyricsGoesThroughTheReceiver() = runBlocking<Unit> {
         val songs = postJson("/holyrics/call", """{"port":$hPort,"token":"secret","action":"GetSongs"}""")
         assertEquals(HttpStatusCode.OK, songs.status, songs.bodyAsText())
