@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         val controller = (application as PhoneApp).controller
         hdmi = HdmiOutput(this, controller)
         lifecycleScope.launch {
-            controller.messages.collect { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() }
+            controller.messages.collect { Toast.makeText(this@MainActivity, it, if (it.length > 80) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show() }
         }
         setContent { DeixisPhone(controller, (application as PhoneApp).holyrics) }
         handleLink(intent)

@@ -4,6 +4,7 @@ import app.deixis.core.LibreOfficeConverter
 import app.deixis.core.StoreException
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.rendering.PDFRenderer
+import java.awt.Color
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -18,7 +19,7 @@ class OfficeConverterTest {
         writeBytes(OfficeConverterTest::class.java.getResourceAsStream("/$name")!!.readBytes())
     }
 
-    private val builtIn = OfficeConverter(office = null)
+    private val builtIn = OfficeConverter(engines = emptyList())
 
     @Test
     fun hiddenSlidesAreNotCounted() {
@@ -34,7 +35,6 @@ class OfficeConverterTest {
         for (name in listOf("lecture16x9.pptx", "lecture16x9.ppt")) {
             val src = deck(name)
             val r = builtIn.toPdf(src, File(src.parentFile, "work"))
-            assertNull(r.warning, name)
             Loader.loadPDF(r.pdf).use { doc ->
                 assertEquals(5, doc.numberOfPages, "$name: скрытый слайд не попал")
                 val box = doc.getPage(0).mediaBox
@@ -66,10 +66,57 @@ class OfficeConverterTest {
     }
 
     @Test
+    fun builtInTableStyleOfPowerPointIsApplied() {
+        // Файл ссылается на «Средний стиль 2 — акцент 1», но не хранит его, как и всё, что сохранено не в PowerPoint.
+        val src = deck("lecture16x9.pptx")
+        val pdf = builtIn.toPdf(src, File(src.parentFile, "t")).pdf
+        Loader.loadPDF(pdf).use { doc ->
+            val img = PDFRenderer(doc).renderImage(2, 0.5f)
+            val header = Color(img.getRGB(img.width / 6, (img.height * 0.29).toInt()))
+            val row = Color(img.getRGB(img.width / 6, (img.height * 0.45).toInt()))
+            assertTrue(header.blue > header.red + 60, "шапка таблицы залита цветом темы: $header")
+            assertTrue(row.blue > row.red && row.red > 150, "строки светлее шапки: $row")
+        }
+    }
+
+    @Test
+    fun builtInConversionNamesWhatItDrawsApproximately() {
+        val pptx = deck("lecture16x9.pptx")
+        assertEquals(emptyList(), builtIn.audit(pptx, File(pptx.parentFile, "a")).filter { !it.startsWith("шрифты") }, "стиль таблицы добавлен, остальное по силам")
+        // В PPT от LibreOffice фигуры записаны формулами: встроенный перевод о них предупреждает.
+        val ppt = deck("lecture16x9.ppt")
+        assertTrue(builtIn.audit(ppt, File(ppt.parentFile, "a")).any { it == "фигуры (слайд 4)" })
+        assertTrue(builtIn.toPdf(ppt, File(ppt.parentFile, "w")).warning!!.contains("фигуры (слайд 4)"))
+    }
+
+    @Test
+    fun nextProgramIsTriedWhenOneIsWrong() {
+        val src = deck("lecture16x9.pptx")
+        val good = builtIn.toPdf(src, File(src.parentFile, "g")).pdf
+        val broken = object : PdfEngine {
+            override val name = "Сломанная"
+            override fun accepts(input: File) = true
+            override fun convert(input: File, workDir: File) = File(workDir.apply { mkdirs() }, "one.pdf").also { f ->
+                org.apache.pdfbox.pdmodel.PDDocument().use { it.addPage(org.apache.pdfbox.pdmodel.PDPage()); it.save(f) }
+            }
+        }
+        val exact = object : PdfEngine {
+            override val name = "Точная"
+            override fun accepts(input: File) = true
+            override fun convert(input: File, workDir: File) = good
+        }
+        val r = OfficeConverter(listOf(broken, exact)).toPdf(src, File(src.parentFile, "n"))
+        assertEquals(good, r.pdf, "PDF с одной страницей вместо пяти отброшен")
+        assertNull(r.warning)
+        val alone = OfficeConverter(listOf(broken)).toPdf(src, File(src.parentFile, "m"))
+        assertTrue(alone.warning!!.startsWith("Встроенный перевод. Сломанная: страниц 1, а слайдов 5"), alone.warning)
+    }
+
+    @Test
     fun libreOfficeResultIsCheckedToo() {
         val lo = LibreOfficeConverter.find() ?: return // на машине без LibreOffice проверяется только встроенный перевод
         val src = deck("lecture16x9.pptx")
-        val r = OfficeConverter(lo).toPdf(src, File(src.parentFile, "lo"))
+        val r = OfficeConverter(listOf(LibreOfficeEngine(lo))).toPdf(src, File(src.parentFile, "lo"))
         Loader.loadPDF(r.pdf).use { assertEquals(5, it.numberOfPages) }
         assertNull(r.warning, "LibreOffice перевёл точно")
     }

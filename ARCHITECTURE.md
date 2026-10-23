@@ -38,10 +38,17 @@
 - **Библия:** модули на приёмнике (`BibleStore`): `GET /bible`, `POST /bible/install`, `POST /bible/slides`, `DELETE /bible/{файл}`.
 - **Holyrics:** браузер к Holyrics не достучится, запросы идут через приёмник: `POST /holyrics/call` (только чтение и показ, по списку), `POST /holyrics/slides` (песня или текст слайдами в теме), `POST /holyrics/media`.
 
-#### Презентации PPTX, PPT, ODP, KEY
-- Deixis для компьютера ищет LibreOffice (PATH, `C:\Program Files\LibreOffice`, `/Applications/LibreOffice.app`, переменная `DEIXIS_SOFFICE`) и, если нашёл, сообщает пультам `convert = true`.
-- Источник передаёт файл как обычно и вызывает `POST /convert`; приёмник запускает `soffice --headless --convert-to pdf` со своим профилем (не мешает открытому LibreOffice) и отдаёт готовый PDF с числом страниц. Повторно один файл не переводится.
-- LibreOffice не входит в Deixis: это отдельная установленная программа (MPL). На Deixis TV перевода нет — презентацию нужно сохранить как PDF.
+#### Презентации и документы: PPTX, PPT, ODP, KEY, DOCX, DOC, ODT, RTF, XLSX, XLS, ODS
+- Пульт открывает любой файл (плитка «Файл»), формат определяет `mediaKindOf`. Источник передаёт файл как обычно и вызывает `POST /convert`; приёмник отдаёт PDF с числом страниц и, если перевод неточен, предупреждение (`Converted.warning`) — пульт его показывает. Повторно один файл не переводится.
+- Deixis для компьютера (`OfficeConverter`, `PdfEngines.kt`) переводит презентации всегда (`convert = true`) и пробует по порядку:
+  1. **Microsoft Office** на Windows — PowerPoint, Word, Excel через их автоматизацию (PowerShell, COM); самый точный перевод файлов PowerPoint. Открытый у человека PowerPoint не закрывается.
+  2. **LibreOffice** (PATH, `C:\Program Files\LibreOffice`, `/Applications/LibreOffice.app`, `DEIXIS_SOFFICE`) — `soffice --headless` со своим профилем, без пережатия картинок, без заметок и скрытых слайдов. Пакет `.deb` ставит его зависимостью вместе со шрифтами Carlito, Caladea и Liberation (те же размеры букв, что у Calibri, Cambria, Arial, Times New Roman).
+  3. **Keynote** на Mac (AppleScript): PPTX, PPT, KEY.
+  4. **Встроенный перевод** (Apache POI) для PPTX и PPT, если программ нет или все ошиблись: слайд рисуется картинкой 2560 точек по ширине. Встроенные стили таблиц PowerPoint («Средний стиль 2»), которых нет в файле, добавляются; недостающие шрифты Office заменяются свободными с теми же размерами букв.
+- **Проверка каждого перевода:** число страниц равно числу видимых слайдов (по самому файлу), пропорции страницы совпадают с размером слайда. Не совпало — берётся следующий способ. Встроенный перевод заранее просматривает слайды и называет в предупреждении то, что рисует приблизительно: диаграммы, SmartArt, таблицы с неизвестным стилем, фигуры PPT, записанные формулами, недостающие шрифты — с номерами слайдов.
+- Документы и таблицы переводят только Office и LibreOffice (`documents = true`, если есть хотя бы один из них).
+- Код этих программ в Deixis не входит: запускаются установленные программы. На Deixis TV перевода нет — презентацию нужно сохранить как PDF или выбрать компьютер.
+- Для проверки: `DEIXIS_NO_LIBREOFFICE=1` отключает LibreOffice.
 
 #### Открытые беспроводные экраны (запасной путь)
 - **Miracast** — через системную трансляцию: Android отдаёт беспроводной экран как второй дисплей, Deixis выводит туда приёмник (`HdmiOutput`). На устройствах не проверено.
@@ -86,7 +93,7 @@ Deixis TV не зависит от сервисов Google: многие инт�
 | Интерфейс | Jetpack Compose | Swing (приёмнику нужен только полноэкранный кадр) | Apache-2.0 / GPL-2.0 с исключением Classpath |
 | Видео и аудио | libVLC (`org.videolan.android:libvlc-all`) | vlcj и встроенный libVLC | LGPL-2.1+ / GPL-3.0 |
 | PDF | `PdfRenderer` системы | Apache PDFBox | Apache-2.0 |
-| PPTX, PPT, ODP | модуль LibreOffice, скачивается по запросу | LibreOffice, если установлен | MPL-2.0 |
+| PPTX, PPT, ODP, KEY, DOCX, XLSX | перевод на компьютере-приёмнике | PowerPoint/Word/Excel, LibreOffice, Keynote, если установлены; встроенный Apache POI для PPTX и PPT | — / MPL-2.0 / — / Apache-2.0 |
 | Сеть | Ktor (сервер и клиент) | Ktor | Apache-2.0 |
 | Поиск в сети | `NsdManager` (mDNS) | jmDNS | Apache-2.0 |
 | Сериализация | kotlinx.serialization | то же | Apache-2.0 |
@@ -156,8 +163,8 @@ android/phone      Deixis для телефона
 | Аудио | MP3, AAC, FLAC, WAV, OGG, Opus, M4A | libVLC |
 | Фото | JPEG, PNG, WebP, GIF (с анимацией), BMP, HEIC | HEIC телефон перед отправкой переводит в JPEG |
 | PDF | любой | постранично в картинки нужного разрешения |
-| PPTX, PPT, ODP | через LibreOffice: на телефоне (модуль) или на компьютере-приёмнике | анимации не сохраняются; нужны анимации — трансляция экрана |
-| Keynote | экспорт в PPTX или PDF | — |
+| PPTX, PPT, ODP, KEY | в PDF на компьютере-приёмнике: PowerPoint, LibreOffice, Keynote или встроенный перевод | анимации не сохраняются; нужны анимации — трансляция экрана |
+| DOCX, DOC, ODT, RTF, XLSX, XLS, ODS | в PDF на компьютере-приёмнике с Office или LibreOffice | — |
 | Текст, DOCX, TXT, OpenLyrics, OpenLP | свои текстовые слайды | общий `core/render` |
 
 Честное ограничение: 4K HEVC и AV1 на слабых приставках могут идти рывками. Приёмник сообщает, какие кодеки декодирует аппаратно, и телефон предупреждает об этом до показа, а не во время.
@@ -193,5 +200,5 @@ android/phone      Deixis для телефона
 ## Размеры
 
 - **libVLC** добавляет 20–35 МБ на архитектуру процессора. Google Play раздаёт только нужную через App Bundle; в APK для досок архитектуры разделены.
-- **Модуль LibreOffice** весит 100+ МБ, скачивается только по запросу.
+- **LibreOffice** в Deixis не входит: на Linux пакет ставит его зависимостью (около 150 МБ), на Windows и Mac используется установленный Office, LibreOffice или Keynote.
 - **Приложение для компьютера** со встроенной Java и libVLC — около 100–150 МБ.

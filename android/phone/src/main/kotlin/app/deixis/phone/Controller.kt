@@ -318,14 +318,20 @@ class Controller(private val app: Application) {
                 return@launch
             }
             when (kind) {
-                MediaKind.PRESENTATION -> {
-                    // PPTX переводит в PDF экран — Deixis для компьютера с LibreOffice.
-                    if (toTv || receiverInfo.value?.convert != true) messages.emit("На этом экране нет LibreOffice: сохраните презентацию как PDF")
-                    else {
-                        val src = upload(c!!, uriSource(uri, meta))
-                        progress.value = "«${meta.name}»: перевод в PDF…"
-                        val pdf = c.convert(src)
-                        show(Item.Pdf(pdf.file, pdf.pages, 0))
+                MediaKind.PRESENTATION, MediaKind.DOCUMENT -> {
+                    // В PDF переводит компьютер: PowerPoint, LibreOffice, Keynote или встроенный перевод для PPTX и PPT.
+                    val info = receiverInfo.value
+                    when {
+                        toTv || info?.convert != true -> messages.emit("Этот экран не переводит презентации: сохраните файл как PDF или выберите компьютер")
+                        kind == MediaKind.DOCUMENT && !info.documents -> messages.emit("Документы переводит компьютер с Microsoft Office или LibreOffice: сохраните файл как PDF")
+                        else -> {
+                            val src = upload(c!!, uriSource(uri, meta))
+                            progress.value = "«${meta.name}»: перевод в PDF…"
+                            val pdf = c.convert(src)
+                            show(Item.Pdf(pdf.file, pdf.pages, 0))
+                            // Неточный перевод не прячется: оператор видит, что именно нарисовано приблизительно.
+                            pdf.warning?.let { messages.emit(it) }
+                        }
                     }
                 }
                 MediaKind.TEXT -> showText(withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } })

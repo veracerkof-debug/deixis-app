@@ -221,7 +221,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         if (kind == null) { fail("Формат «${file.name}» пока не поддерживается"); return null }
         val rx = (client.connection.value as? Connection.Connected)?.receiver
         if (kind == MediaKind.PRESENTATION && rx?.convert != true) { fail("Этот экран не переводит презентации: сохраните её как PDF"); return null }
-        if (kind == MediaKind.DOCUMENT && rx?.documents != true) { fail("Документы переводит Deixis для компьютера с LibreOffice: сохраните файл как PDF"); return null }
+        if (kind == MediaKind.DOCUMENT && rx?.documents != true) { fail("Документы переводит Deixis для компьютера с Microsoft Office или LibreOffice: сохраните файл как PDF"); return null }
         if (kind == MediaKind.TEXT) return TextContent(splitIntoSlides(file.readText()).firstOrNull() ?: "", style = style())
         val source = object : UploadSource {
             override val name = file.name
