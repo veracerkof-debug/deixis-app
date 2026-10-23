@@ -72,7 +72,9 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
-        core.viewerJoined()
+        // Превью в пульте — не зритель: его не считаем.
+        val preview = call.request.queryParameters["preview"] == "1"
+        if (!preview) core.viewerJoined()
         val updates = launch {
             core.state
                 .map { ViewerState(it.content, it.mode, it.video) }
@@ -90,7 +92,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         } finally {
             ticks.cancel()
             updates.cancel()
-            core.viewerLeft()
+            if (!preview) core.viewerLeft()
         }
     }
 

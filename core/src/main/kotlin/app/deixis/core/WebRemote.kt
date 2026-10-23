@@ -7,6 +7,7 @@ import io.ktor.server.request.header
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
@@ -169,6 +170,23 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
     get("/remote") {
         call.response.header("Cache-Control", "no-store")
         call.respondText(remoteResource("/web/remote.html").decodeToString(), ContentType.Text.Html)
+    }
+
+    // Значок и описание для «На экран Домой»: пульт открывается как приложение, без строки адреса.
+    get("/remote/icon.png") {
+        call.response.header("Cache-Control", "public, max-age=86400")
+        call.respondBytes(remoteResource("/web/remote-icon.png"), ContentType.Image.PNG)
+    }
+    get("/remote/manifest.webmanifest") {
+        call.respondText(
+            """{"name":"Deixis","short_name":"Deixis","start_url":"/remote","display":"standalone","background_color":"#000000","theme_color":"#000000","icons":[{"src":"/remote/icon.png","sizes":"180x180","type":"image/png"}]}""",
+            ContentType("application", "manifest+json"),
+        )
+    }
+    // Беззвучное видео 16×16: на старых iPhone (без Wake Lock) держит экран включённым, пока открыт пульт.
+    get("/remote/keepawake.mp4") {
+        call.response.header("Cache-Control", "public, max-age=86400")
+        call.respondBytes(remoteResource("/web/keepawake.mp4"), ContentType.Video.MP4)
     }
 
     get("/upload/{id}") {

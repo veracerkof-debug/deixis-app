@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Deixis</title>
+<link rel="apple-touch-icon" href="/remote/icon.png">
+<link rel="manifest" href="/remote/manifest.webmanifest">
 <style>
 @font-face { font-family: "Deixis Mark"; src: url("/view/assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
 /* Токены DESIGN.md: цвет, размеры, движение. Чисел вне токенов нет. */
@@ -50,6 +52,18 @@ h2 { font-size: var(--fs-xs); font-weight: 600; color: var(--l2); text-transform
 .now { aspect-ratio: 16/9; background: #000; border-radius: var(--r-card); border: 2px solid var(--l3); display: flex; align-items: center; justify-content: center;
        color: #fff; text-align: center; padding: var(--pad); white-space: pre-line; font-weight: 600; overflow: hidden; }
 .now.live { border-color: var(--live); }
+.now { position: relative; padding: 0; }
+.now iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; }
+.now .touch { position: absolute; inset: 0; }
+#nowText { color: var(--l2); font-size: var(--fs-xs); margin-top: 6px; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nowText.warn { color: var(--red); }
+#net { display: none; background: var(--fill2); color: var(--ink); border-radius: var(--r-card); padding: 10px 12px; font-size: var(--fs-s); margin-bottom: 8px; }
+#net.on { display: block; }
+#net button { margin-top: 8px; width: 100%; }
+body.offline .bar button, body.offline .tiles button { opacity: .45; }
+.dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--l3); display: inline-block; margin-right: 6px; vertical-align: middle; }
+.dot.ok { background: var(--tint); }
+.now::after { content: attr(data-text); position: relative; padding: var(--pad); }
 .now .sub { display: block; font-size: var(--fs-xs); opacity: .7; margin-top: 6px; }
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
 .tiles button { min-height: 72px; background: var(--cell); font-size: var(--fs-s); }
@@ -91,7 +105,7 @@ label.opt { display: block; color: var(--l2); font-size: var(--fs-xs); margin: 1
 </style>
 </head>
 <body>
-<header><span class="mark">ΔΕΙΞΙΣ</span><span id="status"></span></header>
+<header><span class="mark">ΔΕΙΞΙΣ</span><span id="status"><span class="dot" id="dot"></span><span id="statusText"></span></span></header>
 
 <main id="pair" class="hidden">
   <h2 data-t="pairTitle"></h2>
@@ -103,8 +117,10 @@ label.opt { display: block; color: var(--l2); font-size: var(--fs-xs); margin: 1
 </main>
 
 <main id="app" class="hidden">
+  <div id="net"><span id="netText"></span><button id="netAlt" class="hidden"></button></div>
   <h2 data-t="now"></h2>
-  <div class="now" id="now"></div>
+  <div class="now" id="now"><div class="touch" id="nowTouch"></div></div>
+  <div id="nowText"></div>
   <div id="progress" class="hidden"></div>
 
   <h2 data-t="show"></h2>
@@ -177,6 +193,8 @@ const STRINGS = {
     toScreen: "На экран", toHolyrics: "В Holyrics", asItem: "Как в песне или тексте", empty: "Пусто", search: "Поиск", disconnect: "Отключить",
     hlRemote: "Пульт Holyrics", hlPrev: "Holyrics: назад", hlNext: "Holyrics: дальше", noHolyrics: "Holyrics доступен, когда Deixis стоит на компьютере рядом с ним",
     shownInHolyrics: "Показано в Holyrics",
+    noNet: "Нет связи с экраном. Телефон и экран должны быть в одной сети Wi-Fi.", byName: "Открыть экран по имени в сети", notConfirmed: "Экран не подтвердил показ",
+    preparing: "подготовка",
   },
   uz: {
     pairTitle: "Ulanish", pairHint: "Ko‘rsatish kerak bo‘lgan ekrandagi PIN kodni kiriting.", connect: "Ulash",
@@ -201,6 +219,8 @@ const STRINGS = {
     toScreen: "Ekranga", toHolyrics: "Holyrics ga", asItem: "Qo‘shiq yoki matndagidek", empty: "Bo‘sh", search: "Qidirish", disconnect: "Uzish",
     hlRemote: "Holyrics pulti", hlPrev: "Holyrics: orqaga", hlNext: "Holyrics: oldinga", noHolyrics: "Holyrics Deixis u bilan bitta kompyuterda bo‘lganda ishlaydi",
     shownInHolyrics: "Holyrics da ko‘rsatildi",
+    noNet: "Ekran bilan aloqa yo‘q. Telefon va ekran bitta Wi-Fi tarmog‘ida bo‘lishi kerak.", byName: "Ekranni tarmoqdagi nomi bilan ochish", notConfirmed: "Ekran ko‘rsatishni tasdiqlamadi",
+    preparing: "tayyorlanmoqda",
   },
   en: {
     pairTitle: "Connect", pairHint: "Enter the PIN from the screen to show on.", connect: "Connect",
@@ -225,6 +245,8 @@ const STRINGS = {
     toScreen: "To screen", toHolyrics: "In Holyrics", asItem: "As set in the song or text", empty: "Empty", search: "Search", disconnect: "Disconnect",
     hlRemote: "Holyrics remote", hlPrev: "Holyrics: back", hlNext: "Holyrics: next", noHolyrics: "Holyrics works when Deixis runs on the same computer",
     shownInHolyrics: "Shown in Holyrics",
+    noNet: "No connection to the screen. The phone and the screen must be on the same Wi-Fi.", byName: "Open the screen by its network name", notConfirmed: "The screen did not confirm",
+    preparing: "preparing",
   },
 };
 const lang = (navigator.language || "ru").toLowerCase();
@@ -242,7 +264,9 @@ const params = new URLSearchParams(location.search);
 let token = store.get("token", null);
 let settings = Object.assign({ caps: false, church: true, bible: { selected: [], ref: "", options: { versesPerSlide: 1, refMode: "ONE_LINE", refPosition: "BOTTOM", fullBookName: false, verseNumbers: true, sideBySide: false } }, holyrics: null }, store.get("settings", {}));
 const save = () => store.set("settings", settings);
-let receiver = null, state = null, item = null, ws = null;
+let receiver = null, state = null, item = null, ws = null, viewKey = null, awaiting = null;
+// Токен, переданный при переходе на имя экрана в сети (#t=…): сохраняется и убирается из адреса.
+if (location.hash.startsWith("#t=")) { token = decodeURIComponent(location.hash.slice(3)); store.set("token", token); history.replaceState(null, "", "/remote"); }
 
 function toast(text) {
   const el = $("toast");
@@ -253,39 +277,81 @@ function toast(text) {
 }
 
 // ——— Связь: тот же протокол, что у приложения Deixis ———
-let pause = 1000, lastPong = 0;
+// iPhone обрывает соединение, когда экран гаснет или Safari уходит в фон, а после возврата сокет может
+// казаться живым. Поэтому связь проверяется по ответам каждую секунду, а при возврате на страницу,
+// появлении сети и восстановлении из кэша — переподключение сразу, без ожидания.
+let pause = 500, lastPong = 0, fails = 0, retry = 0, online = false;
 function connect(pin) {
-  if (ws) { ws.onclose = null; ws.close(); }
-  setStatus(t.connecting);
-  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-  ws.onopen = () => {
+  clearTimeout(retry);
+  if (ws) { ws.onclose = null; ws.onmessage = null; try { ws.close(); } catch (e) {} }
+  setNet(online ? "" : t.connecting);
+  const sock = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws = sock;
+  // Если за 4 секунды не открылось — Wi-Fi не тот или экран выключен; пробуем снова.
+  const openTimer = setTimeout(() => { if (sock.readyState !== 1) sock.close(); }, 4000);
+  sock.onopen = () => {
+    clearTimeout(openTimer);
     lastPong = performance.now();
-    if (token && !pin) ws.send(JSON.stringify({ type: "hello", version: 1, sender: deviceName(), token }));
-    else ws.send(JSON.stringify({ type: "pair", version: 1, sender: deviceName(), pin }));
+    if (token && !pin) sock.send(JSON.stringify({ type: "hello", version: 1, sender: deviceName(), token }));
+    else sock.send(JSON.stringify({ type: "pair", version: 1, sender: deviceName(), pin }));
   };
-  ws.onmessage = (e) => {
+  sock.onmessage = (e) => {
     lastPong = performance.now();
     const m = JSON.parse(e.data);
+    if (m.type === "pong") return;
     if (m.type === "paired") { token = m.token; store.set("token", token); if (params.has("pin")) history.replaceState(null, "", "/remote"); }
-    else if (m.type === "welcome") { receiver = m.receiver; pause = 1000; render(m.state); showApp(); }
+    else if (m.type === "welcome") { receiver = m.receiver; viewKey = m.viewKey || null; store.set("receiver", { id: receiver.id, port: location.port }); pause = 500; fails = 0; setOnline(true); render(m.state); showApp(); }
     else if (m.type === "status") render(m.state);
     else if (m.type === "error") toast(m.message);
     else if (m.type === "denied") denied(m.reason);
   };
-  ws.onclose = () => {
+  sock.onclose = () => {
+    clearTimeout(openTimer);
+    if (ws !== sock) return;
+    setOnline(false);
     if (!token) return;
-    setStatus(t.lost);
-    setTimeout(() => connect(), pause);
-    pause = Math.min(pause * 2, 5000);
+    fails++;
+    setNet(fails >= 3 ? t.noNet : t.lost);
+    retry = setTimeout(() => connect(), pause);
+    pause = Math.min(pause * 2, 4000);
   };
 }
-// Проверка связи: при пропаже Wi-Fi сокет молчит долго, а пульт должен это заметить сразу.
+function reconnectNow() {
+  if (!token) return;
+  if (!ws || ws.readyState > 1 || performance.now() - lastPong > 2500) { pause = 500; connect(); }
+}
 setInterval(() => {
   if (!ws || ws.readyState !== 1) return;
-  if (performance.now() - lastPong > 5000) { ws.close(); return; }
+  if (performance.now() - lastPong > 4000) { ws.close(); return; }
   ws.send(JSON.stringify({ type: "ping", t: Date.now() }));
 }, 1000);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && token && (!ws || ws.readyState > 1)) connect(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { reconnectNow(); keepAwake(); } });
+addEventListener("pageshow", (e) => { if (e.persisted) reconnectNow(); });
+addEventListener("online", () => { pause = 500; reconnectNow(); });
+addEventListener("focus", reconnectNow);
+
+function setOnline(on) {
+  online = on;
+  document.body.classList.toggle("offline", !on);
+  $("dot").classList.toggle("ok", on);
+  if (on) setNet("");
+}
+// Полоса о связи. Если адрес экрана сменился (роутер выдал новый), пульт предлагает открыть экран по имени в сети.
+function setNet(text) {
+  $("net").classList.toggle("on", !!text && !!token);
+  $("netText").textContent = text;
+  const alt = altUrl();
+  $("netAlt").classList.toggle("hidden", !(text && fails >= 3 && alt));
+  $("netAlt").textContent = t.byName;
+  $("netAlt").onclick = () => { if (alt) location.href = alt; };
+}
+// Имя экрана в сети, как у приложения: deixis-xxxx.local. Токен уходит в адресе после #, на сервер он не попадает.
+function altUrl() {
+  const r = store.get("receiver", null);
+  if (!r || !token || location.hostname.endsWith(".local")) return null;
+  const name = "deixis-" + (r.id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "tv");
+  return `http://${name}.local:${r.port || location.port}/remote#t=${encodeURIComponent(token)}`;
+}
 
 function denied(reason) {
   const msg = { WRONG_PIN: t.wrongPin, TOO_MANY_ATTEMPTS: t.tooMany, INCOMPATIBLE_VERSION: t.oldVersion, UNKNOWN_TOKEN: t.forgot }[reason] || t.failed;
@@ -293,9 +359,13 @@ function denied(reason) {
   toast(msg);
   showPair();
 }
-function send(msg) { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(msg)); return true; } toast(t.lost); return false; }
+// Команды без связи не копятся: устаревший слайд через минуту хуже, чем ничего (как в приложении).
+function send(msg) {
+  if (ws && ws.readyState === 1 && online) { ws.send(JSON.stringify(msg)); return true; }
+  toast(t.lost); reconnectNow(); return false;
+}
 function deviceName() { const ua = navigator.userAgent; return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : "Браузер"; }
-function setStatus(s) { $("status").textContent = s; }
+function setStatus(s) { $("statusText").textContent = s; }
 function authed(path, opts = {}) {
   opts.headers = Object.assign({ Authorization: "Bearer " + token }, opts.headers || {});
   return fetch(path, opts).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || r.status); return r; });
@@ -315,26 +385,37 @@ function showApp() {
 $("pairBtn").onclick = () => { const pin = $("pin").value.trim(); if (/^\d{4}$/.test(pin)) connect(pin); else toast(t.wrongPin); };
 
 // ——— Что сейчас на экране ———
+// В карточке — живое превью: та же страница, что у зрителей, поэтому видно ровно то, что в зале.
+function ensurePreview() {
+  const now = $("now");
+  let f = now.querySelector("iframe");
+  if (!viewKey) { if (f) f.remove(); return; }
+  const src = `/view?k=${encodeURIComponent(viewKey)}&preview=1`;
+  if (!f) { f = document.createElement("iframe"); f.title = t.now; f.setAttribute("tabindex", "-1"); now.prepend(f); }
+  if (f.getAttribute("src") !== src) f.setAttribute("src", src);
+}
 function render(s) {
   state = s;
+  ensurePreview();
   const now = $("now");
   const c = s.content;
   now.classList.toggle("live", !!c && s.mode === "NORMAL");
-  // Текст слайда экранируется: в нём может быть что угодно.
-  let html;
-  const main = (x) => esc(x);
-  if (s.mode === "BLACK") html = main(t.blackNow);
-  else if (s.mode === "LOGO") html = main("ΔΕΙΞΙΣ");
-  else if (!c) html = main(t.nothing);
-  else if (item && item.kind === "text") html = main(item.slides[item.index]) + sub(`${item.title}${item.labels && item.labels[item.index] ? " · " + item.labels[item.index] : ""} · ${t.slide} ${item.index + 1} ${t.of} ${item.slides.length}`);
-  else if (item && item.kind === "scripture") { const sc = item.slides[item.index]; html = main(sc.blocks[0].text.slice(0, 160)) + sub(`${sc.ref || sc.blocks[0].ref || ""} · ${item.index + 1}/${item.slides.length}`); }
-  else if (c.type === "pdf") html = main(c.file.name) + sub(`${t.page} ${c.page + 1}${item && item.pages ? " " + t.of + " " + item.pages : ""}`);
-  else if (c.type === "video") html = main(c.file.name) + (s.video ? sub(`${Math.floor(s.video.positionMs / 1000)} / ${Math.floor(s.video.durationMs / 1000)} с`) : "");
-  else if (c.type === "image") html = main(c.file.name);
-  else if (c.type === "text") html = main(c.text);
-  else if (c.type === "scripture") html = main(c.blocks[0].text.slice(0, 160));
-  else html = main(t.nothing);
-  now.innerHTML = html;
+  // Подпись под превью: что это и какой слайд.
+  let cap;
+  if (s.mode === "BLACK") cap = t.blackNow;
+  else if (s.mode === "LOGO") cap = t.logo;
+  else if (!c) cap = t.nothing;
+  else if (item && item.kind === "text") cap = `${item.title}${item.labels && item.labels[item.index] ? " · " + item.labels[item.index] : ""} · ${t.slide} ${item.index + 1} ${t.of} ${item.slides.length}`;
+  else if (item && item.kind === "scripture") { const sc = item.slides[item.index]; cap = `${sc.ref || sc.blocks[0].ref || t.bible} · ${item.index + 1}/${item.slides.length}`; }
+  else if (c.type === "pdf") cap = `${c.file.name} · ${t.page} ${c.page + 1}${item && item.pages ? " " + t.of + " " + item.pages : ""}`;
+  else if (c.type === "video") cap = c.file.name + (s.video ? ` · ${Math.floor(s.video.positionMs / 1000)} / ${Math.floor(s.video.durationMs / 1000)} с` : "");
+  else if (c.type === "image") cap = c.file.name;
+  else if (c.type === "text") cap = c.text.split("\n")[0];
+  else cap = "";
+  // Без превью (старый экран) — подпись внутри карточки, как раньше.
+  if (!viewKey) now.dataset.text = cap;
+  $("nowText").textContent = cap;
+  if (awaiting && matches(c, awaiting.content)) { clearTimeout(awaiting.timer); awaiting = null; $("nowText").classList.remove("warn"); }
   document.querySelectorAll("[data-m]").forEach((b) => b.classList.toggle("on", s.mode === b.dataset.m));
   const isVideo = c && c.type === "video";
   $("nav").classList.toggle("hidden", isVideo);
@@ -344,6 +425,26 @@ function render(s) {
   $("prev").disabled = $("next").disabled = !canStep;
   if (s.error) toast(s.error);
 }
+// Экран подтвердил показ, если пришло то же содержимое (сравниваются тип, текст, файл и страница).
+function matches(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  if (a.type === "text") return a.text === b.text;
+  if (a.type === "pdf") return a.file.sha256 === b.file.sha256 && a.page === b.page;
+  if (a.file && b.file) return a.file.sha256 === b.file.sha256;
+  if (a.type === "scripture") return JSON.stringify(a.blocks) === JSON.stringify(b.blocks);
+  return true;
+}
+// Свайп по карточке «Сейчас»: влево — дальше, вправо — назад (карта жестов DESIGN.md).
+(() => { let x0 = null, y0 = 0;
+  const el = $("nowTouch");
+  el.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchend", (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    x0 = null;
+  }, { passive: true });
+})();
 function sub(s) { return `<span class="sub">${esc(s)}</span>`; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])); }
 
@@ -357,7 +458,11 @@ function showItem(it) {
   else if (it.kind === "pdf") content = { type: "pdf", file: it.ref, page: it.index };
   else if (it.kind === "image") content = { type: "image", file: it.ref };
   else if (it.kind === "video") content = { type: "video", file: it.ref };
-  send({ type: "show", content });
+  if (!send({ type: "show", content })) return;
+  // Если экран не подтвердил показ за 4 секунды — подпись красным: оператор видит, что в зале не то.
+  if (awaiting) clearTimeout(awaiting.timer);
+  awaiting = { content, timer: setTimeout(() => { $("nowText").classList.add("warn"); $("nowText").textContent = t.notConfirmed; awaiting = null; }, 4000) };
+  $("nowText").classList.remove("warn");
 }
 function step(d) {
   if (!item || item.kind === "image" || item.kind === "video") return;
@@ -435,6 +540,35 @@ async function upload(file) {
     p.classList.add("hidden");
   }
 }
+// Фото с iPhone: HEIC переводится в JPEG (его откроет любой экран), снимки больше 4K уменьшаются —
+// передача в разы быстрее, а на экране зала разницы не видно. Поворот по EXIF браузер учитывает сам.
+async function preparePhoto(file) {
+  const heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type);
+  if (!heic && file.size < 6 * 1024 * 1024) return file;
+  const p = $("progress");
+  p.classList.remove("hidden"); p.textContent = `«${file.name}»: ${t.preparing}`;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    URL.revokeObjectURL(url);
+    const MAX = 3840;
+    const k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    if (!heic && k === 1) return file;
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg", lastModified: file.lastModified });
+  } catch (e) {
+    return file; // браузер не смог прочитать — отправляем как есть, экран попробует сам
+  } finally {
+    p.classList.add("hidden");
+  }
+}
+
 async function pickFile(file) {
   if (!file) return;
   const kind = kindOf(file);
@@ -442,7 +576,7 @@ async function pickFile(file) {
     if (kind === "pptx") return toast(t.pptx);
     if (!kind) return toast(t.unsupported);
     if (kind === "text") return showText(await file.text());
-    const ref = await upload(file);
+    const ref = await upload(kind === "image" ? await preparePhoto(file) : file);
     if (kind === "pdf") {
       const pages = (await (await authed(`/pdf/${ref.sha256}/pages`)).json()).pages;
       showItem({ kind: "pdf", ref, pages, index: 0 });
@@ -612,10 +746,23 @@ async function holyricsSheet() {
     });
 }
 
-// Экран телефона не гаснет, пока открыт пульт (Safari 16.4+, Chrome).
-let wake = null;
-async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
-document.addEventListener("visibilitychange", keepAwake);
+// Экран телефона не гаснет, пока открыт пульт: Wake Lock (Safari 16.4+, Chrome), а на старых iPhone —
+// беззвучное крошечное видео по кругу, его можно запустить только после касания.
+let wake = null, awakeVideo = null;
+async function keepAwake() {
+  if (document.visibilityState !== "visible") return;
+  if ("wakeLock" in navigator) { try { wake = await navigator.wakeLock.request("screen"); } catch (e) {} return; }
+  if (!awakeVideo) {
+    awakeVideo = document.createElement("video");
+    awakeVideo.src = "/remote/keepawake.mp4";
+    awakeVideo.muted = true; awakeVideo.loop = true; awakeVideo.playsInline = true;
+    awakeVideo.setAttribute("playsinline", ""); awakeVideo.setAttribute("muted", "");
+    awakeVideo.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
+    document.body.append(awakeVideo);
+  }
+  awakeVideo.play().catch(() => {});
+}
+document.addEventListener("pointerdown", keepAwake, { passive: true });
 if (/Android/.test(navigator.userAgent)) $("openApp").classList.remove("hidden");
 
 // Запуск: PIN из QR-кода или сохранённый токен.
