@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.provider.OpenableColumns
 import app.deixis.core.BibleModule
+import app.deixis.core.DefaultBibles
 import app.deixis.core.DeixisJson
 import app.deixis.core.ScriptureOptions
 import app.deixis.core.SqlSource
@@ -14,7 +15,7 @@ import java.io.File
 
 /** Модули Библии на телефоне: файлы .SQLite3 копируются в память приложения и открываются только на чтение. */
 class BibleLibrary(private val context: Context) {
-    private val dir = File(context.filesDir, "bible").apply { mkdirs() }
+    private val dir = File(context.filesDir, "bible").apply { mkdirs(); DefaultBibles.install(this) }
     private val prefs = context.getSharedPreferences("bible", Context.MODE_PRIVATE)
     private val open = mutableMapOf<String, BibleModule>()
 
@@ -57,9 +58,9 @@ class BibleLibrary(private val context: Context) {
         get() = prefs.getString("options", null)?.let { runCatching { DeixisJson.decodeFromString(ScriptureOptions.serializer(), it) }.getOrNull() } ?: ScriptureOptions()
         set(value) = prefs.edit().putString("options", DeixisJson.encodeToString(ScriptureOptions.serializer(), value)).apply()
 
-    /** Выбранные переводы: первый — основной, второй — параллельный (может не быть). */
+    /** Выбранные переводы: первый — основной, второй — параллельный (может не быть). Без выбора — Синодальный. */
     var selected: List<String>
-        get() = prefs.getString("selected", null)?.split('|')?.filter { it.isNotBlank() }.orEmpty()
+        get() = prefs.getString("selected", null)?.split('|')?.filter { it.isNotBlank() }.orEmpty().ifEmpty { DefaultBibles.FILES.take(1) }
         set(value) = prefs.edit().putString("selected", value.joinToString("|")).apply()
 
     var lastRef: String

@@ -1,7 +1,13 @@
 package app.deixis.receiver
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.LinkProperties
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
+import app.deixis.core.AddressCandidate
 import app.deixis.core.Discovery
 import app.deixis.core.FileStore
 import app.deixis.core.FileTokenStore
@@ -18,7 +24,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Приёмник на Android: ядро, сервер и объявление в сети. Его используют Deixis TV
@@ -47,7 +57,14 @@ class ReceiverRuntime(
         private set
 
     private var advertisement: AutoCloseable? = null
+    private var advertised: InetAddress? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+
+    private val connectivity: ConnectivityManager? = appContext.getSystemService(ConnectivityManager::class.java)
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    // Свой поток: JmDNS открывается и закрывается долго, поток событий сети занимать нельзя.
+    private val net = Executors.newSingleThreadScheduledExecutor { Thread(it, "deixis-net").apply { isDaemon = true } }
+    @Volatile private var stopped = false
 
     init {
         dataDir.mkdirs()
@@ -75,15 +92,68 @@ class ReceiverRuntime(
     suspend fun start() = withContext(Dispatchers.IO) {
         actualPort = server.start()
         if (loopbackOnly) return@withContext
-        val addr = Discovery.localAddress()
-        _address.value = addr?.hostAddress?.let { "$it:$actualPort" }
-        if (addr != null) {
-            // Без этой блокировки Android отбрасывает групповые пакеты, и телефон не найдёт приёмник.
-            val wifi = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            multicastLock = wifi?.createMulticastLock("deixis")?.apply { setReferenceCounted(false); acquire() }
-            advertisement = runCatching { Discovery.advertise(core.info, actualPort, addr) }.getOrNull()
-        }
+        refresh()
+        // Проектор мог запуститься раньше, чем подключился Wi-Fi, а роутер — сменить адрес: следим за сетью.
+        watchNetwork()
     }
+
+    private fun watchNetwork() {
+        val cm = connectivity
+        if (cm != null) {
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = scheduleRefresh()
+                override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) = scheduleRefresh()
+                override fun onLost(network: Network) = scheduleRefresh()
+            }
+            // Сеть без выхода в интернет (роутер в зале без провайдера) тоже годится.
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            runCatching { cm.registerNetworkCallback(request, callback) }.onSuccess { networkCallback = callback }
+        }
+        // Запас на прошивки, где события сети не приходят, и на раздачу Wi-Fi с самого приёмника.
+        runCatching { net.scheduleWithFixedDelay(Runnable { runCatching { refresh() } }, 15, 15, TimeUnit.SECONDS) }
+    }
+
+    private fun scheduleRefresh() {
+        runCatching { net.schedule(Runnable { runCatching { refresh() } }, 300, TimeUnit.MILLISECONDS) }
+    }
+
+    /** Сверяет адрес с текущей сетью; при смене переобъявляет приёмник, без сети — снимает объявление. */
+    @Synchronized
+    private fun refresh() {
+        if (stopped) return
+        val addr = currentAddress()
+        _address.value = addr?.hostAddress?.let { "$it:$actualPort" }
+        if (addr == advertised && (addr == null || advertisement != null)) return
+        runCatching { advertisement?.close() }
+        advertisement = null
+        advertised = addr
+        runCatching { multicastLock?.release() }
+        if (addr == null) return
+        // Без этой блокировки Android отбрасывает групповые пакеты, и телефон не найдёт приёмник.
+        val lock = multicastLock ?: (appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+            ?.createMulticastLock("deixis")?.apply { setReferenceCounted(false) }?.also { multicastLock = it }
+        runCatching { lock?.acquire() }
+        advertisement = runCatching { Discovery.advertise(core.info, actualPort, addr) }.getOrNull()
+    }
+
+    /** Адрес из ConnectivityManager (Wi-Fi или провод, без VPN), иначе — перебор интерфейсов. */
+    private fun currentAddress(): InetAddress? = runCatching {
+        val cm = connectivity ?: return@runCatching null
+        @Suppress("DEPRECATION")
+        val networks = (listOfNotNull(cm.activeNetwork) + cm.allNetworks).distinct()
+        val candidates = networks.flatMap { n ->
+            val caps = cm.getNetworkCapabilities(n)
+            val local = caps != null && !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+            val lp = if (local) cm.getLinkProperties(n) else null
+            lp?.linkAddresses.orEmpty().mapNotNull { it.address as? Inet4Address }.map { AddressCandidate(lp?.interfaceName.orEmpty(), it) }
+        }
+        Discovery.pickLocalAddress(candidates)
+    }.getOrNull() ?: Discovery.localAddress()
 
     fun pairingUri(): String? {
         val addr = _address.value ?: return null
@@ -91,8 +161,16 @@ class ReceiverRuntime(
     }
 
     fun stop() {
-        runCatching { advertisement?.close() }
-        runCatching { multicastLock?.release() }
+        stopped = true
+        networkCallback?.let { cb -> runCatching { connectivity?.unregisterNetworkCallback(cb) } }
+        networkCallback = null
+        net.shutdownNow()
+        synchronized(this) {
+            runCatching { advertisement?.close() }
+            advertisement = null
+            advertised = null
+            runCatching { multicastLock?.release() }
+        }
         runCatching { server.stop() }
     }
 

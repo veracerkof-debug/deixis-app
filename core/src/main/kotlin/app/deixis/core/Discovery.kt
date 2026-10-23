@@ -75,10 +75,54 @@ object Discovery {
         }
     }
 
-    /** Адрес в локальной сети: Wi-Fi или проводная сеть, не петля и не VPN. */
-    fun localAddress(): InetAddress? = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
-        .filter { it.isUp && !it.isLoopback && !it.isVirtual && !it.isPointToPoint }
-        .flatMap { it.inetAddresses.toList() }
-        .filterIsInstance<Inet4Address>()
-        .firstOrNull { it.isSiteLocalAddress }
+    /**
+     * Адрес в локальной сети: Wi-Fi или проводная сеть, не петля. Порядок выбора — [pickLocalAddress].
+     * Флаги интерфейсов на дешёвых прошивках бывают странными, поэтому VPN и точка-точка не отбрасываются, а уходят в конец.
+     */
+    fun localAddress(): InetAddress? = runCatching {
+        NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            .filter { runCatching { it.isUp }.getOrDefault(false) }
+            .flatMap { nif ->
+                val demoted = runCatching { nif.isLoopback || nif.isVirtual || nif.isPointToPoint }.getOrDefault(false)
+                nif.inetAddresses.toList().filterIsInstance<Inet4Address>().map { AddressCandidate(nif.name.orEmpty(), it, demoted) }
+            }
+    }.getOrNull()?.let(::pickLocalAddress)
+
+    /**
+     * Лучший адрес из кандидатов или null. Сначала интерфейс: wlan*, eth* и подобные, затем прочие,
+     * в конце p2p*, rmnet*, tun* и помеченные [AddressCandidate.demoted]. Внутри — частная сеть
+     * (10/8, 172.16/12, 192.168/16), затем 100.64.0.0/10 (CGNAT у некоторых роутеров и точек доступа),
+     * затем любой другой. Петля, 169.254/16, 0.0.0.0 и групповые адреса не подходят.
+     */
+    fun pickLocalAddress(candidates: List<AddressCandidate>): Inet4Address? = candidates
+        .filter { usable(it.address) }
+        // При равенстве остаётся первый по порядку: minWithOrNull берёт первый минимальный.
+        .minWithOrNull(compareBy<AddressCandidate>({ interfaceRank(it) }, { addressRank(it.address) }))
+        ?.address
+
+    private fun usable(a: Inet4Address) = !a.isLoopbackAddress && !a.isLinkLocalAddress && !a.isAnyLocalAddress && !a.isMulticastAddress
+
+    private val PREFERRED_INTERFACES = listOf("wlan", "eth", "en", "wl", "ap", "swlan")
+    private val DEMOTED_INTERFACES = listOf("p2p", "rmnet", "tun", "ppp", "ccmni", "pdp", "v4-", "dummy", "docker", "veth", "br-", "virbr", "vmnet", "vboxnet", "utun", "wg", "lo")
+
+    private fun interfaceRank(c: AddressCandidate): Int {
+        val n = c.interfaceName.lowercase()
+        return when {
+            c.demoted || DEMOTED_INTERFACES.any { n.startsWith(it) } -> 2
+            PREFERRED_INTERFACES.any { n.startsWith(it) } -> 0
+            else -> 1
+        }
+    }
+
+    private fun addressRank(a: Inet4Address): Int {
+        val b = a.address
+        return when {
+            a.isSiteLocalAddress -> 0
+            (b[0].toInt() and 0xFF) == 100 && (b[1].toInt() and 0xC0) == 64 -> 1
+            else -> 2
+        }
+    }
 }
+
+/** Адрес-кандидат: имя интерфейса, IPv4 и признак «интерфейс подозрительный» (VPN, точка-точка, виртуальный). */
+data class AddressCandidate(val interfaceName: String, val address: Inet4Address, val demoted: Boolean = false)

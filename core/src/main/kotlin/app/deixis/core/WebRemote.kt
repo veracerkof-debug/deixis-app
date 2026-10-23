@@ -103,7 +103,11 @@ data class ScriptureRequest(
 class BibleStore(private val dir: File, private val open: (File) -> SqlSource) {
     private val cache = mutableMapOf<String, BibleModule>()
 
-    init { dir.mkdirs() }
+    init { dir.mkdirs(); DefaultBibles.install(dir) }
+
+    /** Встроенные переводы (RST, KJV), если ещё не ставились; удалённые не возвращаются. */
+    @Synchronized
+    fun installDefaults(): List<String> = DefaultBibles.install(dir)
 
     @Synchronized
     fun modules(): List<BibleModule> = dir.listFiles { f -> f.isFile && f.name.endsWith(".SQLite3", ignoreCase = true) }

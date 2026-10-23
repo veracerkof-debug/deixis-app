@@ -116,7 +116,7 @@ class WebRemoteTest {
         val installed = postJson("/bible/install", ref)
         assertEquals(HttpStatusCode.OK, installed.status, installed.bodyAsText())
         val list = DeixisJson.decodeFromString(ListSerializer(BibleModuleInfo.serializer()), http.get(url("/bible")) { header("Authorization", "Bearer $token") }.bodyAsText())
-        assertEquals(listOf("RST.SQLite3"), list.map { it.file })
+        assertEquals(listOf("KJV.SQLite3", "RST.SQLite3"), list.map { it.file }, "встроенный KJV и загруженный RST вместо встроенного")
         val slides = postJson("/bible/slides", """{"ref":"Ин 3:16-17","modules":["RST.SQLite3"],"options":{"versesPerSlide":2}}""")
         assertEquals(HttpStatusCode.OK, slides.status, slides.bodyAsText())
         val arr = DeixisJson.parseToJsonElement(slides.bodyAsText()).jsonArray
