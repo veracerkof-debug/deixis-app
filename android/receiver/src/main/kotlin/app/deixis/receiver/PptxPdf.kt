@@ -24,6 +24,7 @@ import app.deixis.core.FontSpec
 import app.deixis.core.Outline
 import app.deixis.core.PathCmd
 import app.deixis.core.PdfResult
+import app.deixis.core.Ppt
 import app.deixis.core.Pptx
 import app.deixis.core.PptxException
 import app.deixis.core.StoreException
@@ -33,13 +34,13 @@ import kotlin.math.max
 import kotlin.math.sin
 
 /**
- * Встроенный перевод PPTX в PDF на Android: телефону и телевизору не нужен компьютер.
+ * Встроенный перевод PPTX и старого PPT в PDF на Android: телефону и телевизору не нужен компьютер.
  * Шрифты Carlito, Caladea и Liberation Sans по метрикам совпадают с Calibri, Cambria и Arial,
  * поэтому строки переносятся там же, где в PowerPoint.
  */
 object PptxPdf {
 
-    /** Перевод для приёмника: PPTX, PPSX, POTX — сами; старые PPT, ODP, KEY — только компьютер. */
+    /** Перевод для приёмника: PPTX, PPSX, POTX и старые PPT, PPS, POT — сами; ODP и KEY — только компьютер. */
     fun converter(context: Context) = DocConverter { input, dir ->
         val ext = input.extension.lowercase()
         if (ext !in FORMATS) throw StoreException("convert", unsupported(ext))
@@ -48,19 +49,23 @@ object PptxPdf {
         PdfResult(out, warning(warnings))
     }
 
-    val FORMATS = setOf("pptx", "ppsx", "potx", "pptm", "ppsm")
+    private val OLD_FORMATS = setOf("ppt", "pps", "pot")
 
-    fun unsupported(ext: String) = when (ext) {
-        "ppt", "pps", "pot" -> "Старый формат PPT телефон не переводит: сохраните файл в PowerPoint как PPTX или подключите компьютер с Deixis"
-        else -> "Формат ${ext.uppercase()} переводит компьютер с Deixis: сохраните файл как PPTX или PDF"
-    }
+    val FORMATS = setOf("pptx", "ppsx", "potx", "pptm", "ppsm") + OLD_FORMATS
+
+    fun unsupported(ext: String) = "Формат ${ext.uppercase()} переводит компьютер с Deixis: сохраните файл как PPTX или PDF"
 
     fun warning(warnings: List<String>): String? =
         if (warnings.isEmpty()) null else "Встроенный перевод. Приблизительно: " + warnings.joinToString("; ") + ". Точнее переводит PowerPoint или LibreOffice на компьютере"
 
     /** Возвращает предупреждения: что перенесено приблизительно. */
     fun convert(context: Context, input: File, output: File): List<String> {
-        val deck = try { Pptx.read(input) } catch (e: PptxException) { throw StoreException("convert", e.message ?: "Не удалось открыть презентацию") }
+        // Старый PPT — составной файл OLE2; бывает и наоборот: зашифрованный PPTX тоже лежит в составном файле,
+        // а PPTX с расширением PPT — в ZIP. Поэтому выбор по расширению уточняется по первым байтам.
+        val old = input.extension.lowercase() in OLD_FORMATS
+        val compound = Ppt.isCompound(input)
+        val deck = try { if (compound || old && !Ppt.isZip(input)) Ppt.read(input) else Pptx.read(input) }
+            catch (e: PptxException) { throw StoreException("convert", e.message ?: "Не удалось открыть презентацию") }
             catch (e: Exception) { throw StoreException("convert", "«${input.name}» не открывается как презентация PowerPoint") }
         val fonts = Fonts(context)
         val pdf = PdfDocument()

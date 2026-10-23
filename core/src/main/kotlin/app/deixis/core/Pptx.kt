@@ -771,13 +771,13 @@ object Pptx {
     }
 
     /** Значки маркеров из шрифтов Wingdings и Symbol — в обычные символы. */
-    private fun bulletChar(c: String, font: String): String = when {
+    internal fun bulletChar(c: String, font: String): String = when {
         font.contains("Wingdings", true) -> when (c) { "§" -> "■"; "Ø" -> "➢"; "ü" -> "✓"; "q" -> "❑"; "v" -> "❖"; "n" -> "■"; "l" -> "●"; "Ш" -> "■"; else -> "•" }
         font.contains("Symbol", true) -> when (c) { "·" -> "•"; else -> "•" }
         else -> c
     }
 
-    private fun safeBulletFont(f: String) = if (f.contains("Wingdings", true) || f.contains("Symbol", true)) "Arial" else f
+    internal fun safeBulletFont(f: String) = if (f.contains("Wingdings", true) || f.contains("Symbol", true)) "Arial" else f
 
     private val COLOR_TAGS = setOf("srgbClr", "schemeClr", "sysClr", "prstClr", "scrgbClr", "hslClr")
     private val MEDIUM_STYLES = setOf("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", "{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}")

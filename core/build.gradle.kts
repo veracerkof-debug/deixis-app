@@ -39,5 +39,6 @@ tasks.test {
     // Для ручной проверки перевода PPTX: -Ddeixis.render=папка сохраняет слайды в PNG.
     System.getProperty("deixis.render")?.let { systemProperty("deixis.render", it) }
     System.getProperty("deixis.renderFile")?.let { systemProperty("deixis.renderFile", it) }
+    System.getProperty("deixis.pptDump")?.let { systemProperty("deixis.pptDump", it) }
     testLogging { showStandardStreams = System.getProperty("deixis.renderFile") != null }
 }
