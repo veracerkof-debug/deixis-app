@@ -60,13 +60,14 @@
       return null;
     };
     r.mode = (m) => { state = Object.assign({}, state, { mode: m }); broadcast("mode"); };
-    r.video = (action, positionMs, loop) => {
+    r.video = (action, positionMs, loop, volume) => {
       if (!state.video) return;
       const v = Object.assign({}, state.video);
       if (action === "PLAY") v.playing = true;
       if (action === "PAUSE") v.playing = false;
       if (action === "SEEK") v.positionMs = Math.max(0, Math.min(v.durationMs, positionMs || 0));
       if (action === "LOOP") v.loop = loop == null ? !v.loop : loop;
+      if (action === "VOLUME") v.volume = Math.max(0, Math.min(100, Number(volume) || 0));
       state = Object.assign({}, state, { video: v });
       broadcast("video");
     };
@@ -96,7 +97,7 @@
         const err = r.show(m.content);
         if (err) peer.send(json({ type: "error", code: "missing", message: err }));
       } else if (m.type === "mode") r.mode(m.mode);
-      else if (m.type === "video") r.video(m.action, m.positionMs, m.loop);
+      else if (m.type === "video") r.video(m.action, m.positionMs, m.loop, m.volume);
     };
     r.addRemote = (peer) => { remotes.add(peer); };
     r.dropRemote = (peer) => { remotes.delete(peer); };
@@ -225,35 +226,38 @@
     ],
     books: {
       john: {
+        number: 500, chapterCount: 21,
         names: ["ин", "иоан", "иоанна", "отиоанна", "jn", "jhn", "john"],
-        RST: { short: "Ин", long: "От Иоанна", chapter: 3, verses: {
+        RST: { short: "Ин", long: "От Иоанна", chapter: 3, verseCount: 36, verses: {
           16: "Ибо так возлюбил Бог мир, что отдал Сына Своего Единородного, дабы всякий верующий в Него, не погиб, но имел жизнь вечную.",
           17: "Ибо не послал Бог Сына Своего в мир, чтобы судить мир, но чтобы мир спасен был чрез Него." } },
-        KJV: { short: "John", long: "John", chapter: 3, verses: {
+        KJV: { short: "John", long: "John", chapter: 3, verseCount: 36, verses: {
           16: "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
           17: "For God sent not his Son into the world to condemn the world; but that the world through him might be saved." } },
       },
       psalm: {
+        number: 230, chapterCount: 150,
         names: ["пс", "псал", "псалом", "псалтирь", "ps", "psa", "psalm", "psalms"], chapters: [22, 23],
-        RST: { short: "Пс", long: "Псалтирь", chapter: 22, verses: {
+        RST: { short: "Пс", long: "Псалтирь", chapter: 22, verseCount: 6, verses: {
           1: "Господь — Пастырь мой; я ни в чем не буду нуждаться:",
           2: "Он покоит меня на злачных пажитях и водит меня к водам тихим,",
           3: "подкрепляет душу мою, направляет меня на стези правды ради имени Своего.",
           4: "Если я пойду и долиною смертной тени, не убоюсь зла, потому что Ты со мной; Твой жезл и Твой посох — они успокаивают меня." } },
-        KJV: { short: "Ps", long: "Psalms", chapter: 23, verses: {
+        KJV: { short: "Ps", long: "Psalms", chapter: 23, verseCount: 6, verses: {
           1: "The LORD is my shepherd; I shall not want.",
           2: "He maketh me to lie down in green pastures: he leadeth me beside the still waters.",
           3: "He restoreth my soul: he leadeth me in the paths of righteousness for his name's sake.",
           4: "Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me; thy rod and thy staff they comfort me." } },
       },
       cor: {
+        number: 530, chapterCount: 16,
         names: ["1кор", "1коринфянам", "1екоринфянам", "1co", "1cor", "1corinthians"],
-        RST: { short: "1 Кор", long: "1-е Коринфянам", chapter: 13, verses: {
+        RST: { short: "1 Кор", long: "1-е Коринфянам", chapter: 13, verseCount: 13, verses: {
           4: "Любовь долготерпит, милосердствует, любовь не завидует, любовь не превозносится, не гордится,",
           5: "не бесчинствует, не ищет своего, не раздражается, не мыслит зла,",
           6: "не радуется неправде, а сорадуется истине;",
           7: "все покрывает, всему верит, всего надеется, все переносит." } },
-        KJV: { short: "1 Cor", long: "1 Corinthians", chapter: 13, verses: {
+        KJV: { short: "1 Cor", long: "1 Corinthians", chapter: 13, verseCount: 13, verses: {
           4: "Charity suffereth long, and is kind; charity envieth not; charity vaunteth not itself, is not puffed up,",
           5: "Doth not behave itself unseemly, seeketh not her own, is not easily provoked, thinketh no evil;",
           6: "Rejoiceth not in iniquity, but rejoiceth in the truth;",
@@ -300,6 +304,15 @@
     return reply(slides);
   }
 
+  // Книги перевода для выбора места: номер книги MyBible, число глав, глава с текстом в демо и число стихов в ней.
+  function bibleBooks(file) {
+    const mod = String(file || "").replace(".SQLite3", "");
+    return Object.values(BIBLE.books).filter((b) => b[mod]).sort((a, b) => a.number - b.number).map((b) => ({
+      number: b.number, names: b.names.slice(), short: b[mod].short, long: b[mod].long, chapters: b.chapterCount,
+      chapter: b[mod].chapter, verseCount: b[mod].verseCount, verses: Object.assign({}, b[mod].verses),
+    }));
+  }
+
   function url(path, key) {
     const p = path.split("?")[0];
     let m;
@@ -309,7 +322,7 @@
   }
 
   window.DeixisDemo = {
-    connect, http, url, files, addReceiver, receivers, finishUpload, bibleSlides, bibleModules: () => BIBLE.modules,
+    connect, http, url, files, addReceiver, receivers, finishUpload, bibleSlides, bibleModules: () => BIBLE.modules, bibleBooks,
     LECTURE, PHOTO, VIDEO, REPORT, MORNING,
     // Для витрины веб-пульта: экран «demo».
     onChange(fn) { return receivers.demo.onChange(fn); },
