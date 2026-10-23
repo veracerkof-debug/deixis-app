@@ -38,8 +38,9 @@ class MainActivity : ComponentActivity() {
             setContent { StartError(error ?: "Приёмник не создан") }
             return
         }
-        player = VlcPlayer(this) { runtime.core.reportError(it) }
-        setContent { ReceiverScreen(runtime, player, overscan = true) }
+        val vlc = VlcPlayer(this) { runtime.core.reportError(it) }
+        player = vlc
+        setContent { ReceiverScreen(runtime, vlc, overscan = true) }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
