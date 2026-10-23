@@ -502,7 +502,7 @@ class Controller(private val app: Application) {
         try {
             val content = contentFor(o, cue) ?: return@launch
             // Пока файл шёл, в зал могли отправить другое: устаревший слайд не показывается.
-            if (live.value == cue || live.value?.same(cue) == true) o.client.show(content)
+            if (live.value == cue || live.value?.same(cue) == true) o.client.show(content, nextFor(o, cue))
         } catch (e: Exception) {
             messages.emit("«${o.target.name}»: ${e.message ?: "не удалось показать"}")
         }
@@ -519,6 +519,22 @@ class Controller(private val app: Application) {
             is Slide.Page -> item?.let { pageOn(o, it, s.index) }
             is Slide.Pending -> item?.let { convertOn(o, it, cue) }
             null -> null
+        }
+    }
+
+    /** Следующий слайд для вида «Сцена» на компьютере: только то, что не требует передачи файла. */
+    private fun nextFor(o: Output, cue: Cue): Content? {
+        val next = cue.copy(index = cue.index + 1, startMs = 0)
+        return when (val s = next.slide) {
+            is Slide.Text -> TextContent(s.text, style = styleFor(next).copy(backgroundImage = null))
+            is Slide.Scripture -> s.content.copy(style = styleFor(next).copy(backgroundImage = null))
+            is Slide.Page -> {
+                val item = item(cue.source.itemId)
+                val ref = item?.let { data.value.hashes[it.id] }?.takeIf { it.sha256 in o.delivered && item.mime == "application/pdf" }
+                    ?: item?.let { data.value.conversions[it.id] }?.takeIf { it.output == o.target.id }?.pdf
+                ref?.let { PdfContent(it, s.index) }
+            }
+            else -> null
         }
     }
 
