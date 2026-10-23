@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.io.InputStream
@@ -126,8 +127,10 @@ class EndToEndTest {
         c.connected()
         c.show(TextContent("Сначала текст"))
         withTimeout(5_000) { c.state.filterNotNull().first { it.content is TextContent } }
+        // Подписка до отправки: ошибка не повторяется для опоздавших слушателей.
+        val pending = async(start = CoroutineStart.UNDISPATCHED) { c.errors.first() }
         c.show(ImageContent(FileRef("b".repeat(64), "нет.jpg", 1, "image/jpeg")))
-        val err = withTimeout(5_000) { c.errors.first() }
+        val err = withTimeout(5_000) { pending.await() }
         assertEquals("missing_file", err.code)
         assertIs<TextContent>(core.state.value.content, "экран не меняется из-за ошибки")
         c.close()
