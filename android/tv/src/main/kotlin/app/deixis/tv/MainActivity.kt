@@ -38,7 +38,12 @@ class MainActivity : ComponentActivity() {
             setContent { StartError(error ?: "Приёмник не создан") }
             return
         }
-        val vlc = VlcPlayer(this) { runtime.core.reportError(it) }
+        // libVLC — родная библиотека: если она не загрузилась на этом процессоре, видно причину, а не пустое закрытие.
+        val vlc = try { VlcPlayer(this) { runtime.core.reportError(it) } } catch (e: Throwable) {
+            android.util.Log.e("DeixisTV", "libVLC не запустился", e)
+            setContent { StartError("libVLC: " + e.stackTraceToString().lines().take(12).joinToString("\n")) }
+            return
+        }
         player = vlc
         setContent { ReceiverScreen(runtime, vlc, overscan = true) }
     }
