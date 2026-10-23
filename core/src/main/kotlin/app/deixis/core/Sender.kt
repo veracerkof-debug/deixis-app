@@ -208,7 +208,7 @@ class SenderClient(
         return outbox.trySend(msg).isSuccess
     }
 
-    fun show(content: Content) = send(Show(content))
+    fun show(content: Content, next: Content? = null) = send(Show(content, next))
     fun mode(mode: Mode) = send(SetMode(mode))
     fun video(command: VideoCommand) = send(command)
 

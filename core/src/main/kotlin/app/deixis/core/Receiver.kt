@@ -80,6 +80,10 @@ class ReceiverCore(
     @Volatile
     var conversions: Conversions? = null
 
+    /** Несколько выводов (мониторы, пересылка на экраны в сети); null — один вывод (ТВ, телефон). */
+    @Volatile
+    var outputs: OutputsHost? = null
+
     /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
     @Volatile
     var holyrics: HolyricsBridge? = null
@@ -92,7 +96,7 @@ class ReceiverCore(
 
     /** Применяет команду источника. Возвращает ошибку, если команду выполнить нельзя; показ при этом не меняется. */
     fun apply(msg: Msg): ErrorMsg? = when (msg) {
-        is Show -> show(msg.content)
+        is Show -> show(msg.content, msg.next)
         is SetMode -> { _state.update { it.copy(mode = msg.mode) }; null }
         is VideoCommand -> {
             if (_state.value.content !is VideoContent) ErrorMsg("no_video", "Сейчас не идёт видео")
@@ -101,12 +105,12 @@ class ReceiverCore(
         else -> null
     }
 
-    private fun show(content: Content): ErrorMsg? {
+    private fun show(content: Content, next: Content? = null): ErrorMsg? {
         for (ref in content.files) {
             if (files.file(ref.sha256) == null) return ErrorMsg("missing_file", "На приёмнике нет файла «${ref.name}»")
             files.touch(ref.sha256)
         }
-        _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null, viewers = it.viewers) }
+        _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next) }
         return null
     }
 
@@ -217,6 +221,7 @@ class ReceiverServer(
                 }
                 viewerRoutes(core)
                 remoteRoutes(core) { authorized() }
+                outputsRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)

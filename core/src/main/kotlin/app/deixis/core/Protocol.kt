@@ -26,7 +26,11 @@ data class Hello(val version: Int, val sender: String, val token: String) : Msg
 data class PairRequest(val version: Int, val sender: String, val pin: String) : Msg
 
 @Serializable @SerialName("show")
-data class Show(val content: Content) : Msg
+data class Show(
+    val content: Content,
+    /** Следующий слайд — для вида «Сцена» (суфлёр); файлы для него могут быть ещё не переданы. */
+    val next: Content? = null,
+) : Msg
 
 @Serializable @SerialName("mode")
 data class SetMode(val mode: Mode) : Msg
@@ -168,6 +172,8 @@ data class ReceiverState(
     val error: String? = null,
     /** Сколько зрителей смотрит показ в браузере. */
     val viewers: Int = 0,
+    /** Следующий слайд, если пульт его прислал: для вида «Сцена». */
+    val next: Content? = null,
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */
