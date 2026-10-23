@@ -8,15 +8,22 @@ import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-/** Адрес для QR-кода на экране приёмника: телефон сканирует его и подключается без ввода адреса. */
+/**
+ * Адрес для QR-кода на экране приёмника. Это обычная веб-ссылка на пульт в браузере: камера любого телефона,
+ * включая iPhone, откроет её сразу. Приложение Deixis понимает и её, и прежнюю ссылку deixis://.
+ */
 data class PairingCode(val host: String, val port: Int, val pin: String, val id: String, val name: String) {
 
-    fun toUri(): String = "deixis://$host:$port?pin=$pin&id=${enc(id)}&name=${enc(name)}"
+    fun toUri(): String = "http://$host:$port/remote?pin=$pin&id=${enc(id)}&name=${enc(name)}"
+
+    /** Ссылка для приложения Deixis (кнопка «Открыть в приложении» на веб-пульте). */
+    fun toAppUri(): String = "deixis://$host:$port?pin=$pin&id=${enc(id)}&name=${enc(name)}"
 
     companion object {
         fun parse(uri: String): PairingCode? = try {
             val u = URI(uri)
-            if (u.scheme != "deixis" || u.host == null || u.port <= 0) null
+            val web = (u.scheme == "http" || u.scheme == "https") && u.path == "/remote"
+            if ((u.scheme != "deixis" && !web) || u.host == null || u.port <= 0) null
             else {
                 val q = u.rawQuery.orEmpty().split('&').mapNotNull {
                     val i = it.indexOf('=')

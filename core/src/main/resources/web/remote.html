@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F2EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Deixis</title>
+<style>
+@font-face { font-family: "Deixis Mark"; src: url("/view/assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
+/* Токены DESIGN.md: цвет, размеры, движение. Чисел вне токенов нет. */
+:root {
+  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #87847E; --l3: #C6C3BC;
+  --tint: #9C7242; --tint-text: #765A38; --red: #A75750; --live: #A75750;
+  --sep: rgba(60,55,45,.15); --fill: rgba(120,115,105,.12); --fill2: rgba(120,115,105,.2);
+  --on-color: #FFFFFF; --scrim: rgba(0,0,0,.35);
+  --t-fast: 140ms; --t-mid: 240ms; --e-out: cubic-bezier(.2,.8,.2,1); --e-spring: cubic-bezier(.3,1.35,.55,1);
+  --r-card: 12px; --r-btn: 14px; --r-seg: 9px; --r-seg-in: 7px; --r-pill: 999px;
+  --h-btn: 50px; --h-touch: 44px; --gap: 10px; --pad: 16px;
+  --fs: 17px; --fs-s: 14px; --fs-xs: 13px; --fs-title: 20px; --fs-mark: 22px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #8D8D93; --l3: #48484A;
+    --tint: #BC9361; --tint-text: #BC9361; --red: #B96E65; --live: #B96E65;
+    --sep: rgba(84,84,88,.55); --fill: rgba(118,118,128,.24); --fill2: rgba(118,118,128,.36);
+  }
+}
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; --t-mid: 0ms; } }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: var(--fs)/1.35 -apple-system, "SF Pro Text", "Inter", system-ui, "Segoe UI", Roboto, sans-serif; letter-spacing: -.01em;
+       padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { border: 0; background: var(--fill); border-radius: var(--r-btn); min-height: var(--h-touch); padding: 0 var(--pad); cursor: pointer;
+         transition: transform var(--t-fast) var(--e-spring), background var(--t-fast) var(--e-out); font-weight: 600; }
+button:active { transform: scale(.97); }
+button:disabled { color: var(--l3); }
+button.primary { background: var(--tint); color: var(--on-color); min-height: var(--h-btn); width: 100%; }
+button.on { background: var(--ink); color: var(--bg); }
+input, textarea { width: 100%; border: 0; border-radius: var(--r-seg); background: var(--fill); padding: 12px; min-height: var(--h-touch); }
+textarea { min-height: 160px; resize: vertical; }
+header { display: flex; align-items: center; padding: 12px var(--pad); gap: var(--gap); }
+.mark { font-family: "Deixis Mark", Georgia, serif; font-size: var(--fs-mark); letter-spacing: .18em; }
+#status { margin-left: auto; color: var(--l2); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+main { padding: 0 var(--pad) calc(150px + env(safe-area-inset-bottom)); }
+h2 { font-size: var(--fs-xs); font-weight: 600; color: var(--l2); text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
+.now { aspect-ratio: 16/9; background: #000; border-radius: var(--r-card); border: 2px solid var(--l3); display: flex; align-items: center; justify-content: center;
+       color: #fff; text-align: center; padding: var(--pad); white-space: pre-line; font-weight: 600; overflow: hidden; }
+.now.live { border-color: var(--live); }
+.now .sub { display: block; font-size: var(--fs-xs); opacity: .7; margin-top: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+.tiles button { min-height: 72px; background: var(--cell); font-size: var(--fs-s); }
+#hint { color: var(--l2); font-size: var(--fs-s); margin-top: 8px; }
+#progress { color: var(--tint-text); font-size: var(--fs-s); margin-top: 8px; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--cell); border-top: 1px solid var(--sep);
+       padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); display: grid; gap: 6px; }
+.row { display: flex; gap: 6px; }
+.row > button { flex: 1; min-height: var(--h-btn); }
+.scrim { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity var(--t-mid) var(--e-out); }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 88vh; overflow: auto; background: var(--bg); border-radius: var(--r-btn) var(--r-btn) 0 0;
+         padding: 8px var(--pad) calc(var(--pad) + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform var(--t-mid) var(--e-out); }
+.sheet.open { transform: none; }
+@media (min-width: 760px) { .sheet { left: 50%; right: auto; width: 720px; margin-left: -360px; bottom: 5vh; border-radius: var(--r-btn); } }
+.handle { width: 36px; height: 5px; border-radius: var(--r-pill); background: var(--l3); margin: 0 auto 10px; }
+.sheet h3 { margin: 0 0 10px; font-size: var(--fs-title); }
+.seg { display: flex; background: var(--fill); border-radius: var(--r-seg); padding: 2px; gap: 2px; }
+.seg button { flex: 1; background: transparent; border-radius: var(--r-seg-in); min-height: 36px; font-weight: 400; font-size: var(--fs-s); }
+.seg button.sel { background: var(--cell); font-weight: 600; }
+label.opt { display: block; color: var(--l2); font-size: var(--fs-xs); margin: 12px 0 6px; }
+.list { background: var(--cell); border-radius: var(--r-card); overflow: hidden; }
+.list .it { display: flex; align-items: center; gap: var(--gap); padding: 10px 12px; border-bottom: 1px solid var(--sep); min-height: var(--h-touch); }
+.list .it:last-child { border-bottom: 0; }
+.list .it .t { flex: 1; min-width: 0; }
+.list .it .t small { display: block; color: var(--l2); font-size: var(--fs-xs); }
+.list .it .t b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list .it img { width: 80px; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; background: #000; }
+.pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.pills button { border-radius: var(--r-pill); white-space: nowrap; font-size: var(--fs-xs); min-height: 36px; }
+.pill { border-radius: var(--r-pill); padding: 0 12px; min-height: 36px; font-size: var(--fs-xs); }
+.stack { display: grid; gap: 8px; }
+.muted { color: var(--l2); font-size: var(--fs-s); }
+#toast { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: var(--pad); right: var(--pad); background: var(--ink); color: var(--bg);
+         border-radius: var(--r-card); padding: 12px var(--pad); font-size: var(--fs-s); opacity: 0; transform: translateY(-8px); pointer-events: none;
+         transition: opacity var(--t-mid) var(--e-out), transform var(--t-mid) var(--e-out); }
+#toast.on { opacity: 1; transform: none; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header><span class="mark">ΔΕΙΞΙΣ</span><span id="status"></span></header>
+
+<main id="pair" class="hidden">
+  <h2 data-t="pairTitle"></h2>
+  <div class="stack">
+    <p class="muted" data-t="pairHint"></p>
+    <input id="pin" inputmode="numeric" maxlength="4" autocomplete="one-time-code" aria-label="PIN">
+    <button class="primary" id="pairBtn" data-t="connect"></button>
+  </div>
+</main>
+
+<main id="app" class="hidden">
+  <h2 data-t="now"></h2>
+  <div class="now" id="now"></div>
+  <div id="progress" class="hidden"></div>
+
+  <h2 data-t="show"></h2>
+  <div class="tiles">
+    <button data-act="photo" data-t="photo"></button>
+    <button data-act="video" data-t="video"></button>
+    <button data-act="pdf" data-t="pdf"></button>
+    <button data-act="text" data-t="text"></button>
+  </div>
+  <h2 data-t="more"></h2>
+  <div class="tiles">
+    <button data-act="bible" data-t="bible" class="church"></button>
+    <button data-act="holyrics" data-t="holyrics" class="church"></button>
+    <button data-act="settings" data-t="settings"></button>
+    <button data-act="app" data-t="openApp" id="openApp" class="hidden"></button>
+  </div>
+  <p id="hint" data-t="hint"></p>
+</main>
+
+<div class="bar hidden" id="bar">
+  <div class="row" id="nav">
+    <button id="prev" data-t="prev"></button>
+    <button id="next" data-t="next"></button>
+  </div>
+  <div class="row hidden" id="vnav">
+    <button data-v="back" data-t="back10"></button>
+    <button data-v="toggle" id="vtoggle"></button>
+    <button data-v="fwd" data-t="fwd10"></button>
+  </div>
+  <div class="row">
+    <button data-m="BLACK" data-t="black"></button>
+    <button data-m="LOGO" data-t="logo"></button>
+    <button data-m="CLEAR" data-t="clear"></button>
+  </div>
+</div>
+
+<input type="file" id="pickPhoto" accept="image/*" class="hidden">
+<input type="file" id="pickVideo" accept="video/*,audio/*" class="hidden">
+<input type="file" id="pickPdf" accept="application/pdf,text/plain,.txt" class="hidden">
+<input type="file" id="pickModule" accept=".SQLite3,.sqlite3,application/octet-stream,application/x-sqlite3" class="hidden">
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="handle"></div><div id="sheetBody"></div></section>
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+// Строки на трёх языках: русский (основной), узбекский латиницей, английский. Без обращения на «ты» и «вы».
+const STRINGS = {
+  ru: {
+    pairTitle: "Подключение", pairHint: "Введите PIN с экрана, на который нужно показывать.", connect: "Подключить",
+    now: "Сейчас", show: "Показать", more: "Ещё", photo: "Фото", video: "Видео", pdf: "PDF", text: "Текст",
+    bible: "Библия", holyrics: "Holyrics", settings: "Настройки", openApp: "В приложении",
+    hint: "Пульт управляет только этим экраном. Экран телефона должен оставаться включённым.",
+    prev: "Назад", next: "Дальше", back10: "−10 с", fwd10: "+10 с", play: "Пуск", pause: "Пауза",
+    black: "Чёрный", logo: "Логотип", clear: "Очистить",
+    nothing: "Ничего не показано", blackNow: "Чёрный экран", slide: "слайд", page: "страница", of: "из",
+    connecting: "Подключение…", lost: "Нет связи, переподключение…", wrongPin: "Неверный PIN", tooMany: "Слишком много попыток. На экране новый PIN",
+    oldVersion: "Версии Deixis не совпадают", forgot: "Экран не узнал этот телефон. Введите PIN",
+    textTitle: "Текст", textHint: "Пустая строка начинает новый слайд", showBtn: "Показать", close: "Готово",
+    sending: "передаётся", tooBig: "Файл больше 1 ГБ. Такой файл лучше показать с компьютера.", failed: "Не удалось",
+    unsupported: "Этот формат не поддерживается", pptx: "PPTX, PPT и ODP нужно сохранить как PDF",
+    caseLbl: "Текст на экране", normal: "Обычный", caps: "ЗАГЛАВНЫЕ", churchLbl: "Церковный режим", on: "Включён", off: "Выключен",
+    churchHint: "Библия и Holyrics.", autoFit: "Размер текста подбирается сам: самый крупный, который помещается в поля экрана.",
+    modules: "Переводы", addModule: "+ Модуль", noModules: "Модулей нет. Добавьте файл .SQLite3 из MyBible.", place: "Место, например Ин 3:16-18",
+    verses: "Стихов на слайд", two: "Два перевода", stacked: "Друг под другом", side: "Рядом", refLbl: "Адрес", refOne: "Одной строкой", refEach: "У каждого", refNone: "Без адреса",
+    refPos: "Где адрес", bottom: "Снизу", top: "Сверху", bookName: "Название книги", short: "Сокращённо", full: "Полностью", remove: "Убрать",
+    added: "Добавлен перевод", hlConnect: "В Holyrics на компьютере: Файл → Настройки → API Server. Создайте токен и выдайте ему права. Holyrics и этот Deixis должны быть на одном компьютере.",
+    port: "Порт", token: "Токен", playlist: "Плейлист", songs: "Песни", texts: "Тексты", themes: "Темы", photos: "Фото", videos: "Видео",
+    toScreen: "На экран", toHolyrics: "В Holyrics", asItem: "Как в песне или тексте", empty: "Пусто", search: "Поиск", disconnect: "Отключить",
+    hlRemote: "Пульт Holyrics", hlPrev: "Holyrics: назад", hlNext: "Holyrics: дальше", noHolyrics: "Holyrics доступен, когда Deixis стоит на компьютере рядом с ним",
+    shownInHolyrics: "Показано в Holyrics",
+  },
+  uz: {
+    pairTitle: "Ulanish", pairHint: "Ko‘rsatish kerak bo‘lgan ekrandagi PIN kodni kiriting.", connect: "Ulash",
+    now: "Hozir", show: "Ko‘rsatish", more: "Yana", photo: "Rasm", video: "Video", pdf: "PDF", text: "Matn",
+    bible: "Bibliya", holyrics: "Holyrics", settings: "Sozlamalar", openApp: "Ilovada",
+    hint: "Pult faqat shu ekranni boshqaradi. Telefon ekrani yoniq turishi kerak.",
+    prev: "Orqaga", next: "Oldinga", back10: "−10 s", fwd10: "+10 s", play: "Boshlash", pause: "Pauza",
+    black: "Qora", logo: "Logotip", clear: "Tozalash",
+    nothing: "Hech narsa ko‘rsatilmagan", blackNow: "Qora ekran", slide: "slayd", page: "sahifa", of: "/",
+    connecting: "Ulanmoqda…", lost: "Aloqa yo‘q, qayta ulanmoqda…", wrongPin: "PIN noto‘g‘ri", tooMany: "Urinishlar ko‘p. Ekranda yangi PIN",
+    oldVersion: "Deixis versiyalari mos emas", forgot: "Ekran bu telefonni tanimadi. PIN kiriting",
+    textTitle: "Matn", textHint: "Bo‘sh qator yangi slaydni boshlaydi", showBtn: "Ko‘rsatish", close: "Tayyor",
+    sending: "yuborilmoqda", tooBig: "Fayl 1 GB dan katta. Uni kompyuterdan ko‘rsatgan ma’qul.", failed: "Bo‘lmadi",
+    unsupported: "Bu format qo‘llab-quvvatlanmaydi", pptx: "PPTX, PPT va ODP ni PDF qilib saqlash kerak",
+    caseLbl: "Ekrandagi matn", normal: "Oddiy", caps: "KATTA HARFLAR", churchLbl: "Cherkov rejimi", on: "Yoqilgan", off: "O‘chirilgan",
+    churchHint: "Bibliya va Holyrics.", autoFit: "Matn o‘lchami o‘zi tanlanadi: ekran chegarasiga sig‘adigan eng katta o‘lcham.",
+    modules: "Tarjimalar", addModule: "+ Modul", noModules: "Modul yo‘q. MyBible dan .SQLite3 faylini qo‘shing.", place: "Joy, masalan Yuh 3:16-18",
+    verses: "Slayddagi oyatlar", two: "Ikki tarjima", stacked: "Ustma-ust", side: "Yonma-yon", refLbl: "Manzil", refOne: "Bir qatorda", refEach: "Har birida", refNone: "Manzilsiz",
+    refPos: "Manzil joyi", bottom: "Pastda", top: "Tepada", bookName: "Kitob nomi", short: "Qisqa", full: "To‘liq", remove: "Olib tashlash",
+    added: "Tarjima qo‘shildi", hlConnect: "Kompyuterdagi Holyrics da: File → Settings → API Server. Token yarating va unga ruxsat bering. Holyrics va bu Deixis bitta kompyuterda bo‘lishi kerak.",
+    port: "Port", token: "Token", playlist: "Pleylist", songs: "Qo‘shiqlar", texts: "Matnlar", themes: "Mavzular", photos: "Rasmlar", videos: "Videolar",
+    toScreen: "Ekranga", toHolyrics: "Holyrics ga", asItem: "Qo‘shiq yoki matndagidek", empty: "Bo‘sh", search: "Qidirish", disconnect: "Uzish",
+    hlRemote: "Holyrics pulti", hlPrev: "Holyrics: orqaga", hlNext: "Holyrics: oldinga", noHolyrics: "Holyrics Deixis u bilan bitta kompyuterda bo‘lganda ishlaydi",
+    shownInHolyrics: "Holyrics da ko‘rsatildi",
+  },
+  en: {
+    pairTitle: "Connect", pairHint: "Enter the PIN from the screen to show on.", connect: "Connect",
+    now: "Now", show: "Show", more: "More", photo: "Photo", video: "Video", pdf: "PDF", text: "Text",
+    bible: "Bible", holyrics: "Holyrics", settings: "Settings", openApp: "In the app",
+    hint: "This remote controls this screen only. Keep the phone screen on.",
+    prev: "Back", next: "Next", back10: "−10 s", fwd10: "+10 s", play: "Play", pause: "Pause",
+    black: "Black", logo: "Logo", clear: "Clear",
+    nothing: "Nothing on screen", blackNow: "Black screen", slide: "slide", page: "page", of: "of",
+    connecting: "Connecting…", lost: "Connection lost, reconnecting…", wrongPin: "Wrong PIN", tooMany: "Too many attempts. A new PIN is on the screen",
+    oldVersion: "Deixis versions differ", forgot: "The screen did not recognise this phone. Enter the PIN",
+    textTitle: "Text", textHint: "An empty line starts a new slide", showBtn: "Show", close: "Done",
+    sending: "sending", tooBig: "The file is over 1 GB. Show it from a computer instead.", failed: "Failed",
+    unsupported: "This format is not supported", pptx: "Save PPTX, PPT and ODP as PDF first",
+    caseLbl: "Text on screen", normal: "Normal", caps: "ALL CAPS", churchLbl: "Church mode", on: "On", off: "Off",
+    churchHint: "Bible and Holyrics.", autoFit: "Text size is chosen automatically: the largest that fits the screen margins.",
+    modules: "Translations", addModule: "+ Module", noModules: "No modules. Add a MyBible .SQLite3 file.", place: "Reference, e.g. John 3:16-18",
+    verses: "Verses per slide", two: "Two translations", stacked: "Stacked", side: "Side by side", refLbl: "Reference", refOne: "One line", refEach: "Each", refNone: "None",
+    refPos: "Reference position", bottom: "Bottom", top: "Top", bookName: "Book name", short: "Short", full: "Full", remove: "Remove",
+    added: "Translation added", hlConnect: "In Holyrics on the computer: File → Settings → API Server. Create a token and grant it permissions. Holyrics and this Deixis must run on the same computer.",
+    port: "Port", token: "Token", playlist: "Playlist", songs: "Songs", texts: "Texts", themes: "Themes", photos: "Photos", videos: "Videos",
+    toScreen: "To screen", toHolyrics: "In Holyrics", asItem: "As set in the song or text", empty: "Empty", search: "Search", disconnect: "Disconnect",
+    hlRemote: "Holyrics remote", hlPrev: "Holyrics: back", hlNext: "Holyrics: next", noHolyrics: "Holyrics works when Deixis runs on the same computer",
+    shownInHolyrics: "Shown in Holyrics",
+  },
+};
+const lang = (navigator.language || "ru").toLowerCase();
+const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("en") ? "en" : "ru"];
+document.documentElement.lang = lang.slice(0, 2);
+document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
+const $ = (id) => document.getElementById(id);
+
+// Настройки и сопряжение хранятся в браузере этого телефона. Ключ — адрес экрана: у каждого экрана свой токен.
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(location.host + ":" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(location.host + ":" + k, JSON.stringify(v)); } catch (e) {} },
+};
+const params = new URLSearchParams(location.search);
+let token = store.get("token", null);
+let settings = Object.assign({ caps: false, church: true, bible: { selected: [], ref: "", options: { versesPerSlide: 1, refMode: "ONE_LINE", refPosition: "BOTTOM", fullBookName: false, verseNumbers: true, sideBySide: false } }, holyrics: null }, store.get("settings", {}));
+const save = () => store.set("settings", settings);
+let receiver = null, state = null, item = null, ws = null;
+
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.classList.add("on");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => el.classList.remove("on"), 2600);
+}
+
+// ——— Связь: тот же протокол, что у приложения Deixis ———
+let pause = 1000, lastPong = 0;
+function connect(pin) {
+  if (ws) { ws.onclose = null; ws.close(); }
+  setStatus(t.connecting);
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws.onopen = () => {
+    lastPong = performance.now();
+    if (token && !pin) ws.send(JSON.stringify({ type: "hello", version: 1, sender: deviceName(), token }));
+    else ws.send(JSON.stringify({ type: "pair", version: 1, sender: deviceName(), pin }));
+  };
+  ws.onmessage = (e) => {
+    lastPong = performance.now();
+    const m = JSON.parse(e.data);
+    if (m.type === "paired") { token = m.token; store.set("token", token); if (params.has("pin")) history.replaceState(null, "", "/remote"); }
+    else if (m.type === "welcome") { receiver = m.receiver; pause = 1000; render(m.state); showApp(); }
+    else if (m.type === "status") render(m.state);
+    else if (m.type === "error") toast(m.message);
+    else if (m.type === "denied") denied(m.reason);
+  };
+  ws.onclose = () => {
+    if (!token) return;
+    setStatus(t.lost);
+    setTimeout(() => connect(), pause);
+    pause = Math.min(pause * 2, 5000);
+  };
+}
+// Проверка связи: при пропаже Wi-Fi сокет молчит долго, а пульт должен это заметить сразу.
+setInterval(() => {
+  if (!ws || ws.readyState !== 1) return;
+  if (performance.now() - lastPong > 5000) { ws.close(); return; }
+  ws.send(JSON.stringify({ type: "ping", t: Date.now() }));
+}, 1000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && token && (!ws || ws.readyState > 1)) connect(); });
+
+function denied(reason) {
+  const msg = { WRONG_PIN: t.wrongPin, TOO_MANY_ATTEMPTS: t.tooMany, INCOMPATIBLE_VERSION: t.oldVersion, UNKNOWN_TOKEN: t.forgot }[reason] || t.failed;
+  if (reason === "UNKNOWN_TOKEN") { token = null; store.set("token", null); }
+  toast(msg);
+  showPair();
+}
+function send(msg) { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(msg)); return true; } toast(t.lost); return false; }
+function deviceName() { const ua = navigator.userAgent; return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : "Браузер"; }
+function setStatus(s) { $("status").textContent = s; }
+function authed(path, opts = {}) {
+  opts.headers = Object.assign({ Authorization: "Bearer " + token }, opts.headers || {});
+  return fetch(path, opts).then(async (r) => { if (!r.ok) throw new Error((await r.text()) || r.status); return r; });
+}
+const postJson = (path, body) => authed(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+
+function showPair() {
+  $("pair").classList.remove("hidden"); $("app").classList.add("hidden"); $("bar").classList.add("hidden");
+  setStatus("");
+}
+function showApp() {
+  $("pair").classList.add("hidden"); $("app").classList.remove("hidden"); $("bar").classList.remove("hidden");
+  setStatus(receiver ? receiver.name : "");
+  applyChurch();
+  keepAwake();
+}
+$("pairBtn").onclick = () => { const pin = $("pin").value.trim(); if (/^\d{4}$/.test(pin)) connect(pin); else toast(t.wrongPin); };
+
+// ——— Что сейчас на экране ———
+function render(s) {
+  state = s;
+  const now = $("now");
+  const c = s.content;
+  now.classList.toggle("live", !!c && s.mode === "NORMAL");
+  // Текст слайда экранируется: в нём может быть что угодно.
+  let html;
+  const main = (x) => esc(x);
+  if (s.mode === "BLACK") html = main(t.blackNow);
+  else if (s.mode === "LOGO") html = main("ΔΕΙΞΙΣ");
+  else if (!c) html = main(t.nothing);
+  else if (item && item.kind === "text") html = main(item.slides[item.index]) + sub(`${item.title}${item.labels && item.labels[item.index] ? " · " + item.labels[item.index] : ""} · ${t.slide} ${item.index + 1} ${t.of} ${item.slides.length}`);
+  else if (item && item.kind === "scripture") { const sc = item.slides[item.index]; html = main(sc.blocks[0].text.slice(0, 160)) + sub(`${sc.ref || sc.blocks[0].ref || ""} · ${item.index + 1}/${item.slides.length}`); }
+  else if (c.type === "pdf") html = main(c.file.name) + sub(`${t.page} ${c.page + 1}${item && item.pages ? " " + t.of + " " + item.pages : ""}`);
+  else if (c.type === "video") html = main(c.file.name) + (s.video ? sub(`${Math.floor(s.video.positionMs / 1000)} / ${Math.floor(s.video.durationMs / 1000)} с`) : "");
+  else if (c.type === "image") html = main(c.file.name);
+  else if (c.type === "text") html = main(c.text);
+  else if (c.type === "scripture") html = main(c.blocks[0].text.slice(0, 160));
+  else html = main(t.nothing);
+  now.innerHTML = html;
+  document.querySelectorAll("[data-m]").forEach((b) => b.classList.toggle("on", s.mode === b.dataset.m));
+  const isVideo = c && c.type === "video";
+  $("nav").classList.toggle("hidden", isVideo);
+  $("vnav").classList.toggle("hidden", !isVideo);
+  $("vtoggle").textContent = s.video && s.video.playing ? t.pause : t.play;
+  const canStep = item && (item.kind === "text" || item.kind === "scripture" || item.kind === "pdf");
+  $("prev").disabled = $("next").disabled = !canStep;
+  if (s.error) toast(s.error);
+}
+function sub(s) { return `<span class="sub">${esc(s)}</span>`; }
+function esc(s) { return String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])); }
+
+// Слайд текущего элемента в протокол показа.
+function showItem(it) {
+  item = it;
+  let content;
+  const caps = (st) => settings.caps ? Object.assign({}, st || {}, { caps: true }) : (st || {});
+  if (it.kind === "text") content = { type: "text", text: it.slides[it.index], style: caps(it.style) };
+  else if (it.kind === "scripture") { const sc = it.slides[it.index]; content = Object.assign({}, sc, { type: "scripture", style: caps(sc.style) }); }
+  else if (it.kind === "pdf") content = { type: "pdf", file: it.ref, page: it.index };
+  else if (it.kind === "image") content = { type: "image", file: it.ref };
+  else if (it.kind === "video") content = { type: "video", file: it.ref };
+  send({ type: "show", content });
+}
+function step(d) {
+  if (!item || item.kind === "image" || item.kind === "video") return;
+  const n = item.kind === "pdf" ? item.pages : item.slides.length;
+  const i = Math.max(0, Math.min(n - 1, item.index + d));
+  if (i !== item.index) showItem(Object.assign({}, item, { index: i }));
+}
+$("prev").onclick = () => step(-1);
+$("next").onclick = () => step(1);
+document.querySelectorAll("[data-m]").forEach((b) => { b.onclick = () => send({ type: "mode", mode: state && state.mode === b.dataset.m ? "NORMAL" : b.dataset.m }); });
+document.querySelectorAll("[data-v]").forEach((b) => {
+  b.onclick = () => {
+    const v = state && state.video;
+    if (b.dataset.v === "toggle") send({ type: "video", action: v && v.playing ? "PAUSE" : "PLAY" });
+    else send({ type: "video", action: "SEEK", positionMs: Math.max(0, ((v && v.positionMs) || 0) + (b.dataset.v === "fwd" ? 10000 : -10000)) });
+  };
+});
+// Клавиатура и кликер: стрелки, пробел, PageUp/PageDown.
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea")) return;
+  if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); step(1); }
+  if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); step(-1); }
+});
+
+// Деление текста на слайды: пустая строка — новый слайд, не больше 4 строк на слайд (как в приложении).
+function splitSlides(text) {
+  const out = [];
+  for (const block of text.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i += 4) out.push(lines.slice(i, i + 4).join("\n"));
+  }
+  return out;
+}
+
+// ——— Файлы: загрузка с докачкой, хэш считает экран ———
+const kindOf = (f) => {
+  const n = f.name.toLowerCase();
+  if (/\.(pptx?|odp|key)$/.test(n)) return "pptx";
+  if (f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/.test(n)) return "image";
+  if (f.type.startsWith("video/") || f.type.startsWith("audio/") || /\.(mp4|mov|mkv|avi|webm|m4v|mp3|wav|m4a)$/.test(n)) return "video";
+  if (f.type === "application/pdf" || n.endsWith(".pdf")) return "pdf";
+  if (f.type.startsWith("text/") || n.endsWith(".txt")) return "text";
+  return null;
+};
+async function upload(file) {
+  if (file.size > 1024 * 1024 * 1024) throw new Error(t.tooBig);
+  const key = "up:" + file.name + ":" + file.size + ":" + file.lastModified;
+  let id = store.get(key, null);
+  if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join(""); store.set(key, id); }
+  const p = $("progress");
+  p.classList.remove("hidden");
+  try {
+    let offset = (await (await authed("/upload/" + id)).json()).bytes || 0;
+    const CHUNK = 4 * 1024 * 1024;
+    for (let attempt = 0; ; ) {
+      p.textContent = `«${file.name}»: ${t.sending} ${Math.floor((offset / Math.max(1, file.size)) * 100)}%`;
+      try {
+        const end = Math.min(file.size, offset + CHUNK);
+        const r = await authed(`/upload/${id}?offset=${offset}`, {
+          method: "PUT", body: file.slice(offset, end),
+          headers: { "Deixis-Size": String(file.size), "Deixis-Name": encodeURIComponent(file.name), "Content-Type": "application/octet-stream" },
+        });
+        const j = await r.json();
+        if (j.file) { store.set(key, null); return j.file; }
+        offset = j.bytes;
+        attempt = 0;
+      } catch (e) {
+        // Обрыв Wi-Fi: спросить, сколько дошло, и продолжить с того места.
+        if (++attempt > 5) throw e;
+        await new Promise((res) => setTimeout(res, 800 * attempt));
+        offset = (await (await authed("/upload/" + id)).json()).bytes || 0;
+      }
+    }
+  } finally {
+    p.classList.add("hidden");
+  }
+}
+async function pickFile(file) {
+  if (!file) return;
+  const kind = kindOf(file);
+  try {
+    if (kind === "pptx") return toast(t.pptx);
+    if (!kind) return toast(t.unsupported);
+    if (kind === "text") return showText(await file.text());
+    const ref = await upload(file);
+    if (kind === "pdf") {
+      const pages = (await (await authed(`/pdf/${ref.sha256}/pages`)).json()).pages;
+      showItem({ kind: "pdf", ref, pages, index: 0 });
+    } else showItem({ kind, ref });
+  } catch (e) { toast(e.message || t.failed); }
+}
+function showText(text, title, style, labels) {
+  const slides = splitSlides(text);
+  if (slides.length) showItem({ kind: "text", slides, index: 0, title: title || t.text, style: style || null, labels: labels || [] });
+}
+for (const [id] of [["pickPhoto"], ["pickVideo"], ["pickPdf"]]) $(id).onchange = (e) => { pickFile(e.target.files[0]); e.target.value = ""; };
+
+// ——— Шторки ———
+function openSheet(html, init) {
+  $("sheetBody").innerHTML = html;
+  $("sheet").classList.add("open"); $("scrim").classList.add("open");
+  if (init) init($("sheetBody"));
+}
+function closeSheet() { $("sheet").classList.remove("open"); $("scrim").classList.remove("open"); }
+$("scrim").onclick = closeSheet;
+// Смахивание шторки вниз закрывает её.
+(() => { let y0 = null; const s = $("sheet");
+  s.addEventListener("touchstart", (e) => { y0 = s.scrollTop <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+  s.addEventListener("touchend", (e) => { if (y0 != null && e.changedTouches[0].clientY - y0 > 80) closeSheet(); y0 = null; }, { passive: true }); })();
+const seg = (name, values, sel) => `<div class="seg" data-seg="${name}">${values.map(([v, label]) => `<button data-v="${v}" class="${String(v) === String(sel) ? "sel" : ""}">${esc(label)}</button>`).join("")}</div>`;
+function bindSeg(root, onPick) {
+  root.querySelectorAll("[data-seg]").forEach((g) => g.querySelectorAll("button").forEach((b) => {
+    b.onclick = () => { g.querySelectorAll("button").forEach((x) => x.classList.toggle("sel", x === b)); onPick(g.dataset.seg, b.dataset.v); };
+  }));
+}
+
+document.querySelectorAll("[data-act]").forEach((b) => { b.onclick = () => actions[b.dataset.act](); });
+const actions = {
+  photo: () => $("pickPhoto").click(),
+  video: () => $("pickVideo").click(),
+  pdf: () => $("pickPdf").click(),
+  text: () => openSheet(`<h3>${t.textTitle}</h3><textarea id="txt" placeholder="${esc(t.textHint)}"></textarea><div style="height:10px"></div><button class="primary" id="txtGo">${t.showBtn}</button>`,
+    (r) => { r.querySelector("#txtGo").onclick = () => { showText(r.querySelector("#txt").value); closeSheet(); }; }),
+  settings: () => openSheet(`<h3>${t.settings}</h3>
+      <label class="opt">${t.caseLbl}</label>${seg("caps", [["0", t.normal], ["1", t.caps]], settings.caps ? 1 : 0)}
+      <p class="muted">${t.autoFit}</p>
+      <label class="opt">${t.churchLbl}</label>${seg("church", [["1", t.on], ["0", t.off]], settings.church ? 1 : 0)}
+      <p class="muted">${t.churchHint}</p><button class="primary" id="ok">${t.close}</button>`,
+    (r) => { bindSeg(r, (k, v) => { settings[k] = v === "1"; save(); applyChurch(); if (k === "caps" && item && (item.kind === "text" || item.kind === "scripture")) showItem(item); });
+      r.querySelector("#ok").onclick = closeSheet; }),
+  app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(params.get("pin") || "")}`; },
+  bible: () => bibleSheet(),
+  holyrics: () => holyricsSheet(),
+};
+function applyChurch() { document.querySelectorAll(".church").forEach((el) => el.classList.toggle("hidden", !settings.church)); }
+
+// ——— Библия: модули MyBible хранятся на экране ———
+async function bibleSheet() {
+  let mods = [];
+  try { mods = await (await authed("/bible")).json(); } catch (e) { toast(e.message); }
+  const b = settings.bible;
+  b.selected = b.selected.filter((f) => mods.some((m) => m.file === f));
+  if (!b.selected.length && mods.length) b.selected = [mods[0].file];
+  const o = b.options;
+  openSheet(`<h3>${t.bible}</h3>
+    <label class="opt">${t.modules}</label>
+    <div class="pills" id="mods">${mods.map((m) => { const i = b.selected.indexOf(m.file); return `<button class="${i >= 0 ? "on" : ""}" data-f="${esc(m.file)}">${i >= 0 ? i + 1 + " · " : ""}${esc(m.abbreviation || m.title)}</button>`; }).join("")}<button id="addMod">${t.addModule}</button></div>
+    ${mods.length ? "" : `<p class="muted">${t.noModules}</p>`}
+    <div style="height:8px"></div><input id="ref" placeholder="${esc(t.place)}" value="${esc(b.ref)}" enterkeyhint="go">
+    <label class="opt">${t.verses}</label>${seg("versesPerSlide", [[1, "1"], [2, "2"], [3, "3"]], o.versesPerSlide)}
+    <label class="opt">${t.two}</label>${seg("sideBySide", [["false", t.stacked], ["true", t.side]], o.sideBySide)}
+    <label class="opt">${t.refLbl}</label>${seg("refMode", [["ONE_LINE", t.refOne], ["PER_TRANSLATION", t.refEach], ["NONE", t.refNone]], o.refMode)}
+    <label class="opt">${t.refPos}</label>${seg("refPosition", [["BOTTOM", t.bottom], ["TOP", t.top]], o.refPosition)}
+    <label class="opt">${t.bookName}</label>${seg("fullBookName", [["false", t.short], ["true", t.full]], o.fullBookName)}
+    <div style="height:12px"></div><button class="primary" id="go">${t.showBtn}</button>
+    ${b.selected.length ? `<div style="height:8px"></div><button id="rm">${t.remove}: ${esc(b.selected[0])}</button>` : ""}`,
+    (r) => {
+      r.querySelectorAll("#mods [data-f]").forEach((el) => {
+        el.onclick = () => {
+          const f = el.dataset.f, i = b.selected.indexOf(f);
+          if (i >= 0) b.selected.splice(i, 1); else b.selected = b.selected.concat(f).slice(-2);
+          save(); bibleSheet();
+        };
+      });
+      r.querySelector("#addMod").onclick = () => $("pickModule").click();
+      bindSeg(r, (k, v) => { o[k] = k === "versesPerSlide" ? Number(v) : v === "true" ? true : v === "false" ? false : v; save(); });
+      const go = async () => {
+        b.ref = r.querySelector("#ref").value.trim(); save();
+        try {
+          const slides = await postJson("/bible/slides", { ref: b.ref, modules: b.selected, options: o, style: {} });
+          showItem({ kind: "scripture", slides, index: 0 });
+          closeSheet();
+        } catch (e) { toast(e.message); }
+      };
+      r.querySelector("#go").onclick = go;
+      r.querySelector("#ref").onkeydown = (e) => { if (e.key === "Enter") go(); };
+      const rm = r.querySelector("#rm");
+      if (rm) rm.onclick = async () => { await authed("/bible/" + encodeURIComponent(b.selected[0]), { method: "DELETE" }); b.selected.shift(); save(); bibleSheet(); };
+    });
+}
+$("pickModule").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    const ref = await upload(f);
+    const m = await postJson("/bible/install", ref);
+    if (!settings.bible.selected.includes(m.file)) settings.bible.selected.push(m.file);
+    save(); toast(`${t.added}: ${m.title}`); bibleSheet();
+  } catch (err) { toast(err.message); }
+};
+
+// ——— Holyrics на том же компьютере, через экран Deixis ———
+let hl = { tab: "playlist", q: "", data: {} };
+const hlCall = (action, body = {}) => postJson("/holyrics/call", { port: settings.holyrics.port, token: settings.holyrics.token, action, body });
+async function holyricsSheet() {
+  if (receiver && !receiver.holyrics) return toast(t.noHolyrics);
+  if (!settings.holyrics) {
+    return openSheet(`<h3>Holyrics</h3><p class="muted">${t.hlConnect}</p>
+      <div class="stack"><input id="hp" inputmode="numeric" placeholder="${t.port}" value="8091"><input id="ht" placeholder="${t.token}" autocomplete="off"><button class="primary" id="hc">${t.connect}</button></div>`,
+      (r) => { r.querySelector("#hc").onclick = async () => {
+        settings.holyrics = { port: Number(r.querySelector("#hp").value) || 8091, token: r.querySelector("#ht").value.trim(), theme: null };
+        try { await hlCall("GetVersion"); save(); holyricsSheet(); } catch (e) { settings.holyrics = null; toast(e.message); }
+      }; });
+  }
+  const tabs = [["playlist", t.playlist], ["songs", t.songs], ["texts", t.texts], ["photos", t.photos], ["videos", t.videos], ["themes", t.themes]];
+  const load = { playlist: () => hlCall("GetSongPlaylist"), songs: () => hlCall("GetSongs", { fields: "id,title,artist,key,archived" }), texts: () => hlCall("GetTexts", { fields: "id,title,folder" }),
+    photos: () => hlCall("GetImages", { include_thumbnail: true, include_metadata: true }), videos: () => hlCall("GetVideos", { include_thumbnail: true, include_metadata: true }), themes: () => hlCall("GetThemes") };
+  try { if (!hl.data[hl.tab]) hl.data[hl.tab] = (await load[hl.tab]()) || []; } catch (e) { toast(e.message); hl.data[hl.tab] = []; }
+  const q = hl.q.toLowerCase();
+  const list = (hl.data[hl.tab] || []).filter((x) => !x.archived && !x.isDir && (!q || JSON.stringify([x.title, x.name, x.artist]).toLowerCase().includes(q)));
+  let rows;
+  if (hl.tab === "themes") {
+    rows = [{ id: "", name: t.asItem }].concat(list).map((x) => `<div class="it" data-theme="${esc(x.id)}"><span class="t"><b>${esc(x.name || x.id)}</b></span>${(settings.holyrics.theme || "") === x.id ? "✓" : ""}</div>`).join("");
+  } else if (hl.tab === "photos" || hl.tab === "videos") {
+    rows = list.map((x) => `<div class="it" data-file="${esc(x.name)}">${x.thumbnail ? `<img alt="" src="data:image/jpeg;base64,${x.thumbnail.replace(/^data:[^,]*,/, "")}">` : ""}<span class="t"><b>${esc(x.name)}</b></span></div>`).join("");
+  } else {
+    rows = list.map((x) => `<div class="it"><span class="t"><b>${esc(x.title || "—")}</b><small>${esc(x.artist || x.folder || x.key || "")}</small></span>
+      <button class="pill" data-deixis="${esc(x.id)}">${t.toScreen}</button><button class="pill" data-hl="${esc(x.id)}">${t.toHolyrics}</button></div>`).join("");
+  }
+  openSheet(`<h3>Holyrics</h3><div class="pills">${tabs.map(([k, l]) => `<button class="${k === hl.tab ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
+    ${hl.tab === "themes" ? "" : `<div style="height:8px"></div><input id="hq" placeholder="${t.search}" value="${esc(hl.q)}">`}
+    <div style="height:8px"></div><div class="list">${rows || `<div class="it muted">${t.empty}</div>`}</div>
+    <div style="height:10px"></div><div class="row"><button id="hpv">${t.hlPrev}</button><button id="hnx">${t.hlNext}</button></div>
+    <div style="height:8px"></div><div class="row"><button id="hrf">↻</button><button id="hdc">${t.disconnect}</button><button id="hok">${t.close}</button></div>`,
+    (r) => {
+      r.querySelectorAll("[data-tab]").forEach((b) => { b.onclick = () => { hl.tab = b.dataset.tab; holyricsSheet(); }; });
+      const hq = r.querySelector("#hq");
+      if (hq) hq.oninput = () => { hl.q = hq.value; clearTimeout(hq.t); hq.t = setTimeout(holyricsSheet, 350); };
+      const kind = hl.tab === "texts" ? "text" : "song";
+      r.querySelectorAll("[data-deixis]").forEach((b) => { b.onclick = async () => {
+        try {
+          const set = await postJson("/holyrics/slides", { port: settings.holyrics.port, token: settings.holyrics.token, [kind]: b.dataset.deixis, theme: settings.holyrics.theme || null });
+          showItem({ kind: "text", slides: set.slides, index: 0, title: set.title, style: set.style, labels: set.labels });
+          closeSheet();
+        } catch (e) { toast(e.message); }
+      }; });
+      r.querySelectorAll("[data-hl]").forEach((b) => { b.onclick = () => hlCall(kind === "text" ? "ShowText" : "ShowSong", { id: b.dataset.hl }).then(() => toast(t.shownInHolyrics), (e) => toast(e.message)); });
+      r.querySelectorAll("[data-theme]").forEach((el) => { el.onclick = () => { settings.holyrics.theme = el.dataset.theme || null; save(); holyricsSheet(); }; });
+      r.querySelectorAll("[data-file]").forEach((el) => { el.onclick = async () => {
+        const media = hl.tab === "photos" ? "IMAGE" : "VIDEO";
+        try {
+          const ref = await postJson("/holyrics/media", { port: settings.holyrics.port, token: settings.holyrics.token, kind: media, name: el.dataset.file });
+          showItem({ kind: media === "IMAGE" ? "image" : "video", ref });
+          closeSheet();
+        } catch (e) { toast(e.message); }
+      }; });
+      r.querySelector("#hpv").onclick = () => hlCall("ActionPrevious").catch((e) => toast(e.message));
+      r.querySelector("#hnx").onclick = () => hlCall("ActionNext").catch((e) => toast(e.message));
+      r.querySelector("#hrf").onclick = () => { hl.data = {}; holyricsSheet(); };
+      r.querySelector("#hdc").onclick = () => { settings.holyrics = null; hl.data = {}; save(); closeSheet(); };
+      r.querySelector("#hok").onclick = closeSheet;
+    });
+}
+
+// Экран телефона не гаснет, пока открыт пульт (Safari 16.4+, Chrome).
+let wake = null;
+async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
+document.addEventListener("visibilitychange", keepAwake);
+if (/Android/.test(navigator.userAgent)) $("openApp").classList.remove("hidden");
+
+// Запуск: PIN из QR-кода или сохранённый токен.
+if (params.get("pin")) connect(params.get("pin"));
+else if (token) connect();
+else showPair();
+</script>
+</body>
+</html>

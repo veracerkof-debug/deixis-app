@@ -65,6 +65,11 @@ class ReceiverRuntime(
             val bmp = renderPdfPage(file, page, width, width * 4)
             java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it); bmp.recycle() }.toByteArray()
         }
+        // Для веб-пульта (iPhone): модули Библии хранятся на ТВ, страницы PDF считаются здесь.
+        core.bible = app.deixis.core.BibleStore(File(dataDir, "bible")) { AndroidSql(it) }
+        core.pageCounter = { f ->
+            android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
+        }
     }
 
     suspend fun start() = withContext(Dispatchers.IO) {

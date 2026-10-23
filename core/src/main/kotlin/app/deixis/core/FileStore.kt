@@ -12,6 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024 * 1024 * 1024) {
 
+    /** Папка хранилища (в ней же лежат загрузки из браузера). */
+    val root: File get() = dir
+
     private val writing = ConcurrentHashMap.newKeySet<String>()
 
     init {

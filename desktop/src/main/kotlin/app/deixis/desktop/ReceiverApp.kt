@@ -14,6 +14,7 @@ import app.deixis.core.ReceiverInfo
 import app.deixis.core.ReceiverServer
 import app.deixis.core.VideoContent
 import app.deixis.core.HolyricsBridge
+import app.deixis.core.BibleStore
 import app.deixis.core.ScreenContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,9 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         renderer = SlideRenderer(core.files)
         core.pageRenderer = PageRenderer { file, page, width -> renderPdfPagePng(file, page, width) }
         core.holyrics = HolyricsBridge(core.files)
+        // Для веб-пульта: модули Библии хранятся здесь, страницы PDF считаются здесь.
+        core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
+        core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
         server = ReceiverServer(core, opts.port)
     }
 

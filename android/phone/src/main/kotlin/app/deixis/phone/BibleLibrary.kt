@@ -9,28 +9,8 @@ import app.deixis.core.BibleModule
 import app.deixis.core.DeixisJson
 import app.deixis.core.ScriptureOptions
 import app.deixis.core.SqlSource
+import app.deixis.receiver.AndroidSql
 import java.io.File
-
-/** SQLite Android для модулей MyBible, только чтение. */
-class AndroidSql(file: File) : SqlSource {
-    private val db = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS)
-
-    override fun query(sql: String, vararg args: Any): List<List<Any?>> =
-        db.rawQuery(sql, args.map { it.toString() }.toTypedArray()).use { c ->
-            buildList {
-                while (c.moveToNext()) add((0 until c.columnCount).map { i -> value(c, i) })
-            }
-        }
-
-    private fun value(c: Cursor, i: Int): Any? = when (c.getType(i)) {
-        Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
-        Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
-        Cursor.FIELD_TYPE_STRING -> c.getString(i)
-        else -> null
-    }
-
-    override fun close() = db.close()
-}
 
 /** Модули Библии на телефоне: файлы .SQLite3 копируются в память приложения и открываются только на чтение. */
 class BibleLibrary(private val context: Context) {

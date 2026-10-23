@@ -183,10 +183,11 @@ private fun Main(c: Controller, h: HolyricsSource) {
             SectionTitle("Ещё")
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile(if (sharing) "Стоп экран" else "Экран") { if (sharing) ScreenShareService.stop(context) else startShare() }
+                // Библия и Holyrics — церковный режим; выключенный оставляет только светское.
                 if (churchMode) Tile("Библия") { dialog = "bible" }
-                Tile("Holyrics") { dialog = "holyrics" }
+                if (churchMode) Tile("Holyrics") { dialog = "holyrics" }
                 Tile("Настройки") { dialog = "settings" }
-                if (!churchMode) Spacer(Modifier.weight(1f))
+                if (!churchMode) Spacer(Modifier.weight(2f))
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -229,7 +230,7 @@ private fun SettingsDialog(c: Controller, onDismiss: () -> Unit) {
             )
             OptionRow("Церковный режим", listOf("Включён", "Выключен"), if (church) 0 else 1) { c.setChurchMode(it == 0) }
             Spacer(Modifier.height(6.dp))
-            BasicText("Раздел «Библия» с модулями MyBible.", style = TextStyle(fontSize = 13.sp, color = p.l2))
+            BasicText("Разделы «Библия» (модули MyBible) и «Holyrics».", style = TextStyle(fontSize = 13.sp, color = p.l2))
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).background(p.fill).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
                 BasicText("Готово", style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.ink))

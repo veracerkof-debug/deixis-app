@@ -65,6 +65,17 @@ class ReceiverCore(
     @Volatile
     var pageRenderer: PageRenderer? = null
 
+    /** Загрузки из браузера пульта: хэш считает приёмник. */
+    val uploads = UploadArea(files, File(files.root, "uploads"))
+
+    /** Модули Библии на приёмнике для веб-пульта; null — платформа не читает SQLite. */
+    @Volatile
+    var bible: BibleStore? = null
+
+    /** Число страниц PDF (веб-пульту, чтобы листать); null — не умеет. */
+    @Volatile
+    var pageCounter: ((File) -> Int)? = null
+
     /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
     @Volatile
     var holyrics: HolyricsBridge? = null
@@ -201,6 +212,7 @@ class ReceiverServer(
                     }
                 }
                 viewerRoutes(core)
+                remoteRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)
@@ -209,6 +221,7 @@ class ReceiverServer(
             while (true) {
                 val keep = core.state.value.content?.files.orEmpty().map { it.sha256 }.toSet()
                 runCatching { core.files.purgeOlderThan(fileTtlMs, keep) }
+                runCatching { core.uploads.purgeOlderThan(fileTtlMs) }
                 kotlinx.coroutines.delay(CLEAN_EVERY_MS)
             }
         }
