@@ -8,18 +8,36 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.VlcPlayer
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var player: VlcPlayer
+    private var player: VlcPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
-        val runtime = (application as DeixisTvApp).runtime
+        val app = application as DeixisTvApp
+        val runtime = app.runtime
+        val error = app.startError
+        if (runtime == null || error != null) {
+            // Приёмник не запустился: вместо мгновенного закрытия — причина, её можно сфотографировать.
+            setContent { StartError(error ?: "Приёмник не создан") }
+            return
+        }
         player = VlcPlayer(this) { runtime.core.reportError(it) }
         setContent { ReceiverScreen(runtime, player, overscan = true) }
     }
@@ -30,7 +48,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        player.release()
+        player?.release()
         super.onDestroy()
     }
 
@@ -47,5 +65,17 @@ class MainActivity : ComponentActivity() {
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
         }
+    }
+}
+
+@Composable
+private fun StartError(text: String) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(48.dp)) {
+        BasicText("Deixis TV не запустился", style = TextStyle(color = Color.White, fontSize = 28.sp))
+        BasicText(
+            "Сфотографируйте этот экран и отправьте разработчику. Перезапуск приложения покажет экран ожидания, если ошибка разовая.",
+            Modifier.padding(top = 12.dp), style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp),
+        )
+        BasicText(text, Modifier.padding(top = 24.dp), style = TextStyle(color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp))
     }
 }

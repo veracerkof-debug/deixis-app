@@ -15,7 +15,7 @@ for app in tv phone; do
   if adb shell pidof "$pkg" > /dev/null; then echo "=== $pkg работает"; else echo "=== $pkg НЕ РАБОТАЕТ"; status=1; fi
   echo "--- падения $pkg:"
   adb logcat -d -b crash | tail -80
-  grep -E "AndroidRuntime|FATAL|$pkg" "smoke/$app-logcat.txt" | tail -60
+  grep -E "AndroidRuntime|FATAL|DeixisTV|$pkg" "smoke/$app-logcat.txt" | tail -60
   adb shell am force-stop "$pkg"
 done
 exit $status

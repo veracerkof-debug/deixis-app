@@ -13,15 +13,40 @@ import java.io.File
 class DeixisTvApp : Application() {
 
     /** Приёмник живёт, пока жив процесс, а не экран: поворот или пауза экрана не рвут связь с телефоном. */
-    lateinit var runtime: ReceiverRuntime
+    var runtime: ReceiverRuntime? = null
+        private set
+
+    /** Почему приёмник не запустился (или упал в прошлый раз): показывается вместо пустого закрытия. */
+    var startError: String? = null
         private set
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
-        val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
-        runtime = ReceiverRuntime(this, name, "android-tv", File(filesDir, "receiver"))
-        scope.launch { runtime.start() }
+        // Падение записывается в файл: при следующем запуске экран покажет причину, а не закроется молча.
+        val crashFile = File(filesDir, "last-crash.txt")
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching { crashFile.writeText(describe(e)) }
+            previous?.uncaughtException(t, e)
+        }
+        startError = crashFile.takeIf { it.isFile }?.readText()?.also { crashFile.delete() }
+        try {
+            val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
+            val rt = ReceiverRuntime(this, name, "android-tv", File(filesDir, "receiver"))
+            runtime = rt
+            scope.launch {
+                try { rt.start() } catch (e: Throwable) { startError = describe(e) }
+            }
+        } catch (e: Throwable) {
+            startError = describe(e)
+        }
+    }
+
+    private fun describe(e: Throwable): String {
+        android.util.Log.e("DeixisTV", "Приёмник не запустился", e)
+        return "Deixis TV ${runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull()} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MODEL} · " +
+            Build.SUPPORTED_ABIS.joinToString() + "\n" + e.stackTraceToString().lines().take(14).joinToString("\n")
     }
 }
