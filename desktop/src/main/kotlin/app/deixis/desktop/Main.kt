@@ -12,6 +12,9 @@ private const val USAGE = """Deixis для компьютера
   deixis list [--seconds N]
       Найти приёмники Deixis в сети.
 
+  deixis dlna [--to ИМЯ] [ФАЙЛ] [--watch N]
+      Обычный телевизор с DLNA (без Deixis): без файла — список, с файлом — показать фото или видео.
+
   deixis send --to АДРЕС[:ПОРТ] [--pin PIN] ФАЙЛ [--page N] [--loop]
   deixis send --to АДРЕС[:ПОРТ] --text "ТЕКСТ" [--slide N] [--caps]
   deixis send --to АДРЕС[:ПОРТ] --bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"
@@ -43,6 +46,7 @@ fun main(args: Array<String>) {
         ).run()
         "send" -> exitProcess(SendCommand(opts, File(home, "sender-tokens.json")).run())
         "list" -> exitProcess(listReceivers(opts["seconds"]?.toLongOrNull() ?: 5))
+        "dlna" -> exitProcess(dlnaCommand(opts))
         "help", "--help", "-h" -> println(USAGE)
         else -> { System.err.println(USAGE); exitProcess(2) }
     }
