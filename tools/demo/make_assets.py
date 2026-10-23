@@ -135,12 +135,34 @@ def lecture(path):
     prs.save(path)
 
 
-def photo(path, w=1920, h=1080):
-    """Горы на закате: несколько слоёв силуэтов над небом с переходом цвета."""
+SUNSET = ((28, 42, 78), (196, 110, 92), (246, 196, 120), [(118, 84, 104), (84, 60, 86), (52, 40, 64), (26, 22, 38)], 7)
+MORNING = ((120, 170, 210), (190, 214, 226), (236, 232, 214), [(110, 140, 150), (78, 110, 118), (52, 82, 88), (30, 52, 56)], 11)
+
+
+def report(path):
+    import docx
+    from docx.shared import Pt as DPt
+    d = docx.Document()
+    d.add_heading("Отчёт по практике", 0)
+    d.add_paragraph("Студент 3 курса, направление «Градостроительство». Тема: доступность школ и поликлиник в районе.")
+    d.add_heading("Что сделано", 1)
+    for line in ("Обследованы 12 кварталов и 46 маршрутов пешком.", "Замерено время до школы, поликлиники и парка.", "Составлена карта мест, куда трудно дойти пешком."):
+        d.add_paragraph(line, style="List Bullet")
+    d.add_heading("Итог", 1)
+    t = d.add_table(rows=4, cols=3)
+    t.style = "Light Grid Accent 1"
+    for r, row in enumerate((("Место", "Среднее время", "Норма"), ("Школа", "11 минут", "до 10"), ("Поликлиника", "19 минут", "до 15"), ("Парк", "8 минут", "до 10"))):
+        for c, v in enumerate(row):
+            t.cell(r, c).text = v
+    p = d.add_paragraph("Условные данные для примера.")
+    p.runs[0].font.size = DPt(9)
+    d.save(path)
+
+
+def photo(path, palette=SUNSET, w=1920, h=1080):
+    """Горы: несколько слоёв силуэтов над небом с переходом цвета."""
     y = np.linspace(0, 1, h)[:, None]
-    top = np.array([28, 42, 78]) / 255
-    mid = np.array([196, 110, 92]) / 255
-    low = np.array([246, 196, 120]) / 255
+    top, mid, low = (np.array(c) / 255 for c in palette[:3])
     t = np.clip(y / 0.62, 0, 1)
     sky = np.where(t < 0.6, top + (mid - top) * (t / 0.6), mid + (low - mid) * ((t - 0.6) / 0.4))
     img = np.broadcast_to(sky[:, None, :], (h, w, 3)).copy()
@@ -152,8 +174,8 @@ def photo(path, w=1920, h=1080):
     img = np.clip(img, 0, 1)
     pil = Image.fromarray((img * 255).astype(np.uint8))
     draw = ImageDraw.Draw(pil)
-    rng = np.random.default_rng(7)
-    layers = [(0.55, (118, 84, 104), 90), (0.66, (84, 60, 86), 70), (0.76, (52, 40, 64), 55), (0.88, (26, 22, 38), 40)]
+    rng = np.random.default_rng(palette[4])
+    layers = list(zip((0.55, 0.66, 0.76, 0.88), palette[3], (90, 70, 55, 40)))
     for base, color, amp in layers:
         pts = []
         phase = rng.uniform(0, 6.28, 4)
@@ -194,7 +216,16 @@ def main():
         for i, f in enumerate(pages):
             shutil.copy(os.path.join(tmp, f), os.path.join(OUT, f"lecture-{i}.jpg"))
         print("страниц:", len(pages))
+        # Документ для перевода на компьютере: одна страница отчёта.
+        docx = os.path.join(tmp, "report.docx")
+        report(docx)
+        subprocess.run([soffice, "--headless", f"-env:UserInstallation=file://{tmp}/profile", "--convert-to", "pdf", "--outdir", tmp, docx],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=86", "-scale-to-x", "1240", "-scale-to-y", "-1", "-f", "1", "-l", "1",
+                        os.path.join(tmp, "report.pdf"), os.path.join(tmp, "r")], check=True)
+        shutil.copy(os.path.join(tmp, sorted(f for f in os.listdir(tmp) if f.startswith("r-"))[0]), os.path.join(OUT, "report-0.jpg"))
     photo(os.path.join(OUT, "mountains.jpg"))
+    photo(os.path.join(OUT, "morning.jpg"), MORNING)
     video(os.path.join(OUT, "clip.mp4"), os.path.abspath(FONT))
     for f in sorted(os.listdir(OUT)):
         print(f, os.path.getsize(os.path.join(OUT, f)))

@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deixis</title>
+<style>
+/* Копия экрана приложения Deixis для телефона (android/phone/.../PhoneUi.kt) для симулятора.
+   Цвета и размеры — палитра Light/Dark и размеры из PhoneUi.kt. */
+@font-face { font-family: "Deixis Mark"; src: url("assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Deixis Slide"; src: url("assets/NotoSans-SemiBold.ttf") format("truetype"); font-display: swap; }
+:root {
+  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #87847E; --l3: #C6C3BC; --tint: #9C7242; --tint-text: #765A38;
+  --red: #A75750; --fill: rgba(120,115,106,.12); --white: #FFFFFF; --black: #000000; --scrim: rgba(0,0,0,.4);
+  --toast: rgba(40,40,40,.92); --toast-ink: #FFFFFF; --notify: #2C2B29;
+  --r-card: 12px; --r-btn: 14px; --r-seg: 9px; --r-seg-in: 7px; --r-pill: 999px; --r-dialog: 14px;
+  --f-mark: "Deixis Mark", "Didot", Georgia, serif;
+  --f-ui: system-ui, -apple-system, Roboto, "Segoe UI", "Noto Sans", sans-serif;
+  --t-fast: 140ms; --e-out: cubic-bezier(.2,.8,.2,1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #8D8D93; --l3: #48484A; --tint: #BC9361; --tint-text: #BC9361;
+  --red: #B96E65; --fill: rgba(118,118,128,.24); --toast: rgba(70,70,74,.95); --notify: #2C2C2E; color-scheme: dark } }
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; } }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--f-ui); }
+body { display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+header { display: flex; align-items: center; padding: 12px 16px; gap: 10px; flex: none; }
+.mark { font-family: var(--f-mark); font-size: 22px; letter-spacing: .18em; }
+#status { margin-left: auto; font-size: 13px; color: var(--l2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+main { flex: 1; overflow-y: auto; padding-bottom: 24px; }
+.section { font-size: 13px; color: var(--l2); letter-spacing: .02em; text-transform: uppercase; padding: 20px 32px 8px; }
+.chips { display: flex; gap: 8px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; min-height: 44px; padding: 0 16px; border-radius: var(--r-pill); background: var(--cell); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.chip.sel { background: var(--tint); color: var(--white); }
+.chip.live { box-shadow: inset 0 0 0 2px var(--red); }
+.hint { font-size: 14px; color: var(--l2); padding: 8px 20px; line-height: 1.35; }
+.now { margin: 0 16px; aspect-ratio: 16 / 9; border-radius: var(--r-card); background: var(--black); border: 2px solid var(--l3);
+       display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; color: var(--white);
+       font-size: 17px; font-weight: 600; white-space: pre-line; overflow: hidden; line-height: 1.3; }
+.now.live { border-color: var(--red); }
+.now.logo { font-family: var(--f-mark); font-weight: 400; letter-spacing: .18em; }
+.tiles { display: flex; gap: 10px; padding: 0 16px; }
+.tiles + .tiles { margin-top: 10px; }
+.tile { flex: 1 1 0; min-width: 0; height: 72px; border-radius: var(--r-card); background: var(--cell); padding: 12px; display: flex; align-items: flex-end;
+        font-size: 15px; font-weight: 600; text-align: left; transition: transform var(--t-fast) var(--e-out); }
+.tile:active, .bar button:active, .chip:active { transform: scale(.97); }
+.tile.spacer { visibility: hidden; }
+.bar { flex: none; background: var(--cell); padding: 8px 12px; display: grid; gap: 6px; }
+.bar .row { display: flex; gap: 6px; }
+.bar button { flex: 1 1 0; height: 50px; border-radius: var(--r-btn); background: var(--fill); font-size: 14px; font-weight: 600; transition: transform var(--t-fast) var(--e-out); }
+.bar button.pressed { background: var(--ink); color: var(--bg); }
+.bar button:disabled { color: var(--l3); cursor: default; }
+
+/* Диалоги как Compose Dialog: карточка по центру на затемнении. */
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.dialog { background: var(--bg); border-radius: var(--r-dialog); padding: 16px; width: 340px; max-width: 100%; max-height: calc(100% - 32px); overflow-y: auto; }
+.dialog h2 { margin: 0; font-size: 20px; font-weight: 700; }
+.dialog .note { font-size: 13px; color: var(--l2); margin: 6px 0 0; line-height: 1.35; }
+.dialog .gap { height: 12px; }
+.field { width: 100%; border: 0; border-radius: var(--r-card); background: var(--cell); padding: 14px; font: 17px var(--f-ui); color: var(--ink); }
+.field::placeholder { color: var(--l3); }
+textarea.field { min-height: 140px; resize: none; }
+.btns { display: flex; gap: 10px; margin-top: 12px; }
+.btn { flex: 1 1 0; height: 50px; border-radius: var(--r-btn); background: var(--fill); font-size: 17px; font-weight: 600; }
+.btn.primary { background: var(--tint); color: var(--white); }
+.btn.danger { background: var(--red); color: var(--white); }
+.btn:disabled { background: var(--fill); color: var(--l3); cursor: default; }
+.opt { font-size: 13px; color: var(--l2); margin: 12px 0 6px; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-seg); background: var(--fill); }
+.seg button { flex: 1 1 0; min-height: 36px; border-radius: var(--r-seg-in); font-size: 14px; }
+.seg button.sel { background: var(--cell); font-weight: 600; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; }
+.small { min-height: 34px; padding: 0 12px; font-size: 14px; }
+.qr { width: 240px; height: 240px; margin: 12px auto; background: var(--white); border-radius: var(--r-card); padding: 20px; display: block; }
+.center { text-align: center; }
+.mono { font-size: 13px; word-break: break-all; }
+
+/* Выбор файла Android: список недавних файлов снизу. */
+.picker { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; z-index: 20; }
+.picker .sheet { background: var(--bg); width: 100%; border-radius: 16px 16px 0 0; padding: 10px 0 16px; max-height: 80%; overflow-y: auto; }
+.picker h3 { margin: 4px 20px 8px; font-size: 17px; }
+.file { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 20px; text-align: left; }
+.file:hover { background: var(--fill); }
+.thumb { width: 48px; height: 48px; border-radius: 8px; background: var(--cell) center / cover no-repeat; flex: none; display: flex; align-items: center; justify-content: center;
+         font-size: 11px; font-weight: 700; color: var(--l2); }
+.file .name { font-size: 15px; font-weight: 600; }
+.file .meta { font-size: 13px; color: var(--l2); }
+
+/* Holyrics */
+.hrow { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--fill); }
+.hrow .t { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hscroll { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+.swatch { width: 34px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; }
+
+/* Тост Android */
+#toast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); max-width: calc(100% - 48px); background: var(--toast); color: var(--toast-ink);
+         padding: 10px 16px; border-radius: 22px; font-size: 14px; line-height: 1.35; text-align: center; opacity: 0; pointer-events: none;
+         transition: opacity var(--t-fast) var(--e-out); z-index: 40; }
+#toast.on { opacity: 1; }
+
+/* Демонстрация экрана: системная плашка и плеер телефона */
+#notify { flex: none; position: relative; z-index: 18; display: none; align-items: center; gap: 8px; background: var(--notify); color: var(--white); font-size: 13px; padding: 8px 12px; }
+#notify.on { display: flex; }
+#notify .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+#notify button { margin-left: auto; color: var(--white); font-weight: 700; font-size: 13px; }
+#player { position: fixed; inset: 0; background: var(--black); z-index: 15; display: none; flex-direction: column; }
+#player.on { display: flex; }
+#player video { flex: 1; width: 100%; min-height: 0; object-fit: contain; }
+#player .ptitle { color: var(--white); font-size: 14px; padding: 12px 16px; }
+#player .pclose { color: var(--white); font-size: 15px; font-weight: 600; padding: 14px; }
+#syscap { position: fixed; inset: 0; background: var(--scrim); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 30; }
+#syscap.on { display: flex; }
+
+/* Режим экрана на самом телефоне (ScreenActivity) */
+#screenMode { position: fixed; inset: 0; background: var(--black); color: var(--white); z-index: 25; display: none; flex-direction: column; align-items: center; justify-content: center;
+              text-align: center; padding: 24px; gap: 14px; }
+#screenMode.on { display: flex; }
+#screenMode .big { font-family: var(--f-mark); font-size: 40px; letter-spacing: .18em; }
+#screenMode .pin { font-family: "Deixis Slide", var(--f-ui); font-size: 34px; letter-spacing: .3em; }
+#screenMode .dim { color: rgba(255,255,255,.6); font-size: 13px; }
+#screenMode .qrs { width: 120px; height: 120px; background: var(--white); padding: 8px; border-radius: 4px; }
+#screenMode .back { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,.75); font-size: 14px;
+                    border: 1px solid rgba(255,255,255,.3); border-radius: var(--r-pill); padding: 8px 16px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="notify"><span class="dot"></span><span>Экран транслируется</span><button id="stopShare">Остановить</button></div>
+<header><span class="mark">ΔΕΙΞΙΣ</span><span id="status"></span></header>
+<main id="main"></main>
+<div class="bar" id="bar"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="player"><div class="ptitle" id="ptitle"></div><video id="pvideo" playsinline muted loop></video><button class="pclose" id="pclose">Закрыть проигрыватель</button></div>
+<div id="syscap"><div class="dialog"><h2>Начать запись или трансляцию через Deixis?</h2>
+  <p class="note">Deixis получит доступ ко всему, что видно на экране телефона, пока идёт трансляция.</p>
+  <div class="btns"><button class="btn" id="capNo">Отмена</button><button class="btn primary" id="capYes">Начать</button></div></div></div>
+<div id="screenMode"></div>
+<input type="file" id="pickDevice" class="hidden">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+// ——— Связь с симулятором: демо-экраны живут в окне витрины (hub.js) ———
+function findHub() {
+  let w = window;
+  for (let i = 0; i < 4; i++) {
+    try { if (w.DeixisDemo) return w.DeixisDemo; } catch (e) { return null; }
+    if (w.parent === w) return null;
+    w = w.parent;
+  }
+  return null;
+}
+const hub = findHub();
+const sim = (() => { try { return parent.DeixisSim || null; } catch (e) { return null; } })();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ——— Состояние, как в Controller.kt ———
+const S = {
+  targets: [], active: null, connection: "none", item: null, rx: null, rxState: null, progress: null,
+  caps: false, church: true, sharing: false, dialog: null, needPin: null, picker: null,
+  bible: { selected: ["RST.SQLite3"], ref: "", options: { versesPerSlide: 1, refMode: "ONE_LINE", refPosition: "BOTTOM", fullBookName: false, verseNumbers: true, sideBySide: false } },
+  holy: { status: "off", tab: "PLAYLIST", query: "", theme: null, remote: false, live: null, host: "192.168.1.10", port: "8091", token: "demo-token" },
+  screenMode: false,
+};
+let unsub = null;
+
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.classList.add("on");
+  clearTimeout(toast.t);
+  // Toast.LENGTH_LONG для длинных сообщений, как в MainActivity.
+  toast.t = setTimeout(() => el.classList.remove("on"), text.length > 80 ? 3500 : 2000);
+}
+
+// Поиск экранов в сети: через секунду появляются демо-экраны.
+function discover() {
+  setTimeout(() => {
+    S.targets = Object.values(hub.receivers).filter((r) => r.key !== "demo" && r.key !== "phone").map((r) => ({ id: r.key, name: r.info.name, kind: "DEIXIS" }));
+    render();
+  }, 1100);
+}
+
+function select(t) {
+  if (S.active && S.active.id === t.id && S.connection === "connected") return;
+  if (unsub) unsub();
+  S.active = t;
+  S.rx = hub.receivers[t.id];
+  S.connection = "connecting";
+  S.item = null;
+  render();
+  setTimeout(() => {
+    if (S.active !== t) return;
+    if (!S.rx.paired) { S.connection = "denied"; S.needPin = t; render(); return; }
+    connected();
+  }, 500);
+}
+function connected() {
+  S.connection = "connected";
+  S.rxState = S.rx.state;
+  unsub = S.rx.onChange((st) => { S.rxState = st; render(); });
+  if (sim) sim.focus(S.rx.key);
+  render();
+}
+function pair(pin) {
+  if (!S.rx.pair(pin)) { toast("Неверный PIN"); return false; }
+  S.needPin = null;
+  connected();
+  return true;
+}
+function addManual(addr) {
+  const a = addr.trim().replace(/^deixis:\/\//, "").split("?")[0];
+  const r = Object.values(hub.receivers).find((x) => x.address && (x.address === a || x.address.split(":")[0] === a));
+  if (!r) return toast(`Нет связи с «${a}»`);
+  if (!S.targets.some((t) => t.id === r.key)) S.targets.push({ id: r.key, name: r.info.name, kind: "DEIXIS" });
+  select(S.targets.find((t) => t.id === r.key));
+}
+
+function statusText() {
+  const t = S.active;
+  if (!t) return "Экран не выбран";
+  return { connected: t.name, connecting: "Подключение…", lost: "Нет связи, переподключение…", denied: "Нужен PIN" }[S.connection] || t.name;
+}
+
+// ——— Показ: как Controller.show ———
+function contentOf(it) {
+  const caps = (st) => (S.caps ? Object.assign({}, st || {}, { caps: true }) : st || {});
+  if (it.kind === "text") return { type: "text", text: it.slides[it.index], style: caps(it.style) };
+  if (it.kind === "scripture") { const sc = it.slides[it.index]; return Object.assign({}, sc, { type: "scripture", style: caps(sc.style) }); }
+  if (it.kind === "pdf") return { type: "pdf", file: it.ref, page: it.index };
+  if (it.kind === "image") return { type: "image", file: it.ref };
+  if (it.kind === "video") return { type: "video", file: it.ref };
+  return null;
+}
+function show(it) {
+  if (S.connection !== "connected") { toast("Нет связи с экраном"); return; }
+  S.item = it;
+  S.rx.show(contentOf(it));
+  render();
+}
+function step(d) {
+  const it = S.item;
+  if (!it || !["text", "pdf", "scripture"].includes(it.kind)) return;
+  const n = it.kind === "pdf" ? it.pages : it.slides.length;
+  const i = Math.max(0, Math.min(n - 1, it.index + d));
+  if (i !== it.index) show(Object.assign({}, it, { index: i }));
+}
+function mode(m) { if (S.connection === "connected") S.rx.mode(S.rxState && S.rxState.mode === m ? "NORMAL" : m); }
+function video(action, delta) {
+  if (S.connection !== "connected" || !S.rxState || !S.rxState.video) return;
+  const v = S.rxState.video;
+  if (action === "SEEK") S.rx.video("SEEK", v.positionMs + delta);
+  else if (action === "LOOP") { S.rx.video("LOOP", null, !v.loop); toast(v.loop ? "Повтор выключен" : "Повтор включён"); }
+  else S.rx.video(action);
+}
+function splitIntoSlides(text) {
+  const out = [];
+  for (const block of text.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i += 4) out.push(lines.slice(i, i + 4).join("\n"));
+  }
+  return out;
+}
+function showText(text, title, style) {
+  const slides = splitIntoSlides(text);
+  if (slides.length) show({ kind: "text", slides, index: 0, title: title || "Текст", style: style || null });
+}
+
+// Передача файла: проценты, как в Controller.upload.
+function send(name, size, done) {
+  let p = 0;
+  S.progress = `«${name}»: подготовка`;
+  render();
+  const speed = 18; // МБ/с по Wi-Fi
+  const steps = Math.max(3, Math.min(20, Math.round(size / (speed * 1048576) * 4)));
+  const t = setInterval(() => {
+    p = Math.min(100, p + Math.ceil(100 / steps));
+    S.progress = `«${name}»: ${p}%`;
+    render();
+    if (p >= 100) { clearInterval(t); S.progress = null; done(); }
+  }, 250);
+}
+
+// Файлы телефона в выборе файла: примеры и свой файл с этого устройства.
+const GB = 1024 * 1024 * 1024, MB = 1024 * 1024;
+const FILES = {
+  image: [
+    { name: "Горы на закате.jpg", size: 2.4 * MB, ref: () => hub.PHOTO, thumb: "media/mountains.jpg", date: "Сегодня" },
+    { name: "Утро в горах.jpg", size: 1.9 * MB, ref: () => hub.MORNING, thumb: "media/morning.jpg", date: "Вчера" },
+  ],
+  video: [
+    { name: "Демо-видео.mp4", size: 14 * MB, ref: () => hub.VIDEO, label: "MP4", date: "Сегодня" },
+    { name: "Запись концерта.mp4", size: 2.4 * GB, big: true, label: "MP4", date: "12 окт." },
+  ],
+  file: [
+    { name: "Лекция 3. Город 15 минут.pptx", size: 4.1 * MB, kind: "PRESENTATION", label: "PPTX", date: "Сегодня", ref: () => hub.LECTURE, pages: 5 },
+    { name: "Город пятнадцати минут.pdf", size: 1.2 * MB, kind: "PDF", label: "PDF", date: "Сегодня", ref: () => hub.LECTURE, pages: 5 },
+    { name: "Отчёт по практике.docx", size: 0.3 * MB, kind: "DOCUMENT", label: "DOCX", date: "Вчера", ref: () => hub.REPORT, pages: 1 },
+    { name: "Объявления.txt", size: 0.01 * MB, kind: "TEXT", label: "TXT", date: "Вчера",
+      text: "Семинар переносится\nна четверг, 15:00\n\nАудитория 214\nВзять ноутбуки" },
+  ],
+};
+const sizeText = (b) => b >= GB ? (b / GB).toFixed(1).replace(".", ",") + " ГБ" : b >= MB ? Math.round(b / MB) + " МБ" : Math.max(1, Math.round(b / 1024)) + " КБ";
+
+function openFile(f) {
+  S.picker = null;
+  if (!S.active || S.connection !== "connected") { render(); return toast("Сначала выберите экран"); }
+  // Большие файлы не гоняются по Wi-Fi: долго, а место на приёмнике не бесконечно.
+  if (f.big) { S.dialog = { type: "large", file: f }; return render(); }
+  const info = S.rx.info;
+  if (f.kind === "PRESENTATION" || f.kind === "DOCUMENT") {
+    if (!info.convert) { render(); return toast("Этот экран не переводит презентации: сохраните файл как PDF или выберите компьютер"); }
+    if (f.kind === "DOCUMENT" && !info.documents) { render(); return toast("Документы переводит компьютер с Microsoft Office или LibreOffice: сохраните файл как PDF"); }
+    return send(f.name, f.size, () => {
+      S.progress = `«${f.name}»: перевод в PDF…`;
+      render();
+      const title = f.name.replace(/\.[^.]+$/, "") + ".pdf";
+      setTimeout(() => { S.progress = null; show({ kind: "pdf", ref: Object.assign({}, f.ref(), { name: title }), pages: f.pages, index: 0, title }); }, 1600);
+    });
+  }
+  if (f.kind === "TEXT") return showText(f.text, f.name);
+  if (f.kind === "PDF") return send(f.name, f.size, () => show({ kind: "pdf", ref: f.ref(), pages: f.pages, index: 0, title: f.name }));
+  const ref = f.ref();
+  const kind = ref.mime.startsWith("video/") ? "video" : "image";
+  send(f.name, f.size, () => show({ kind, ref, title: f.name }));
+}
+
+// Свой файл с этого устройства: остаётся в браузере (hub.finishUpload).
+$("pickDevice").onchange = async (e) => {
+  const file = e.target.files[0]; e.target.value = "";
+  if (!file) return;
+  if (!S.active || S.connection !== "connected") return toast("Сначала выберите экран");
+  if (file.size > GB) { S.dialog = { type: "large", file: { name: file.name, size: file.size, own: file } }; return render(); }
+  const n = file.name.toLowerCase();
+  if (/\.(pptx?|odp|key|docx?|odt|rtf|xlsx?|ods)$/.test(n)) return toast("В симуляторе свои презентации и документы не переводятся: на ноутбуке это делает Deixis для компьютера");
+  if (/\.txt$/.test(n) || file.type.startsWith("text/")) return showText(await file.text(), file.name);
+  if (!/^(image|video|audio)\//.test(file.type) && !n.endsWith(".pdf")) return toast(`Формат «${file.name}» не поддерживается`);
+  send(file.name, file.size, async () => {
+    S.progress = `«${file.name}»: подготовка`; render();
+    try {
+      const ref = await hub.finishUpload({ name: file.name, chunks: [file] });
+      S.progress = null;
+      const f = hub.files[ref.sha256];
+      if (ref.mime === "application/pdf") {
+        if (!f.pages) return toast("PDF не открылся: библиотека PDF.js не загрузилась");
+        show({ kind: "pdf", ref, pages: f.pages.length, index: 0, title: file.name });
+      } else show({ kind: ref.mime.startsWith("image/") ? "image" : "video", ref, title: file.name });
+    } catch (err) { S.progress = null; toast("Не удалось открыть файл"); }
+  });
+};
+
+// ——— Демонстрация экрана ———
+function startShare(afterFile) {
+  if (S.connection !== "connected") return toast("Сначала выберите экран");
+  S.pendingPlayer = afterFile || null;
+  $("syscap").classList.add("on");
+}
+$("capNo").onclick = () => { $("syscap").classList.remove("on"); S.pendingPlayer = null; };
+$("capYes").onclick = () => {
+  $("syscap").classList.remove("on");
+  S.sharing = true;
+  S.item = { kind: "screen", title: "Экран телефона" };
+  if (sim) sim.share(S.rx.key, true);
+  // Большой файл открывается в проигрывателе телефона, а в зал идёт экран.
+  if (S.pendingPlayer) openPlayer(S.pendingPlayer);
+  S.pendingPlayer = null;
+  render();
+};
+function stopShare() {
+  S.sharing = false;
+  if (S.item && S.item.kind === "screen") S.item = null;
+  if (sim && S.rx) sim.share(S.rx.key, false);
+  closePlayer();
+  render();
+}
+$("stopShare").onclick = stopShare;
+function openPlayer(f) {
+  const v = $("pvideo");
+  $("ptitle").textContent = f.name;
+  v.src = f.own ? URL.createObjectURL(f.own) : "media/clip.mp4";
+  v.play().catch(() => {});
+  $("player").classList.add("on");
+  mirrorSoon();
+}
+function closePlayer() { const v = $("pvideo"); v.pause(); $("player").classList.remove("on"); mirrorSoon(); }
+$("pclose").onclick = closePlayer;
+
+// ——— Holyrics: библиотека на компьютере рядом (примерные песни, тексты и темы) ———
+const HOLY = {
+  version: "2.25.0",
+  songs: [
+    { id: "s1", title: "Коль славен наш Господь в Сионе", slides: ["Коль славен наш Господь в Сионе,\nНе может изъяснить язык.\nВелик Он в небесах на троне,\nВ былинках на земле велик.", "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен."] },
+    { id: "s2", title: "Amazing Grace", slides: ["Amazing grace! How sweet the sound\nThat saved a wretch like me!", "I once was lost, but now am found;\nWas blind, but now I see."] },
+  ],
+  texts: [
+    { id: "t1", title: "Объявления воскресенья", slides: ["Чай после служения\nв малом зале", "Молодёжная встреча\nв пятницу, 19:00"] },
+    { id: "t2", title: "Благодарность", slides: ["Спасибо всем,\nкто помогал с ремонтом"] },
+  ],
+  images: [{ id: "i1", title: "Горы на закате.jpg", ref: () => hub.PHOTO }, { id: "i2", title: "Утро в горах.jpg", ref: () => hub.MORNING }],
+  videos: [{ id: "v1", title: "Демо-видео.mp4", ref: () => hub.VIDEO }],
+  themes: [
+    { id: "th1", name: "Тёмная классика", style: { background: 0xFF101418, color: 0xFFFFFFFF, shadow: true, name: "Тёмная классика" } },
+    { id: "th2", name: "Горы", style: { background: 0xFF000000, color: 0xFFFFFFFF, shadow: true, box: 0x66000000, name: "Горы", backgroundImage: null }, bg: true },
+    { id: "th3", name: "Светлая", style: { background: 0xFFF3EFE6, color: 0xFF1B232E, shadow: false, align: "LEFT", name: "Светлая" } },
+  ],
+};
+HOLY.playlist = [HOLY.songs[0], HOLY.texts[0], HOLY.songs[1]];
+function holyTheme(defaultId) {
+  const th = HOLY.themes.find((x) => x.id === (S.holy.theme || defaultId)) || HOLY.themes[0];
+  const st = Object.assign({}, th.style);
+  if (th.bg) st.backgroundImage = hub.MORNING;
+  return st;
+}
+function holyToDeixis(x, kind) {
+  if (S.connection !== "connected") return toast("Сначала выберите экран");
+  if (kind === "image" || kind === "video") {
+    if (!S.rx.info.holyrics) return toast("Показано в Holyrics. На экран Deixis фото и видео Holyrics попадают через Deixis для компьютера рядом с Holyrics");
+    S.progress = `«${x.title}»: из Holyrics`; render();
+    return setTimeout(() => { S.progress = null; show({ kind, ref: x.ref(), title: x.title }); }, 600);
+  }
+  S.dialog = null;
+  show({ kind: "text", slides: x.slides, index: 0, title: x.title, style: holyTheme(x.id.startsWith("s") ? "th2" : "th1") });
+}
+function holyToHolyrics(x) { S.holy.live = { title: x.title, slides: x.slides || [x.title], index: 0 }; toast(`«${x.title}» показано в Holyrics`); render(); }
+
+// ——— Отрисовка ———
+function seg(name, values, sel) {
+  return `<div class="seg" data-seg="${name}">${values.map(([v, l]) => `<button data-v="${v}" class="${String(v) === String(sel) ? "sel" : ""}">${esc(l)}</button>`).join("")}</div>`;
+}
+function nowText() {
+  const it = S.item, m = S.rxState && S.rxState.mode, v = S.rxState && S.rxState.video;
+  if (m === "BLACK") return "Чёрный экран";
+  if (m === "LOGO") return "ΔΕΙΞΙΣ";
+  if (!it) return "Ничего не показано";
+  if (it.kind === "text") return it.slides[it.index];
+  if (it.kind === "scripture") { const s = it.slides[it.index]; return s.blocks[0].text.slice(0, 160) + "\n" + (s.ref || s.blocks[0].ref || "") + ` · ${it.index + 1}/${it.slides.length}`; }
+  if (it.kind === "pdf") return `${it.title}\nстраница ${it.index + 1} из ${it.pages}`;
+  if (it.kind === "video") return it.title + (v ? `\n${Math.floor(v.positionMs / 1000)} / ${Math.floor(v.durationMs / 1000)} с${v.playing ? "" : " · пауза"}` : "");
+  return it.title;
+}
+function render() {
+  $("status").textContent = statusText();
+  $("notify").classList.toggle("on", S.sharing);
+  const live = S.connection === "connected";
+  const holyLive = S.holy.remote && S.holy.status === "on";
+  let h = `<div class="section">Экраны</div><div class="chips">`;
+  for (const t of S.targets) h += `<button class="chip ${S.active && S.active.id === t.id ? "sel" : ""} ${S.active && S.active.id === t.id && live ? "live" : ""}" data-target="${t.id}">${esc(t.name)}</button>`;
+  h += `<button class="chip" data-act="address">+ Адрес</button></div>`;
+  if (!S.targets.length) h += `<div class="hint">Ищем экраны Deixis в этой сети Wi-Fi. Можно ввести адрес с экрана приёмника или подключить кабель HDMI.</div>`;
+  if (live) h += `<div class="chips" style="margin-top:12px"><button class="chip" data-act="viewers">Зрители · ${S.rxState ? S.rxState.viewers : 0}</button></div>`;
+  h += `<div class="section">Сейчас</div>`;
+  if (holyLive) {
+    const l = S.holy.live;
+    h += `<div class="now live">${l ? esc(l.slides[l.index]) + "\n" + esc(l.title) : "В Holyrics ничего не показано"}</div>`;
+  } else {
+    const m = S.rxState && S.rxState.mode;
+    h += `<div class="now ${S.item ? "live" : ""} ${m === "LOGO" ? "logo" : ""}">${esc(nowText())}</div>`;
+  }
+  if (S.progress) h += `<div class="hint">${esc(S.progress)}</div>`;
+  h += `<div class="section">Показать</div><div class="tiles">
+    <button class="tile" data-pick="image">Фото</button><button class="tile" data-pick="video">Видео</button>
+    <button class="tile" data-pick="file">Файл</button><button class="tile" data-act="text">Текст</button></div>`;
+  const more = [[S.sharing ? "Стоп экран" : "Экран", "share"]];
+  if (S.church) more.push(["Библия", "bible"], ["Holyrics", "holyrics"]);
+  more.push(["Стать экраном", "screen"], ["Настройки", "settings"]);
+  h += `<div class="section">Ещё</div>`;
+  for (let i = 0; i < more.length; i += 4) {
+    const row = more.slice(i, i + 4);
+    h += `<div class="tiles">${row.map(([l, a]) => `<button class="tile" data-act="${a}">${l}</button>`).join("")}${"<span class=\"tile spacer\"></span>".repeat(4 - row.length)}</div>`;
+  }
+  $("main").innerHTML = h;
+
+  // Нижняя полоса: как ControlBar и HolyricsBar.
+  const it = S.item, m = S.rxState && S.rxState.mode, v = S.rxState && S.rxState.video;
+  let b;
+  if (holyLive) b = `<div class="row"><button data-bar="hprev">Назад</button><button data-bar="hnext">Дальше</button></div><div class="row"><button data-bar="hexit">Выйти из пульта Holyrics</button></div>`;
+  else {
+    const pageable = it && ["text", "pdf", "scripture"].includes(it.kind);
+    b = it && it.kind === "video"
+      ? `<div class="row"><button data-bar="back10">−10 с</button><button data-bar="toggle">${v && v.playing ? "Пауза" : "Пуск"}</button><button data-bar="fwd10">+10 с</button><button data-bar="loop" class="${v && v.loop ? "pressed" : ""}">Повтор</button></div>`
+      : `<div class="row"><button data-bar="prev" ${pageable ? "" : "disabled"}>Назад</button><button data-bar="next" ${pageable ? "" : "disabled"}>Дальше</button></div>`;
+    b += `<div class="row"><button data-bar="BLACK" class="${m === "BLACK" ? "pressed" : ""}">Чёрный</button><button data-bar="LOGO" class="${m === "LOGO" ? "pressed" : ""}">Логотип</button><button data-bar="CLEAR" class="${m === "CLEAR" ? "pressed" : ""}">Очистить</button></div>`;
+  }
+  $("bar").innerHTML = b;
+  renderOverlay();
+  renderScreenMode();
+  mirrorSoon();
+}
+
+function renderOverlay() {
+  let ov = $("overlay");
+  if (!ov) { ov = document.createElement("div"); ov.id = "overlay"; document.body.appendChild(ov); }
+  const d = S.dialog;
+  let h = "";
+  if (S.needPin) h = dialogInput(`PIN с экрана «${esc(S.needPin.name)}»`, "0000", "pin", false, "numeric");
+  else if (S.picker) h = picker(S.picker);
+  else if (d === "address") h = dialogInput("Адрес приёмника", "192.168.1.20", "address", false, "url");
+  else if (d === "text") h = dialogInput("Текст", "Пустая строка начинает новый слайд", "text", true, "text");
+  else if (d === "settings") h = settings();
+  else if (d === "bible") h = bible();
+  else if (d === "holyrics") h = holyrics();
+  else if (d === "viewers") h = viewers();
+  else if (d && d.type === "large") h = large(d.file);
+  ov.innerHTML = h;
+  const input = ov.querySelector("[data-input]");
+  if (input && !ov.dataset.focused) { input.focus(); ov.dataset.focused = "1"; }
+  if (!h) delete ov.dataset.focused;
+  if (S.dialog === "bible") {
+    const r = ov.querySelector("#bref");
+    if (r) r.oninput = () => { S.bible.ref = r.value; const go = ov.querySelector("#bgo"); go.disabled = !(S.bible.selected.length && r.value.trim()); go.classList.toggle("primary", !go.disabled); };
+  }
+  if (S.dialog === "holyrics") {
+    const q = ov.querySelector("#hq");
+    if (q) q.oninput = () => { S.holy.query = q.value; const pos = q.selectionStart; renderOverlay(); const n = $("hq"); n.focus(); n.setSelectionRange(pos, pos); };
+  }
+}
+function dialogInput(title, placeholder, id, multi, mode) {
+  const f = multi ? `<textarea class="field" data-input id="in-${id}" placeholder="${esc(placeholder)}"></textarea>`
+    : `<input class="field" data-input id="in-${id}" placeholder="${esc(placeholder)}" inputmode="${mode}" autocomplete="off">`;
+  return `<div class="scrim" data-close="1"><div class="dialog"><h2>${title}</h2><div class="gap"></div>${f}
+    <div class="btns"><button class="btn" data-close="1">Отмена</button><button class="btn primary" data-done="${id}">Готово</button></div></div></div>`;
+}
+function picker(kind) {
+  const list = FILES[kind];
+  const title = { image: "Фото", video: "Видео", file: "Файлы" }[kind];
+  return `<div class="picker" data-close="1"><div class="sheet"><h3>Недавние · ${title}</h3>
+    ${list.map((f, i) => `<button class="file" data-file="${kind}:${i}"><span class="thumb" style="${f.thumb ? `background-image:url('${f.thumb}')` : ""}">${f.thumb ? "" : f.label}</span>
+      <span><div class="name">${esc(f.name)}</div><div class="meta">${sizeText(f.size)} · ${f.date}</div></span></button>`).join("")}
+    <button class="file" data-act="device"><span class="thumb">+</span><span><div class="name">Файл с этого устройства</div><div class="meta">остаётся в браузере, никуда не отправляется</div></span></button>
+  </div></div>`;
+}
+function settings() {
+  return `<div class="scrim" data-close="1"><div class="dialog"><h2>Настройки</h2>
+    <div class="opt">Текст на экране</div>${seg("caps", [[0, "Обычный"], [1, "ЗАГЛАВНЫЕ"]], S.caps ? 1 : 0)}
+    <p class="note">Размер текста подбирается сам: самый крупный, который помещается в поля экрана.</p>
+    <div class="opt">Церковный режим</div>${seg("church", [[1, "Включён"], [0, "Выключен"]], S.church ? 1 : 0)}
+    <p class="note">Разделы «Библия» (модули MyBible) и «Holyrics».</p>
+    <div class="btns"><button class="btn" data-close="1">Готово</button></div></div></div>`;
+}
+function bible() {
+  const b = S.bible, o = b.options;
+  const mods = hub.bibleModules();
+  const ready = b.selected.length && b.ref.trim();
+  return `<div class="scrim" data-close="1"><div class="dialog"><h2>Библия</h2>
+    <p class="note">Модули MyBible (.SQLite3). Первый выбранный — основной, второй — параллельный.</p><div class="gap"></div>
+    <div class="flow">${mods.map((m) => { const i = b.selected.indexOf(m.file); return `<button class="chip ${i >= 0 ? "sel" : ""}" data-mod="${m.file}">${i >= 0 ? i + 1 + ". " : ""}${m.abbreviation}</button>`; }).join("")}
+      <button class="chip" data-act="addmod">+ Модуль</button></div>
+    <div class="gap"></div><input class="field" id="bref" placeholder="Ин 3:16-18" value="${esc(b.ref)}" autocomplete="off">
+    <p class="note">В симуляторе есть Ин 3:16–17, Пс 22:1–4 и 1 Кор 13:4–7.</p>
+    <div class="opt">Стихов на слайде</div>${seg("versesPerSlide", [[1, "1"], [2, "2"], [3, "3"]], o.versesPerSlide)}
+    ${b.selected.length > 1 ? `<div class="opt">Два перевода</div>${seg("sideBySide", [["false", "Друг под другом"], ["true", "Рядом"]], o.sideBySide)}` : ""}
+    <div class="opt">Адрес</div>${seg("refMode", [["ONE_LINE", "Одной строкой"], ["PER_TRANSLATION", "У каждого"], ["NONE", "Без"]], o.refMode)}
+    ${o.refMode !== "NONE" ? `<div class="opt">Где адрес</div>${seg("refPosition", [["BOTTOM", "Снизу"], ["TOP", "Сверху"]], o.refPosition)}
+      <div class="opt">Название книги</div>${seg("fullBookName", [["false", "Сокращённо"], ["true", "Полностью"]], o.fullBookName)}` : ""}
+    <div class="btns"><button class="btn" data-close="1">Закрыть</button><button class="btn ${ready ? "primary" : ""}" id="bgo" data-act="bgo" ${ready ? "" : "disabled"}>Показать</button></div></div></div>`;
+}
+function holyrics() {
+  const hs = S.holy;
+  const status = { on: `подключён · ${HOLY.version}`, connecting: "подключение…", off: "" }[hs.status];
+  let body;
+  if (hs.status !== "on") {
+    body = `<p class="note">В Holyrics на компьютере: Файл → Настройки → API Server. Включите доступ по локальной сети, создайте токен и дайте ему права. Адрес и порт показаны там же.</p>
+      <div class="gap"></div><input class="field" id="hhost" placeholder="Адрес компьютера или ссылка deixis-holyrics://" value="${esc(hs.host)}">
+      <div class="btns" style="margin-top:8px"><input class="field" id="hport" placeholder="Порт" value="${esc(hs.port)}" style="flex:1"><input class="field" id="htoken" placeholder="Токен" type="password" value="${esc(hs.token)}" style="flex:2"></div>
+      <p class="note">В симуляторе Holyrics — пример: поля уже заполнены.</p>
+      <div class="btns"><button class="btn primary" data-act="hconnect">${hs.status === "connecting" ? "Подключение…" : "Подключить"}</button></div>`;
+  } else {
+    const tabs = [["PLAYLIST", "Плейлист"], ["SONGS", "Песни"], ["TEXTS", "Тексты"], ["IMAGES", "Фото"], ["VIDEOS", "Видео"], ["THEMES", "Темы"]];
+    const q = hs.query.toLowerCase();
+    const match = (x) => !q || x.title.toLowerCase().includes(q);
+    let list = "";
+    if (hs.tab === "THEMES") {
+      const swatch = (st) => `<span class="swatch" style="background:#${(st.background & 0xFFFFFF).toString(16).padStart(6, "0")};color:#${(st.color & 0xFFFFFF).toString(16).padStart(6, "0")}">Аа</span>`;
+      list = `<button class="hrow" style="width:100%" data-theme=""><span class="t">Как в песне или тексте</span>${hs.theme ? "" : "✓"}</button>` +
+        HOLY.themes.map((t) => `<button class="hrow" style="width:100%" data-theme="${t.id}">${swatch(t.style)}<span class="t">${esc(t.name)}${t.bg ? " · фон-фото" : ""}</span>${hs.theme === t.id ? "✓" : ""}</button>`).join("");
+    } else {
+      const src = { PLAYLIST: HOLY.playlist, SONGS: HOLY.songs, TEXTS: HOLY.texts, IMAGES: HOLY.images, VIDEOS: HOLY.videos }[hs.tab].filter(match);
+      const kind = hs.tab === "IMAGES" ? "image" : hs.tab === "VIDEOS" ? "video" : "text";
+      list = src.length ? src.map((x) => `<div class="hrow"><span class="t">${esc(x.title)}</span><button class="chip small" data-h2d="${x.id}:${kind}">На экран</button><button class="chip small" data-h2h="${x.id}">В Holyrics</button></div>`).join("")
+        : `<p class="note">Пусто</p>`;
+    }
+    body = `<div class="gap"></div><div class="chips" style="padding:0">${tabs.map(([k, l]) => `<button class="chip small ${hs.tab === k ? "sel" : ""}" data-htab="${k}">${l}</button>`).join("")}</div>
+      ${hs.tab !== "THEMES" ? `<div class="gap"></div><input class="field" id="hq" placeholder="Поиск" value="${esc(hs.query)}">` : ""}
+      <div class="hscroll">${list}</div>
+      <div class="btns"><button class="btn" data-act="hremote">${hs.remote ? "Пульт: вкл" : "Пульт Holyrics"}</button><button class="btn" data-act="hoff">Отключить</button></div>`;
+  }
+  return `<div class="scrim" data-close="1"><div class="dialog"><div style="display:flex;align-items:baseline;gap:8px"><h2>Holyrics</h2><span class="note" style="margin:0">${status}</span></div>
+    ${body}<div class="btns"><button class="btn" data-close="1">Закрыть</button></div></div></div>`;
+}
+function qrSvg(text) {
+  if (!window.qrcode) return `<svg viewBox="0 0 10 10" class="qr"></svg>`;
+  const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount();
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><path d="${d}" fill="#000"/></svg>`;
+}
+function viewers() {
+  const r = S.rx;
+  const url = `http://${r.address}/view?k=${r.key}`;
+  return `<div class="scrim" data-close="1"><div class="dialog center"><h2>Зрители</h2><div class="qr">${qrSvg(url)}</div>
+    <p class="note">Отсканируйте камерой телефона. Показ откроется в браузере, приложение не нужно. Телефон зрителя должен быть в этой же сети Wi-Fi.</p>
+    <p class="note">Адрес в сети:</p><div class="mono">${esc(url)}</div>
+    <div class="gap"></div><div style="font-weight:600">Смотрят сейчас: ${S.rxState ? S.rxState.viewers : 0}</div>
+    <div class="btns"><button class="btn" data-close="1">Готово</button></div></div></div>`;
+}
+function large(f) {
+  return `<div class="scrim" data-close="1"><div class="dialog"><h2>Файл больше 1 ГБ</h2><div class="gap"></div>
+    <p class="note" style="font-size:15px">«${esc(f.name)}» слишком большой, чтобы передать его на экран. Его можно показать демонстрацией экрана: файл откроется на этом телефоне, а в зале будет видно то же, что на телефоне.</p>
+    <div class="btns"><button class="btn danger" data-act="largeShare">Показать экран</button></div>
+    <div class="btns" style="margin-top:8px"><button class="btn" data-close="1">Отмена</button></div></div></div>`;
+}
+function renderScreenMode() {
+  const el = $("screenMode");
+  el.classList.toggle("on", S.screenMode);
+  if (!S.screenMode) return;
+  const r = hub.receivers.phone;
+  el.innerHTML = `<div class="big">ΔΕΙΞΙΣ</div><div style="opacity:.85">${esc(r.info.name)}</div>
+    <div style="display:flex;align-items:center;gap:16px;margin-top:10px"><div class="qrs">${qrSvg(`http://${r.address}/remote?pin=${r.pin}`)}</div>
+    <div style="text-align:left"><div class="dim">PIN для подключения</div><div class="pin">${r.pin}</div><div class="dim">${r.address}</div></div></div>
+    <div class="dim" style="margin-top:14px;max-width:260px">Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно</div>
+    <button class="back" data-act="screenBack">◁ Назад — выйти из режима экрана</button>`;
+}
+
+// ——— Нажатия ———
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("button, [data-close]");
+  if (!el) return;
+  const ds = el.dataset;
+  if (ds.close && (el.tagName === "BUTTON" || e.target === el)) {
+    if (S.needPin) { S.needPin = null; S.connection = "denied"; }
+    S.dialog = null; S.picker = null; render(); return;
+  }
+  if (ds.target) return select(S.targets.find((t) => t.id === ds.target));
+  if (ds.pick) { S.picker = ds.pick; return render(); }
+  if (ds.file) { const [k, i] = ds.file.split(":"); return openFile(FILES[k][Number(i)]); }
+  if (ds.done) {
+    const v = $("in-" + ds.done).value;
+    if (!v.trim()) return;
+    if (ds.done === "pin") { pair(v); return render(); }
+    S.dialog = null;
+    if (ds.done === "address") addManual(v);
+    if (ds.done === "text") showText(v);
+    return render();
+  }
+  if (ds.bar) {
+    const a = ds.bar;
+    if (a === "prev") step(-1); else if (a === "next") step(1);
+    else if (a === "back10") video("SEEK", -10000); else if (a === "fwd10") video("SEEK", 10000);
+    else if (a === "toggle") video(S.rxState && S.rxState.video && S.rxState.video.playing ? "PAUSE" : "PLAY");
+    else if (a === "loop") video("LOOP");
+    else if (a === "hprev" || a === "hnext") { const l = S.holy.live; if (l) { l.index = Math.max(0, Math.min(l.slides.length - 1, l.index + (a === "hnext" ? 1 : -1))); render(); } }
+    else if (a === "hexit") { S.holy.remote = false; render(); }
+    else mode(a);
+    return;
+  }
+  if (ds.mod) {
+    const b = S.bible, i = b.selected.indexOf(ds.mod);
+    b.selected = i >= 0 ? b.selected.filter((x) => x !== ds.mod) : b.selected.length >= 2 ? [b.selected[0], ds.mod] : b.selected.concat(ds.mod);
+    return render();
+  }
+  if (ds.v !== undefined) {
+    const g = el.closest("[data-seg]").dataset.seg, v = ds.v;
+    if (g === "caps") S.caps = v === "1";
+    else if (g === "church") S.church = v === "1";
+    else S.bible.options[g] = g === "versesPerSlide" ? Number(v) : v === "true" ? true : v === "false" ? false : v;
+    return render();
+  }
+  if (ds.htab) { S.holy.tab = ds.htab; S.holy.query = ""; return render(); }
+  if (ds.theme !== undefined) { S.holy.theme = ds.theme || null; return render(); }
+  if (ds.h2d) { const [id, kind] = ds.h2d.split(":"); return holyToDeixis(findHoly(id), kind); }
+  if (ds.h2h) return holyToHolyrics(findHoly(ds.h2h));
+  const a = ds.act;
+  if (!a) return;
+  if (a === "address" || a === "text" || a === "settings" || a === "bible" || a === "holyrics") { S.dialog = a; return render(); }
+  if (a === "viewers") { S.dialog = "viewers"; return render(); }
+  if (a === "device") { S.picker = null; render(); return $("pickDevice").click(); }
+  if (a === "share") return S.sharing ? stopShare() : startShare();
+  if (a === "largeShare") { const f = S.dialog.file; S.dialog = null; render(); return startShare(f); }
+  if (a === "screen") { S.screenMode = true; if (sim) sim.phoneScreen(true); return render(); }
+  if (a === "screenBack") { S.screenMode = false; if (sim) sim.phoneScreen(false); return render(); }
+  if (a === "addmod") return toast("В симуляторе модули не добавляются: на телефоне это файл MyBible .SQLite3");
+  if (a === "bgo") return showScripture();
+  if (a === "hconnect") {
+    S.holy.status = "connecting"; render();
+    return setTimeout(() => { S.holy.status = "on"; render(); }, 700);
+  }
+  if (a === "hoff") { S.holy = Object.assign(S.holy, { status: "off", remote: false, live: null }); return render(); }
+  if (a === "hremote") { S.holy.remote = !S.holy.remote; return render(); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.matches("input[data-input]")) { const b = document.querySelector("[data-done]"); if (b) b.click(); }
+  if (e.key === "Enter" && e.target.id === "bref") showScripture();
+  if (e.key === "Escape" && (S.dialog || S.picker || S.needPin)) { S.dialog = null; S.picker = null; S.needPin = null; render(); }
+});
+function findHoly(id) { return [...HOLY.songs, ...HOLY.texts, ...HOLY.images, ...HOLY.videos].find((x) => x.id === id); }
+async function showScripture() {
+  const b = S.bible;
+  if (!b.selected.length) return toast("Выберите перевод");
+  if (S.connection !== "connected") return toast("Сначала выберите экран");
+  const r = await hub.bibleSlides({ ref: b.ref, modules: b.selected, options: b.options, style: {} });
+  if (!r.ok) return toast(r.status === 422 ? `Не понял место «${b.ref}». Пример: Ин 3:16-18` : await r.text());
+  const slides = await r.json();
+  if (!slides.length) return toast("В переводе нет такого места");
+  S.dialog = null;
+  show({ kind: "scripture", slides, index: 0, title: b.ref });
+}
+
+// Зеркало для демонстрации экрана: в зал уходит копия того, что видно на телефоне.
+let mirrorT = 0;
+function mirrorSoon() {
+  if (!sim || !S.sharing) return;
+  clearTimeout(mirrorT);
+  mirrorT = setTimeout(() => sim.mirror(document.documentElement.outerHTML, $("player").classList.contains("on") ? $("pvideo").currentTime : null), 60);
+}
+setInterval(mirrorSoon, 1000);
+
+if (!hub) document.body.innerHTML = '<p class="hint">Эта страница работает внутри симулятора Deixis.</p>';
+else { render(); discover(); }
+</script>
+</body>
+</html>

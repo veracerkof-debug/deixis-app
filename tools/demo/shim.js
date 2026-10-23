@@ -26,7 +26,9 @@
       this.url = url;
       this.readyState = 0;
       this.onopen = this.onmessage = this.onclose = this.onerror = null;
-      const path = url.replace(/^wss?:\/\/[^/]+/, "");
+      let path = url.replace(/^wss?:\/\/[^/]+/, "");
+      // Экран в зале симулятора не считается зрителем.
+      if (new URLSearchParams(location.search).get("hall") === "1") path += (path.includes("?") ? "&" : "?") + "hall=1";
       whenHub().then((hub) => {
         if (this.readyState !== 0) return;
         if (!hub) return this.close(1006);
@@ -56,5 +58,11 @@
 
   // Адрес страницы в демо не меняется: иначе перезагрузка открыла бы несуществующий путь.
   history.replaceState = () => {};
-  window.DeixisDemoUrl = (path) => { const h = findHub(); return h ? h.url(path) : path; };
+  window.DeixisDemoUrl = (path, key) => { const h = findHub(); return h ? h.url(path, key) : path; };
+  // Экран в зале симулятора: без кнопок зрителя («Звук», «Во весь экран») и без подписи о связи.
+  if (new URLSearchParams(location.search).get("hall") === "1") {
+    const st = document.createElement("style");
+    st.textContent = "#bar, #status { display: none !important; } html, body { cursor: default; }";
+    document.documentElement.appendChild(st);
+  }
 })();

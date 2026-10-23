@@ -6,92 +6,129 @@
   const PHOTO = { sha256: "demo-photo", name: "Горы на закате.jpg", size: 82435, mime: "image/jpeg" };
   const VIDEO = { sha256: "demo-video", name: "Демо-видео.mp4", size: 212661, mime: "video/mp4" };
 
+  const REPORT = { sha256: "demo-report", name: "Отчёт по практике.pdf", size: 109603, mime: "application/pdf" };
+  const MORNING = { sha256: "demo-morning", name: "Утро в горах.jpg", size: 63551, mime: "image/jpeg" };
   const files = {
     [LECTURE.sha256]: { ref: LECTURE, pages: [0, 1, 2, 3, 4].map((i) => `media/lecture-${i}.jpg`) },
+    [REPORT.sha256]: { ref: REPORT, pages: ["media/report-0.jpg"] },
     [PHOTO.sha256]: { ref: PHOTO, url: "media/mountains.jpg" },
+    [MORNING.sha256]: { ref: MORNING, url: "media/morning.jpg" },
     [VIDEO.sha256]: { ref: VIDEO, url: "media/clip.mp4", durationMs: 12000 },
   };
+  const json = (x) => JSON.stringify(x);
 
-  const receiver = {
+  /**
+   * Один демо-экран: своё состояние, свой PIN, свои пульты и зрители. Пульт в браузере (/ws) говорит
+   * с ним протоколом приёмника, симулятор приложения — напрямую через [api].
+   */
+  function createReceiver(key, info, opts = {}) {
+    let state = { content: opts.content || null, mode: "NORMAL", video: null, error: null, viewers: opts.viewers || 0 };
+    const remotes = new Set();
+    const viewers = new Set();
+    const listeners = new Set();
+    let clock = 0;
+    const r = { key, info, pin: opts.pin || "0000", paired: false, address: opts.address || null };
+
+    function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video }); }
+    function broadcast(event) {
+      state.viewers = (opts.viewers || 0) + [...viewers].filter((v) => !v.preview && !v.hall).length;
+      for (const p of remotes) if (p.ready) p.send(json({ type: "status", state }));
+      for (const v of viewers) v.send(viewerState());
+      for (const l of listeners) l(state, event);
+    }
+    // Ход видео: приёмник сам считает позицию, пульт видит её в подписи «Сейчас».
+    function tickVideo() {
+      clearInterval(clock);
+      if (!state.video) return;
+      clock = setInterval(() => {
+        const v = state.video;
+        if (!v || !v.playing) return;
+        let pos = v.positionMs + 1000;
+        if (pos >= v.durationMs) pos = v.loop ? 0 : v.durationMs;
+        state.video = Object.assign({}, v, { positionMs: pos, playing: pos < v.durationMs || v.loop });
+        broadcast();
+      }, 1000);
+    }
+    r.show = (c) => {
+      const f = c && c.file && files[c.file.sha256];
+      if (c && c.file && !f) return "Файл не найден";
+      state = Object.assign({}, state, { content: c, mode: "NORMAL", error: null,
+        video: c && c.type === "video" ? { playing: true, positionMs: 0, durationMs: f.durationMs || 0, volume: 100, loop: !!c.loop } : null });
+      tickVideo();
+      // Настоящий приёмник подтверждает показ, как только кадр готов; здесь — с задержкой сети.
+      setTimeout(() => broadcast("show"), 80);
+      return null;
+    };
+    r.mode = (m) => { state = Object.assign({}, state, { mode: m }); broadcast("mode"); };
+    r.video = (action, positionMs, loop) => {
+      if (!state.video) return;
+      const v = Object.assign({}, state.video);
+      if (action === "PLAY") v.playing = true;
+      if (action === "PAUSE") v.playing = false;
+      if (action === "SEEK") v.positionMs = Math.max(0, Math.min(v.durationMs, positionMs || 0));
+      if (action === "LOOP") v.loop = loop == null ? !v.loop : loop;
+      state = Object.assign({}, state, { video: v });
+      broadcast("video");
+    };
+    r.pair = (pin) => {
+      if (String(pin).trim() !== r.pin) return false;
+      r.paired = true;
+      broadcast("paired");
+      return true;
+    };
+    r.onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+    Object.defineProperty(r, "state", { get: () => state });
+
+    r.onRemote = (peer, text) => {
+      let m;
+      try { m = JSON.parse(text); } catch (e) { return; }
+      if (m.type === "ping") return peer.send(json({ type: "pong", t: m.t }));
+      if (m.type === "pair" || m.type === "hello") {
+        if (m.type === "pair") peer.send(json({ type: "paired", token: "demo-token" }));
+        peer.ready = true;
+        r.paired = true;
+        peer.send(json({ type: "welcome", version: 1, receiver: info, state, viewKey: key }));
+        for (const l of listeners) l(state, "welcome");
+        return;
+      }
+      if (!peer.ready) return;
+      if (m.type === "show") {
+        const err = r.show(m.content);
+        if (err) peer.send(json({ type: "error", code: "missing", message: err }));
+      } else if (m.type === "mode") r.mode(m.mode);
+      else if (m.type === "video") r.video(m.action, m.positionMs, m.loop);
+    };
+    r.addRemote = (peer) => { remotes.add(peer); };
+    r.dropRemote = (peer) => { remotes.delete(peer); };
+    r.addViewer = (peer) => { viewers.add(peer); peer.send(viewerState()); broadcast(); };
+    r.dropViewer = (peer) => { viewers.delete(peer); broadcast(); };
+    return r;
+  }
+
+  const receivers = {};
+  const addReceiver = (key, info, opts) => (receivers[key] = createReceiver(key, info, opts));
+  // Экран веб-пульта: на нём уже открыта лекция.
+  addReceiver("demo", {
     id: "demo", name: "Зал · демо", platform: "demo", appVersion: "0.6.0", screenWidth: 1920, screenHeight: 1080,
     holyrics: false, convert: false, documents: false,
-  };
-  let state = { content: { type: "pdf", file: LECTURE, page: 0 }, mode: "NORMAL", video: null, error: null, viewers: 0 };
-  const remotes = new Set();
-  const viewers = new Set();
-  const listeners = new Set();
+  }, { content: { type: "pdf", file: LECTURE, page: 0 } });
 
-  const json = (x) => JSON.stringify(x);
-  function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video }); }
-  function broadcast() {
-    state.viewers = [...viewers].filter((v) => !v.preview).length;
-    for (const r of remotes) if (r.ready) r.send(json({ type: "status", state }));
-    for (const v of viewers) v.send(viewerState());
-    for (const l of listeners) l(state);
-  }
-
-  // Ход видео: приёмник сам считает позицию, пульт видит её в подписи «Сейчас».
-  let clock = 0;
-  function tickVideo() {
-    clearInterval(clock);
-    if (!state.video) return;
-    clock = setInterval(() => {
-      const v = state.video;
-      if (!v || !v.playing) return;
-      let pos = v.positionMs + 1000;
-      if (pos >= v.durationMs) pos = v.loop ? 0 : v.durationMs;
-      state.video = Object.assign({}, v, { positionMs: pos, playing: pos < v.durationMs || v.loop });
-      broadcast();
-    }, 1000);
-  }
-
-  function onRemote(peer, text) {
-    let m;
-    try { m = JSON.parse(text); } catch (e) { return; }
-    if (m.type === "ping") return peer.send(json({ type: "pong", t: m.t }));
-    if (m.type === "pair" || m.type === "hello") {
-      if (m.type === "pair") peer.send(json({ type: "paired", token: "demo-token" }));
-      peer.ready = true;
-      peer.send(json({ type: "welcome", version: 1, receiver, state, viewKey: "demo" }));
-      for (const l of listeners) l(state, "welcome");
-      return;
-    }
-    if (!peer.ready) return;
-    if (m.type === "show") {
-      const c = m.content;
-      const f = c && c.file && files[c.file.sha256];
-      if (c.file && !f) return peer.send(json({ type: "error", code: "missing", message: "Файл не найден" }));
-      state = Object.assign({}, state, { content: c, mode: "NORMAL", error: null,
-        video: c.type === "video" ? { playing: true, positionMs: 0, durationMs: f.durationMs || 0, volume: 100, loop: !!c.loop } : null });
-      tickVideo();
-      // Настоящий приёмник подтверждает показ сразу, как кадр готов; здесь — с небольшой задержкой сети.
-      setTimeout(broadcast, 80);
-    } else if (m.type === "mode") {
-      state = Object.assign({}, state, { mode: m.mode });
-      broadcast();
-    } else if (m.type === "video" && state.video) {
-      const v = Object.assign({}, state.video);
-      if (m.action === "PLAY") v.playing = true;
-      if (m.action === "PAUSE") v.playing = false;
-      if (m.action === "SEEK") v.positionMs = Math.max(0, Math.min(v.durationMs, m.positionMs || 0));
-      state = Object.assign({}, state, { video: v });
-      broadcast();
-    }
-  }
-
-  function connect(path, send, close) {
-    if (path === "/ws") {
-      const peer = { send, ready: false, receive: (t) => onRemote(peer, t), closed: () => remotes.delete(peer) };
-      remotes.add(peer);
+  function connect(path, send) {
+    const q = new URLSearchParams(path.split("?")[1] || "");
+    const rx = receivers[q.get("k") || "demo"] || receivers.demo;
+    if (path.startsWith("/ws")) {
+      const peer = { send, ready: false };
+      peer.receive = (t) => rx.onRemote(peer, t);
+      peer.closed = () => rx.dropRemote(peer);
+      rx.addRemote(peer);
       return peer;
     }
     if (path.startsWith("/view/ws")) {
-      const peer = { send, preview: path.includes("preview=1"), closed: () => { viewers.delete(peer); clearInterval(peer.tick); broadcast(); } };
-      peer.receive = () => {};
-      peer.opened = () => { send(viewerState()); broadcast(); };
+      const peer = { send, preview: q.get("preview") === "1", hall: q.get("hall") === "1", receive() {} };
       // Сигнал «жив», как у приёмника: без него страница экрана решит, что связь пропала.
       peer.tick = setInterval(() => send('{"tick":1}'), 2000);
-      viewers.add(peer);
+      peer.opened = () => rx.addViewer(peer);
+      peer.closed = () => { clearInterval(peer.tick); rx.dropViewer(peer); };
       return peer;
     }
     return { receive() {}, closed() {} };
@@ -263,17 +300,19 @@
     return reply(slides);
   }
 
-  function url(path) {
+  function url(path, key) {
     const p = path.split("?")[0];
     let m;
     if ((m = p.match(/^\/view\/page\/([\w-]+)\/(\d+)$/))) { const f = files[m[1]]; return (f && f.pages && f.pages[Number(m[2])]) || ""; }
     if ((m = p.match(/^\/view\/file\/([\w-]+)$/))) { const f = files[m[1]]; return (f && f.url) || ""; }
-    return path;
+    return key ? path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key) : path;
   }
 
   window.DeixisDemo = {
-    connect, http, url, LECTURE, PHOTO, VIDEO,
-    onChange(fn) { listeners.add(fn); },
-    get state() { return state; },
+    connect, http, url, files, addReceiver, receivers, finishUpload, bibleSlides, bibleModules: () => BIBLE.modules,
+    LECTURE, PHOTO, VIDEO, REPORT, MORNING,
+    // Для витрины веб-пульта: экран «demo».
+    onChange(fn) { return receivers.demo.onChange(fn); },
+    get state() { return receivers.demo.state; },
   };
 })();

@@ -41,22 +41,24 @@ def main():
     view = patch(view, [
         ('url("/view/assets/', 'url("assets/'),
         ('const url = (path) => path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key);',
-         'const url = (path) => window.DeixisDemoUrl ? window.DeixisDemoUrl(path) : path;'),
+         'const url = (path) => window.DeixisDemoUrl ? window.DeixisDemoUrl(path, key) : path;'),
     ], "view.html")
     open(os.path.join(OUT, "remote.html"), "w", encoding="utf-8").write(inject(remote))
     open(os.path.join(OUT, "view.html"), "w", encoding="utf-8").write(inject(view))
     for f in ("GFSDidot-Regular.ttf", "NotoSans-SemiBold.ttf", "GFSDidot-OFL.txt", "NotoSans-OFL.txt", "remote-icon.png", "keepawake.mp4"):
         shutil.copy(os.path.join(WEB, f), os.path.join(OUT, "assets", f))
-    for f in ("shell.html", "hub.js", "shim.js"):
+    for f in ("shell.html", "sim.html", "app.html", "hub.js", "shim.js"):
         shutil.copy(os.path.join(HERE, f), os.path.join(OUT, f))
     shutil.copytree(os.path.join(HERE, "media"), os.path.join(OUT, "media"),
                     ignore=shutil.ignore_patterns("*.pptx", "*.pdf"))
-    # Для GitHub Pages: та же витрина обычной страницей с <!doctype> (claude.ai добавляет его сам).
-    shell = open(os.path.join(HERE, "shell.html"), encoding="utf-8").read()
-    open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(
-        '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-        '<link rel="icon" href="assets/remote-icon.png">\n</head>\n<body>\n' + shell + '\n</body>\n</html>\n')
+    # Обычные страницы с <!doctype> (claude.ai добавляет его к главной странице сам):
+    # index.html — симулятор приложения, webremote.html — веб-пульт для iPhone.
+    for src, dst in (("sim.html", "index.html"), ("shell.html", "webremote.html")):
+        body = open(os.path.join(HERE, src), encoding="utf-8").read()
+        open(os.path.join(OUT, dst), "w", encoding="utf-8").write(
+            '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            '<link rel="icon" href="assets/remote-icon.png">\n</head>\n<body>\n' + body + '\n</body>\n</html>\n')
     for d, _, fs in os.walk(OUT):
         for f in fs:
             print(os.path.relpath(os.path.join(d, f), OUT))

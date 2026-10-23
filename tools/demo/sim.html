@@ -1,0 +1,279 @@
+<title>Симулятор Deixis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script src="hub.js"></script>
+<!-- PDF.js нужен только для своего PDF; грузится не мешая показу. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+/* Симулятор: телефон с приложением Deixis и экраны в сети (проектор, ноутбук). На узком экране экран зала сверху.
+   Токены — как у приложения (DESIGN.md). */
+@font-face { font-family: "Deixis Mark"; src: url("assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Deixis Slide"; src: url("assets/NotoSans-SemiBold.ttf") format("truetype"); font-display: swap; }
+:root {
+  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #6F6C66; --l3: #C6C3BC; --tint: #9C7242; --tint-text: #765A38; --red: #A75750;
+  --wall: #E4E1DA; --frame: #1A1A1B; --metal: #C9C6BF; --sep: rgba(60,55,45,.15); --fill: rgba(120,115,105,.12);
+  --screen: #000000; --screen-ink: #FFFFFF; --white: #FFFFFF;
+  --f-mark: "Deixis Mark", "Didot", Georgia, serif;
+  --f-body: -apple-system, "SF Pro Text", "Noto Sans", system-ui, "Segoe UI", Roboto, sans-serif;
+  --f-slide: "Deixis Slide", "Noto Sans", system-ui, sans-serif;
+  --r-card: 12px; --r-pill: 999px; --r-phone: 46px; --t-fast: 140ms; --e-out: cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #9A9AA0; --l3: #48484A; --tint: #BC9361; --tint-text: #BC9361; --red: #B96E65;
+  --wall: #121213; --frame: #2A2A2C; --metal: #3A3A3C; --sep: rgba(84,84,88,.55); --fill: rgba(118,118,128,.24); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #000000; --cell: #1C1C1E; --ink: #FFFFFF; --l2: #9A9AA0; --l3: #48484A; --tint: #BC9361; --tint-text: #BC9361; --red: #B96E65;
+  --wall: #121213; --frame: #2A2A2C; --metal: #3A3A3C; --sep: rgba(84,84,88,.55); --fill: rgba(118,118,128,.24); color-scheme: dark }
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; } }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.45 var(--f-body);
+       padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 22px; }
+header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.mark { font-family: var(--f-mark); font-size: 30px; letter-spacing: .2em; }
+.tag { font-size: 13px; font-weight: 600; color: var(--tint-text); text-transform: uppercase; letter-spacing: .08em; }
+header a { margin-left: auto; font-size: 14px; color: var(--tint-text); }
+.lead { margin: 0; color: var(--l2); max-width: 66ch; text-wrap: pretty; }
+.stage { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 32px; align-items: start; }
+.label { font-size: 13px; font-weight: 600; color: var(--l2); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 8px; }
+.phoneBox { display: grid; justify-items: center; }
+.phone { width: 390px; max-width: 100%; height: 800px; border-radius: var(--r-phone); background: var(--frame); padding: 12px; }
+.phone iframe { width: 100%; height: 100%; border: 0; border-radius: calc(var(--r-phone) - 12px); background: var(--bg); display: block; }
+.hallBox { min-width: 0; display: grid; gap: 14px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tabs button { font: 600 14px/1 var(--f-body); color: var(--ink); background: var(--fill); border: 0; border-radius: var(--r-pill); padding: 10px 14px; cursor: pointer; }
+.tabs button.on { background: var(--ink); color: var(--bg); }
+.tabs button .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--l3); margin-right: 6px; vertical-align: 1px; }
+.tabs button.live .dot { background: var(--red); }
+.tabs button:focus-visible, .phone iframe:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.room { background: var(--wall); border-radius: var(--r-card); padding: clamp(10px, 3vw, 34px); }
+.device { display: none; }
+.device.on { display: block; }
+.screen { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: var(--screen); overflow: hidden; container-type: size; }
+.projector .screen { border-radius: 3px; box-shadow: 0 18px 40px -18px rgba(0,0,0,.45); }
+.laptop .lid { background: var(--frame); border-radius: 14px 14px 0 0; padding: 2.2% 2.2% 3%; }
+.laptop .base { height: 14px; background: var(--metal); border-radius: 0 0 12px 12px; margin: 0 -4%; }
+.screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.idle, .mirror { position: absolute; inset: 0; background: var(--screen); color: var(--screen-ink); }
+.idle { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: var(--f-slide); }
+.idle .big { font-family: var(--f-mark); font-size: 12cqh; letter-spacing: .18em; line-height: 1.1; }
+.idle .name { font-size: 4cqh; opacity: .85; margin-top: 4cqh; }
+.idle .row { display: flex; align-items: center; gap: 4cqh; margin-top: 6cqh; text-align: left; }
+.idle .qr { width: 20cqh; height: 20cqh; background: var(--white); padding: 1.4cqh; }
+.idle .qr svg { width: 100%; height: 100%; display: block; }
+.idle .dim { font-size: 2.5cqh; opacity: .6; }
+.idle .pin { font-size: 7cqh; letter-spacing: .1em; }
+.idle .foot { font-size: 2.5cqh; opacity: .45; margin-top: 8cqh; }
+.mirror { display: flex; align-items: center; justify-content: center; }
+.mirror iframe { position: relative; inset: auto; width: 366px; height: 776px; transform-origin: center; border-radius: 0; background: var(--bg); }
+.hidden { display: none !important; }
+.caption { font-size: 13px; color: var(--l2); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.steps { display: grid; gap: 8px; font-size: 14px; color: var(--l2); max-width: 72ch; margin: 0; padding-left: 20px; }
+.steps b { color: var(--ink); font-weight: 600; }
+footer { font-size: 13px; color: var(--l2); border-top: 1px solid var(--sep); padding-top: 14px; }
+@media (max-width: 980px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .hallBox { order: -1; }
+  .phone { width: 100%; max-width: 420px; height: 760px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="mark">ΔΕΙΞΙΣ</span><span class="tag" data-t="tag"></span>
+    <a href="webremote.html" id="webLink" data-t="web"></a>
+  </header>
+  <p class="lead" data-t="lead"></p>
+
+  <div class="stage">
+    <section class="phoneBox" aria-labelledby="phoneLabel">
+      <p class="label" id="phoneLabel" data-t="phone"></p>
+      <div class="phone"><iframe id="app" title="Deixis" src="app.html"></iframe></div>
+    </section>
+
+    <section class="hallBox" aria-labelledby="hallLabel">
+      <div>
+        <p class="label" id="hallLabel" data-t="hall"></p>
+        <div class="tabs" id="tabs"></div>
+      </div>
+      <div class="room" id="room"></div>
+      <div class="caption" id="caption"></div>
+    </section>
+  </div>
+  <ol class="steps">
+    <li data-t="s1"></li>
+    <li data-t="s2"></li>
+    <li data-t="s3"></li>
+    <li data-t="s4"></li>
+    <li data-t="s5"></li>
+  </ol>
+  <footer data-t="footer"></footer>
+</div>
+
+<script>
+const STRINGS = {
+  ru: {
+    tag: "Симулятор", phone: "Приложение Deixis на телефоне", hall: "Экраны в сети", web: "Веб-пульт для iPhone →",
+    lead: "Приложение Deixis в браузере: всё нажимается, как на телефоне, а экраны рядом показывают то, что увидят в зале. Данные примерные, сеть не используется.",
+    s1: "В разделе «Экраны» выбрать «Проектор, ауд. 214» и ввести PIN с экрана проектора.",
+    s2: "«Файл» → «Город пятнадцати минут.pdf», затем листать кнопками «Назад» и «Дальше».",
+    s3: "Выбрать «Ноутбук преподавателя»: там PPTX и DOCX переводятся в PDF, а фото и видео Holyrics берутся с ноутбука.",
+    s4: "«Видео» → «Запись концерта.mp4» (2,4 ГБ): файл больше 1 ГБ показывается демонстрацией экрана телефона.",
+    s5: "«Стать экраном» превращает сам телефон в экран для проектора или доски.",
+    footer: "Симулятор повторяет экраны приложения Deixis для Android. Приложение пока на русском; страница — на русском, узбекском и английском. Deixis — открытое приложение, лицензия GPL-3.0.",
+    now: "Сейчас", idle: "ожидание подключения", black: "чёрный экран", logo: "логотип", clear: "текст убран", sharing: "демонстрация экрана телефона",
+    page: "страница",
+  },
+  uz: {
+    tag: "Simulyator", phone: "Telefondagi Deixis ilovasi", hall: "Tarmoqdagi ekranlar", web: "iPhone uchun veb-pult →",
+    lead: "Brauzerdagi Deixis ilovasi: hammasi telefondagidek bosiladi, yonidagi ekranlar esa zalda ko‘rinadigan narsani ko‘rsatadi. Ma’lumotlar namunaviy, tarmoq ishlatilmaydi.",
+    s1: "«Экраны» bo‘limida «Проектор, ауд. 214» ni tanlash va proyektor ekranidagi PIN-ni kiritish.",
+    s2: "«Файл» → «Город пятнадцати минут.pdf», so‘ng «Назад» va «Дальше» tugmalari bilan varaqlash.",
+    s3: "«Ноутбук преподавателя» ni tanlash: u yerda PPTX va DOCX PDF ga o‘giriladi, Holyrics rasm va videolari noutbukdan olinadi.",
+    s4: "«Видео» → «Запись концерта.mp4» (2,4 GB): 1 GB dan katta fayl telefon ekranini namoyish qilish orqali ko‘rsatiladi.",
+    s5: "«Стать экраном» telefonning o‘zini proyektor yoki doska uchun ekranga aylantiradi.",
+    footer: "Simulyator Android uchun Deixis ilovasi ekranlarini takrorlaydi. Ilova hozircha rus tilida; sahifa — rus, o‘zbek va ingliz tillarida. Deixis — ochiq ilova, GPL-3.0 litsenziyasi.",
+    now: "Hozir", idle: "ulanish kutilmoqda", black: "qora ekran", logo: "logotip", clear: "matn olindi", sharing: "telefon ekrani namoyishi",
+    page: "sahifa",
+  },
+  en: {
+    tag: "Simulator", phone: "Deixis app on the phone", hall: "Screens on the network", web: "Web remote for iPhone →",
+    lead: "The Deixis app in a browser: everything taps as on a phone, and the screens next to it show what the hall will see. Sample data, no network is used.",
+    s1: "Under «Экраны», pick «Проектор, ауд. 214» and enter the PIN shown on the projector.",
+    s2: "«Файл» → «Город пятнадцати минут.pdf», then turn pages with «Назад» and «Дальше».",
+    s3: "Pick «Ноутбук преподавателя»: it converts PPTX and DOCX to PDF and serves Holyrics photos and videos.",
+    s4: "«Видео» → «Запись концерта.mp4» (2.4 GB): a file over 1 GB is shown by sharing the phone screen.",
+    s5: "«Стать экраном» turns the phone itself into a screen for a projector or board.",
+    footer: "The simulator repeats the screens of the Deixis app for Android. The app is in Russian for now; this page is in Russian, Uzbek and English. Deixis is an open app under GPL-3.0.",
+    now: "Now", idle: "waiting for a remote", black: "black screen", logo: "logo", clear: "text cleared", sharing: "sharing the phone screen",
+    page: "page",
+  },
+};
+const lang = (navigator.language || "ru").toLowerCase();
+const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("en") ? "en" : "ru"];
+document.documentElement.lang = lang.slice(0, 2);
+document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
+addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; });
+
+// ——— Экраны в «сети» ———
+const demo = window.DeixisDemo;
+const SCREENS = [
+  { key: "projector", kind: "projector", pin: "4827", address: "192.168.1.24:47820", viewers: 6,
+    info: { id: "projector", name: "Проектор, ауд. 214", platform: "android-tv", appVersion: "0.6.0", screenWidth: 1920, screenHeight: 1080, holyrics: false, convert: false, documents: false } },
+  { key: "laptop", kind: "laptop", pin: "1593", address: "192.168.1.31:47820", viewers: 0,
+    info: { id: "laptop", name: "Ноутбук преподавателя", platform: "desktop-windows", appVersion: "0.6.0", screenWidth: 1920, screenHeight: 1080, holyrics: true, convert: true, documents: true } },
+];
+for (const s of SCREENS) demo.addReceiver(s.key, s.info, { pin: s.pin, address: s.address, viewers: s.viewers });
+// Сам телефон в режиме «Стать экраном».
+demo.addReceiver("phone", { id: "phone", name: "Телефон · Pixel 8", platform: "android-screen", appVersion: "0.6.0" }, { pin: "3071", address: "192.168.1.37:47820" });
+
+const room = document.getElementById("room");
+const tabs = document.getElementById("tabs");
+let focus = "projector";
+const sharing = {};
+
+function qrSvg(text) {
+  if (!window.qrcode) return "";
+  const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount();
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><path d="${d}" fill="#000"/></svg>`;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+for (const s of SCREENS) {
+  const d = document.createElement("div");
+  d.className = `device ${s.kind}`;
+  d.id = "dev-" + s.key;
+  const screen = `<div class="screen"><iframe title="${esc(s.info.name)}" src="view.html?k=${s.key}&hall=1" tabindex="-1"></iframe>
+    <div class="idle"></div><div class="mirror hidden"><iframe tabindex="-1" sandbox="allow-same-origin"></iframe></div></div>`;
+  d.innerHTML = s.kind === "laptop" ? `<div class="lid">${screen}</div><div class="base"></div>` : screen;
+  room.appendChild(d);
+  demo.receivers[s.key].onChange(() => update());
+}
+function idleHtml(s) {
+  const r = demo.receivers[s.key];
+  return `<div class="big">ΔΕΙΞΙΣ</div><div class="name">${esc(s.info.name)}</div>
+    <div class="row"><div class="qr">${qrSvg(`http://${s.address}/remote?pin=${r.pin}`)}</div>
+    <div><div class="dim">PIN для подключения</div><div class="pin">${r.pin.split("").join(" ")}</div><div class="dim">${s.address}</div></div></div>
+    <div class="foot">Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно</div>`;
+}
+function update() {
+  tabs.innerHTML = SCREENS.map((s) => {
+    const r = demo.receivers[s.key];
+    return `<button class="${s.key === focus ? "on" : ""} ${r.paired ? "live" : ""}" data-k="${s.key}"><span class="dot"></span>${esc(s.info.name)}</button>`;
+  }).join("");
+  for (const s of SCREENS) {
+    const d = document.getElementById("dev-" + s.key);
+    d.classList.toggle("on", s.key === focus);
+    const st = demo.receivers[s.key].state;
+    const idle = d.querySelector(".idle");
+    const show = !st.content && st.mode === "NORMAL" && !sharing[s.key];
+    idle.classList.toggle("hidden", !show);
+    if (show) idle.innerHTML = idleHtml(s);
+    d.querySelector(".mirror").classList.toggle("hidden", !sharing[s.key]);
+  }
+  const s = SCREENS.find((x) => x.key === focus);
+  const st = demo.receivers[focus].state, c = st.content;
+  let text = t.idle;
+  if (sharing[focus]) text = t.sharing;
+  else if (st.mode === "BLACK") text = t.black;
+  else if (st.mode === "LOGO") text = t.logo;
+  else if (c && c.type === "pdf") text = `${c.file.name} · ${t.page} ${c.page + 1}`;
+  else if (c && (c.type === "image" || c.type === "video")) text = c.file.name + (st.video ? ` · ${Math.floor(st.video.positionMs / 1000)} / ${Math.floor(st.video.durationMs / 1000)} с` : "");
+  else if (c && c.type === "text") text = c.text.split("\n")[0] + (st.mode === "CLEAR" ? ` · ${t.clear}` : "");
+  else if (c && c.type === "scripture") text = c.ref || (c.blocks[0] && c.blocks[0].ref) || "";
+  document.getElementById("caption").textContent = `${s.info.name} · ${t.now}: ${text}`;
+}
+tabs.addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) { focus = b.dataset.k; update(); } });
+// QR-коды рисуются, когда загрузилась библиотека.
+addEventListener("load", update);
+
+// Зеркало: копия экрана телефона без скриптов, видео держит то же время.
+let lastMirror = "";
+function fitMirror() {
+  for (const s of SCREENS) {
+    const m = document.querySelector(`#dev-${s.key} .mirror`);
+    const f = m.querySelector("iframe");
+    const k = Math.min(m.clientWidth / 366, m.clientHeight / 776) || 0.3;
+    f.style.transform = `scale(${k})`;
+  }
+}
+addEventListener("resize", fitMirror);
+
+window.DeixisSim = {
+  focus(key) { if (SCREENS.some((s) => s.key === key)) { focus = key; update(); } },
+  share(key, on) {
+    sharing[key] = on;
+    if (!on) lastMirror = "";
+    update();
+    fitMirror();
+  },
+  mirror(html, videoTime) {
+    const clean = html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<input[^>]*type="file"[^>]*>/gi, "");
+    for (const s of SCREENS) {
+      if (!sharing[s.key]) continue;
+      const f = document.querySelector(`#dev-${s.key} .mirror iframe`);
+      if (clean !== lastMirror) {
+        f.srcdoc = clean;
+        f.onload = () => syncVideo(f, videoTime);
+      } else syncVideo(f, videoTime);
+    }
+    lastMirror = clean;
+  },
+  phoneScreen() {},
+};
+function syncVideo(f, time) {
+  try {
+    const v = f.contentDocument && f.contentDocument.getElementById("pvideo");
+    if (!v || time == null) return;
+    v.muted = true;
+    if (!v.src) v.src = "media/clip.mp4";
+    if (Math.abs(v.currentTime - time) > 0.6) v.currentTime = time;
+    if (v.paused) v.play().catch(() => {});
+  } catch (e) {}
+}
+update();
+</script>
