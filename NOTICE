@@ -36,3 +36,11 @@ core/src/main/resources/bible/RST.SQLite3 (Russian Synodal translation, 1876)
 and KJV.SQLite3 (King James Version, 1769 edition) are public domain texts.
 Text source: scrollmapper/bible_databases (https://github.com/scrollmapper/bible_databases,
 MIT License); converted to MyBible format by tools/bible/make_modules.py.
+
+
+Bundled fonts
+
+android/receiver/src/main/res/font: Carlito and Caladea (Google, metric-compatible
+with Calibri and Cambria) and Liberation Sans (Red Hat, metric-compatible with Arial),
+all under the SIL Open Font License 1.1. They are used by the built-in PPTX to PDF
+conversion so that lines break where PowerPoint breaks them.

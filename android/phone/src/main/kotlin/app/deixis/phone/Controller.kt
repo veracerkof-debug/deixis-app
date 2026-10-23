@@ -579,7 +579,8 @@ class Controller(private val app: Application) {
     }
 
     private suspend fun sourceFor(uri: Uri, item: LibItem): UploadSource = withContext(Dispatchers.IO) {
-        val name = item.title
+        // Переведённая на телефоне презентация уходит как PDF.
+        val name = if (item.mime == "application/pdf" && !item.title.lowercase().endsWith(".pdf")) item.title.substringBeforeLast('.') + ".pdf" else item.title
         if (item.kind == Kind.PHOTO && (name.lowercase().endsWith(".heic") || name.lowercase().endsWith(".heif"))) heicToJpeg(uri, name)
         else if (item.size > 0) object : UploadSource {
             override val name = name
@@ -626,6 +627,22 @@ class Controller(private val app: Application) {
             null -> return null
         }
         val id = Store.newId()
+        val ext = name.substringAfterLast('.', "").lowercase()
+        // PPTX переводится в PDF прямо на телефоне: превью слайдов и показ на любом экране без компьютера.
+        if (kind == Kind.PRESENTATION && ext in app.deixis.receiver.PptxPdf.FORMATS) {
+            progress.value = "«$name»: перевод в PDF…"
+            try {
+                val src = File(app.cacheDir, "pptx-$id.$ext")
+                app.contentResolver.openInputStream(uri)!!.use { input -> src.outputStream().use { input.copyTo(it) } }
+                val out = File(File(app.filesDir, "converted").apply { mkdirs() }, "$id.pdf")
+                val warnings = try { app.deixis.receiver.PptxPdf.convert(app, src, out) } finally { src.delete() }
+                val pages = app.contentResolver.openFileDescriptor(Uri.fromFile(out), "r")!!.use { fd -> PdfRenderer(fd).use { it.pageCount } }
+                app.deixis.receiver.PptxPdf.warning(warnings)?.let { messages.tryEmit(it) }
+                return LibItem(id, Kind.PRESENTATION, name, uri = Uri.fromFile(out).toString(), mime = "application/pdf", size = out.length(), pages = pages)
+            } finally {
+                progress.value = null
+            }
+        }
         return when (kind) {
             Kind.TEXT -> {
                 val text = app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
@@ -655,6 +672,7 @@ class Controller(private val app: Application) {
     }
 
     fun deleteItem(id: String) = edit { d ->
+        File(File(app.filesDir, "converted"), "$id.pdf").delete()
         d.copy(
             items = d.items.filter { it.id != id },
             setlists = d.setlists.map { s -> s.copy(items = s.items.filter { it != id }) },

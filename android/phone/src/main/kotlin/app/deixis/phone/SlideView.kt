@@ -64,9 +64,7 @@ private object S {
     const val fill = 0.8f
     const val charWidth = 0.55f
     const val ref = 0.045f
-    const val logo = 0.12f
     const val thumbWidth = 480
-    val logoColor = Color(0xFFBC9361)
     val pageBg = Color(0xFF2A2A2C)
     val paper = Color(0xFFFFFFFF)
     val paperLine = Color(0xFFDDDDDD)
@@ -105,8 +103,12 @@ fun SlideView(
         when {
             mode == Mode.BLACK -> {}
             mode == Mode.LOGO -> BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val fs = with(LocalDensity.current) { (maxHeight * S.logo).toSp() }
-                BasicText("ΔΕΙΞΙΣ", style = TextStyle(fontFamily = Didot, fontSize = fs, letterSpacing = 0.18.em, color = S.logoColor))
+                val d = LocalDensity.current
+                val px = with(d) { app.deixis.core.LogoMark.size(maxWidth.toPx(), maxHeight.toPx()) }
+                BasicText(
+                    "ΔΕΙΞΙΣ", Modifier.padding(start = with(d) { (px * 0.18f).toDp() }),
+                    style = TextStyle(fontFamily = Didot, fontSize = with(d) { px.toSp() }, letterSpacing = 0.18.em, color = Color.White), maxLines = 1, softWrap = false,
+                )
             }
             mode == Mode.CLEAR || slide == null -> {}
             else -> SlideBody(slide, item, style)

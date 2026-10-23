@@ -27,12 +27,13 @@ fun renderSlideBitmap(context: Context, content: Content?, mode: Mode, width: In
         mode == Mode.LOGO -> {
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 typeface = context.resources.getFont(R.font.gfs_didot)
-                textSize = height * 0.13f
+                textSize = app.deixis.core.LogoMark.size(width.toFloat(), height.toFloat())
                 letterSpacing = 0.18f
                 color = android.graphics.Color.WHITE
                 textAlign = Paint.Align.CENTER
             }
-            c.drawText("ΔΕΙΞΙΣ", width / 2f, height / 2f - (p.ascent() + p.descent()) / 2, p)
+            // Трекинг добавляет пробел после последней буквы: сдвиг на его половину ставит знак ровно по центру.
+            c.drawText("ΔΕΙΞΙΣ", width / 2f + p.textSize * 0.09f, height / 2f - (p.ascent() + p.descent()) / 2, p)
         }
         content is TextContent -> {
             background(c, content.style, background, width, height)

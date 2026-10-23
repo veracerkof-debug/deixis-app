@@ -54,7 +54,7 @@ class SlideRenderer(private val files: FileStore) {
             g.fillRect(0, 0, width, height)
             when {
                 mode == Mode.BLACK -> Unit
-                mode == Mode.LOGO -> drawWordmark(g, width, height, height / 2f, height * 0.13f)
+                mode == Mode.LOGO -> drawWordmark(g, width, height, height / 2f, app.deixis.core.LogoMark.size(width.toFloat(), height.toFloat()))
                 content == null -> if (idle != null) drawIdle(g, width, height, idle)
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)
                 content is ScriptureContent -> drawScripture(g, width, height, content, clear = mode == Mode.CLEAR)

@@ -214,7 +214,7 @@ enum class PickKind(val mimes: Array<String>, val formats: String) {
             "application/pdf", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint",
             "application/vnd.oasis.opendocument.presentation", "application/x-iwork-keynote-sffkey", "application/octet-stream",
         ),
-        "PDF, PPTX, PPT, ODP, KEY. Презентации переводит в PDF компьютер с Deixis",
+        "PDF и PPTX — прямо на телефоне. PPT, ODP и KEY переводит компьютер с Deixis",
     ),
     VIDEO(arrayOf("video/*", "audio/*"), "Любой формат: MP4, MKV, MOV, AVI, WMV, WebM…"),
     PHOTO(arrayOf("image/*"), "JPEG, PNG, WebP, GIF, HEIC"),

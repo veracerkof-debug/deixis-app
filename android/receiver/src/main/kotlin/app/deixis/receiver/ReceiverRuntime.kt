@@ -71,7 +71,8 @@ class ReceiverRuntime(
         val idFile = File(dataDir, "id")
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val metrics = appContext.resources.displayMetrics
-        val info = ReceiverInfo(id, name, platform, BuildInfo.VERSION, metrics.widthPixels, metrics.heightPixels)
+        // Презентации PPTX экран переводит сам (встроенный перевод), без компьютера.
+        val info = ReceiverInfo(id, name, platform, BuildInfo.VERSION, metrics.widthPixels, metrics.heightPixels, convert = true)
         val pairing = Pairing(FileTokenStore(File(dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing, loadViewKey(File(dataDir, "view-key")))
         _pin = MutableStateFlow(pairing.pin)
@@ -84,6 +85,7 @@ class ReceiverRuntime(
         }
         // Для веб-пульта (iPhone): модули Библии хранятся на ТВ, страницы PDF считаются здесь.
         core.bible = app.deixis.core.BibleStore(File(dataDir, "bible")) { AndroidSql(it) }
+        core.conversions = app.deixis.core.Conversions(core, PptxPdf.converter(appContext), File(dataDir, "convert"))
         core.pageCounter = { f ->
             android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
         }

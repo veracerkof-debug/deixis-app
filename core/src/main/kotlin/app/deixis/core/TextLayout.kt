@@ -207,3 +207,15 @@ fun layoutSlideText(
     val block = SafeArea((left - pad).coerceAtLeast(0f), (blockTop - pad * 0.6f).coerceAtLeast(0f), (left + widest + pad).coerceAtMost(width), (top + pad * 0.6f).coerceAtMost(height))
     return SlideTextLayout(size, placed, refSize, area.right, area.bottom - descent(refSize), ref?.let { styledText(it, style) }, block)
 }
+
+/** Знак ΔΕΙΞΙΣ на «Логотипе»: на всю ширину экрана с полями, не выше доли высоты. */
+object LogoMark {
+    /** Ширина знака в кеглях шрифта GFS Didot с трекингом 0.18 (без пробела после последней буквы). */
+    const val WIDTH_EM = 4.386f
+    /** Доля ширины экрана. */
+    const val FILL = 0.86f
+    const val MAX_HEIGHT = 0.6f
+
+    /** Кегль знака для экрана [width] × [height]. */
+    fun size(width: Float, height: Float): Float = minOf(width * FILL / WIDTH_EM, height * MAX_HEIGHT)
+}

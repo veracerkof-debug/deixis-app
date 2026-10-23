@@ -36,4 +36,8 @@ tasks.test {
     environment("LANG", "C.UTF-8")
     // Для ручной проверки: -Ddeixis.dumpStream=файл сохраняет поток зрителя (fMP4).
     System.getProperty("deixis.dumpStream")?.let { systemProperty("deixis.dumpStream", it) }
+    // Для ручной проверки перевода PPTX: -Ddeixis.render=папка сохраняет слайды в PNG.
+    System.getProperty("deixis.render")?.let { systemProperty("deixis.render", it) }
+    System.getProperty("deixis.renderFile")?.let { systemProperty("deixis.renderFile", it) }
+    testLogging { showStandardStreams = System.getProperty("deixis.renderFile") != null }
 }

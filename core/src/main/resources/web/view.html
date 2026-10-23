@@ -91,12 +91,13 @@ layout();
 const url = (path) => path + (path.includes("?") ? "&" : "?") + "k=" + encodeURIComponent(key);
 const argb = (n) => { const v = Number(n) >>> 0; return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${((v >>> 24) & 255) / 255})`; };
 
-function mark(sub) {
+// «Логотип» — на всю ширину (как LogoMark в ядре); без показа — небольшой знак.
+function mark(sub, full) {
   const d = document.createElement("div");
   d.className = "mark";
   const b = document.createElement("b");
   b.textContent = "ΔΕΙΞΙΣ";
-  b.style.fontSize = stage.clientHeight * 0.13 + "px";
+  b.style.fontSize = (full ? Math.min(stage.clientWidth * 0.86 / 4.386, stage.clientHeight * 0.6) : stage.clientHeight * 0.13) + "px";
   d.append(b);
   if (sub) { const s = document.createElement("span"); s.textContent = sub; d.append(s); }
   return d;
@@ -241,7 +242,7 @@ function render(s) {
     if (s.mode === "BLACK") {
       // чёрный экран
     } else if (s.mode === "LOGO") {
-      stage.append(mark());
+      stage.append(mark(null, true));
     } else if (!c) {
       stage.append(mark(t.wait));
     } else if (c.type === "text") {
