@@ -77,4 +77,19 @@ class SlideRendererTest {
         val ref = FileRef("c".repeat(64), "нет.pdf", 1, "application/pdf")
         assertFailsWith<IllegalStateException> { renderer.render(w, h, PdfContent(ref, 0), Mode.NORMAL, null) }
     }
+
+    @Test
+    fun pdfPageKeepsItsColours() {
+        // Слайд 4 презентации, переведённой LibreOffice: охристые, синие и красные блоки и цветное фото.
+        val bytes = SlideRendererTest::class.java.getResourceAsStream("/colour.pdf")!!.readBytes()
+        val sha = sha256Of(bytes.inputStream())
+        store.append(sha, bytes.size.toLong(), 0, bytes.inputStream())
+        val img = renderer.render(w, h, PdfContent(FileRef(sha, "colour.pdf", bytes.size.toLong(), "application/pdf"), 3), Mode.NORMAL, null)
+        var coloured = 0
+        for (y in 0 until h step 6) for (x in 0 until w step 6) {
+            val c = Color(img.getRGB(x, y))
+            if (maxOf(c.red, c.green, c.blue) - minOf(c.red, c.green, c.blue) > 40) coloured++
+        }
+        assertTrue(coloured > 200, "цвета страницы PDF сохранились: $coloured цветных точек")
+    }
 }

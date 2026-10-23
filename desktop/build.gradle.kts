@@ -15,6 +15,10 @@ dependencies {
     implementation(libs.vlcj)
     implementation(libs.pdfbox)
     implementation(libs.imageio.webp)
+    implementation(libs.imageio.tiff)
+    // Встроенный перевод PPTX и PPT в PDF, без LibreOffice (Apache-2.0).
+    implementation(libs.poi.ooxml)
+    implementation(libs.poi.scratchpad)
     implementation(libs.sqlite.jdbc)
     runtimeOnly(libs.slf4j.nop)
 

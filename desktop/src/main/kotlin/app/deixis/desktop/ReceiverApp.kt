@@ -86,9 +86,12 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
         val screen = Toolkit.getDefaultToolkit().screenSize
         // Компьютер может стоять рядом с Holyrics: тогда фото и видео из Holyrics берутся прямо из его папки.
-        // Если стоит LibreOffice, презентации PPTX переводятся в PDF прямо здесь.
+        // PPTX и PPT переводятся в PDF всегда (встроенный перевод), с LibreOffice — точнее, плюс документы.
         val office = LibreOfficeConverter.find()
-        val info = ReceiverInfo(id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height, holyrics = true, convert = office != null)
+        val info = ReceiverInfo(
+            id, name, "desktop-" + System.getProperty("os.name").lowercase(), APP_VERSION, screen.width, screen.height,
+            holyrics = true, convert = true, documents = office != null,
+        )
         val pairing = Pairing(FileTokenStore(File(opts.dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(opts.dataDir, "files")), pairing, loadViewKey(File(opts.dataDir, "view-key")))
         pinFlow = MutableStateFlow(pairing.pin)
@@ -99,7 +102,7 @@ class ReceiverApp(private val opts: ReceiverOptions) {
         // Для веб-пульта: модули Библии хранятся здесь, страницы PDF считаются здесь.
         core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
         core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
-        office?.let { core.conversions = Conversions(core, it, File(opts.dataDir, "convert")) }
+        core.conversions = Conversions(core, OfficeConverter(office), File(opts.dataDir, "convert"))
         server = ReceiverServer(core, opts.port)
     }
 

@@ -64,7 +64,8 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         val key = "$host:$port"
         val client = SenderClient(host, port, senderName(), scope)
         try {
-            val token = tokens()[key] ?: run {
+            // Явный --pin — всегда новое сопряжение: старый сохранённый вход мог устареть (приёмник сброшен).
+            val token = tokens()[key]?.takeIf { "pin" !in opts } ?: run {
                 val pin = opts["pin"] ?: return@runBlocking fail("Первое подключение: укажите --pin с экрана приёмника")
                 val t = try { client.pair(pin) } catch (e: PairingException) { return@runBlocking fail("Приёмник отклонил PIN: ${e.reason}") }
                 saveToken(key, t)
@@ -218,8 +219,9 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         if (!file.isFile) { fail("Нет файла $path"); return null }
         val kind = mediaKindOf(file.name)
         if (kind == null) { fail("Формат «${file.name}» пока не поддерживается"); return null }
-        val canConvert = (client.connection.value as? Connection.Connected)?.receiver?.convert == true
-        if (kind == MediaKind.PRESENTATION && !canConvert) { fail("На этом экране нет LibreOffice: сохраните презентацию как PDF"); return null }
+        val rx = (client.connection.value as? Connection.Connected)?.receiver
+        if (kind == MediaKind.PRESENTATION && rx?.convert != true) { fail("Этот экран не переводит презентации: сохраните её как PDF"); return null }
+        if (kind == MediaKind.DOCUMENT && rx?.documents != true) { fail("Документы переводит Deixis для компьютера с LibreOffice: сохраните файл как PDF"); return null }
         if (kind == MediaKind.TEXT) return TextContent(splitIntoSlides(file.readText()).firstOrNull() ?: "", style = style())
         val source = object : UploadSource {
             override val name = file.name
@@ -236,10 +238,11 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             MediaKind.IMAGE -> ImageContent(ref)
             MediaKind.VIDEO -> VideoContent(ref, loop = "loop" in opts)
             MediaKind.PDF -> PdfContent(ref, page = (opts["page"]?.toIntOrNull() ?: 1) - 1)
-            MediaKind.PRESENTATION -> {
+            MediaKind.PRESENTATION, MediaKind.DOCUMENT -> {
                 println("Перевод в PDF…")
                 val pdf = client.convert(ref)
                 println("Страниц: ${pdf.pages}")
+                pdf.warning?.let { println("Внимание: $it") }
                 PdfContent(pdf.file, page = ((opts["page"]?.toIntOrNull() ?: 1) - 1).coerceIn(0, (pdf.pages - 1).coerceAtLeast(0)))
             }
             MediaKind.TEXT -> null

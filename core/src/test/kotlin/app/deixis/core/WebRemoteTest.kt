@@ -136,7 +136,7 @@ class WebRemoteTest {
         core.conversions = Conversions(core, DocConverter { input, dir ->
             runs++
             assertEquals("pptx", input.extension, "LibreOffice получает файл с родным расширением")
-            File(dir, "out.pdf").apply { writeText("%PDF-1.4 " + input.readText()) }
+            PdfResult(File(dir, "out.pdf").apply { writeText("%PDF-1.4 " + input.readText()) })
         }, File(dir, "convert"))
         val pptx = "слайды".toByteArray()
         val src = DeixisJson.parseToJsonElement(put("pptx000001", "Лекция 3.pptx", pptx.size.toLong(), 0, pptx).bodyAsText()).jsonObject["file"].toString()
