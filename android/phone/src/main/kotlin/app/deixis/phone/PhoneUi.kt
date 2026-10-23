@@ -182,13 +182,22 @@ private fun Main(c: Controller, h: HolyricsSource) {
                 Tile("Текст") { dialog = "text" }
             }
             SectionTitle("Ещё")
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tile(if (sharing) "Стоп экран" else "Экран") { if (sharing) ScreenShareService.stop(context) else startShare() }
+            val more = buildList<Pair<String, () -> Unit>> {
+                add((if (sharing) "Стоп экран" else "Экран") to { if (sharing) ScreenShareService.stop(context) else startShare() })
                 // Библия и Holyrics — церковный режим; выключенный оставляет только светское.
-                if (churchMode) Tile("Библия") { dialog = "bible" }
-                if (churchMode) Tile("Holyrics") { dialog = "holyrics" }
-                Tile("Настройки") { dialog = "settings" }
-                if (!churchMode) Spacer(Modifier.weight(2f))
+                if (churchMode) add("Библия" to { dialog = "bible" })
+                if (churchMode) add("Holyrics" to { dialog = "holyrics" })
+                // Само это устройство становится экраном: для проектора, доски или запасного телефона.
+                add("Стать экраном" to { context.startActivity(Intent(context, ScreenActivity::class.java)) })
+                add("Настройки" to { dialog = "settings" })
+            }
+            // Не больше четырёх плиток в ряд, как в «Показать».
+            more.chunked(4).forEachIndexed { i, row ->
+                if (i > 0) Spacer(Modifier.height(10.dp))
+                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { (label, action) -> Tile(label, action) }
+                    if (row.size < 4) Spacer(Modifier.weight((4 - row.size).toFloat()))
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

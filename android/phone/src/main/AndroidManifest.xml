@@ -5,10 +5,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Режим экрана: держит устройство включённым во время показа. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Универсальная версия ставится и на телефон, и на ТВ, проектор, доску. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
         android:name=".PhoneApp"
         android:allowBackup="false"
+        android:banner="@drawable/banner"
         android:icon="@drawable/ic_launcher"
         android:label="Deixis"
         android:supportsRtl="true"
@@ -31,6 +38,19 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="deixis" />
                 <data android:scheme="deixis-holyrics" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ScreenActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.Deixis.Screen">
+            <!-- На телевизоре приложение видно в его меню и открывается сразу экраном. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
         <service

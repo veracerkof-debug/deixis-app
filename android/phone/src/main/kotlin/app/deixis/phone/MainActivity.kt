@@ -22,6 +22,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // На телевизоре и приставке универсальный Deixis сразу работает экраном; пульт — с телефона.
+        if (savedInstanceState == null && intent?.data == null && ScreenActivity.isTelevision(this)) {
+            startActivity(Intent(this, ScreenActivity::class.java))
+            finish()
+            return
+        }
         val controller = (application as PhoneApp).controller
         hdmi = HdmiOutput(this, controller)
         lifecycleScope.launch {
@@ -46,18 +52,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (!::hdmi.isInitialized) return
         val controller = (application as PhoneApp).controller
         controller.startDiscovery()
         hdmi.start()
     }
 
     override fun onStop() {
-        (application as PhoneApp).controller.stopDiscovery()
+        if (::hdmi.isInitialized) (application as PhoneApp).controller.stopDiscovery()
         super.onStop()
     }
 
     override fun onDestroy() {
-        if (isFinishing) hdmi.stop()
+        if (isFinishing && ::hdmi.isInitialized) hdmi.stop()
         super.onDestroy()
     }
 }
