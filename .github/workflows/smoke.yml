@@ -1,6 +1,6 @@
 name: Android smoke
 
-# Запуск Deixis TV и Deixis на эмуляторе Android 11: ловит падения при старте, которых не видно при сборке.
+# Запуск релизных Deixis TV и Deixis на эмуляторах Android 8, 11 и 13: ловит падения при старте, которых не видно при сборке.
 on:
   workflow_dispatch:
   push:
@@ -12,8 +12,12 @@ concurrency:
 
 jobs:
   smoke:
-    name: Запуск на эмуляторе
+    name: Запуск на Android ${{ matrix.api }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 30, 33]
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
@@ -23,16 +27,16 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Сборка APK
-        run: ./gradlew :android:phone:assembleDebug :android:tv:assembleDebug
+        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease
       - name: KVM для эмулятора
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Эмулятор Android 11
+      - name: Эмулятор
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
           disable-animations: true
@@ -41,5 +45,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-smoke
+          name: android-smoke-${{ matrix.api }}
           path: smoke/

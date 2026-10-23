@@ -32,7 +32,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            if (keystore != null) signingConfig = signingConfigs.getByName("release")
+            // Без ключа (проверка на эмуляторе) релиз подписывается отладочным ключом; выпуск без ключа не проходит проверку в release.yml.
+            signingConfig = signingConfigs.getByName(if (keystore != null) "release" else "debug")
         }
     }
     // Отдельный APK под каждый тип процессора (в 3–4 раза меньше) и общий для любого устройства.
