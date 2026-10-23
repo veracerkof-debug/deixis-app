@@ -51,6 +51,12 @@ def main():
         shutil.copy(os.path.join(HERE, f), os.path.join(OUT, f))
     shutil.copytree(os.path.join(HERE, "media"), os.path.join(OUT, "media"),
                     ignore=shutil.ignore_patterns("*.pptx", "*.pdf"))
+    # Для GitHub Pages: та же витрина обычной страницей с <!doctype> (claude.ai добавляет его сам).
+    shell = open(os.path.join(HERE, "shell.html"), encoding="utf-8").read()
+    open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(
+        '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+        '<link rel="icon" href="assets/remote-icon.png">\n</head>\n<body>\n' + shell + '\n</body>\n</html>\n')
     for d, _, fs in os.walk(OUT):
         for f in fs:
             print(os.path.relpath(os.path.join(d, f), OUT))

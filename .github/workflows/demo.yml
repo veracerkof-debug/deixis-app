@@ -1,0 +1,33 @@
+name: Demo
+
+# Веб-демо на GitHub Pages: настоящие пульт и экран на демо-данных (tools/demo).
+# Запуск вручную; в настройках репозитория Pages → Source должен стоять «GitHub Actions».
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Демо на GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Сборка демо
+        run: python3 tools/demo/build.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/demo
+      - id: deployment
+        uses: actions/deploy-pages@v4
