@@ -16,6 +16,7 @@ import android.provider.Settings
 import app.deixis.core.Connection
 import app.deixis.core.Content
 import app.deixis.core.DenyReason
+import app.deixis.core.DefaultBibles
 import app.deixis.core.Discovery
 import app.deixis.core.FILE_LIMIT_BYTES
 import app.deixis.core.FileRef
@@ -133,6 +134,8 @@ class Controller(private val app: Application) {
     /** Модули Библии: встроенные копируются при первом запуске, поэтому открываются не на главном потоке. */
     val bible by lazy { BibleLibrary(app) }
     val bibleModules = MutableStateFlow<List<app.deixis.core.BibleModule>>(emptyList())
+    /** Вкладка «Библия»: открытое место и история живут вместе с пультом. */
+    val desk by lazy { BibleDesk(this, scope) }
 
     // ——— Экраны ———
     private val found = MutableStateFlow<List<Target>>(emptyList())
@@ -201,6 +204,7 @@ class Controller(private val app: Application) {
 
     init {
         scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
+        seedDemo()
         // Прежние настройки (до библиотеки) переносятся один раз.
         val old = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (old.contains("caps") || old.contains("church")) {
@@ -405,6 +409,9 @@ class Controller(private val app: Application) {
         preview.value?.let { goLive(it); messages.tryEmit("В зале") }
     }
 
+    /** Видео в зал с позиции предпросмотра. */
+    fun goLiveVideo(cue: Cue, startMs: Long) = goLive(cue.copy(startMs = startMs.coerceAtLeast(0)))
+
     fun goLive(cue: Cue) {
         live.value = cue
         localMode.value = Mode.NORMAL
@@ -451,7 +458,7 @@ class Controller(private val app: Application) {
         val d = data.value
         val id = cue?.source?.itemId
         val base = (id?.let { d.styles["slide:$it:${cue?.index}"] ?: d.styles["item:$it"] })
-            ?: d.active?.takeIf { a -> id != null && d.setlists.firstOrNull { it.id == a }?.items?.contains(id) == true }?.let { d.styles["set:$it"] }
+            ?: d.active?.takeIf { a -> id == null || d.setlists.firstOrNull { it.id == a }?.items?.contains(id) == true }?.let { d.styles["set:$it"] }
             ?: cue?.source?.style
             ?: d.styles["all"]
             ?: TextStyle()
@@ -503,16 +510,64 @@ class Controller(private val app: Application) {
     private suspend fun contentFor(o: Output, cue: Cue): Content? {
         val item = item(cue.source.itemId)
         return when (val s = cue.slide) {
-            is Slide.Text -> TextContent(s.text, style = styleFor(cue))
-            is Slide.Scripture -> s.content.copy(style = styleFor(cue))
+            is Slide.Text -> TextContent(s.text, style = withBackground(o, styleFor(cue)))
+            is Slide.Scripture -> s.content.copy(style = withBackground(o, styleFor(cue)))
             is Slide.Screen -> if (o === primary.value) ScreenContent(s.width, s.height) else null
             is Slide.Picture -> item?.let { ImageContent(fileOn(o, it)) }
-            is Slide.Movie -> item?.let { VideoContent(fileOn(o, it)) }
+            is Slide.Movie -> item?.let { VideoContent(fileOn(o, it), startMs = cue.startMs) }
             is Slide.Page -> item?.let { pageOn(o, it, s.index) }
             is Slide.Pending -> item?.let { convertOn(o, it, cue) }
             null -> null
         }
     }
+
+    /** Фон темы — картинка телефона: передаётся на экран один раз; если не вышло, слайд показывается без неё. */
+    private suspend fun withBackground(o: Output, st: TextStyle): TextStyle {
+        val ref = st.backgroundImage ?: return st
+        if (ref.sha256 in o.delivered) return st
+        val uri = data.value.localFiles[ref.sha256] ?: return st.copy(backgroundImage = null)
+        return try {
+            val src = object : UploadSource {
+                override val name = ref.name
+                override val size = ref.size
+                override val mime = ref.mime
+                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error("Фон темы недоступен")
+            }
+            o.client.upload(src, sha256 = ref.sha256)
+            o.delivered += ref.sha256
+            st
+        } catch (e: Exception) {
+            messages.emit("Фон темы не передан: ${e.message}")
+            st.copy(backgroundImage = null)
+        }
+    }
+
+    // ——— Темы ———
+
+    val themes: StateFlow<List<Theme>> = data.map { BUILT_IN_THEMES + it.themes }.stateIn(scope, SharingStarted.Eagerly, BUILT_IN_THEMES + store.data.themes)
+
+    fun saveTheme(t: Theme) = edit { d ->
+        val own = t.copy(builtIn = false)
+        d.copy(themes = if (d.themes.any { it.id == t.id }) d.themes.map { if (it.id == t.id) own else it } else d.themes + own)
+    }
+
+    fun deleteTheme(id: String) = edit { d -> d.copy(themes = d.themes.filter { it.id != id }) }
+
+    /** Фото телефона как фон темы: хэш считается сразу, файл передаётся при показе. */
+    suspend fun backgroundFrom(uri: Uri): FileRef = withContext(Dispatchers.IO) {
+        runCatching { app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        var name = uri.lastPathSegment ?: "background.jpg"
+        var size = 0L
+        app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) { name = c.getString(0) ?: name; if (!c.isNull(1)) size = c.getLong(1) }
+        }
+        val sha = app.contentResolver.openInputStream(uri)!!.use { hashWithProgress(it, size) {} }
+        val ref = FileRef(sha, name, size, app.contentResolver.getType(uri) ?: mimeOf(name))
+        withContext(Dispatchers.Main) { edit { d -> d.copy(localFiles = d.localFiles + (sha to uri.toString())) } }
+        ref
+    }
+
+    fun localFile(sha: String): String? = data.value.localFiles[sha]
 
     private suspend fun pageOn(o: Output, item: LibItem, page: Int): Content? {
         if (item.mime == "application/pdf") return PdfContent(fileOn(o, item), page)
@@ -554,7 +609,11 @@ class Controller(private val app: Application) {
         val source = sourceFor(uri, item)
         o.syncing.value++
         try {
-            val ref = o.client.upload(source, sha256 = known?.sha256) { sent, total ->
+            // Хэш большого файла считается долго: показываем ход и запоминаем результат.
+            val sha = known?.sha256 ?: withContext(Dispatchers.IO) {
+                source.open().use { input -> hashWithProgress(input, source.size) { p -> progress.value = "«${item.title}»: подготовка $p%" } }
+            }
+            val ref = o.client.upload(source, sha256 = sha) { sent, total ->
                 val p = if (total == 0L) 100 else (sent * 100 / total).toInt()
                 progress.value = "«${item.title}» → ${o.target.name}: $p%"
             }
@@ -565,6 +624,22 @@ class Controller(private val app: Application) {
             o.syncing.value--
             progress.value = null
         }
+    }
+
+    private fun hashWithProgress(input: InputStream, size: Long, onProgress: (Int) -> Unit): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val buf = ByteArray(1 shl 16)
+        var done = 0L
+        var last = -1
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) break
+            md.update(buf, 0, n)
+            done += n
+            val p = if (size > 0) (done * 100 / size).toInt() else 0
+            if (p != last) { last = p; onProgress(p) }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     private suspend fun contentForDlna(cue: Cue): Content? {
@@ -607,6 +682,60 @@ class Controller(private val app: Application) {
             } catch (e: Exception) {
                 messages.emit(e.message ?: "Не удалось открыть файл")
             }
+        }
+    }
+
+    /**
+     * Демо-материалы при первом запуске: презентация, PDF, фото, видео, песни, текст, Писание и сетлист «Демо»,
+     * чтобы приложение можно было попробовать сразу. Удаляются как обычные элементы библиотеки.
+     */
+    private fun seedDemo() = scope.launch {
+        if (data.value.demoSeeded) return@launch
+        edit { it.copy(demoSeeded = true) }
+        val files = withContext(Dispatchers.IO) {
+            val dir = File(app.filesDir, "demo").apply { mkdirs() }
+            app.assets.list("demo").orEmpty().sorted().mapNotNull { name ->
+                runCatching {
+                    val f = File(dir, name)
+                    if (!f.isFile) app.assets.open("demo/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
+                    describe(Uri.fromFile(f), preferPresentation = false)?.let { it.copy(title = name) }
+                }.getOrNull()
+            }
+        }
+        val songs = listOf(
+            LibItem(Store.newId(), Kind.SONG, "Коль славен наш Господь в Сионе", slides = listOf(
+                "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.\nВелик Он в небесах на троне,\nВ былинках на земле велик.",
+                "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен.",
+                "Тебя Твой агнец златорунный\nВ себе изображает нам;\nПсалтирью мы десятиструнной\nТебе приносим фимиам.",
+            ), labels = listOf("Куплет 1", "Припев", "Куплет 2")),
+            LibItem(Store.newId(), Kind.SONG, "Amazing Grace", slides = listOf(
+                "Amazing grace! How sweet the sound\nThat saved a wretch like me!\nI once was lost, but now am found;\nWas blind, but now I see.",
+                "'Twas grace that taught my heart to fear,\nAnd grace my fears relieved;\nHow precious did that grace appear\nThe hour I first believed.",
+            ), labels = listOf("Verse 1", "Verse 2")),
+            LibItem(Store.newId(), Kind.TEXT, "Объявления", slides = listOf(
+                "Добро пожаловать!\nНачало в 10:00",
+                "Чай после встречи\nв малом зале",
+                "Молодёжная встреча\nв пятницу в 19:00",
+            )),
+            LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, app.deixis.core.ScriptureOptions(sideBySide = true))),
+            LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, app.deixis.core.ScriptureOptions(sideBySide = true))),
+        )
+        // Тема с фото гор на фоне: пример своей темы.
+        val mountains = files.firstOrNull { it.kind == Kind.PHOTO && it.title.startsWith("Горы") }
+        val theme = mountains?.uri?.let { u ->
+            runCatching { backgroundFrom(Uri.parse(u)) }.getOrNull()?.let { ref ->
+                Theme(Store.newId(), "Горы", TextStyle(backgroundImage = ref, box = 0x66000000, name = "Горы"))
+            }
+        }
+        val all = songs + files
+        val demo = Setlist(Store.newId(), "Демо", LocalDate.now().toString(), all.map { it.id })
+        edit { d ->
+            d.copy(
+                items = all + d.items,
+                setlists = d.setlists.filter { it.items.isNotEmpty() || it.id != d.active } + demo,
+                active = demo.id,
+                themes = d.themes + listOfNotNull(theme),
+            )
         }
     }
 

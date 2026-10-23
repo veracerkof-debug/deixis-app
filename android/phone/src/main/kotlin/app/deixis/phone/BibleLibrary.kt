@@ -55,13 +55,19 @@ class BibleLibrary(private val context: Context) {
     }
 
     var options: ScriptureOptions
-        get() = prefs.getString("options", null)?.let { runCatching { DeixisJson.decodeFromString(ScriptureOptions.serializer(), it) }.getOrNull() } ?: ScriptureOptions()
+        // По умолчанию два перевода рядом: русский и английский в две колонки.
+        get() = prefs.getString("options", null)?.let { runCatching { DeixisJson.decodeFromString(ScriptureOptions.serializer(), it) }.getOrNull() } ?: ScriptureOptions(sideBySide = true)
         set(value) = prefs.edit().putString("options", DeixisJson.encodeToString(ScriptureOptions.serializer(), value)).apply()
 
-    /** Выбранные переводы: первый — основной, второй — параллельный (может не быть). Без выбора — Синодальный. */
+    /** Выбранные переводы: первый — основной, второй — параллельный. Без выбора — Синодальный и King James вместе. */
     var selected: List<String>
-        get() = prefs.getString("selected", null)?.split('|')?.filter { it.isNotBlank() }.orEmpty().ifEmpty { DefaultBibles.FILES.take(1) }
-        set(value) = prefs.edit().putString("selected", value.joinToString("|")).apply()
+        get() = prefs.getString("selected2", null)?.split('|')?.filter { it.isNotBlank() }.orEmpty().ifEmpty { DefaultBibles.FILES }
+        set(value) = prefs.edit().putString("selected2", value.joinToString("|")).apply()
+
+    /** Открытые места: «книга:глава:с:по», новые первыми. */
+    var history: List<String>
+        get() = prefs.getString("history", null)?.split('|')?.filter { it.isNotBlank() }.orEmpty()
+        set(value) = prefs.edit().putString("history", value.take(30).joinToString("|")).apply()
 
     var lastRef: String
         get() = prefs.getString("ref", "") ?: ""

@@ -58,7 +58,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 enum class AppTab(val title: String, val icon: String) {
-    SHOW("Показ", "show"), LIBRARY("Библиотека", "lib"), SETLISTS("Сетлисты", "list"), DEVICES("Устройства", "devs"),
+    SHOW("Показ", "show"), BIBLE("Библия", "bible"), LIBRARY("Библиотека", "lib"), SETLISTS("Сетлисты", "list"), DEVICES("Устройства", "devs"),
 }
 
 /** Шторка: заголовок и содержимое. */
@@ -69,6 +69,8 @@ sealed interface FullSpec {
     data object Live : FullSpec
     data object Preview : FullSpec
     data class Local(val cue: Cue) : FullSpec
+    /** Предпросмотр видео: играет на телефоне, «В зал» — с того же места. */
+    data class Video(val cue: Cue) : FullSpec
 }
 
 internal data class ToastMsg(val id: Long, val text: String)
@@ -110,7 +112,7 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     val showing = live != null && outputs.isNotEmpty()
     val theme = if (settings.darkLive && showing && (settings.theme == "light" || settings.theme == "paper")) "dark" else settings.theme
     LaunchedEffect(controller) { controller.messages.collect { ui.toast(it) } }
-    CompositionLocalProvider(P provides paletteOf(theme), LocalUi provides ui, LocalActs provides rememberActs(controller, ui)) {
+    CompositionLocalProvider(P provides paletteOf(theme), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }) {
         Root(controller, holyrics, ui)
     }
 }
@@ -118,6 +120,8 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
 @Composable
 private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     val p = P.current
+    val settings by c.settings.collectAsState()
+    LaunchedEffect(settings.church) { if (!settings.church && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW }
     val needPin by c.needPin.collectAsState()
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
 
@@ -125,12 +129,12 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val rail = maxWidth >= 1024.dp
             if (rail) Row(Modifier.fillMaxSize()) {
-                Tabs(ui, vertical = true)
+                Tabs(ui, vertical = true, church = settings.church)
                 Box(Modifier.width(T.hair).fillMaxHeight().background(p.sep))
                 Box(Modifier.weight(1f)) { Screen(c, h, ui) }
             } else Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { Screen(c, h, ui) }
-                Tabs(ui, vertical = false)
+                Tabs(ui, vertical = false, church = settings.church)
             }
         }
         FullHost(c, ui)
@@ -147,6 +151,7 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
 private fun Screen(c: Controller, h: HolyricsSource, ui: Ui) {
     when (ui.tab) {
         AppTab.SHOW -> ShowScreen(c, h, ui)
+        AppTab.BIBLE -> BibleScreen(c, ui)
         AppTab.LIBRARY -> LibraryScreen(c, h, ui)
         AppTab.SETLISTS -> SetlistsScreen(c, ui)
         AppTab.DEVICES -> DevicesScreen(c, h, ui)
@@ -154,8 +159,10 @@ private fun Screen(c: Controller, h: HolyricsSource, ui: Ui) {
 }
 
 @Composable
-private fun Tabs(ui: Ui, vertical: Boolean) {
+private fun Tabs(ui: Ui, vertical: Boolean, church: Boolean) {
     val p = P.current
+    // «Библия» — церковный раздел: без него вкладки нет.
+    val tabs = AppTab.entries.filter { church || it != AppTab.BIBLE }
     val content: @Composable (AppTab, Modifier) -> Unit = { t, m ->
         val on = ui.tab == t
         Column(
@@ -167,10 +174,10 @@ private fun Tabs(ui: Ui, vertical: Boolean) {
         }
     }
     if (vertical) Column(Modifier.width(92.dp).fillMaxHeight().background(p.cell).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-        AppTab.entries.forEach { content(it, Modifier.fillMaxWidth()) }
+        tabs.forEach { content(it, Modifier.fillMaxWidth()) }
     } else Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
-        Row(Modifier.fillMaxWidth()) { AppTab.entries.forEach { content(it, Modifier.weight(1f)) } }
+        Row(Modifier.fillMaxWidth()) { tabs.forEach { content(it, Modifier.weight(1f)) } }
     }
 }
 

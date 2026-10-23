@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -197,11 +198,15 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(T.rPill)).background(p.live))
                 Txt("Сейчас", T.fLabel, p.l2, FontWeight.SemiBold)
             }
-            CueView(
-                c, live, c.styleFor(live), Modifier.semantics { contentDescription = "Сейчас в зале: $liveName" }
-                    .swipes(onTap = { ui.full = FullSpec.Live }, onLeft = { c.step(1) }, onRight = { c.step(-1) }),
-                mode = mode, frame = Frame.LIVE,
-            )
+            Box(contentAlignment = Alignment.Center) {
+                CueView(
+                    c, live, c.styleFor(live), Modifier.semantics { contentDescription = "Сейчас в зале: $liveName" }
+                        .swipes(onTap = { ui.full = FullSpec.Live }, onLeft = { c.step(1) }, onRight = { c.step(-1) }),
+                    mode = mode, frame = Frame.LIVE,
+                )
+                // Файл готовится или передаётся: в зале пока прежний слайд, здесь — ход загрузки.
+                progress?.let { Loading(it) }
+            }
             Txt(liveHint, T.fTag, p.l2, lines = 1)
         }
     }
@@ -220,7 +225,10 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
             CueView(
                 c, shown, c.styleFor(shown, withDraft = true),
                 Modifier.semantics { contentDescription = "Предпросмотр: $preName" }
-                    .swipes(onTap = { if (preview != null) ui.full = FullSpec.Preview }, onUp = { c.previewToLive() }),
+                    .swipes(
+                        onTap = { preview?.let { pv -> ui.full = if (pv.slide is Slide.Movie) FullSpec.Video(pv) else FullSpec.Preview } },
+                        onUp = { c.previewToLive() },
+                    ),
                 frame = Frame.PREVIEW,
             )
             Txt(preName + if (draft != null && preview != null) " · новое оформление" else "", T.fTag, if (draft != null) p.tintText else p.l2, lines = 1)
@@ -230,6 +238,22 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
         now(Modifier.fillMaxWidth()); pre(Modifier.fillMaxWidth())
     } else Row(Modifier.padding(start = T.gutter, end = T.gutter, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(T.gap)) {
         now(Modifier.weight(1f)); pre(Modifier.weight(1f))
+    }
+}
+
+/** Слой загрузки поверх окна «Сейчас»: кольцо и проценты. */
+@Composable
+private fun BoxScope.Loading(text: String) {
+    val p = P.current
+    val spin = rememberInfiniteTransition(label = "load")
+    val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin")
+    val percent = Regex("(\\d+)%").find(text)?.groupValues?.get(1)
+    Column(
+        Modifier.matchParentSize().clip(RoundedCornerShape(T.rSlide)).background(Color.Black.copy(alpha = 0.6f)).padding(T.gapS),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        Canvas(Modifier.size(28.dp).rotate(a)) { drawArc(p.tint, 0f, 270f, false, style = Stroke(3.dp.toPx())) }
+        Txt(percent?.let { "$it%" } ?: "Подготовка…", T.fLabel, Color.White, FontWeight.SemiBold, Modifier.padding(top = 4.dp))
     }
 }
 
@@ -255,7 +279,7 @@ private fun Tiles(c: Controller, h: HolyricsSource, ui: Ui, wrap: Boolean) {
         add(TileSpec("Файл", "file") { ui.sheet("Файл") { PickSheet(c, ui, PickKind.FILE) } })
         // Церковный раздел: Библия и Holyrics. Выключается в настройках.
         if (settings.church) {
-            add(TileSpec("Библия", "bible") { ui.sheet("Библия") { BiblePicker(c, ui) } })
+            add(TileSpec("Библия", "bible") { ui.tab = AppTab.BIBLE })
             add(TileSpec("Holyrics", "song") { acts.holyrics() })
         }
         add(TileSpec("Стать экраном", "tv") { context.startActivity(Intent(context, ScreenActivity::class.java)) })
@@ -377,7 +401,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                     val cue = Cue(c.sourceOf(it), i)
                     SlideView(
                         slides[i], it, c.styleFor(cue),
-                        Modifier.weight(1f).padding(T.gapXs).press(scaleTo = 0.97f, label = "Слайд ${i + 1}") { tapSlide(c, ui, it, i) },
+                        Modifier.weight(1f).padding(T.gapXs).combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                         num = i + 1, frame = if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                     )
                 }
@@ -387,11 +411,24 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
     }
 }
 
-/** Касание слайда: элемент, который в зале, — сразу в зал; другой — в предпросмотр. Большой файл — через экран. */
+/**
+ * Касание слайда: в предпросмотр (у элемента, который уже в зале, — сразу в зал).
+ * Видео открывается отдельным экраном предпросмотра. Большой файл — через трансляцию экрана.
+ */
 fun tapSlide(c: Controller, ui: Ui, item: LibItem, index: Int) {
     val big = c.largeFor(item)
     if (big != null) { ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }; return }
-    c.tap(Cue(c.sourceOf(item), index))
+    val cue = Cue(c.sourceOf(item), index)
+    if (cue.slide is Slide.Movie) { c.toPreview(cue); ui.full = FullSpec.Video(cue); return }
+    c.tap(cue)
+}
+
+/** Двойное касание: сразу в зал. */
+fun liveSlide(c: Controller, ui: Ui, item: LibItem, index: Int) {
+    val big = c.largeFor(item)
+    if (big != null) { ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }; return }
+    c.goLive(Cue(c.sourceOf(item), index))
+    ui.toast("В зале")
 }
 
 // ——— Полоса кнопок показа ———

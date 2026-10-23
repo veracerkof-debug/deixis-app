@@ -431,6 +431,10 @@ fun StyleSheet(c: Controller, ui: Ui) {
     val d = draft ?: return
     var to by remember { mutableStateOf(c.draftScope) }
     val set = { st: app.deixis.core.TextStyle -> c.draft.value = st }
+    GHead("Темы")
+    ThemesRow(c, ui, d) { t -> set(t.style) }
+    Note("Удержание темы — изменить её или сделать свою на её основе.", Modifier.padding(bottom = T.gapS))
+    GHead("Быстрая правка")
     Group {
         Cell("Фон", chevron = null) {
             Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) { backgrounds.forEach { (v, n) -> Swatch(Color(v), d.background == v, "Фон: $n") { set(d.copy(background = v)) } } }
@@ -470,7 +474,7 @@ fun AddSheet(c: Controller, ui: Ui) {
         Cell("Новый текст", kind = "text", onClick = { ui.push("Новый текст") { EditSheet(c, ui, Kind.TEXT) } })
         if (st.church) {
             Sep()
-            Cell("Место из Библии", kind = "bible", onClick = { ui.push("Библия") { BiblePicker(c, ui) } })
+            Cell("Место из Библии", "Вкладка «Библия» → «В сетлист»", kind = "bible", onClick = { ui.closeAll(); ui.tab = AppTab.BIBLE })
         }
         Sep()
         Cell("Файлы телефона", "PDF, PPTX, видео, фото, TXT, DOCX", "file", onClick = {

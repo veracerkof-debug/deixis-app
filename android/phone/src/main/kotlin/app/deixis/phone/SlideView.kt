@@ -110,13 +110,21 @@ fun SlideView(
                     style = TextStyle(fontFamily = Didot, fontSize = with(d) { px.toSp() }, letterSpacing = 0.18.em, color = Color.White), maxLines = 1, softWrap = false,
                 )
             }
-            mode == Mode.CLEAR || slide == null -> {}
-            else -> SlideBody(slide, item, style)
+            mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
+            else -> { BackgroundImage(style); SlideBody(slide, item, style) }
         }
         num?.let {
             Txt("$it", T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopStart).padding(start = T.gapS, top = 4.dp))
         }
     }
+}
+
+/** Фото фона темы (только у слайдов с текстом), обрезка по экрану, как на выводе. */
+@Composable
+private fun BackgroundImage(style: SlideStyle) {
+    val ref = style.backgroundImage ?: return
+    val uri = LocalBackgrounds.current(ref.sha256) ?: return
+    Thumb(LibItem("bg", Kind.PHOTO, ref.name, uri = uri), ThumbKind.PHOTO, 0) {}
 }
 
 @Composable
@@ -169,7 +177,15 @@ private fun SlideText(paras: List<String>, ref: String?, style: SlideStyle) {
             },
         )
         val shadow = if (style.shadow) Shadow(Color(style.shadowColor), Offset(0f, with(density) { (size * 0.06f).toPx() }), with(density) { (size * 0.2f).toPx() }) else null
-        Box(contentAlignment = Alignment.Center) {
+        val place = when (style.valign) {
+            app.deixis.core.VAlign.TOP -> Alignment.TopCenter
+            app.deixis.core.VAlign.BOTTOM -> Alignment.BottomCenter
+            else -> Alignment.Center
+        }
+        Box(
+            Modifier.align(place).then(if (style.box != null) Modifier.background(Color(style.box!!)).padding(horizontal = size * 0.4f, vertical = size * 0.15f) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
             if (style.outline) BasicText(
                 text, style = base.copy(color = Color(style.outlineColor), drawStyle = Stroke(with(density) { (size * style.outlineWidth * 2).toPx() })),
             )

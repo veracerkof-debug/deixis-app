@@ -363,8 +363,8 @@ fun Cell(
     }
 }
 
-fun Modifier.combinedClick(onClick: () -> Unit, onLong: (() -> Unit)? = null): Modifier =
-    this.combinedClickable(onLongClick = onLong, onClick = onClick)
+fun Modifier.combinedClick(onClick: () -> Unit, onLong: (() -> Unit)? = null, onDouble: (() -> Unit)? = null): Modifier =
+    this.combinedClickable(onLongClick = onLong, onDoubleClick = onDouble, onClick = onClick)
 
 /** Сегментный переключатель. */
 @Composable

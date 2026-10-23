@@ -77,6 +77,23 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
         player.play()
     }
 
+    /** Предпросмотр на пульте: файл телефона по дескриптору (content://), без копирования. */
+    fun play(fd: java.io.FileDescriptor, name: String, startMs: Long = 0) {
+        this.name = name
+        loop = false
+        startedAt = System.currentTimeMillis()
+        userPaused = false
+        stuckReported = false
+        resumeAfterHide = false
+        aspect.value = null
+        val media = Media(libVlc, fd)
+        media.setHWDecoderEnabled(true, false)
+        if (startMs > 0) media.addOption(":start-time=${startMs / 1000.0}")
+        player.setMedia(media)
+        media.release()
+        player.play()
+    }
+
     fun apply(cmd: VideoCommand) {
         when (cmd.action) {
             VideoAction.PLAY -> { userPaused = false; player.play() }

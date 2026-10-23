@@ -95,7 +95,17 @@ data class StoreData(
     /** Хэш файла элемента (считается один раз) и переводы презентаций. */
     val hashes: Map<String, FileRef> = emptyMap(),
     val conversions: Map<String, Conversion> = emptyMap(),
+    /** Свои темы оформления (встроенные — в коде). */
+    val themes: List<Theme> = emptyList(),
+    /** Файлы телефона по хэшу: фоновые картинки тем. */
+    val localFiles: Map<String, String> = emptyMap(),
+    /** Демо-материалы добавлены (один раз, при первом запуске). */
+    val demoSeeded: Boolean = false,
 )
+
+/** Тема оформления слайдов с текстом: фон, цвет, размер, тень, плашка, положение. */
+@Serializable
+data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false)
 
 /** Хранилище библиотеки и сетлистов: один JSON в памяти приложения, запись после каждого изменения. */
 class Store(context: Context) {
@@ -149,9 +159,12 @@ data class Source(
     val kind: Kind?,
     val slides: List<Slide>,
     val style: TextStyle? = null,
+    /** Место Писания, если показ идёт из вкладки «Библия»: по нему она отмечает стих в зале. */
+    val bible: BiblePick? = null,
 )
 
-data class Cue(val source: Source, val index: Int) {
+/** [startMs] — с какого места начать видео (из предпросмотра видео). */
+data class Cue(val source: Source, val index: Int, val startMs: Long = 0) {
     val slide: Slide? get() = source.slides.getOrNull(index)
     fun same(other: Cue?) = other != null && source.itemId != null && source.itemId == other.source.itemId && index == other.index
 }

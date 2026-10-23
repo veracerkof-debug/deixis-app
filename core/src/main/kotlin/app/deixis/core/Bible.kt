@@ -62,6 +62,9 @@ class BibleModule(private val db: SqlSource, val fileName: String) : AutoCloseab
             Verse(n, cleanVerseText(r[1]?.toString().orEmpty()))
         }
 
+    /** Прямой запрос к модулю: для поиска по всему тексту. */
+    fun query(sql: String, vararg args: Any): List<List<Any?>> = db.query(sql, *args)
+
     override fun close() = db.close()
 }
 

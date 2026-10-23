@@ -56,7 +56,7 @@ fun FullHost(c: Controller, ui: Ui) {
         enter = fadeIn(tween(T.slow, easing = T.eOut)) + slideInVertically(tween(T.slow, easing = T.eOut)) { it / 30 } + scaleIn(tween(T.slow, easing = T.eOut), 0.98f),
         exit = fadeOut(tween(T.mid, easing = T.eIn)),
     ) {
-        shown?.let { FullView(c, ui, it) }
+        shown?.let { if (it is FullSpec.Video) VideoPreview(c, ui, it.cue) else FullView(c, ui, it) }
     }
 }
 
@@ -73,6 +73,7 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
         FullSpec.Live -> live
         FullSpec.Preview -> preview
         is FullSpec.Local -> local
+        is FullSpec.Video -> spec.cue
     }
     // Предпросмотр ушёл в зал — окно закрывается.
     LaunchedEffect(spec, cue) { if (spec == FullSpec.Preview && cue == null) ui.full = null }
@@ -85,6 +86,7 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
                 val n = l.index + d
                 if (n in l.source.slides.indices) local = l.copy(index = n)
             }
+            is FullSpec.Video -> {}
         }
         Unit
     }
@@ -97,7 +99,7 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
                 if (big != null) ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }
                 else { c.goLive(l); ui.toast("В зале") }
             }
-            FullSpec.Live -> {}
+            FullSpec.Live, is FullSpec.Video -> {}
         }
         ui.full = null
     }
