@@ -94,7 +94,9 @@ class SlideRenderer(private val files: FileStore) {
         g.font = ui.deriveFont(h * 0.025f)
         g.drawString(idle.address, textX, blockTop + (h * 0.17f).toInt())
 
-        drawCentered(g, "Откройте Deixis на телефоне и выберите это устройство · Выход — Ctrl+Q", ui.deriveFont(h * 0.025f), w, h * 0.88f, Color(255, 255, 255, 110))
+        val hint = if (idle.pairingUri != null) "Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно"
+        else "Подключите компьютер к сети Wi-Fi, чтобы появился QR-код для телефона"
+        drawCentered(g, "$hint · Выход — Ctrl+Q", ui.deriveFont(h * 0.025f), w, h * 0.88f, Color(255, 255, 255, 110))
     }
 
     private fun drawWordmark(g: Graphics2D, w: Int, h: Int, centerY: Float, size: Float) {

@@ -202,7 +202,8 @@ private fun IdleScreen(name: String, pin: String, address: String?, pairingUri: 
             }
             Spacer(Modifier.height(dp(0.08f)))
             BasicText(
-                "Откройте Deixis на телефоне и выберите это устройство",
+                if (pairingUri != null) "Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно"
+                else "Подключите приставку к сети Wi-Fi, чтобы появился QR-код для телефона",
                 style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.025f), color = Color.White.copy(alpha = 0.45f), textAlign = TextAlign.Center),
             )
         }
