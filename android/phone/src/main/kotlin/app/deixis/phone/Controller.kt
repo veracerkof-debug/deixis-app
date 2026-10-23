@@ -43,6 +43,7 @@ import app.deixis.core.BibleRef
 import app.deixis.core.mediaKindOf
 import app.deixis.core.mimeOf
 import app.deixis.core.splitIntoSlides
+import app.deixis.receiver.PptxPdf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -629,15 +630,15 @@ class Controller(private val app: Application) {
         val id = Store.newId()
         val ext = name.substringAfterLast('.', "").lowercase()
         // PPTX переводится в PDF прямо на телефоне: превью слайдов и показ на любом экране без компьютера.
-        if (kind == Kind.PRESENTATION && ext in app.deixis.receiver.PptxPdf.FORMATS) {
+        if (kind == Kind.PRESENTATION && ext in PptxPdf.FORMATS) {
             progress.value = "«$name»: перевод в PDF…"
             try {
                 val src = File(app.cacheDir, "pptx-$id.$ext")
                 app.contentResolver.openInputStream(uri)!!.use { input -> src.outputStream().use { input.copyTo(it) } }
                 val out = File(File(app.filesDir, "converted").apply { mkdirs() }, "$id.pdf")
-                val warnings = try { app.deixis.receiver.PptxPdf.convert(app, src, out) } finally { src.delete() }
+                val warnings = try { PptxPdf.convert(app, src, out) } finally { src.delete() }
                 val pages = app.contentResolver.openFileDescriptor(Uri.fromFile(out), "r")!!.use { fd -> PdfRenderer(fd).use { it.pageCount } }
-                app.deixis.receiver.PptxPdf.warning(warnings)?.let { messages.tryEmit(it) }
+                PptxPdf.warning(warnings)?.let { messages.tryEmit(it) }
                 return LibItem(id, Kind.PRESENTATION, name, uri = Uri.fromFile(out).toString(), mime = "application/pdf", size = out.length(), pages = pages)
             } finally {
                 progress.value = null
