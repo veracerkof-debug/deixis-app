@@ -196,8 +196,9 @@ private suspend fun ApplicationCall.currentFile(core: ReceiverCore): FileRef? {
         respondText("", status = HttpStatusCode.Forbidden)
         return null
     }
-    val ref = core.state.value.content?.file
-    if (ref == null || ref.sha256 != parameters["sha"]) {
+    // Файл показа или картинка фона его оформления.
+    val ref = core.state.value.content?.files.orEmpty().firstOrNull { it.sha256 == parameters["sha"] }
+    if (ref == null) {
         respondText("", status = HttpStatusCode.NotFound)
         return null
     }

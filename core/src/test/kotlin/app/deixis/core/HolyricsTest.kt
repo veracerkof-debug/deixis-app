@@ -71,7 +71,7 @@ class FakeHolyrics(private val token: String = "secret") {
                             "font":{"name":"CMG Sans","bold":true,"italic":false,"size":10.0,"color":"F5F5F5","line_spacing":0.3,"char_spacing":0},
                             "align":{"horizontal":"left","vertical":"bottom","margin":{"top":3.0,"right":4.0,"bottom":5.0,"left":6.0}},
                             "effect":{"outline_color":"000000","outline_weight":20.0,"shadow_color":"101010","shadow_x_weight":10.0,"shadow_y_weight":10.0,"blur":true},
-                            "shape_fill":{"type":"box","enabled":true,"color":"80000000","margin":{"top":5.0,"right":30.0,"bottom":10.0,"left":30.0},"corner":0},
+                            "shape_fill":{"type":"box","enabled":true,"color":"000000B4","margin":{"top":5.0,"right":30.0,"bottom":10.0,"left":30.0},"corner":0},
                             "settings":{"uppercase":true,"line_break":"system"}}]""",
                         )
                         "GetImages" -> call.ok("""[{"name":"фото","isDir":true},{"name":"пасха.jpg","isDir":false,"length":"204800","width":1920,"height":1080,"thumbnail":"AAAA"}]""")
@@ -137,6 +137,38 @@ class HolyricsTest {
             assertTrue(t.font.bold && t.settings.uppercase && t.shapeFill.enabled)
             assertEquals(20.0, t.effect.outlineWeight)
         }
+    }
+
+    @Test
+    fun themeBecomesSlideStyle() = runBlocking<Unit> {
+        HolyricsClient("127.0.0.1", port, "secret").use { h ->
+            val st = h.themes().single().toTextStyle()
+            assertEquals(0xFF212121, st.background)
+            assertEquals(0xFFF5F5F5, st.color)
+            assertEquals(HAlign.LEFT, st.align)
+            assertEquals(VAlign.BOTTOM, st.valign)
+            assertEquals(Margins(6f, 3f, 4f, 5f), st.margins)
+            assertTrue(st.caps && st.outline && st.shadow)
+            assertEquals(0xB4000000, st.box, "RRGGBBAA → ARGB")
+            assertEquals(1.3f, st.lineHeight, 0.001f)
+            assertEquals("Тёмная", st.name)
+            // Слайд с этой темой: строки у левого поля и внизу экрана.
+            val m = { s: String, size: Float -> s.length * size * 0.55f }
+            val l = layoutSlideText("Великий Бог\nВеликий Бог", null, 1920f, 1080f, st, m, { it * 0.8f }, { it * 0.2f })
+            val a = safeArea(1920f, 1080f, margins = st.margins)
+            assertTrue(l.lines.all { kotlin.math.abs(it.x - a.left) < 0.5f })
+            assertTrue(l.lines.last().baseline > 1080 * 0.7f)
+            assertTrue(l.lines.all { it.text == it.text.uppercase() })
+        }
+    }
+
+    @Test
+    fun colorsParse() {
+        assertEquals(0xFFFF0000, holyricsColor("FF0000", 0))
+        assertEquals(0x80112233, holyricsColor("11223380", 0))
+        assertEquals(7L, holyricsColor("zz", 7))
+        val grey = mix(0xFFFFFFFF, 0xFF000000, 0.5)
+        assertTrue(((grey ushr 16) and 0xFF) in 0x7F..0x80 && (grey ushr 24) == 0xFFL)
     }
 
     @Test

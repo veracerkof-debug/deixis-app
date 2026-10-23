@@ -21,7 +21,8 @@ private const val USAGE = """Deixis для компьютера
       Трансляция записи H.264 так же, как телефон показывает свой экран (для проверки).
   deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal
   deixis send --to АДРЕС[:ПОРТ] --video play|pause|seek=МС|volume=0..200
-      Показать файл, текст или переключить режим. --caps — текст заглавными буквами. Ключ --watch N печатает состояние N секунд.
+      Показать файл, текст или переключить режим. --caps — текст заглавными буквами.
+      --theme тема.json — оформление из темы Holyrics, --background фон.jpg — картинка фона. Ключ --watch N печатает состояние N секунд.
 """
 
 fun main(args: Array<String>) {

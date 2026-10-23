@@ -21,11 +21,33 @@ data class SafeArea(val left: Float, val top: Float, val right: Float, val botto
     val height get() = bottom - top
 }
 
-fun safeArea(width: Float, height: Float, overscan: Boolean = false): SafeArea {
+fun safeArea(width: Float, height: Float, overscan: Boolean = false, margins: Margins? = null): SafeArea {
     val base = minOf(width, height) * SAFE_MARGIN
     val ox = if (overscan) width * OVERSCAN_MARGIN else 0f
     val oy = if (overscan) height * OVERSCAN_MARGIN else 0f
-    return SafeArea(base + ox, base + oy, width - base - ox, height - base - oy)
+    // Поля оформления (например, темы Holyrics) соблюдаются, но не уже безопасных.
+    fun side(safe: Float, percent: Float?, of: Float) = maxOf(safe, (percent ?: 0f) * of / 100f)
+    val l = side(base + ox, margins?.left, width)
+    val t = side(base + oy, margins?.top, height)
+    val r = side(base + ox, margins?.right, width)
+    val b = side(base + oy, margins?.bottom, height)
+    // Слишком большие поля не съедают экран целиком.
+    return if (l + r > width * 0.8f || t + b > height * 0.8f) SafeArea(base + ox, base + oy, width - base - ox, height - base - oy)
+    else SafeArea(l, t, width - r, height - b)
+}
+
+/** Левый край строки шириной [w] внутри [area] по выравниванию. */
+fun alignX(area: SafeArea, w: Float, align: HAlign): Float = when (align) {
+    HAlign.LEFT -> area.left
+    HAlign.RIGHT -> area.right - w
+    HAlign.CENTER -> area.left + (area.width - w) / 2f
+}
+
+/** Верх блока высотой [h] внутри полосы [top]..[top]+[space] по выравниванию. */
+fun alignY(top: Float, space: Float, h: Float, valign: VAlign): Float = when (valign) {
+    VAlign.TOP -> top
+    VAlign.BOTTOM -> top + space - h
+    VAlign.MIDDLE -> top + (space - h) / 2f
 }
 
 /** Наибольший размер шрифта для текста: доля меньшей стороны экрана из [TextStyle.sizePercent]. */
@@ -139,6 +161,8 @@ data class SlideTextLayout(
     val refBaseline: Float,
     /** Подпись с учётом регистра; null — без подписи. */
     val ref: String? = null,
+    /** Прямоугольник текста — для плашки под ним. */
+    val block: SafeArea? = null,
 )
 
 /**
@@ -157,9 +181,9 @@ fun layoutSlideText(
     ascent: (Float) -> Float,
     descent: (Float) -> Float,
     overscan: Boolean = false,
-    lineHeight: Float = SLIDE_LINE_HEIGHT,
+    lineHeight: Float = style.lineHeight,
 ): SlideTextLayout {
-    val area = safeArea(width, height, overscan)
+    val area = safeArea(width, height, overscan, style.margins)
     val refSize = minOf(width, height) * 0.045f
     val refH = if (ref != null) refSize * lineHeight * 1.5f else 0f
     val boxH = area.height - refH
@@ -169,11 +193,17 @@ fun layoutSlideText(
     )
     val size = fitted.size
     val lineH = size * lineHeight
-    var top = area.top + (boxH - fitted.lines.size * lineH) / 2f
+    val blockTop = alignY(area.top, boxH, fitted.lines.size * lineH, style.valign)
+    var top = blockTop
     val placed = fitted.lines.map { line ->
         val baseline = top + (lineH - (ascent(size) + descent(size))) / 2f + ascent(size)
         top += lineH
-        PlacedLine(line, (width - measure(line, size)) / 2f, baseline)
+        PlacedLine(line, alignX(area, measure(line, size), style.align), baseline)
     }
-    return SlideTextLayout(size, placed, refSize, area.right, area.bottom - descent(refSize), ref?.let { styledText(it, style) })
+    val widest = fitted.lines.maxOfOrNull { measure(it, size) } ?: 0f
+    val left = alignX(area, widest, style.align)
+    // Плашка чуть шире текста, но в пределах экрана.
+    val pad = size * 0.35f
+    val block = SafeArea((left - pad).coerceAtLeast(0f), (blockTop - pad * 0.6f).coerceAtLeast(0f), (left + widest + pad).coerceAtMost(width), (top + pad * 0.6f).coerceAtMost(height))
+    return SlideTextLayout(size, placed, refSize, area.right, area.bottom - descent(refSize), ref?.let { styledText(it, style) }, block)
 }

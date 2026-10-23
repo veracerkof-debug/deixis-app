@@ -352,3 +352,57 @@ data class HolyricsLink(val host: String, val port: Int, val token: String) {
         }
     }
 }
+
+/**
+ * Цвет Holyrics в ARGB: «F5F5F5» — непрозрачный, «RRGGBBAA» — с прозрачностью (так записаны цвета плашек).
+ * Непонятный цвет даёт [fallback].
+ */
+fun holyricsColor(hex: String?, fallback: Long): Long {
+    val h = hex?.trim()?.removePrefix("#") ?: return fallback
+    return when (h.length) {
+        6 -> h.toLongOrNull(16)?.let { 0xFF000000 or it } ?: fallback
+        8 -> h.toLongOrNull(16)?.let { rgba -> ((rgba and 0xFF) shl 24) or (rgba ushr 8) } ?: fallback
+        else -> fallback
+    }
+}
+
+/** Смесь двух цветов ARGB: [t] = 1 — только [a]. */
+internal fun mix(a: Long, b: Long, t: Double): Long {
+    fun ch(c: Long, s: Int) = (c ushr s) and 0xFF
+    fun m(s: Int) = (ch(a, s) * t + ch(b, s) * (1 - t)).toLong().coerceIn(0, 255) shl s
+    return 0xFF000000 or m(16) or m(8) or m(0)
+}
+
+/** Тип фона темы — картинка из библиотеки Holyrics (её можно взять файлом через Deixis на том же компьютере). */
+val HolyricsTheme.backgroundImageName: String?
+    get() = background.id?.takeIf { background.type == "image_file" }
+
+/**
+ * Тема Holyrics в оформлении слайда Deixis: цвета, поля, выравнивание, обводка, тень, плашка, заглавные.
+ * Шрифт темы не переносится: чужие шрифты в приложение не встраиваются, слайд рисуется своим шрифтом.
+ * [backgroundImage] — уже переданная на приёмник картинка фона, если она есть.
+ */
+fun HolyricsTheme.toTextStyle(backgroundImage: FileRef? = null): TextStyle {
+    val base = holyricsColor(baseColor, 0xFF000000)
+    val bg = if (background.type == "color") mix(holyricsColor(background.id, 0xFF000000), base, background.opacity.coerceIn(0.0, 100.0) / 100) else 0xFF000000
+    val m = align.margin
+    return TextStyle(
+        background = bg,
+        color = holyricsColor(font.color, 0xFFFFFFFF),
+        // Размер темы — доля высоты слайда; у нас это предел, а меньше текст станет, только если не влезает.
+        sizePercent = font.size.toFloat().takeIf { it > 0 }?.coerceIn(3f, 50f) ?: 20f,
+        shadow = effect.shadowX != 0.0 || effect.shadowY != 0.0 || effect.glow > 0,
+        shadowColor = holyricsColor(effect.shadowColor, 0xB4000000),
+        outline = effect.outlineWeight > 0,
+        outlineColor = holyricsColor(effect.outlineColor, 0xE6000000),
+        outlineWidth = (effect.outlineWeight / 100 * 0.15).toFloat().coerceIn(0.01f, 0.15f),
+        caps = settings.uppercase,
+        align = when (align.horizontal) { "left" -> HAlign.LEFT; "right" -> HAlign.RIGHT; else -> HAlign.CENTER },
+        valign = when (align.vertical) { "top" -> VAlign.TOP; "bottom" -> VAlign.BOTTOM; else -> VAlign.MIDDLE },
+        margins = Margins(m.left.toFloat(), m.top.toFloat(), m.right.toFloat(), m.bottom.toFloat()),
+        lineHeight = (1.0 + font.lineSpacing).toFloat().coerceIn(0.9f, 2.2f),
+        box = if (shapeFill.enabled) holyricsColor(shapeFill.color, 0x80000000) else null,
+        backgroundImage = backgroundImage,
+        name = name,
+    )
+}

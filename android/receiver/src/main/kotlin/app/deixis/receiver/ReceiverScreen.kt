@@ -54,6 +54,7 @@ import app.deixis.core.ScriptureContent
 import app.deixis.core.ScreenContent
 import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
+import app.deixis.core.TextStyle
 import app.deixis.core.VideoContent
 import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
@@ -118,8 +119,8 @@ fun ReceiverScreen(
             mode == Mode.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
             mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { Wordmark(0.13f) }
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
-            content is TextContent -> TextSlide(content, clear = mode == Mode.CLEAR, overscan)
-            content is ScriptureContent -> ScriptureSlide(content, clear = mode == Mode.CLEAR, overscan)
+            content is TextContent -> TextSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
+            content is ScriptureContent -> ScriptureSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             mode == Mode.CLEAR -> Box(Modifier.fillMaxSize().background(Color.Black))
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
@@ -221,11 +222,12 @@ private fun QrCode(text: String, modifier: Modifier) {
 }
 
 @Composable
-private fun TextSlide(c: TextContent, clear: Boolean, overscan: Boolean) {
+private fun TextSlide(runtime: ReceiverRuntime, c: TextContent, clear: Boolean, overscan: Boolean) {
     val context = LocalContext.current
     val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
+    val bg = rememberBackground(runtime, c.style)
     Canvas(Modifier.fillMaxSize()) {
-        drawRect(Color(c.style.background.toInt()))
+        drawStyleBackground(c.style, bg)
         if (clear) return@Canvas
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
         val layout = layoutSlideText(
@@ -238,20 +240,8 @@ private fun TextSlide(c: TextContent, clear: Boolean, overscan: Boolean) {
         paint.textSize = layout.fontSize
         drawIntoCanvas { canvas ->
             val nc = canvas.nativeCanvas
-            for (line in layout.lines) {
-                if (c.style.outline) {
-                    val stroke = Paint(paint).apply {
-                        style = Paint.Style.STROKE
-                        strokeWidth = layout.fontSize * 0.06f
-                        strokeJoin = Paint.Join.ROUND
-                        color = 0xE6000000.toInt()
-                    }
-                    nc.drawText(line.text, line.x, line.baseline, stroke)
-                }
-                paint.color = c.style.color.toInt()
-                if (c.style.shadow) paint.setShadowLayer(layout.fontSize * 0.08f, 0f, layout.fontSize * 0.05f, 0xB4000000.toInt())
-                nc.drawText(line.text, line.x, line.baseline, paint)
-            }
+            layout.block?.let { b -> drawBox(nc, c.style, b.left, b.top, b.right, b.bottom, layout.fontSize) }
+            for (line in layout.lines) drawStyledText(nc, line.text, line.x, line.baseline, layout.fontSize, paint, c.style)
             layout.ref?.let {
                 val refPaint = Paint(paint).apply {
                     textSize = layout.refFontSize
@@ -266,11 +256,12 @@ private fun TextSlide(c: TextContent, clear: Boolean, overscan: Boolean) {
 }
 
 @Composable
-private fun ScriptureSlide(c: ScriptureContent, clear: Boolean, overscan: Boolean) {
+private fun ScriptureSlide(runtime: ReceiverRuntime, c: ScriptureContent, clear: Boolean, overscan: Boolean) {
     val context = LocalContext.current
     val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
+    val bg = rememberBackground(runtime, c.style)
     Canvas(Modifier.fillMaxSize()) {
-        drawRect(Color(c.style.background.toInt()))
+        drawStyleBackground(c.style, bg)
         if (clear) return@Canvas
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
         val lines = layoutScripture(
@@ -282,19 +273,73 @@ private fun ScriptureSlide(c: ScriptureContent, clear: Boolean, overscan: Boolea
         )
         drawIntoCanvas { canvas ->
             val nc = canvas.nativeCanvas
+            if (c.style.box != null && lines.isNotEmpty()) {
+                val size = lines.filter { !it.ref }.maxOfOrNull { it.size } ?: lines.first().size
+                val right = lines.maxOf { paint.textSize = it.size; it.x + paint.measureText(it.text) }
+                val pad = size * 0.35f
+                drawBox(nc, c.style, lines.minOf { it.x } - pad, lines.minOf { it.baseline - it.size } - pad * 0.6f, right + pad, lines.maxOf { it.baseline + it.size * 0.3f } + pad * 0.6f, size)
+            }
             for (l in lines) {
-                paint.textSize = l.size
-                paint.color = c.style.color.toInt()
                 if (l.ref) {
+                    paint.textSize = l.size
+                    paint.color = c.style.color.toInt()
                     paint.clearShadowLayer()
                     paint.alpha = 190
-                } else if (c.style.shadow) {
-                    paint.setShadowLayer(l.size * 0.08f, 0f, l.size * 0.05f, 0xB4000000.toInt())
+                    nc.drawText(l.text, l.x, l.baseline, paint)
+                } else {
+                    drawStyledText(nc, l.text, l.x, l.baseline, l.size, paint, c.style)
                 }
-                nc.drawText(l.text, l.x, l.baseline, paint)
             }
         }
     }
+}
+
+/** Картинка фона оформления, уменьшенная под экран; null — фона-картинки нет или он не читается. */
+@Composable
+private fun rememberBackground(runtime: ReceiverRuntime, style: TextStyle): Bitmap? {
+    val ref = style.backgroundImage ?: return null
+    val metrics = LocalContext.current.resources.displayMetrics
+    val bitmap by produceState<Bitmap?>(null, ref.sha256) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { runtime.core.files.file(ref.sha256)?.let { decodeSampled(it, metrics.widthPixels, metrics.heightPixels) } }.getOrNull()
+        }
+    }
+    return bitmap
+}
+
+/** Цвет фона, поверх — картинка во весь экран с обрезкой краёв. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: TextStyle, bg: Bitmap?) {
+    drawRect(Color(style.background.toInt()))
+    bg ?: return
+    val scale = maxOf(size.width / bg.width, size.height / bg.height)
+    val w = bg.width * scale
+    val h = bg.height * scale
+    drawIntoCanvas { canvas ->
+        canvas.nativeCanvas.drawBitmap(bg, null, android.graphics.RectF((size.width - w) / 2, (size.height - h) / 2, (size.width + w) / 2, (size.height + h) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
+    }
+}
+
+private fun drawBox(nc: android.graphics.Canvas, style: TextStyle, l: Float, t: Float, r: Float, b: Float, size: Float) {
+    val color = style.box ?: return
+    nc.drawRoundRect(l, t, r, b, size * 0.1f, size * 0.1f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color.toInt() })
+}
+
+/** Строка слайда с обводкой и тенью цветов оформления. */
+private fun drawStyledText(nc: android.graphics.Canvas, text: String, x: Float, baseline: Float, size: Float, paint: Paint, style: TextStyle) {
+    paint.textSize = size
+    paint.clearShadowLayer()
+    if (style.outline) {
+        val stroke = Paint(paint).apply {
+            this.style = Paint.Style.STROKE
+            strokeWidth = size * style.outlineWidth
+            strokeJoin = Paint.Join.ROUND
+            color = style.outlineColor.toInt()
+        }
+        nc.drawText(text, x, baseline, stroke)
+    }
+    paint.color = style.color.toInt()
+    if (style.shadow) paint.setShadowLayer(size * 0.08f, 0f, size * 0.05f, style.shadowColor.toInt())
+    nc.drawText(text, x, baseline, paint)
 }
 
 @Composable

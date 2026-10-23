@@ -102,7 +102,31 @@ data class TextStyle(
     val outline: Boolean = false,
     /** Всё заглавными буквами. */
     val caps: Boolean = false,
+    val align: HAlign = HAlign.CENTER,
+    val valign: VAlign = VAlign.MIDDLE,
+    /** Поля оформления в процентах (слева и справа — от ширины, сверху и снизу — от высоты); не меньше безопасных. */
+    val margins: Margins? = null,
+    val lineHeight: Float = SLIDE_LINE_HEIGHT,
+    val outlineColor: Long = 0xE6000000,
+    /** Толщина обводки, доля кегля. */
+    val outlineWidth: Float = 0.06f,
+    val shadowColor: Long = 0xB4000000,
+    /** Плашка под текстом (ARGB); null — без плашки. */
+    val box: Long? = null,
+    /** Картинка фона; приёмник должен её иметь, как и любой файл показа. */
+    val backgroundImage: FileRef? = null,
+    /** Название оформления для пульта, например тема Holyrics. */
+    val name: String? = null,
 )
+
+@Serializable
+enum class HAlign { LEFT, CENTER, RIGHT }
+
+@Serializable
+enum class VAlign { TOP, MIDDLE, BOTTOM }
+
+@Serializable
+data class Margins(val left: Float, val top: Float, val right: Float, val bottom: Float)
 
 @Serializable
 enum class Mode { NORMAL, BLACK, LOGO, CLEAR }
@@ -160,6 +184,18 @@ fun decodeMsg(text: String): Msg? = try {
 } catch (e: IllegalArgumentException) {
     null
 }
+
+/** Все файлы, нужные слайду: сам файл и картинка фона из оформления. */
+val Content.files: List<FileRef>
+    get() = listOfNotNull(file, style?.backgroundImage)
+
+/** Оформление текста слайда, если оно у слайда есть. */
+val Content.style: TextStyle?
+    get() = when (this) {
+        is TextContent -> style
+        is ScriptureContent -> style
+        else -> null
+    }
 
 val Content.file: FileRef?
     get() = when (this) {

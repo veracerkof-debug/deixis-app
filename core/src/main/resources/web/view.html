@@ -19,11 +19,10 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
 .mark span { opacity: .55; font-size: 15px; }
 .text { display: flex; align-items: center; justify-content: center; box-sizing: border-box; text-align: center; text-wrap: balance; overflow-wrap: normal; hyphens: none;
         font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; white-space: pre-line; }
-.text.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
+.text .t > div, .scripture .blocks > div > div { text-wrap: balance; }
 .text .ref { position: absolute; opacity: .75; text-transform: inherit; }
 .scripture { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; gap: .6em; text-align: center; text-wrap: balance; overflow-wrap: normal; hyphens: none;
              font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.2; overflow: hidden; }
-.scripture.shadow { text-shadow: 0 .04em .16em rgba(0,0,0,.7); }
 .scripture .blocks { display: flex; flex-direction: column; gap: .6em; }
 .scripture.side .blocks { flex-direction: row; gap: 4%; }
 .scripture.side .blocks > div { flex: 1; }
@@ -115,19 +114,55 @@ function fitText() {
   fitBox(el, current.content.style);
 }
 
+// Оформление слайда как в зале: цвет и картинка фона, выравнивание, обводка, тень, плашка под текстом.
+function stageBackground(st) {
+  stage.style.background = argb(st.background ?? 0xFF000000);
+  if (st.backgroundImage) {
+    stage.style.backgroundImage = `url("${url("/view/file/" + st.backgroundImage.sha256)}")`;
+    stage.style.backgroundSize = "cover";
+    stage.style.backgroundPosition = "center";
+  }
+}
+function applyStyle(d, st, boxEl) {
+  const flex = { LEFT: "flex-start", RIGHT: "flex-end", TOP: "flex-start", BOTTOM: "flex-end" };
+  d.style.color = argb(st.color ?? 0xFFFFFFFF);
+  d.style.textAlign = (st.align || "CENTER").toLowerCase();
+  d.style.lineHeight = st.lineHeight || 1.2;
+  if (d.classList.contains("text")) {
+    d.style.justifyContent = flex[st.align] || "center";
+    d.style.alignItems = flex[st.valign] || "center";
+  } else {
+    d.style.justifyContent = flex[st.valign] || "center";
+  }
+  if (st.outline) {
+    d.style.webkitTextStroke = `${st.outlineWidth ?? 0.06}em ${argb(st.outlineColor ?? 0xE6000000)}`;
+    d.style.paintOrder = "stroke fill";
+  }
+  if (st.shadow !== false) d.style.textShadow = `0 .04em .16em ${argb(st.shadowColor ?? 0xB4000000)}`;
+  if (st.box != null && boxEl) {
+    boxEl.style.background = argb(st.box);
+    boxEl.style.padding = ".2em .35em";
+    boxEl.style.borderRadius = ".1em";
+    boxEl.style.boxDecorationBreak = boxEl.style.webkitBoxDecorationBreak = "clone";
+  }
+}
+
 // Как в зале: поля от меньшей стороны экрана, одинаковые со всех краёв; наибольший размер, при котором
 // текст помещается в поля без разрыва слов. Строки выравниваются по длине (text-wrap: balance).
 function fitBox(el, style) {
   const st = style || {};
   const short = Math.min(stage.clientWidth, stage.clientHeight);
   const pad = short * 0.055;
-  el.style.padding = pad + "px";
+  // Поля оформления (тема Holyrics) соблюдаются, но не уже безопасных — как в зале.
+  const m = st.margins || {}, W = stage.clientWidth, H = stage.clientHeight;
+  const side = (p, of) => Math.max(pad, (p || 0) * of / 100);
+  el.style.padding = `${side(m.top, H)}px ${side(m.right, W)}px ${side(m.bottom, H)}px ${side(m.left, W)}px`;
   // Подпись — своим кеглем от экрана, внутри полей; под неё оставлено место, как в зале.
   const refEl = el.querySelector(":scope > .ref");
   if (refEl) {
     const rs = short * 0.045;
     refEl.style.fontSize = rs + "px"; refEl.style.right = pad + "px"; refEl.style.bottom = pad + "px";
-    el.style.paddingBottom = (pad + rs * 1.2 * 1.5) + "px";
+    el.style.paddingBottom = (side(m.bottom, H) + rs * 1.2 * 1.5) + "px";
   }
   el.style.textTransform = st.caps ? "uppercase" : "none";
   // Сравниваются настоящие границы текста с полем: центрированный текст вылезает и вверх, и вниз,
@@ -140,7 +175,7 @@ function fitBox(el, style) {
     if (refEl) range.setEndBefore(refEl);
     const r = range.getBoundingClientRect();
     return r.top >= box.top + parseFloat(cs.paddingTop) - 1 && r.bottom <= box.bottom - parseFloat(cs.paddingBottom) + 1
-      && r.left >= box.left + pad - 1 && r.right <= box.right - pad + 1
+      && r.left >= box.left + parseFloat(cs.paddingLeft) - 1 && r.right <= box.right - parseFloat(cs.paddingRight) + 1
       && el.scrollWidth <= el.clientWidth + 1;
   };
   let lo = short * 0.015, hi = short * (st.sizePercent || 20) / 100;
@@ -152,11 +187,10 @@ function fitBox(el, style) {
 // Писание: один или два перевода (друг под другом или рядом), адрес у каждого или одной строкой, сверху или снизу.
 function scripture(c, clear) {
   const st = c.style || {};
-  stage.style.background = argb(st.background ?? 0xFF000000);
+  stageBackground(st);
   if (clear) return;
   const d = document.createElement("div");
-  d.className = "scripture" + (st.shadow !== false ? " shadow" : "") + (c.sideBySide ? " side" : "");
-  d.style.color = argb(st.color ?? 0xFFFFFFFF);
+  d.className = "scripture" + (c.sideBySide ? " side" : "");
   const top = c.refPosition === "TOP";
   const ref = (text) => { const r = document.createElement("div"); r.className = "r"; r.textContent = text; return r; };
   if (c.ref && top) d.append(ref(c.ref));
@@ -173,6 +207,7 @@ function scripture(c, clear) {
   }
   d.append(blocks);
   if (c.ref && !top) d.append(ref(c.ref));
+  applyStyle(d, st, blocks);
   stage.append(d);
   fitBox(d, st);
 }
@@ -207,13 +242,16 @@ function render(s) {
       stage.append(mark(t.wait));
     } else if (c.type === "text") {
       const st = c.style || {};
-      stage.style.background = argb(st.background ?? 0xFF000000);
+      stageBackground(st);
       if (s.mode !== "CLEAR") {
         const d = document.createElement("div");
-        d.className = "text" + (st.shadow !== false ? " shadow" : "");
-        d.style.color = argb(st.color ?? 0xFFFFFFFF);
-        if (st.outline) d.style.webkitTextStroke = ".04em rgba(0,0,0,.9)";
-        d.textContent = c.text;
+        d.className = "text";
+        const t = document.createElement("div");
+        t.className = "t";
+        // Каждая строка слайда — свой абзац: перенос выравнивается внутри него, как в зале.
+        for (const line of c.text.split("\n")) { const p = document.createElement("div"); p.textContent = line; t.append(p); }
+        d.append(t);
+        applyStyle(d, st, t);
         if (c.ref) { const r = document.createElement("div"); r.className = "ref"; r.textContent = c.ref; d.append(r); }
         stage.append(d);
         fitText();

@@ -201,9 +201,9 @@ fun layoutScripture(
     ascent: (Float) -> Float,
     descent: (Float) -> Float,
     overscan: Boolean = false,
-    lineHeight: Float = SLIDE_LINE_HEIGHT,
+    lineHeight: Float = c.style.lineHeight,
 ): List<ScriptureLine> {
-    val area = safeArea(width, height, overscan)
+    val area = safeArea(width, height, overscan, c.style.margins)
     val short = minOf(width, height)
     val maxSize = maxFontSize(width, height, c.style)
     val gap = short * 0.04f
@@ -238,7 +238,13 @@ fun layoutScripture(
     fun place(text: String, s: Float, isRef: Boolean, left: Float, width: Float, top: Float): Float {
         val lh = s * lineHeight
         val baseline = top + (lh - (ascent(s) + descent(s))) / 2f + ascent(s)
-        out += ScriptureLine(text, left + (width - measure(text, s)) / 2f, baseline, s, isRef)
+        val w = measure(text, s)
+        val x = when (c.style.align) {
+            HAlign.LEFT -> left
+            HAlign.RIGHT -> left + width - w
+            HAlign.CENTER -> left + (width - w) / 2f
+        }
+        out += ScriptureLine(text, x, baseline, s, isRef)
         return top + lh
     }
     fun placeBlock(b: ScriptureBlock, lines: List<String>, left: Float, top: Float): Float {
@@ -253,11 +259,11 @@ fun layoutScripture(
     if (columns > 1) {
         laid.forEachIndexed { i, (b, lines) ->
             val left = area.left + i * (colW + colGap)
-            placeBlock(b, lines, left, areaTop + (areaH - blockHeight(b, size, lines.size)) / 2f)
+            placeBlock(b, lines, left, alignY(areaTop, areaH, blockHeight(b, size, lines.size), c.style.valign))
         }
     } else {
         val total = laid.sumOf { (b, lines) -> blockHeight(b, size, lines.size).toDouble() }.toFloat() + gap * (blocks.size - 1)
-        var y = areaTop + (areaH - total) / 2f
+        var y = alignY(areaTop, areaH, total, c.style.valign)
         laid.forEach { (b, lines) -> y = placeBlock(b, lines, area.left, y) + gap }
     }
     globalRef?.let { r ->

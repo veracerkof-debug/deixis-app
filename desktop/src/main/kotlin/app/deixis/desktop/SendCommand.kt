@@ -19,6 +19,9 @@ import app.deixis.core.ReceiverServer
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
 import app.deixis.core.TextStyle
+import app.deixis.core.HolyricsJson
+import app.deixis.core.HolyricsTheme
+import app.deixis.core.toTextStyle
 import app.deixis.core.UploadSource
 import app.deixis.core.VideoAction
 import app.deixis.core.VideoCommand
@@ -143,7 +146,34 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
     }
 
     /** Оформление текста из ключей: `--caps` — всё заглавными. */
-    private fun style() = TextStyle(caps = "caps" in opts)
+    private var baseStyle = TextStyle()
+
+    private fun style() = if ("caps" in opts) baseStyle.copy(caps = true) else baseStyle
+
+    /**
+     * `--theme тема.json` — тема Holyrics (как её отдаёт API Server, GetThemes),
+     * `--background фон.jpg` — картинка фона; она передаётся на приёмник вместе со слайдом.
+     */
+    private suspend fun loadStyle(client: SenderClient): Boolean {
+        opts["theme"]?.let { path ->
+            val f = File(path)
+            if (!f.isFile) { fail("Нет файла темы $path"); return false }
+            val theme = runCatching { HolyricsJson.decodeFromString(HolyricsTheme.serializer(), f.readText()) }.getOrElse { fail("Не понял тему: ${it.message}"); return false }
+            baseStyle = theme.toTextStyle()
+        }
+        opts["background"]?.let { path ->
+            val f = File(path)
+            if (!f.isFile) { fail("Нет файла фона $path"); return false }
+            val ref = client.upload(object : UploadSource {
+                override val name = f.name
+                override val size = f.length()
+                override val mime = mimeOf(f.name)
+                override fun open(): InputStream = f.inputStream()
+            })
+            baseStyle = baseStyle.copy(backgroundImage = ref)
+        }
+        return true
+    }
 
     /** `--bible RST.SQLite3[,KJV.SQLite3] --ref "Ин 3:16-18"`: Писание из модулей MyBible. */
     private fun scripture(): Content? {
@@ -175,6 +205,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
     }
 
     private suspend fun prepare(client: SenderClient): Content? {
+        if (!loadStyle(client)) return null
         if ("bible" in opts) return scripture()
         opts["text"]?.let { text ->
             val slides = splitIntoSlides(text)

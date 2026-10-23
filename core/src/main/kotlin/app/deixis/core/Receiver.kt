@@ -81,8 +81,7 @@ class ReceiverCore(
     }
 
     private fun show(content: Content): ErrorMsg? {
-        val ref = content.file
-        if (ref != null) {
+        for (ref in content.files) {
             if (files.file(ref.sha256) == null) return ErrorMsg("missing_file", "На приёмнике нет файла «${ref.name}»")
             files.touch(ref.sha256)
         }
@@ -191,7 +190,7 @@ class ReceiverServer(
         server = s
         cleaner = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
             while (true) {
-                val keep = setOfNotNull(core.state.value.content?.file?.sha256)
+                val keep = core.state.value.content?.files.orEmpty().map { it.sha256 }.toSet()
                 runCatching { core.files.purgeOlderThan(fileTtlMs, keep) }
                 kotlinx.coroutines.delay(CLEAN_EVERY_MS)
             }

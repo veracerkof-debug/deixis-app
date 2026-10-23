@@ -8,6 +8,7 @@ import app.deixis.core.PdfContent
 import app.deixis.core.ScriptureContent
 import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
+import app.deixis.core.TextStyle
 import app.deixis.core.VideoContent
 import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
@@ -117,9 +118,26 @@ class SlideRenderer(private val files: FileStore) {
         }
     }
 
-    private fun drawText(g: Graphics2D, w: Int, h: Int, c: TextContent, clear: Boolean) {
-        g.color = Color(c.style.background.toInt(), true)
+    /** Фон оформления: цвет, поверх — картинка во весь экран с обрезкой краёв, как фон темы. */
+    private fun drawBackground(g: Graphics2D, w: Int, h: Int, style: TextStyle) {
+        g.color = Color(style.background.toInt(), true)
         g.fillRect(0, 0, w, h)
+        val ref = style.backgroundImage ?: return
+        val img = runCatching { loadCached(ref.sha256, ref.name) }.getOrNull() ?: return
+        val scale = maxOf(w.toDouble() / img.width, h.toDouble() / img.height)
+        val dw = (img.width * scale).toInt()
+        val dh = (img.height * scale).toInt()
+        g.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh, null)
+    }
+
+    private fun drawBox(g: Graphics2D, style: TextStyle, x: Float, y: Float, w: Float, h: Float, size: Float) {
+        val box = style.box ?: return
+        g.color = Color(box.toInt(), true)
+        g.fill(java.awt.geom.RoundRectangle2D.Float(x, y, w, h, size * 0.2f, size * 0.2f))
+    }
+
+    private fun drawText(g: Graphics2D, w: Int, h: Int, c: TextContent, clear: Boolean) {
+        drawBackground(g, w, h, c.style)
         if (clear) return
         val color = Color(c.style.color.toInt(), true)
         val base = Fonts.slide
@@ -130,8 +148,9 @@ class SlideRenderer(private val files: FileStore) {
             descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
         )
         val font = base.deriveFont(layout.fontSize)
+        layout.block?.let { b -> drawBox(g, c.style, b.left, b.top, b.width, b.height, layout.fontSize) }
         for (line in layout.lines) {
-            drawStyledLine(g, TextLayout(line.text, font, frc), line.x, line.baseline, color, layout.fontSize, c.style.shadow, c.style.outline)
+            drawStyledLine(g, TextLayout(line.text, font, frc), line.x, line.baseline, color, layout.fontSize, c.style)
         }
         layout.ref?.let {
             val ref = TextLayout(it, Fonts.ui.deriveFont(layout.refFontSize), frc)
@@ -143,8 +162,7 @@ class SlideRenderer(private val files: FileStore) {
     }
 
     private fun drawScripture(g: Graphics2D, w: Int, h: Int, c: ScriptureContent, clear: Boolean) {
-        g.color = Color(c.style.background.toInt(), true)
-        g.fillRect(0, 0, w, h)
+        drawBackground(g, w, h, c.style)
         if (clear) return
         val color = Color(c.style.color.toInt(), true)
         val base = Fonts.slide
@@ -154,6 +172,15 @@ class SlideRenderer(private val files: FileStore) {
             ascent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).ascent },
             descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
         )
+        if (c.style.box != null && lines.isNotEmpty()) {
+            val size = lines.filter { !it.ref }.maxOfOrNull { it.size } ?: lines.first().size
+            val left = lines.minOf { it.x }
+            val right = lines.maxOf { it.x + base.deriveFont(it.size).getStringBounds(it.text, frc).width.toFloat() }
+            val top = lines.minOf { it.baseline - it.size }
+            val bottom = lines.maxOf { it.baseline + it.size * 0.3f }
+            val pad = size * 0.35f
+            drawBox(g, c.style, left - pad, top - pad * 0.6f, right - left + 2 * pad, bottom - top + 1.2f * pad, size)
+        }
         for (l in lines) {
             val layout = TextLayout(l.text, base.deriveFont(l.size), frc)
             if (l.ref) {
@@ -162,25 +189,26 @@ class SlideRenderer(private val files: FileStore) {
                 layout.draw(g, l.x, l.baseline)
                 g.composite = AlphaComposite.SrcOver
             } else {
-                drawStyledLine(g, layout, l.x, l.baseline, color, l.size, c.style.shadow, c.style.outline)
+                drawStyledLine(g, layout, l.x, l.baseline, color, l.size, c.style)
             }
         }
     }
 
-    private fun drawStyledLine(g: Graphics2D, layout: TextLayout, x: Float, y: Float, color: Color, size: Float, shadow: Boolean, outline: Boolean) {
+    private fun drawStyledLine(g: Graphics2D, layout: TextLayout, x: Float, y: Float, color: Color, size: Float, style: TextStyle) {
         val shape = layout.getOutline(AffineTransform.getTranslateInstance(x.toDouble(), y.toDouble()))
-        if (shadow) {
-            // Мягкая тень из нескольких полупрозрачных слоёв.
+        if (style.shadow) {
+            // Мягкая тень из нескольких полупрозрачных слоёв цвета тени оформления.
             val off = size * 0.04f
+            val sc = Color(style.shadowColor.toInt(), true)
             for (i in 3 downTo 1) {
-                g.color = Color(0, 0, 0, 50)
+                g.color = Color(sc.red, sc.green, sc.blue, (sc.alpha * 0.28f).toInt().coerceIn(0, 255))
                 val t = AffineTransform.getTranslateInstance(off * 0.5, off * i * 0.6)
                 g.fill(t.createTransformedShape(shape))
             }
         }
-        if (outline) {
-            g.color = Color(0, 0, 0, 230)
-            g.stroke = BasicStroke(size * 0.06f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        if (style.outline) {
+            g.color = Color(style.outlineColor.toInt(), true)
+            g.stroke = BasicStroke(size * style.outlineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             g.draw(shape)
         }
         g.color = color
@@ -200,11 +228,19 @@ class SlideRenderer(private val files: FileStore) {
         g.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh, null)
     }
 
-    private fun loadImage(c: ImageContent): BufferedImage {
-        imageCache?.let { (key, img) -> if (key == c.file.sha256) return img }
-        val file = files.file(c.file.sha256) ?: error("Нет файла «${c.file.name}»")
-        val img = ImageIO.read(file) ?: error("Формат «${c.file.name}» не поддерживается")
-        imageCache = c.file.sha256 to img
+    private fun loadImage(c: ImageContent): BufferedImage = loadCached(c.file.sha256, c.file.name)
+
+    private val backgrounds = object : LinkedHashMap<String, BufferedImage>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BufferedImage>?) = size > 3
+    }
+
+    private fun loadCached(sha: String, name: String): BufferedImage {
+        imageCache?.let { (key, img) -> if (key == sha) return img }
+        synchronized(backgrounds) { backgrounds[sha] }?.let { return it }
+        val file = files.file(sha) ?: error("Нет файла «$name»")
+        val img = ImageIO.read(file) ?: error("Формат «$name» не поддерживается")
+        imageCache = sha to img
+        synchronized(backgrounds) { backgrounds[sha] = img }
         return img
     }
 
