@@ -4,7 +4,8 @@ import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import app.deixis.core.HolyricsLink
-import android.widget.Toast
+import android.view.KeyEvent
+import app.deixis.core.Mode
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -18,8 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
@@ -50,6 +49,7 @@ class PhoneApp : Application() {
 class MainActivity : ComponentActivity() {
 
     private lateinit var hdmi: HdmiOutput
+    private val ui = Ui()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,10 +68,7 @@ class MainActivity : ComponentActivity() {
         }
         val controller = (application as PhoneApp).controller
         hdmi = HdmiOutput(this, controller)
-        lifecycleScope.launch {
-            controller.messages.collect { Toast.makeText(this@MainActivity, it, if (it.length > 80) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show() }
-        }
-        setContent { DeixisPhone(controller, (application as PhoneApp).holyrics) }
+        setContent { DeixisPhone(controller, (application as PhoneApp).holyrics, ui) }
         handleLink(intent)
     }
 
@@ -86,6 +83,31 @@ class MainActivity : ComponentActivity() {
         val app = application as PhoneApp
         HolyricsLink.parse(uri)?.let { app.holyrics.connect(it); return }
         if (uri.startsWith("deixis://")) app.controller.addManual(uri)
+    }
+
+    /**
+     * Bluetooth-кликер и педаль: «Вперёд» и «Назад», B — чёрный экран. Стрелки и пробел работают,
+     * только пока не открыта шторка с полем ввода. Кнопки громкости — если включены в настройках.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!::hdmi.isInitialized) return super.dispatchKeyEvent(event)
+        val c = (application as PhoneApp).controller
+        val st = c.settings.value
+        val free = ui.sheet == null
+        val action = when (event.keyCode) {
+            KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT -> if (st.clicker) 1 else null
+            KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (st.clicker) -1 else null
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_SPACE -> if (st.clicker && free) 1 else null
+            KeyEvent.KEYCODE_DPAD_LEFT -> if (st.clicker && free) -1 else null
+            KeyEvent.KEYCODE_B -> if (st.clicker && free) 0 else null
+            KeyEvent.KEYCODE_VOLUME_DOWN -> if (st.volumeKeys) 1 else null
+            KeyEvent.KEYCODE_VOLUME_UP -> if (st.volumeKeys) -1 else null
+            else -> null
+        } ?: return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (action == 0) c.mode(Mode.BLACK) else c.step(action)
+        }
+        return true
     }
 
     override fun onStart() {

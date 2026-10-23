@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Вывод по кабелю (USB-C → HDMI) и Miracast: второй экран, а не зеркало.
+ * Вывод по кабелю (USB-C → HDMI) и Миракаст: второй экран, а не зеркало.
  * Внутри телефона запускается тот же приёмник, что на ТВ, но только для этого устройства,
  * поэтому кабель для пульта — обычный экран в списке.
  */
@@ -55,7 +55,8 @@ class HdmiOutput(private val activity: ComponentActivity, private val controller
 
     private fun show(display: Display) {
         dismiss()
-        val rt = runtime ?: ReceiverRuntime(activity, "Кабель HDMI", "android-hdmi", File(activity.filesDir, "hdmi"), port = 0, loopbackOnly = true)
+        val wireless = isWireless(display)
+        val rt = runtime ?: ReceiverRuntime(activity, if (wireless) "Беспроводной дисплей" else "Кабель HDMI", "android-hdmi", File(activity.filesDir, "hdmi"), port = 0, loopbackOnly = true)
             .also { runtime = it }
         val vlc = player ?: VlcPlayer(activity) { rt.core.reportError(it) }.also { player = it }
 
@@ -78,8 +79,22 @@ class HdmiOutput(private val activity: ComponentActivity, private val controller
             val saved = controller.cableToken()
             val token = if (saved != null && rt.core.pairing.isValid(saved)) saved
             else (rt.core.pairing.pair(rt.core.pairing.pin, "Этот телефон") as Pairing.Result.Ok).token
-            controller.setCable(Target("cable", "Кабель HDMI", "127.0.0.1", rt.actualPort, Target.Kind.CABLE), token)
+            // Миракаст — тот же второй экран, но без провода: так и подписывается.
+            val target = if (wireless) Target("cable", display.name?.takeIf { it.isNotBlank() } ?: "Беспроводной дисплей", "127.0.0.1", rt.actualPort, Target.Kind.MIRACAST)
+            else Target("cable", "Кабель HDMI", "127.0.0.1", rt.actualPort, Target.Kind.CABLE)
+            controller.setCable(target, token)
         }
+    }
+
+    /**
+     * Беспроводной дисплей (Миракаст, Wi-Fi Display) или кабель. Тип экрана Android отдаёт скрытым
+     * Display.getType() (TYPE_WIFI = 3); если его не прочитать, подсказывает имя экрана.
+     */
+    private fun isWireless(display: Display): Boolean {
+        val type = runCatching { Display::class.java.getMethod("getType").invoke(display) as Int }.getOrNull()
+        if (type != null) return type == TYPE_WIFI
+        val name = display.name.orEmpty().lowercase()
+        return listOf("wifi", "wi-fi", "wireless", "miracast", "cast", "беспровод").any { it in name }
     }
 
     private fun dismiss() {
@@ -88,5 +103,9 @@ class HdmiOutput(private val activity: ComponentActivity, private val controller
         player?.release()
         player = null
         controller.setCable(null, null)
+    }
+
+    private companion object {
+        const val TYPE_WIFI = 3
     }
 }
