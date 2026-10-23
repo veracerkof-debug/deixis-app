@@ -70,7 +70,7 @@ fun ThemesRow(c: Controller, ui: Ui, current: TextStyle, onPick: (Theme) -> Unit
             Box(Modifier.fillMaxWidth().height(63.dp).clip(RoundedCornerShape(T.rSlide)).background(P.current.fill), contentAlignment = Alignment.Center) {
                 Icon("plus", P.current.tintText)
             }
-            Txt("Новая", T.fLabel, P.current.l2, Modifier.padding(top = 6.dp))
+            Txt("Новая", T.fLabel, P.current.l2, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

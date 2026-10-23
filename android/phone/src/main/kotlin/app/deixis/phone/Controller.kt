@@ -32,6 +32,7 @@ import app.deixis.core.ReceiverState
 import app.deixis.core.ScreenContent
 import app.deixis.core.ScreenStream
 import app.deixis.core.ScriptureContent
+import app.deixis.core.ScriptureOptions
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
 import app.deixis.core.TextStyle
@@ -717,8 +718,8 @@ class Controller(private val app: Application) {
                 "Чай после встречи\nв малом зале",
                 "Молодёжная встреча\nв пятницу в 19:00",
             )),
-            LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, app.deixis.core.ScriptureOptions(sideBySide = true))),
-            LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, app.deixis.core.ScriptureOptions(sideBySide = true))),
+            LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
+            LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
         )
         // Тема с фото гор на фоне: пример своей темы.
         val mountains = files.firstOrNull { it.kind == Kind.PHOTO && it.title.startsWith("Горы") }
