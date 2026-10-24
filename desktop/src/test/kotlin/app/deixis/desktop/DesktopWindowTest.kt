@@ -93,6 +93,9 @@ class DesktopWindowTest {
     @Test
     fun singleMonitorDoesNotTrapTheScreen() {
         assumeGui()
+        // Как в жизни: VLC уже загружен в этот процесс (видео или видеофон показывали) — полный экран Mac,
+        // Esc и F11 должны работать и после этого.
+        if (VideoPlayer.vlcFound) SwingUtilities.invokeAndWait { VideoPlayer({}, {}).release() }
         val exits = AtomicInteger(-1)
         val app = ReceiverApp(
             ReceiverOptions(

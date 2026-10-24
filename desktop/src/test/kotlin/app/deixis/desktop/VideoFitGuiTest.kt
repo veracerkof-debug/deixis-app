@@ -81,9 +81,9 @@ class VideoFitGuiTest {
             val blur = shot("fit-blur", VideoFit.FIT, VideoBackdrop.BLUR) { Color(it.getRGB(20, 225)).red > 40 }
             assertTrue(Color(blur.getRGB(20, 225)).let { it.red > 40 && it.green < 40 }, "поля — размытый кадр (тёмно-красные)")
             // Снимки для размытых полей не оставляют на видео ни превью, ни надписей VLC: в кадре только кадр.
-            val band = redColumns(blur)
+            // Полоса кадра — та же, что при чёрных полях: размытые поля бывают ярко-красными и сами.
             // Края полосы не считаются: там сглаживание при масштабе кадра (на Маке кадр рисует само окно).
-            val xs = (band.first() + 4 until band.last() - 4 step 4)
+            val xs = (cols.first() + 4 until cols.last() - 4 step 4)
             val bad = xs.flatMap { x -> (4 until 446 step 4).filter { y -> !red(blur.getRGB(x, y)) }.map { y -> x to y } }
             assertTrue(bad.isEmpty(), "в кадре посторонние точки (надписи VLC): ${bad.size}, например ${bad.take(5)}")
 

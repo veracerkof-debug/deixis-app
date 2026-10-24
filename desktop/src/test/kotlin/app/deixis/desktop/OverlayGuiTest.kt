@@ -88,13 +88,15 @@ class OverlayGuiTest {
                 .also { img -> pngDir?.let { d -> d.mkdirs(); ImageIO.write(img, "png", File(d, "$name.png")) } }
         }
         fun at(img: BufferedImage, fx: Float, fy: Float) = Color(img.getRGB((img.width * fx).toInt(), (img.height * fy).toInt()))
+        // Полоса строки у верхнего края, выше букв: текст бежит и может оказаться в любой точке по ширине.
+        fun strip(img: BufferedImage) = Color(img.getRGB(img.width / 2, (img.height - tickerHeight(img.width.toFloat(), img.height.toFloat()) + 2).toInt()))
         fun red(c: Color) = c.red > 150 && c.green < 80 && c.blue < 80
         fun green(c: Color) = c.green > 120 && c.red < 80 && c.blue < 80
         fun blue(c: Color) = c.blue > 150 && c.red < 80
         try {
             SwingUtilities.invokeAndWait { w.update(FrameState(TextContent("Слайд"), Mode.NORMAL, overlays = layer)) }
             val one = shot("slide")
-            assertTrue(red(at(one, 0.5f, 0.97f)), "бегущая строка внизу: ${at(one, 0.5f, 0.97f)}")
+            assertTrue(red(strip(one)), "бегущая строка внизу: ${strip(one)}")
             // Точка внутри плашки у левого края, где нет букв: по раскладке ядра.
             val cw = one.width.toFloat()
             val ch = one.height.toFloat()
@@ -112,7 +114,7 @@ class OverlayGuiTest {
 
             SwingUtilities.invokeAndWait { w.update(FrameState(TextContent("Слайд"), Mode.BLACK, overlays = layer)) }
             val black = shot("black")
-            assertTrue(at(black, 0.5f, 0.97f).red < 40, "«Чёрный» убирает и слой")
+            assertTrue(strip(black).red < 40, "«Чёрный» убирает и слой")
 
             if (!VideoPlayer.vlcFound) { println("Слой над видео не проверен: нет VLC"); return }
             val mp4 = File(dir, "v.mp4")
@@ -131,7 +133,7 @@ class OverlayGuiTest {
             while (System.currentTimeMillis() < until && at(v, 0.5f, 0.4f).let { !(it.red > 150 && it.green > 150 && it.blue < 100) }) v = shot("video")
             val mid = at(v, 0.5f, 0.4f)
             assertTrue(mid.red > 150 && mid.green > 150 && mid.blue < 100, "видео на экране: $mid")
-            assertTrue(red(at(v, 0.5f, 0.97f)), "бегущая строка над видео: ${at(v, 0.5f, 0.97f)}")
+            assertTrue(red(strip(v)), "бегущая строка над видео: ${strip(v)}")
             assertTrue(blue(at(v, 0.9f, 0.1f)), "логотип над видео: ${at(v, 0.9f, 0.1f)}")
         } finally {
             SwingUtilities.invokeAndWait { w.dispose() }
