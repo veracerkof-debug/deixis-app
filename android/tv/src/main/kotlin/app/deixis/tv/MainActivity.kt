@@ -20,6 +20,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.deixis.receiver.ReceiverScreen
+import app.deixis.receiver.ScreenRole
 import app.deixis.receiver.VlcPlayer
 
 class MainActivity : ComponentActivity() {
@@ -45,6 +46,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         player = vlc
+        // После обновления экран откроется сам (PackageReplacedReceiver).
+        ScreenRole.mark(this, true)
         setContent { ReceiverScreen(runtime, vlc, overscan = true) }
     }
 
@@ -55,6 +58,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         player?.release()
+        if (isFinishing) ScreenRole.mark(this, false)
         super.onDestroy()
     }
 

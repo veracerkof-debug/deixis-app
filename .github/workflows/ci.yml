@@ -59,7 +59,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Проверка окон
         run: |
-          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*')
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*')
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
           else

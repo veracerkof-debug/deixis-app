@@ -13,6 +13,9 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import app.deixis.receiver.ApkUpdates
+import app.deixis.receiver.ScreenRole
+import app.deixis.receiver.ScreenUpdateHost
 import app.deixis.receiver.ReceiverRuntime
 import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.VlcPlayer
@@ -37,6 +40,7 @@ class ScreenActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
         val runtime = ScreenRuntime.get(this)
+        ScreenRole.mark(this, true)
         player = VlcPlayer(this) { runtime.core.reportError(it) }
         setContent { ReceiverScreen(runtime, player, overscan = isTelevision(this)) }
     }
@@ -49,7 +53,7 @@ class ScreenActivity : ComponentActivity() {
     override fun onDestroy() {
         player.release()
         // Выход из режима экрана закрывает приёмник: телефон больше не ждёт подключений.
-        if (isFinishing) ScreenRuntime.stop()
+        if (isFinishing) { ScreenRuntime.stop(); ScreenRole.mark(this, false) }
         super.onDestroy()
     }
 
@@ -93,6 +97,9 @@ private object ScreenRuntime {
         val platform = if (ScreenActivity.isTelevision(app)) "android-tv" else "android-screen"
         ReceiverRuntime(app, name, platform, File(app.filesDir, "screen")).also { rt ->
             runtime = rt
+            // Пульт может обновить этот экран, как Deixis TV.
+            val phone = app as PhoneApp
+            if (!ApkUpdates.fromPlay(app)) rt.core.updates = ScreenUpdateHost(app, rt.core, phone.updater, scope)
             started = scope.launch { rt.start() }
         }
     }

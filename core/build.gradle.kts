@@ -42,3 +42,8 @@ tasks.test {
     System.getProperty("deixis.pptDump")?.let { systemProperty("deixis.pptDump", it) }
     testLogging { showStandardStreams = System.getProperty("deixis.renderFile") != null }
 }
+
+// Журнал изменений вшит в приложения: «Что нового» после обновления видно и без сети.
+tasks.processResources {
+    from(rootProject.file("CHANGELOG.md")) { rename { "changelog.md" } }
+}

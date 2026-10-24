@@ -34,6 +34,16 @@ application {
     applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8") + macExports
 }
 
+// Номер версии из метки выпуска (DEIXIS_VERSION) вшивается в программу: по нему сравниваются обновления.
+val versionResource = layout.buildDirectory.dir("generated/version")
+val writeVersion by tasks.registering {
+    val v = System.getenv("DEIXIS_VERSION")?.removePrefix("v") ?: "0.1.0"
+    inputs.property("version", v)
+    outputs.dir(versionResource)
+    doLast { versionResource.get().file("deixis-version.txt").asFile.apply { parentFile.mkdirs(); writeText(v) } }
+}
+sourceSets.main { resources.srcDir(writeVersion) }
+
 tasks.test {
     useJUnitPlatform()
     jvmArgs(macExports)

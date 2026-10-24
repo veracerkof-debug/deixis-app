@@ -124,6 +124,7 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     LaunchedEffect(settings.church) { if (!settings.church && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW }
     val needPin by c.needPin.collectAsState()
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
+    UpdatesEffects(c, ui)
 
     Box(Modifier.fillMaxSize().background(p.bg)) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {

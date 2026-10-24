@@ -96,6 +96,7 @@ interface TrayActions {
     fun webScreenUrl(): String?
     fun quit()
     fun chooseRole()
+    fun updates()
 }
 
 /**
@@ -110,6 +111,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
         popup.add(item("Открыть пульт") { actions.openOperator() })
         popup.add(screens)
         popup.add(item("Как работает компьютер…") { actions.chooseRole() })
+        popup.add(item("Обновления…") { actions.updates() })
         popup.addSeparator()
         popup.add(item("Выйти") { actions.quit() })
         icon.popupMenu = popup

@@ -72,7 +72,7 @@ class ReceiverRuntime(
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val metrics = appContext.resources.displayMetrics
         // Презентации PPTX экран переводит сам (встроенный перевод), без компьютера.
-        val info = ReceiverInfo(id, name, platform, BuildInfo.VERSION, metrics.widthPixels, metrics.heightPixels, convert = true)
+        val info = ReceiverInfo(id, name, platform, ApkUpdates.currentVersion(appContext), metrics.widthPixels, metrics.heightPixels, convert = true)
         val pairing = Pairing(FileTokenStore(File(dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing, loadViewKey(File(dataDir, "view-key")))
         _pin = MutableStateFlow(pairing.pin)
@@ -183,6 +183,3 @@ class ReceiverRuntime(
     }
 }
 
-object BuildInfo {
-    const val VERSION = "0.1.0"
-}

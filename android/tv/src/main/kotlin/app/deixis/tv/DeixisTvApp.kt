@@ -3,7 +3,10 @@ package app.deixis.tv
 import android.app.Application
 import android.os.Build
 import android.provider.Settings
+import app.deixis.core.UpdateTarget
+import app.deixis.receiver.ApkUpdates
 import app.deixis.receiver.ReceiverRuntime
+import app.deixis.receiver.ScreenUpdateHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +39,8 @@ class DeixisTvApp : Application() {
             val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
             val rt = ReceiverRuntime(this, name, "android-tv", File(filesDir, "receiver"))
             runtime = rt
+            // Обновления ТВ — с пульта (`/api/update`): на экране зала нет своих настроек.
+            if (!ApkUpdates.fromPlay(this)) rt.core.updates = ScreenUpdateHost(this, rt.core, ApkUpdates.updater(this, UpdateTarget.TV, scope), scope)
             scope.launch {
                 try { rt.start() } catch (e: Throwable) { startError = describe(e) }
             }

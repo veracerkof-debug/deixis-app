@@ -83,6 +83,8 @@ class ReceiverCore(
     /** Несколько выводов (мониторы, пересылка на экраны в сети); null — один вывод (ТВ, телефон). */
     @Volatile
     var outputs: OutputsHost? = null
+    /** Обновления этого приёмника; null — пульт не управляет ими (обновляется сам, как телефон). */
+    var updates: UpdateHost? = null
 
     /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
     @Volatile
@@ -228,6 +230,7 @@ class ReceiverServer(
                 viewerRoutes(core)
                 remoteRoutes(core) { authorized() }
                 outputsRoutes(core) { authorized() }
+                updateRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)

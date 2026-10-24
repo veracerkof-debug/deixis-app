@@ -277,6 +277,22 @@ class SenderClient(
         return DeixisJson.decodeFromString(Converted.serializer(), r.bodyAsText())
     }
 
+    /**
+     * Обновления приёмника: без [req] — состояние, с ним — действие («check», «install») или настройки.
+     * null — приёмник не обновляется с пульта (старая версия или телефон со своими настройками).
+     */
+    suspend fun update(req: UpdateRequest? = null): UpdateState? {
+        val t = token ?: return null
+        val url = "http://$host:$port/api/update"
+        val r = if (req == null) http.get(url) { header("Authorization", "Bearer $t") }
+        else http.post(url) {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(UpdateRequest.serializer(), req))
+        }
+        if (r.status != HttpStatusCode.OK) return null
+        return DeixisJson.decodeFromString(UpdateState.serializer(), r.bodyAsText())
+    }
+
     private suspend fun fileStatus(sha: String, token: String): FileStatus {
         val r = http.get("http://$host:$port/files/$sha") { header("Authorization", "Bearer $token") }
         if (r.status != HttpStatusCode.OK) throw IOException("Приёмник ответил ${r.status}")

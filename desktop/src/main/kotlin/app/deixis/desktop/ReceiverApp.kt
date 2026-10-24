@@ -88,6 +88,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     /** Мониторы, где оператор увёл зал в окно (Esc, двойной щелчок, меню). Только в потоке окон. */
     private val windowedIds = HashSet<String>()
     private val roleStore = RoleStore(File(opts.dataDir, "role"))
+    private val updates: DesktopUpdates
     @Volatile var role: Role = Role.SCREEN
         private set
 
@@ -118,6 +119,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         settings = monitorStore.load()
         relay = ScreenRelay(core, FileRelayStore(File(opts.dataDir, "screens.json")), scope, name)
         core.outputs = DesktopOutputs()
+        updates = DesktopUpdates(APP_VERSION, opts.dataDir, scope, object : UpdateApp {
+            override fun showing() = core.state.value.content != null
+            override fun exitForUpdate() = exitNow()
+        })
+        core.updates = updates
         server = ReceiverServer(core, opts.port)
     }
 
@@ -145,6 +151,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             startTimers()
         }
         observe()
+        updates.start()
+        if (!GraphicsEnvironment.isHeadless()) {
+            val news = updates.updater.takeWhatsNew()
+            if (news.isNotEmpty()) SwingUtilities.invokeLater { UpdatesWindow.whatsNew(news) }
+        }
         Runtime.getRuntime().addShutdownHook(Thread { shutdown() })
         if (opts.operator ?: (role != Role.SCREEN)) openOperator()
     }
@@ -364,6 +375,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             m.add(if (inWindow) item("Во весь экран", "F11") { setWindowed(windowId, false) } else item("В окно", "Esc") { setWindowed(windowId, true) })
         }
         m.add(item("Как работает компьютер…") { chooseRole() })
+        m.add(item("Обновления…") { showUpdates() })
         m.addSeparator()
         m.add(item("Выйти", "${cmd}Q") { quit() })
         return m
@@ -372,6 +384,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun dockMenu() = java.awt.PopupMenu().apply {
         add(java.awt.MenuItem("Открыть пульт").apply { addActionListener { openOperator() } })
         add(java.awt.MenuItem("Как работает компьютер…").apply { addActionListener { SwingUtilities.invokeLater { chooseRole() } } })
+        add(java.awt.MenuItem("Обновления…").apply { addActionListener { showUpdates() } })
     }
 
     private val trayActions = object : TrayActions {
@@ -381,6 +394,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun webScreenUrl() = this@ReceiverApp.webScreenUrl()
         override fun quit() = this@ReceiverApp.quit()
         override fun chooseRole() = SwingUtilities.invokeLater { this@ReceiverApp.chooseRole() }
+        override fun updates() = showUpdates()
     }
 
     private inner class DesktopOutputs : OutputsHost {
@@ -397,10 +411,34 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     override fun reportError(message: String?) = core.reportError(message)
     override fun reportVideo(state: VideoState?) = core.reportVideo(state)
 
+    @Volatile private var exiting = false
+
+    /**
+     * Выход. В режиме «Автоматически» скачанное обновление ставится сейчас: установщик закроет программу
+     * сам; если он не запустился за минуту или выдал ошибку, программа всё равно выходит.
+     */
     override fun quit() {
+        if (!exiting && updates.installOnExit()) {
+            exiting = true
+            scope.launch {
+                val end = System.currentTimeMillis() + INSTALL_WAIT_MS
+                while (System.currentTimeMillis() < end && updates.state.value.phase == "installing") kotlinx.coroutines.delay(200)
+                exitNow()
+            }
+            return
+        }
+        exitNow()
+    }
+
+    private fun exitNow() {
         shutdown()
         opts.exit(0)
     }
+
+    fun showUpdates() = SwingUtilities.invokeLater { UpdatesWindow.show(updates, object : UpdateApp {
+        override fun showing() = core.state.value.content != null
+        override fun exitForUpdate() = exitNow()
+    }) }
 
     /** Окна вывода сейчас (для проверки). Только в потоке окон. */
     internal fun windowsForTest(): List<OutputWindow> = windows.values.toList()
@@ -421,11 +459,13 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     companion object {
-        const val APP_VERSION = "0.1.0"
+        /** Версия программы из метки выпуска (вшита при сборке). */
+        val APP_VERSION: String = ReceiverApp::class.java.getResourceAsStream("/deixis-version.txt")?.use { it.readBytes().decodeToString().trim() } ?: "0.1.0"
         private const val WINDOWED_ID = "window"
         private const val HOTPLUG_MS = 2_000
         private const val VIDEO_REPORT_MS = 500
         private const val CLOCK_MS = 1_000
+        private const val INSTALL_WAIT_MS = 60_000L
         private val isWindows = System.getProperty("os.name").orEmpty().lowercase().contains("win")
     }
 }

@@ -258,6 +258,10 @@ class Controller(private val app: Application) {
         if (token == null) needPin.value = t else open(t, token)
     }
 
+    /** Обновление подключённого экрана (ТВ, проектор, компьютер). null — этот экран так не обновляется. */
+    suspend fun screenUpdate(t: Target, req: app.deixis.core.UpdateRequest? = null): app.deixis.core.UpdateState? =
+        outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.update(req) }.getOrNull() }
+
     fun disconnect(t: Target) {
         if (dlnaTarget.value?.id == t.id) { dlna.close(); dlnaTarget.value = null; return }
         val o = outs.value.firstOrNull { it.target.id == t.id } ?: return

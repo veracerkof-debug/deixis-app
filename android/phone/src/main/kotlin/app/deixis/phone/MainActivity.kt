@@ -25,6 +25,19 @@ class PhoneApp : Application() {
     val controller by lazy { Controller(this) }
     val holyrics by lazy { HolyricsSource(this, controller) }
 
+    private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+
+    /** Обновления из выпусков GitHub; общий для пульта и режима экрана. */
+    val updater by lazy {
+        app.deixis.receiver.ApkUpdates.updater(this, app.deixis.core.UpdateTarget.PHONE, appScope).also { u ->
+            app.deixis.receiver.ApkUpdates.onResult = { err -> if (err != null) u.installCancelled(err) }
+            u.start()
+        }
+    }
+
+    /** Версия, которую «Автоматически» уже пробовало поставить в этот запуск. */
+    var autoInstallTried: String? = null
+
     /** Падение в прошлый раз: при следующем запуске приложение показывает причину, а не закрывается молча. */
     var lastCrash: String? = null
 
