@@ -28,6 +28,9 @@ android {
             storePassword = System.getenv("DEIXIS_KEYSTORE_PASSWORD")
             keyAlias = System.getenv("DEIXIS_KEY_ALIAS")
             keyPassword = System.getenv("DEIXIS_KEY_PASSWORD")
+            // Старая схема подписи вместе с новой: установщики некоторых проекторов и приставок проверяют только её.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
     buildTypes {
