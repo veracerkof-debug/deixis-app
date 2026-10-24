@@ -113,6 +113,11 @@ class ReceiverCore(
             }
             null
         }
+        is SetOverlays -> {
+            val missing = msg.overlays.files.firstOrNull { files.file(it.sha256) == null }
+            if (missing != null) ErrorMsg("missing_file", "На приёмнике нет файла «${missing.name}»")
+            else { _state.update { it.copy(overlays = msg.overlays) }; null }
+        }
         is VideoCommand -> {
             if (_state.value.content !is VideoContent) ErrorMsg("no_video", "Сейчас не идёт видео")
             else { _videoCommands.tryEmit(msg); null }
@@ -128,7 +133,7 @@ class ReceiverCore(
         if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
         // Отсчёт привязывается к часам этого экрана; уйдя из зала, он остаётся в «Сцене».
         val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
-        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer) }
+        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays) }
         return null
     }
 

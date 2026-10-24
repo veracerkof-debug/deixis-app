@@ -40,7 +40,11 @@ tasks.test {
     System.getProperty("deixis.render")?.let { systemProperty("deixis.render", it) }
     System.getProperty("deixis.renderFile")?.let { systemProperty("deixis.renderFile", it) }
     System.getProperty("deixis.pptDump")?.let { systemProperty("deixis.pptDump", it) }
-    testLogging { showStandardStreams = System.getProperty("deixis.renderFile") != null }
+    testLogging {
+        showStandardStreams = System.getProperty("deixis.renderFile") != null
+        // Полный след падения прямо в журнале CI: отчёты тестов оттуда не всегда достать.
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 // Журнал изменений вшит в приложения: «Что нового» после обновления видно и без сети.

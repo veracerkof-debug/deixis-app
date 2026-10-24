@@ -228,7 +228,13 @@ class ScreenRelay(
     }
 
     /** Что повторяется на экране. Ход видео сюда не входит: его экран ведёт сам. */
-    private data class Mirror(val content: Content?, val next: Content?, val mode: Mode, val timer: CountdownContent? = null)
+    private data class Mirror(
+        val content: Content?,
+        val next: Content?,
+        val mode: Mode,
+        val timer: CountdownContent? = null,
+        val overlays: Overlays = Overlays(),
+    )
 
     private inner class Link(val id: String, val host: String, val port: Int, token: String) {
         private val linkScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -257,7 +263,7 @@ class ScreenRelay(
             }
             linkScope.launch {
                 client.connection.map { it is Connection.Connected }.distinctUntilChanged()
-                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer) }.distinctUntilChanged()) { online, m -> online to m }
+                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer, it.overlays) }.distinctUntilChanged()) { online, m -> online to m }
                     .collectLatest { (online, m) ->
                         if (!online) { sent = null; syncing.value = false; return@collectLatest }
                         mirror(m)
@@ -273,6 +279,13 @@ class ScreenRelay(
             // Отсчёт для «Сцены» — сколько осталось на этот миг: экран привяжет его к своим часам.
             if (prev?.timer != m.timer && (m.content !is CountdownContent || m.timer?.id != (m.content as CountdownContent).id)) {
                 client.send(SetTimer(m.timer?.forWire(System.currentTimeMillis())))
+            }
+            // Слой поверх показа: сначала логотип, потом сам слой. Не вышло — слайды идут и без него.
+            if (prev == null || prev.overlays != m.overlays) {
+                try {
+                    for (ref in m.overlays.files) upload(ref)
+                    client.send(SetOverlays(m.overlays))
+                } catch (e: CancellationException) { throw e } catch (_: Exception) {}
             }
             val content = m.content
             if (content == null) {

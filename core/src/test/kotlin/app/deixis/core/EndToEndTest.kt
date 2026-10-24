@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.withTimeout
@@ -45,7 +46,19 @@ class EndToEndTest {
         server.stop()
     }
 
-    private fun client() = SenderClient("127.0.0.1", port, "Телефон", scope)
+    /** Что происходило со связью каждого источника: при падении видно, рвалась ли она. */
+    private val history = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+    private fun client() = SenderClient("127.0.0.1", port, "Телефон", scope).also { c ->
+        val t0 = System.currentTimeMillis()
+        scope.launch { c.connection.collect { history += "${System.currentTimeMillis() - t0} мс: $it" } }
+    }
+
+    private suspend fun <T> step(what: String, block: suspend () -> T): T = try {
+        withTimeout(5_000) { block() }
+    } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+        throw AssertionError("не дождались: $what; связь: ${history.joinToString(" → ")}; экран: ${core.state.value}", e)
+    }
 
     private fun source(bytes: ByteArray, name: String = "photo.jpg", mime: String = "image/jpeg") = object : UploadSource {
         override val name = name
@@ -125,12 +138,12 @@ class EndToEndTest {
         val c = client()
         c.connect(c.pair(core.pairing.pin))
         c.connected()
-        c.show(TextContent("Сначала текст"))
-        withTimeout(5_000) { c.state.filterNotNull().first { it.content is TextContent } }
+        assertTrue(c.show(TextContent("Сначала текст")), "команда ушла")
+        step("текст на экране") { c.state.filterNotNull().first { it.content is TextContent } }
         // Подписка до отправки: ошибка не повторяется для опоздавших слушателей.
         val pending = async(start = CoroutineStart.UNDISPATCHED) { c.errors.first() }
-        c.show(ImageContent(FileRef("b".repeat(64), "нет.jpg", 1, "image/jpeg")))
-        val err = withTimeout(5_000) { pending.await() }
+        assertTrue(c.show(ImageContent(FileRef("b".repeat(64), "нет.jpg", 1, "image/jpeg"))), "команда ушла")
+        val err = step("ошибка «нет файла»") { pending.await() }
         assertEquals("missing_file", err.code)
         assertIs<TextContent>(core.state.value.content, "экран не меняется из-за ошибки")
         c.close()

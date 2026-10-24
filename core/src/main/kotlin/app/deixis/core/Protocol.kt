@@ -39,6 +39,10 @@ data class Show(
 @Serializable @SerialName("timer")
 data class SetTimer(val timer: CountdownContent?) : Msg
 
+/** Слой поверх показа целиком: что прислано, то и видно; пустой — слой убран. */
+@Serializable @SerialName("overlays")
+data class SetOverlays(val overlays: Overlays) : Msg
+
 @Serializable @SerialName("mode")
 data class SetMode(val mode: Mode) : Msg
 
@@ -215,6 +219,8 @@ data class ReceiverState(
     val next: Content? = null,
     /** Идущий обратный отсчёт — в «Сцене» он виден и тогда, когда в зале уже другое. */
     val timer: CountdownContent? = null,
+    /** Поверх показа: логотип, плашка, бегущая строка, часы. Смена слайда его не трогает. */
+    val overlays: Overlays = Overlays(),
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */

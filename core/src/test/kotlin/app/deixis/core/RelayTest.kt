@@ -112,6 +112,27 @@ class RelayTest {
     }
 
     @Test
+    fun layerWithLogoFollowsToTheScreen() = runBlocking<Unit> {
+        val pc = core("pc")
+        val tv = core("tv")
+        val (_, tvPort) = serve(tv)
+        val relay = ScreenRelay(pc, MemoryRelayStore(), scope, "Компьютер")
+        stops += { relay.close() }
+        relay.found(listOf(FoundReceiver("tv", "ТВ", "127.0.0.1", tvPort, "test")))
+        assertTrue(relay.link(LinkRequest("tv", pin = tv.pairing.pin)).ok)
+        relay.waitState("tv", "online")
+        val logo = put(pc, Random(7).nextBytes(20_000), "logo.png", "image/png")
+        val layer = Overlays(logo = LogoOverlay(logo), ticker = Ticker("Сбор в 18:00"))
+        assertEquals(null, pc.apply(SetOverlays(layer)))
+        tv.waitFor("слой на экране") { it.overlays == layer }
+        assertNotNull(tv.files.file(logo.sha256), "логотип передан до слоя")
+        pc.apply(Show(TextContent("Слайд")))
+        tv.waitFor("слайд под слоем") { it.content == TextContent("Слайд") && it.overlays == layer }
+        pc.apply(SetOverlays(Overlays()))
+        tv.waitFor("слой убран") { it.overlays.isEmpty }
+    }
+
+    @Test
     fun oneDeadScreenDoesNotStopTheOthersAndLinksSurviveRestart() = runBlocking<Unit> {
         val pc = core("pc")
         val tv = core("tv")
