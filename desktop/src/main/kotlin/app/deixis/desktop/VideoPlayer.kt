@@ -7,7 +7,11 @@ import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
+import uk.co.caprica.vlcj.player.component.CallbackMediaPlayerComponent
 import uk.co.caprica.vlcj.player.component.EmbeddedMediaPlayerComponent
+import uk.co.caprica.vlcj.player.component.InputEvents
+import uk.co.caprica.vlcj.player.component.callback.ScaledCallbackImagePainter
+import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
 import java.awt.Component
 import java.io.File
 import javax.swing.SwingUtilities
@@ -18,24 +22,43 @@ import javax.swing.SwingUtilities
  */
 class VideoPlayer(private val onError: (String) -> Unit, private val onFinished: () -> Unit) {
 
-    val available: Boolean = try {
-        NativeDiscovery().discover()
-    } catch (e: Throwable) {
-        false
-    }
+    val available: Boolean = vlcFound
 
     /** Параметры libVLC для диагностики на месте, например `DEIXIS_VLC_ARGS="--vout=xcb_x11 -vv"`. */
     private val vlcArgs = System.getenv("DEIXIS_VLC_ARGS")?.split(' ')?.filter { it.isNotBlank() }.orEmpty()
 
-    private val component: EmbeddedMediaPlayerComponent? =
-        if (available) EmbeddedMediaPlayerComponent(MediaPlayerFactory(vlcArgs), null, null, null, null) else null
+    /**
+     * Windows и Linux: VLC рисует прямо в окно. На macOS встроить окно VLC в окно Java нельзя (зависает),
+     * поэтому кадры идут через память и рисуются самим окном, с сохранением пропорций.
+     * Ввод VLC отключён: мышь и клавиши получает окно вывода, а не проигрыватель.
+     */
+    private val component: javax.swing.JComponent? = when {
+        !available -> null
+        isMac -> CallbackMediaPlayerComponent(MediaPlayerFactory(vlcArgs), null, InputEvents.NONE, true, ScaledCallbackImagePainter())
+        else -> EmbeddedMediaPlayerComponent(MediaPlayerFactory(vlcArgs), null, null, InputEvents.DISABLE_NATIVE, null)
+    }
     val view: Component? get() = component
+
+    /** Поверхность, по которой щёлкает оператор: сам кадр видео. */
+    val surface: Component?
+        get() = when (val c = component) {
+            is EmbeddedMediaPlayerComponent -> c.videoSurfaceComponent()
+            is CallbackMediaPlayerComponent -> c.videoSurfaceComponent()
+            else -> null
+        }
+
+    private val player: EmbeddedMediaPlayer?
+        get() = when (val c = component) {
+            is EmbeddedMediaPlayerComponent -> c.mediaPlayer()
+            is CallbackMediaPlayerComponent -> c.mediaPlayer()
+            else -> null
+        }
 
     private var currentName = ""
     private var resumeAfterHide = false
 
     init {
-        component?.mediaPlayer()?.events()?.addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
+        player?.events()?.addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun error(mediaPlayer: MediaPlayer) {
                 SwingUtilities.invokeLater { onError("Не удалось воспроизвести «$currentName»") }
             }
@@ -48,7 +71,7 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
 
     /** [audio] = false — второй монитор зала: звук идёт только из одного проигрывателя. */
     fun play(file: File, name: String, loop: Boolean, startMs: Long, audio: Boolean = true) {
-        val mp = component?.mediaPlayer() ?: return
+        val mp = player ?: return
         currentName = name
         voutChecked = false
         stuckReported = false
@@ -64,7 +87,7 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
 
     /** Демонстрация экрана: поток с приёмника на этом же компьютере, с минимальной буферизацией. */
     fun playStream(url: String) {
-        val mp = component?.mediaPlayer() ?: return
+        val mp = player ?: return
         currentName = "трансляция экрана"
         voutChecked = false
         stuckReported = false
@@ -79,7 +102,7 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
     }
 
     fun apply(cmd: VideoCommand) {
-        val mp = component?.mediaPlayer() ?: return
+        val mp = player ?: return
         when (cmd.action) {
             VideoAction.PLAY -> { userPaused = false; mp.controls().play() }
             VideoAction.PAUSE -> { userPaused = true; mp.controls().setPause(true) }
@@ -91,19 +114,19 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
 
     /** На «Чёрный» и «Логотип» фильм встаёт на паузу и продолжается, когда картинку вернули. */
     fun hide() {
-        val mp = component?.mediaPlayer() ?: return
+        val mp = player ?: return
         resumeAfterHide = mp.status().isPlaying
         if (resumeAfterHide) mp.controls().setPause(true)
     }
 
     fun unhide() {
-        if (resumeAfterHide) component?.mediaPlayer()?.controls()?.play()
+        if (resumeAfterHide) player?.controls()?.play()
         resumeAfterHide = false
     }
 
     fun stop() {
         startedAt = 0L
-        component?.mediaPlayer()?.controls()?.stop()
+        player?.controls()?.stop()
         resumeAfterHide = false
     }
 
@@ -134,7 +157,7 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
     }
 
     fun state(): VideoState? {
-        val mp = component?.mediaPlayer() ?: return null
+        val mp = player ?: return null
         if (mp.status().isPlaying) checkVideoOutput(mp) else checkStuck(mp)
         return VideoState(
             playing = mp.status().isPlaying,
@@ -148,9 +171,23 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
     companion object {
         /** Запас на неровный Wi-Fi. Меньше — заметнее рывки, больше — заметнее отставание от телефона. */
         const val STREAM_CACHING_MS = 150
+
+        private val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+
+        /** Поиск VLC один раз на всю программу: окна вывода пересоздаются, а поиск небыстрый. */
+        val vlcFound: Boolean by lazy {
+            try {
+                NativeDiscovery().discover()
+            } catch (e: Throwable) {
+                false
+            }
+        }
     }
 
     fun release() {
-        component?.release()
+        when (val c = component) {
+            is EmbeddedMediaPlayerComponent -> c.release()
+            is CallbackMediaPlayerComponent -> c.release()
+        }
     }
 }

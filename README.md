@@ -27,7 +27,7 @@
 ```sh
 ./gradlew :core:test :desktop:test      # тесты
 ./gradlew :desktop:installDist          # приложение для компьютера
-desktop/build/install/deixis/bin/deixis                     # приёмник во весь экран (выход — Ctrl+Q)
+desktop/build/install/deixis/bin/deixis                     # приёмник во весь экран (Esc — в окно, выход — Ctrl+Q, ⌘Q, Alt+F4)
 desktop/build/install/deixis/bin/deixis list                # приёмники в сети
 desktop/build/install/deixis/bin/deixis send --to 192.168.1.23 --pin 1234 film.mkv
 ```

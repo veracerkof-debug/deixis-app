@@ -6,10 +6,13 @@ import kotlin.system.exitProcess
 private const val USAGE = """Deixis для компьютера
 
   deixis [receive] [--name ИМЯ] [--port ПОРТ] [--screen N] [--windowed] [--operator | --no-operator]
-      Принимать показ на этом компьютере. Один монитор — зал на нём во весь экран; несколько — зал на всех,
-      кроме монитора пульта, а пульт открывается окном браузера. Мониторы, раскладки (зал, сцена, титры,
-      хромакей) и пульт — в значке Deixis в области уведомлений. --screen N — зал только на мониторе N.
-      Пульт — Ctrl+O, выход — Ctrl+Q или «Выйти» в значке.
+                  [--role remote|screen|both]
+      Принимать показ на этом компьютере. При первом запуске — выбор: пульт, экран или и то и другое.
+      Один монитор — зал на нём во весь экран; несколько — зал на всех, кроме монитора пульта, а пульт
+      открывается окном браузера. Мониторы, раскладки (зал, сцена, титры, хромакей) и пульт — в значке
+      Deixis и по правой кнопке мыши на экране. --screen N — зал только на мониторе N.
+      Пульт — Ctrl+O (⌘O). Esc — зал в окно, F11 — снова во весь экран.
+      Выход — Ctrl+Q, ⌘Q, Alt+F4 или «Выйти» в меню.
 
   deixis list [--seconds N]
       Найти приёмники Deixis в сети.
@@ -49,6 +52,13 @@ fun main(args: Array<String>) {
                     "operator" in opts -> true
                     else -> null
                 },
+                role = when (opts["role"]) {
+                    "remote" -> Role.REMOTE
+                    "screen" -> Role.SCREEN
+                    "both" -> Role.BOTH
+                    else -> null
+                },
+                askRole = listOf("screen", "windowed", "operator", "no-operator").none { it in opts },
             ),
         ).run()
         "send" -> exitProcess(SendCommand(opts, File(home, "sender-tokens.json")).run())

@@ -48,8 +48,14 @@ data class ReceiverOptions(
     val windowed: Boolean,
     val dataDir: File,
     val snapshotDir: File?,
-    /** Открыть окно пульта при запуске; null — само, если мониторов больше одного. */
+    /** Открыть окно пульта при запуске; null — по роли компьютера. */
     val operator: Boolean? = null,
+    /** Роль из командной строки; null — сохранённая или выбор при первом запуске. */
+    val role: Role? = null,
+    /** Спрашивать роль при первом запуске. Ключи --screen, --windowed, --operator отвечают сами. */
+    val askRole: Boolean = true,
+    /** Выход из процесса (в проверках — без выхода). */
+    val exit: (Int) -> Unit = { exitProcess(it) },
 )
 
 /**
@@ -79,6 +85,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     /** Окна вывода по мониторам; меняются только в потоке окон. */
     private val windows = LinkedHashMap<String, OutputWindow>()
     private var tray: Tray? = null
+    /** Мониторы, где оператор увёл зал в окно (Esc, двойной щелчок, меню). Только в потоке окон. */
+    private val windowedIds = HashSet<String>()
+    private val roleStore = RoleStore(File(opts.dataDir, "role"))
+    @Volatile var role: Role = Role.SCREEN
+        private set
 
     init {
         opts.dataDir.mkdirs()
@@ -120,15 +131,63 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             runCatching { Discovery.browse(address).collect { relay.found(it) } }
         }
         println("Deixis: «${core.info.name}» на ${address?.hostAddress ?: "127.0.0.1"}:$port, PIN ${core.pairing.pin}")
+        val chosen = opts.role ?: roleStore.load() ?: if (opts.askRole && !GraphicsEnvironment.isHeadless()) askRole(null) else Role.SCREEN
+        if (chosen == null) { quit(); return }
+        if (opts.role == null && opts.askRole) roleStore.save(chosen)
         SwingUtilities.invokeAndWait {
+            // Меню поверх видео: окно VLC на Windows и Linux — «тяжёлое» и закрыло бы лёгкое меню Swing.
+            javax.swing.JPopupMenu.setDefaultLightWeightPopupEnabled(false)
             refreshScreens()
+            applyRole(chosen, changed = false)
             tray = Tray.install(trayActions)
+            if (MacScreen.isMac) MacScreen.install(::quit, ::openOperator, dockMenu())
             reconcile()
             startTimers()
         }
         observe()
         Runtime.getRuntime().addShutdownHook(Thread { shutdown() })
-        if (opts.operator ?: (screens.size > 1)) openOperator()
+        if (opts.operator ?: (role != Role.SCREEN)) openOperator()
+    }
+
+    /** Окно выбора роли при первом запуске; ждёт ответа. null — окно закрыли. */
+    private fun askRole(current: Role?): Role? {
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var picked: Role? = null
+        SwingUtilities.invokeLater { RoleChooser.show(current) { picked = it; latch.countDown() } }
+        latch.await()
+        return picked
+    }
+
+    /**
+     * Роль меняет то, что делают мониторы этого компьютера:
+     * - «Пульт» — мониторы не показывают зал (включить любой можно в «Экранах»), открывается пульт;
+     * - «Экран» — зал во весь экран, пульт не открывается;
+     * - «Пульт и экран» — один монитор: зал в окне рядом с пультом; несколько — зал на остальных мониторах.
+     * Только в потоке окон.
+     */
+    private fun applyRole(r: Role, changed: Boolean) {
+        role = r
+        when (r) {
+            Role.REMOTE -> settings = screens.fold(settings) { acc, sc ->
+                acc.with(MonitorRequest(sc.id, false, acc.monitors[sc.id]?.layout ?: OutputLayout.HALL))
+            }
+            else -> if (changed) settings = MonitorSettings()
+        }
+        if (changed || r == Role.REMOTE) runCatching { monitorStore.save(settings) }
+        screenOverride = screenOverride.takeIf { r != Role.REMOTE }
+        windowedIds.clear()
+        if (r == Role.BOTH && screens.size == 1) windowedIds += screens[0].id
+    }
+
+    /** Смена роли из меню. */
+    fun chooseRole() {
+        RoleChooser.show(role) { r ->
+            if (r == null || r == role) return@show
+            roleStore.save(r)
+            applyRole(r, changed = true)
+            reconcile()
+            if (r != Role.SCREEN) openOperator()
+        }
     }
 
     // Мониторы
@@ -150,13 +209,17 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         return list.mapIndexed { i, m -> m.copy(enabled = i == index, layout = if (i == index) OutputLayout.HALL else m.layout) }
     }
 
-    private fun windowMode(primary: Boolean, count: Int): WindowMode = when {
-        opts.windowed -> WindowMode.WINDOWED
-        // Один монитор — как раньше: полноэкранный режим системы.
-        count <= 1 -> WindowMode.EXCLUSIVE
+    /**
+     * Как окно занимает монитор. Монитор оператора ([shared]) никогда не запирается: на Маке — полный экран
+     * системы (меню и Dock у края, ⌘Q, ⌘Tab), на Windows и Linux — окно без рамки по монитору, не поверх
+     * остальных (Alt+Tab, Win, Alt+F4 работают). Мониторы только для зала — как раньше.
+     */
+    private fun windowMode(id: String, shared: Boolean): WindowMode = when {
+        opts.windowed || id in windowedIds -> WindowMode.WINDOWED
+        shared -> if (MacScreen.isMac) WindowMode.NATIVE else WindowMode.COVER
         // На Windows полноэкранное окно на втором мониторе сворачивается, когда фокус уходит к пульту,
         // поэтому там окно без рамки точно по монитору, поверх остальных.
-        isWindows || primary -> WindowMode.COVER
+        isWindows -> WindowMode.COVER
         else -> WindowMode.EXCLUSIVE
     }
 
@@ -164,7 +227,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun reconcile() {
         if (opts.windowed) {
             if (windows.isEmpty()) {
-                windows[WINDOWED_ID] = OutputWindow(WINDOWED_ID, null, OutputLayout.HALL, WindowMode.WINDOWED, false, true, core.files, this)
+                windows[WINDOWED_ID] = OutputWindow(WINDOWED_ID, null, OutputLayout.HALL, WindowMode.WINDOWED, false, true, true, core.files, this)
                     .also { it.primary = true; it.update(frameState()) }
             }
             return
@@ -175,14 +238,15 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         for (id in windows.keys.toList()) if (wanted.none { it.id == id }) windows.remove(id)?.dispose()
         for (m in wanted) {
             val device = devices.getValue(m.id)
-            val mode = windowMode(m.primary, list.size)
+            val shared = list.size <= 1 || m.primary
+            val mode = windowMode(m.id, shared)
             val w = windows[m.id]
             if (w == null || w.mode != mode) {
                 w?.dispose()
-                // Окна зала не забирают фокус у пульта; единственный монитор — как раньше, с Ctrl+Q.
-                // Без значка в области уведомлений (часть окружений Linux) Ctrl+Q и Ctrl+O нужны на любом мониторе.
-                val focusable = list.size <= 1 || tray == null
-                windows[m.id] = OutputWindow(m.id, device, m.layout, mode, topmost = !m.primary && list.size > 1, focusable = focusable, files = core.files, host = this)
+                // Окна только для зала не забирают фокус у пульта. Без значка в области уведомлений
+                // (часть окружений Linux) Ctrl+Q и Ctrl+O нужны на любом мониторе.
+                val focusable = shared || tray == null
+                windows[m.id] = OutputWindow(m.id, device, m.layout, mode, topmost = !shared, focusable = focusable, shared = shared, files = core.files, host = this)
             } else {
                 w.setLayout(m.layout)
                 w.moveTo(device)
@@ -269,12 +333,54 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         }
     }
 
+    override fun setWindowed(windowId: String, windowed: Boolean) {
+        SwingUtilities.invokeLater {
+            if (opts.windowed) return@invokeLater
+            if (windowed) windowedIds += windowId else windowedIds -= windowId
+            reconcile()
+        }
+    }
+
+    /** Меню по правой кнопке: то же, что в значке Deixis, плюс окно и весь экран. */
+    override fun menu(windowId: String): javax.swing.JPopupMenu {
+        val m = javax.swing.JPopupMenu()
+        fun item(label: String, keys: String? = null, block: () -> Unit) =
+            javax.swing.JMenuItem(if (keys == null) label else "$label    $keys").apply { addActionListener { block() } }
+        val cmd = if (MacScreen.isMac) "⌘" else "Ctrl+"
+        m.add(item("Открыть пульт", "${cmd}O") { openOperator() })
+        val screensMenu = javax.swing.JMenu("Экраны")
+        for (mon in monitors()) {
+            val sub = javax.swing.JMenu(mon.name + " · ${mon.width}×${mon.height}" + if (mon.primary) " · пульт" else "")
+            sub.add(javax.swing.JCheckBoxMenuItem("Показывать", mon.enabled).apply { addActionListener { setMonitor(MonitorRequest(mon.id, isSelected, mon.layout)) } })
+            sub.addSeparator()
+            for (l in OutputLayout.entries) {
+                sub.add(javax.swing.JCheckBoxMenuItem(l.title, mon.layout == l).apply { addActionListener { setMonitor(MonitorRequest(mon.id, true, l)) } })
+            }
+            screensMenu.add(sub)
+        }
+        m.add(screensMenu)
+        if (!opts.windowed) {
+            val inWindow = windowId in windowedIds
+            m.add(if (inWindow) item("Во весь экран", "F11") { setWindowed(windowId, false) } else item("В окно", "Esc") { setWindowed(windowId, true) })
+        }
+        m.add(item("Как работает компьютер…") { chooseRole() })
+        m.addSeparator()
+        m.add(item("Выйти", "${cmd}Q") { quit() })
+        return m
+    }
+
+    private fun dockMenu() = java.awt.PopupMenu().apply {
+        add(java.awt.MenuItem("Открыть пульт").apply { addActionListener { openOperator() } })
+        add(java.awt.MenuItem("Как работает компьютер…").apply { addActionListener { SwingUtilities.invokeLater { chooseRole() } } })
+    }
+
     private val trayActions = object : TrayActions {
         override fun openOperator() = this@ReceiverApp.openOperator()
         override fun monitors() = this@ReceiverApp.monitors()
         override fun setMonitor(req: MonitorRequest) = this@ReceiverApp.setMonitor(req)
         override fun webScreenUrl() = this@ReceiverApp.webScreenUrl()
         override fun quit() = this@ReceiverApp.quit()
+        override fun chooseRole() = SwingUtilities.invokeLater { this@ReceiverApp.chooseRole() }
     }
 
     private inner class DesktopOutputs : OutputsHost {
@@ -293,8 +399,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     override fun quit() {
         shutdown()
-        exitProcess(0)
+        opts.exit(0)
     }
+
+    /** Окна вывода сейчас (для проверки). Только в потоке окон. */
+    internal fun windowsForTest(): List<OutputWindow> = windows.values.toList()
 
     @Volatile private var stopped = false
 
@@ -307,6 +416,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         runCatching { server.stop() }
         runCatching { tray?.remove() }
         windows.values.toList().forEach { it.release() }
+        // В проверках процесс не завершается: окна закрываются сами.
+        SwingUtilities.invokeLater { windows.values.forEach { it.dispose() }; windows.clear() }
     }
 
     companion object {

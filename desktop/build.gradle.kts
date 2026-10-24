@@ -25,14 +25,20 @@ dependencies {
     testImplementation(libs.kotlin.test)
 }
 
+val macExports = if (System.getProperty("os.name").lowercase().contains("mac")) listOf("--add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED") else emptyList()
+
 application {
     mainClass.set("app.deixis.desktop.MainKt")
     applicationName = "deixis"
-    applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+    // На Маке — ключ для полного экрана системы (MacScreen).
+    applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8") + macExports
 }
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs(macExports)
+    // Проверка настоящих окон (CI на macOS, Windows и Linux с xvfb): -Ddeixis.gui=1.
+    System.getProperty("deixis.gui")?.let { systemProperty("deixis.gui", it) }
     // Для ручной проверки раскладок мониторов: -Ddeixis.outputsPng=папка сохраняет кадры в PNG.
     System.getProperty("deixis.outputsPng")?.let { systemProperty("deixis.outputsPng", it) }
 }

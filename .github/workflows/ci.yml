@@ -34,6 +34,49 @@ jobs:
           name: deixis-desktop
           path: desktop/build/distributions/*.zip
 
+  desktop-gui:
+    # Настоящие окна на настоящих системах: окно оператора не запирает экран, отвечает мыши и клавишам.
+    name: Окна компьютера (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+          - { name: Linux, os: ubuntu-latest }
+    runs-on: ${{ matrix.os }}
+    env:
+      DEIXIS_SKIP_ANDROID: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Проверка окон
+        run: |
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*')
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
+          else
+            ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
+          fi
+          # Проверка не должна пропуститься молча: без экрана она помечается пропущенной.
+          if grep -l '<skipped' desktop/build/test-results/test/TEST-app.deixis.desktop.DesktopWindowTest.xml; then
+            echo "::error::Проверка окон пропущена: нет экрана"; exit 1
+          fi
+          grep -h -A6 '<system-out>' desktop/build/test-results/test/TEST-app.deixis.desktop.DesktopWindowTest.xml || true
+      - name: Отчёты тестов
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-reports-${{ matrix.name }}
+          path: "**/build/reports/tests/"
+
   android:
     name: Android (телефон и ТВ)
     runs-on: ubuntu-latest

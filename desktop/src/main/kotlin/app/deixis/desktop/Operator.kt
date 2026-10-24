@@ -95,6 +95,7 @@ interface TrayActions {
     fun setMonitor(req: MonitorRequest)
     fun webScreenUrl(): String?
     fun quit()
+    fun chooseRole()
 }
 
 /**
@@ -108,6 +109,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
         val popup = PopupMenu()
         popup.add(item("Открыть пульт") { actions.openOperator() })
         popup.add(screens)
+        popup.add(item("Как работает компьютер…") { actions.chooseRole() })
         popup.addSeparator()
         popup.add(item("Выйти") { actions.quit() })
         icon.popupMenu = popup
