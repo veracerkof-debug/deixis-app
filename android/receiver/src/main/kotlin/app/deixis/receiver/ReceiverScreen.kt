@@ -127,6 +127,7 @@ fun ReceiverScreen(
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
             content is TextContent -> TextSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             content is ScriptureContent -> ScriptureSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
+            content is app.deixis.core.CountdownContent -> CountdownSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             mode == Mode.CLEAR -> Box(Modifier.fillMaxSize().background(Color.Black))
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
@@ -381,6 +382,47 @@ private fun ScriptureSlide(runtime: ReceiverRuntime, c: ScriptureContent, clear:
                 } else {
                     drawStyledText(nc, l.text, l.x, l.baseline, l.size, paint, c.style)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Обратный отсчёт от часов этого экрана: с долями секунды — каждый кадр, иначе несколько раз в секунду.
+ * Цифры — в ячейках одной ширины, после нуля — свой цвет; подпись сверху или снизу.
+ */
+@Composable
+private fun CountdownSlide(runtime: ReceiverRuntime, c: app.deixis.core.CountdownContent, clear: Boolean, overscan: Boolean) {
+    val context = LocalContext.current
+    val sans = remember { context.resources.getFont(R.font.noto_sans_semibold) }
+    val serif = remember { runCatching { context.resources.getFont(R.font.gfs_didot) }.getOrDefault(sans) }
+    val bg = rememberBackground(runtime, c.style)
+    val now by produceState(System.currentTimeMillis(), c) {
+        while (true) {
+            if (c.decimals > 0 && c.running) androidx.compose.runtime.withFrameMillis { } else delay(app.deixis.core.countdownFrameMs(c))
+            value = System.currentTimeMillis()
+        }
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        drawStyleBackground(c.style, bg)
+        val face = app.deixis.core.countdownFace(c, now)
+        if (clear || face.hidden) return@Canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = if (c.font == "serif") serif else sans }
+        val text = if (c.style.caps) face.text.uppercase() else face.text
+        val l = app.deixis.core.layoutCountdown(
+            c, text, size.width, size.height,
+            measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
+            ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
+            descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
+            overscan = overscan,
+        )
+        val digits = if (face.overtime) c.style.copy(color = c.overtimeColor) else c.style
+        drawIntoCanvas { canvas ->
+            val nc = canvas.nativeCanvas
+            for ((ch, x) in l.cells) drawStyledText(nc, ch, x, l.baseline, l.size, paint, digits)
+            c.label?.takeIf { it.isNotBlank() }?.let { label ->
+                paint.typeface = sans
+                drawStyledText(nc, if (c.style.caps) label.uppercase() else label, l.labelX, l.labelBaseline, l.labelSize, paint, c.style)
             }
         }
     }

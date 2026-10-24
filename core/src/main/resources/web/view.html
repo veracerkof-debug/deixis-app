@@ -33,6 +33,11 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
 .scripture.side .blocks > div { flex: 1; }
 .scripture .r { font-size: .55em; opacity: .75; }
 img, video { object-fit: contain; background: #000; }
+/* Обратный отсчёт: цифры одной ширины — строка не дрожит; поля — как у слайдов (5,5 % меньшей стороны). */
+.cd { display: flex; flex-direction: column; padding: 5.5vmin; box-sizing: border-box; font-family: "Deixis Slide", system-ui, sans-serif; font-weight: 600; line-height: 1.1; }
+.cd .num { font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; }
+.cd .num.serif { font-family: "Deixis Mark", Georgia, serif; font-weight: 400; }
+.cd .lbl { font-size: 7vmin; opacity: .9; }
 /* Видео ложится как на остальных экранах: вписать, заполнить, растянуть, исходный размер; поля — чёрные, цвета темы или размытые. */
 #stage video.fit-FILL { object-fit: cover; }
 #stage video.fit-STRETCH { object-fit: fill; }
@@ -307,8 +312,59 @@ function captionContent(c, mode) {
   return Object.assign({}, c, { style }, c.type === "scripture" ? { refPosition: "BOTTOM" } : {});
 }
 
+// Обратный отсчёт — по часам приёмника (s.now), а не этого браузера: так он совпадает с залом.
+function cdFormat(ms, format, decimals, roundUp) {
+  const d = Math.max(0, Math.min(3, decimals || 0)), unit = [1000, 100, 10, 1][d], v = Math.abs(ms);
+  const ticks = roundUp ? Math.ceil(v / unit) : Math.floor(v / unit), total = ticks * unit, ts = Math.floor(total / 1000);
+  const frac = d ? "." + String(Math.floor((total % 1000) / unit)).padStart(d, "0") : "";
+  const h = Math.floor(ts / 3600), m = Math.floor(ts / 60) % 60, sec = String(ts % 60).padStart(2, "0"), mm = String(m).padStart(2, "0");
+  const f = format || "AUTO";
+  const body = f === "S" ? String(ts) : f === "MS" ? `${Math.floor(ts / 60)}:${sec}` : f === "HMS" || h > 0 ? `${h}:${mm}:${sec}` : `${m}:${sec}`;
+  return body + frac;
+}
+function cdFace(c) {
+  const left = c.running !== false && c.endsAt ? c.endsAt - (Date.now() - clockOffset) : c.remainingMs;
+  if (left > 0) return { text: cdFormat(left, c.format, c.decimals, true), overtime: false, hidden: false };
+  if (c.afterZero === "OVERTIME") return { text: "+" + cdFormat(-left, c.format, c.decimals, false), overtime: left < 0, hidden: false };
+  if (c.afterZero === "HIDE") return { text: "", overtime: false, hidden: true };
+  return { text: cdFormat(0, c.format, c.decimals, false), overtime: false, hidden: false };
+}
+let cdTimer = 0;
+function countdown(c, clear) {
+  const st = c.style || {};
+  stageBackground(st);
+  const box = document.createElement("div");
+  box.className = "cd";
+  box.style.color = argb(st.color == null ? 0xFFFFFFFF : st.color);
+  box.style.justifyContent = { TOP: "flex-start", MIDDLE: "center", BOTTOM: "flex-end" }[st.valign || "MIDDLE"];
+  box.style.alignItems = { LEFT: "flex-start", CENTER: "center", RIGHT: "flex-end" }[st.align || "CENTER"];
+  if (st.caps) box.style.textTransform = "uppercase";
+  if (st.shadow !== false) box.style.textShadow = "0 .04em .06em rgba(0,0,0,.6)";
+  const num = document.createElement("div");
+  num.className = "num" + (c.font === "serif" ? " serif" : "");
+  num.style.fontSize = (st.sizePercent || 34) + "vmin";
+  const lbl = document.createElement("div");
+  lbl.className = "lbl";
+  lbl.textContent = c.label || "";
+  if (c.label) box.append(...(c.labelPosition === "BELOW" ? [num, lbl] : [lbl, num])); else box.append(num);
+  if (!clear) stage.append(box);
+  const tick = () => {
+    if (!box.isConnected) return;
+    const f = cdFace(c);
+    num.textContent = f.text;
+    box.style.visibility = f.hidden ? "hidden" : "";
+    num.style.color = f.overtime ? argb(c.overtimeColor) : "";
+    // Узкий экран или длинное время: цифры уменьшаются до ширины полей, а не вылезают за край.
+    const room = box.clientWidth - 2 * parseFloat(getComputedStyle(box).paddingLeft || 0);
+    if (room > 0 && num.scrollWidth > room) num.style.fontSize = (parseFloat(getComputedStyle(num).fontSize) * room / num.scrollWidth * 0.98) + "px";
+    cdTimer = c.decimals > 0 && c.running !== false ? requestAnimationFrame(tick) : setTimeout(tick, 250);
+  };
+  tick();
+}
+
 function render(s) {
   if (outLayout === "stage") return renderStage(s);
+  if (s.now) clockOffset = Date.now() - s.now;
   if (captions) s = Object.assign({}, s, { content: captionContent(s.content, s.mode), mode: "NORMAL", video: null });
   current = s;
   const c = s.content;
@@ -349,6 +405,8 @@ function render(s) {
       }
     } else if (c.type === "scripture") {
       scripture(c, s.mode === "CLEAR");
+    } else if (c.type === "countdown") {
+      countdown(c, s.mode === "CLEAR");
     } else if (s.mode === "CLEAR") {
       // для картинок и видео «Очистить» — чёрный экран
     } else if (c.type === "video") {

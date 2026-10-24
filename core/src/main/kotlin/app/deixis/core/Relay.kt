@@ -226,7 +226,7 @@ class ScreenRelay(
     }
 
     /** Что повторяется на экране. Ход видео сюда не входит: его экран ведёт сам. */
-    private data class Mirror(val content: Content?, val next: Content?, val mode: Mode)
+    private data class Mirror(val content: Content?, val next: Content?, val mode: Mode, val timer: CountdownContent? = null)
 
     private inner class Link(val id: String, val host: String, val port: Int, token: String) {
         private val linkScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -255,7 +255,7 @@ class ScreenRelay(
             }
             linkScope.launch {
                 client.connection.map { it is Connection.Connected }.distinctUntilChanged()
-                    .combine(core.state.map { Mirror(it.content, it.next, it.mode) }.distinctUntilChanged()) { online, m -> online to m }
+                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer) }.distinctUntilChanged()) { online, m -> online to m }
                     .collectLatest { (online, m) ->
                         if (!online) { sent = null; syncing.value = false; return@collectLatest }
                         mirror(m)
@@ -268,6 +268,10 @@ class ScreenRelay(
 
         private suspend fun mirror(m: Mirror) {
             val prev = sent
+            // Отсчёт для «Сцены» — сколько осталось на этот миг: экран привяжет его к своим часам.
+            if (prev?.timer != m.timer && (m.content !is CountdownContent || m.timer?.id != (m.content as CountdownContent).id)) {
+                client.send(SetTimer(m.timer?.forWire(System.currentTimeMillis())))
+            }
             val content = m.content
             if (content == null) {
                 // Показа ещё не было: экран остаётся в ожидании, но режим повторяется.
@@ -298,7 +302,11 @@ class ScreenRelay(
             }
             val live = core.state.value
             // Видео подхватывается с того же места, где идёт здесь (экран подключился посреди фильма).
-            val shown = if (content is VideoContent) content.copy(startMs = live.video?.positionMs ?: content.startMs) else content
+            val shown = when (content) {
+                is VideoContent -> content.copy(startMs = live.video?.positionMs ?: content.startMs)
+                is CountdownContent -> content.forWire(System.currentTimeMillis())
+                else -> content
+            }
             if (!client.show(shown, m.next)) return
             if (m.mode != Mode.NORMAL) client.mode(m.mode)
             if (content is VideoContent && live.video?.playing == false) client.video(VideoCommand(VideoAction.PAUSE))

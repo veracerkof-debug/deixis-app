@@ -258,9 +258,10 @@ class OutputWindow(
             val vk = s.content to s.mode
             if (vk != videoKey) { videoKey = vk; applyVideo(s) }
         }
+        // Отсчёт перерисовывается, когда меняется его строка; остальное — когда меняется показ.
         val key: Any = when (layout) {
-            OutputLayout.HALL -> Triple(s.content, s.mode, s.idle)
-            OutputLayout.STAGE -> s.copy(now = s.now / 1000)
+            OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText)
+            OutputLayout.STAGE -> listOf(s.copy(now = s.now / 1000), s.countdownText)
             else -> s.content to s.mode
         }
         if (key != drawnKey) { drawnKey = key; redraw(s) }

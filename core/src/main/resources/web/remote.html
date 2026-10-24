@@ -497,6 +497,7 @@ const TR = {
   loading: ["Загрузка…", "Yuklanmoqda…", "Loading…"],
   convertedPdf: ["переведено в PDF", "PDF ga o‘girilgan", "converted to PDF"],
   screenShare: ["Экран телефона", "Telefon ekrani", "Phone screen"],
+  countdown: ["Обратный отсчёт", "Teskari sanoq", "Countdown"],
 
   // Типы
   tPres: ["Презентация", "Taqdimot", "Presentation"],
@@ -1652,6 +1653,11 @@ function slideHTML(c, o = {}) {
   const k = ["slide", st.shadow ? "shadow" : "", st.outline ? "outline" : "", st.caps ? "caps" : "", st.box != null ? "boxed" : "", "a-" + st.align, "v-" + st.valign, cls].join(" ");
   let inner = "";
   if (!clear && c.type === "text") inner = `<div class="txt" data-sp="${st.sizePercent}">${esc(c.text)}</div>`;
+  // Отсчёт, запущенный с телефона: в превью — сколько оставалось, когда его прислали.
+  if (!clear && c.type === "countdown") {
+    const s = Math.ceil(Math.max(0, c.remainingMs || 0) / 1000), h = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, "0");
+    inner = `<div class="txt" data-sp="${st.sizePercent}">${c.label ? esc(c.label) + "\n" : ""}${h ? `${h}:${String(mm).padStart(2, "0")}` : mm}:${ss}</div>`;
+  }
   if (!clear && c.type === "scripture") {
     const top = c.refPosition === "TOP";
     const blocks = (c.blocks || []).map((b) => `<div>${top && b.ref ? `<div class="r">${esc(b.ref)}</div>` : ""}${esc(b.text)}${!top && b.ref ? `<div class="r">${esc(b.ref)}</div>` : ""}</div>`).join("");
@@ -1676,6 +1682,7 @@ function describe(c) {
   if (c.type === "scripture") return c.ref || (c.blocks && c.blocks[0] && c.blocks[0].ref) || t.tBible;
   if (c.type === "pdf") return `${c.file.name} · ${tf("pageN", c.page + 1)}`;
   if (c.type === "screen") return t.screenShare;
+  if (c.type === "countdown") return c.label || t.countdown;
   return c.file ? c.file.name : "";
 }
 function liveName() {

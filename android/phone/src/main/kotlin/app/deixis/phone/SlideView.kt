@@ -162,6 +162,8 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
             Txt("Переведётся при показе", T.fTag, Color.White.copy(alpha = 0.75f))
         }
         is Slide.Screen -> Icon("phone", Color.White, T.icon)
+        // Превью отсчёта: сколько он будет идти, в оформлении зала.
+        is Slide.Countdown -> SlideText(listOf(slide.spec.title), slide.spec.label, style.copy(color = slide.spec.color ?: style.color))
     }
 }
 

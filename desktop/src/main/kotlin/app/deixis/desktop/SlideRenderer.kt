@@ -46,7 +46,7 @@ class SlideRenderer(
     private var pdfCache: Pair<String, BufferedImage>? = null
 
     /** Бросает исключение, если файл нельзя прочитать: вызывающий покажет чёрный экран и сообщит пульту. */
-    fun render(width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?): BufferedImage {
+    fun render(width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?, now: Long = System.currentTimeMillis()): BufferedImage {
         val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
         try {
@@ -62,6 +62,7 @@ class SlideRenderer(
                 content == null -> if (idle != null) drawIdle(g, width, height, idle)
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)
                 content is ScriptureContent -> drawScripture(g, width, height, content, clear = mode == Mode.CLEAR)
+                content is app.deixis.core.CountdownContent -> drawCountdown(g, width, height, content, now, clear = mode == Mode.CLEAR)
                 mode == Mode.CLEAR -> Unit
                 content is ImageContent -> drawFitted(g, width, height, loadImage(content))
                 content is PdfContent -> drawFitted(g, width, height, loadPdfPage(content, width, height))
@@ -240,6 +241,28 @@ class SlideRenderer(
             } else {
                 drawStyledLine(g, layout, l.x, l.baseline, color, l.size, c.style)
             }
+        }
+    }
+
+    /** Обратный отсчёт: цифры в ячейках одной ширины (не дрожат), подпись сверху или снизу, после нуля — свой цвет. */
+    private fun drawCountdown(g: Graphics2D, w: Int, h: Int, c: app.deixis.core.CountdownContent, now: Long, clear: Boolean) {
+        drawBackground(g, w, h, c.style)
+        val face = app.deixis.core.countdownFace(c, now)
+        if (clear || face.hidden) return
+        val base = if (c.font == "serif") Fonts.mark else Fonts.slide
+        val text = if (c.style.caps) face.text.uppercase() else face.text
+        val l = app.deixis.core.layoutCountdown(
+            c, text, w.toFloat(), h.toFloat(),
+            measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
+            ascent = { size -> base.deriveFont(size).getLineMetrics("0", frc).ascent },
+            descent = { size -> base.deriveFont(size).getLineMetrics("0", frc).descent },
+        )
+        val color = Color((if (face.overtime) c.overtimeColor else c.style.color).toInt(), true)
+        val font = base.deriveFont(l.size)
+        for ((ch, x) in l.cells) drawStyledLine(g, TextLayout(ch, font, frc), x, l.baseline, color, l.size, c.style)
+        c.label?.takeIf { it.isNotBlank() }?.let { label ->
+            val text2 = if (c.style.caps) label.uppercase() else label
+            drawStyledLine(g, TextLayout(text2, Fonts.slide.deriveFont(l.labelSize), frc), l.labelX, l.labelBaseline, Color(c.style.color.toInt(), true), l.labelSize, c.style)
         }
     }
 

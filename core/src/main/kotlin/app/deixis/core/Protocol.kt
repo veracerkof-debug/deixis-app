@@ -32,6 +32,13 @@ data class Show(
     val next: Content? = null,
 ) : Msg
 
+/**
+ * Обратный отсчёт без смены зала: пауза, ±1 мин, «заново». Если этот же отсчёт сейчас в зале, он
+ * меняется и там; иначе только в «Сцене». null — убрать отсчёт из «Сцены».
+ */
+@Serializable @SerialName("timer")
+data class SetTimer(val timer: CountdownContent?) : Msg
+
 @Serializable @SerialName("mode")
 data class SetMode(val mode: Mode) : Msg
 
@@ -201,6 +208,8 @@ data class ReceiverState(
     val viewers: Int = 0,
     /** Следующий слайд, если пульт его прислал: для вида «Сцена». */
     val next: Content? = null,
+    /** Идущий обратный отсчёт — в «Сцене» он виден и тогда, когда в зале уже другое. */
+    val timer: CountdownContent? = null,
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */
@@ -233,6 +242,7 @@ val Content.style: TextStyle?
     get() = when (this) {
         is TextContent -> style
         is ScriptureContent -> style
+        is CountdownContent -> style
         else -> null
     }
 
@@ -244,4 +254,5 @@ val Content.file: FileRef?
         is TextContent -> null
         is ScriptureContent -> null
         is ScreenContent -> null
+        is CountdownContent -> null
     }

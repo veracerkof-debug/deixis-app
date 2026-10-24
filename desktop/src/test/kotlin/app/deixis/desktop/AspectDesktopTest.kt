@@ -69,6 +69,8 @@ class AspectDesktopTest {
             check("logo", FrameState(song, Mode.LOGO))
             check("idle", FrameState(null, Mode.NORMAL, idle = idle))
             check("lower-third", FrameState(scripture, Mode.NORMAL), OutputLayout.LOWER_THIRD)
+            val cd = app.deixis.core.CountdownContent("t", 1_799_000, label = "До начала служения", decimals = 1).anchored(0)
+            check("countdown", FrameState(cd, Mode.NORMAL, now = 0, timer = cd))
         }
     }
 
@@ -76,7 +78,8 @@ class AspectDesktopTest {
     fun stageFitsEveryFormat() {
         for ((f, wh) in formats) {
             val (w, h) = wh
-            val img = frames.render(OutputLayout.STAGE, w, h, FrameState(scripture, Mode.NORMAL, next = song, startedAt = 0, now = 3_723_000))
+            val cd = app.deixis.core.CountdownContent("t", 300_000, afterZero = app.deixis.core.AfterZero.OVERTIME).anchored(3_600_000)
+            val img = frames.render(OutputLayout.STAGE, w, h, FrameState(scripture, Mode.NORMAL, next = song, startedAt = 0, now = 3_723_000, timer = cd))
             save("$f-stage", img)
             // У «Сцены» окна идут почти до полей; край экрана — чёрный.
             assertInside("$f stage", img, edgeFraction = 0.02f)

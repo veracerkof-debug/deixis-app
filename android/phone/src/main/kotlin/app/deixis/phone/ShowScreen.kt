@@ -65,6 +65,7 @@ val Kind.icon: String
         Kind.SONG -> "song"
         Kind.TEXT -> "text"
         Kind.BIBLE -> "bible"
+        Kind.COUNTDOWN -> "clock"
     }
 
 fun clock(ms: Long): String {
@@ -97,6 +98,7 @@ fun subOf(c: Controller, it: LibItem): String = when (it.kind) {
         }
     }
     Kind.VIDEO -> if (it.durationMs > 0) clock(it.durationMs) else "Видео"
+    Kind.COUNTDOWN -> it.countdown?.let { s -> listOfNotNull(s.title, s.label).joinToString(" · ") }.orEmpty()
     Kind.PHOTO -> if (it.title.lowercase().let { t -> t.endsWith(".heic") || t.endsWith(".heif") }) "HEIC → JPEG при отправке" else "Фото"
 }
 
@@ -273,6 +275,7 @@ private fun Tiles(c: Controller, h: HolyricsSource, ui: Ui, wrap: Boolean) {
         add(TileSpec("Видео", "media") { ui.sheet("Видео") { PickSheet(c, ui, PickKind.VIDEO) } })
         add(TileSpec("Фото", "photo") { ui.sheet("Фото") { PickSheet(c, ui, PickKind.PHOTO) } })
         add(TileSpec("Текст", "text") { ui.sheet("Текст") { TextSheet(c, ui) } })
+        add(TileSpec("Отсчёт", "clock") { ui.sheet("Обратный отсчёт") { CountdownSheet(c, ui) } })
         add(TileSpec(if (sharing) "Остановить экран" else "Экран телефона", "phone") {
             if (sharing) ScreenShareService.stop(context) else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
         })
@@ -464,6 +467,21 @@ fun ControlBar(c: Controller, ui: Ui) {
                 is Slide.Screen -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()
                     BarBtn("stop", "Остановить трансляцию", weight = 2f) { ScreenShareService.stop(context) }
+                }
+                // Отсчёт в зале: пауза, ±1 мин, заново — на всех экранах сразу.
+                is Slide.Countdown -> {
+                    val run by c.timer.collectAsState()
+                    val left = rememberTimerLeft(c)
+                    Txt(timerText(run, left), T.fBody, if (left != null && left <= 0) p.live else p.ink, FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
+                        black()
+                        val running = run?.running ?: true
+                        BarBtn(if (running) "pause" else "play", if (running) "Пауза" else "Пуск") { c.timerToggle() }
+                        BarBtn("back10", "−1 мин") { c.timerAdd(-60_000) }
+                        BarBtn("fwd10", "+1 мин") { c.timerAdd(60_000) }
+                        BarBtn("restart", "Заново") { c.timerRestart() }
+                        BarBtn("stop", "Убрать") { c.timerStop() }
+                    }
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()

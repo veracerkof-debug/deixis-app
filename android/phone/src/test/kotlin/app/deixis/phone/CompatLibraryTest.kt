@@ -25,7 +25,7 @@ class CompatLibraryTest {
             val d = DeixisJson.decodeFromString(StoreData.serializer(), f.readText())
             val name = f.name
             assertEquals(7, d.items.size, "$name: все материалы")
-            assertEquals(Kind.entries.toSet(), d.items.map { it.kind }.toSet(), "$name: все виды материалов")
+            assertEquals(Kind.entries.toSet() - Kind.COUNTDOWN, d.items.map { it.kind }.toSet(), "$name: все виды материалов той версии")
             val song = d.items.first { it.kind == Kind.SONG }
             assertEquals(listOf("Великий Бог, когда на мир смотрю я", "Тогда поёт душа моя"), song.slides, "$name: текст песни")
             assertEquals(listOf("Куплет 1", "Припев"), song.labels, "$name: части песни")

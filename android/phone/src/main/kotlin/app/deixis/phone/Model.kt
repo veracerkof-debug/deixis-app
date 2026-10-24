@@ -23,6 +23,39 @@ enum class Kind(val title: String, val plural: String) {
     SONG("Песня", "Песни"),
     TEXT("Текст", "Тексты"),
     BIBLE("Библия", "Библия"),
+    COUNTDOWN("Отсчёт", "Отсчёты"),
+}
+
+/**
+ * Обратный отсчёт в библиотеке: длительность или «до времени», подпись, формат, доли секунды, что после нуля,
+ * шрифт, размер, цвет, положение. Фон и тень — от темы оформления, как у текста.
+ */
+@Serializable
+data class CountdownSpec(
+    val durationMs: Long = 5 * 60_000L,
+    /** «18:30» — до этого времени (ближайшего: сегодня или завтра); null — длительность. */
+    val until: String? = null,
+    val label: String? = "До начала",
+    val labelPosition: app.deixis.core.LabelPosition = app.deixis.core.LabelPosition.ABOVE,
+    val format: app.deixis.core.CountdownFormat = app.deixis.core.CountdownFormat.AUTO,
+    val decimals: Int = 0,
+    val afterZero: app.deixis.core.AfterZero = app.deixis.core.AfterZero.HOLD,
+    val font: String = "sans",
+    val sizePercent: Float = 34f,
+    /** Цвет цифр; null — цвет темы. */
+    val color: Long? = null,
+    val valign: app.deixis.core.VAlign = app.deixis.core.VAlign.MIDDLE,
+) {
+    /** Сколько отсчитывать, начиная с [now]. */
+    fun startMs(now: java.time.LocalDateTime = java.time.LocalDateTime.now()): Long {
+        val t = until?.let { runCatching { java.time.LocalTime.parse(it) }.getOrNull() } ?: return durationMs
+        var at = now.toLocalDate().atTime(t)
+        if (!at.isAfter(now)) at = at.plusDays(1)
+        return java.time.Duration.between(now, at).toMillis()
+    }
+
+    val title: String
+        get() = until?.let { "До $it" } ?: app.deixis.core.formatCountdown(durationMs, app.deixis.core.CountdownFormat.AUTO)
 }
 
 /** Место Писания, сохранённое в библиотеке: книга, глава, стихи и переводы. */
@@ -60,6 +93,8 @@ data class LibItem(
     /** Видео: как ложится на экран и чем заполнены поля. */
     val videoFit: app.deixis.core.VideoFit = app.deixis.core.VideoFit.FIT,
     val videoBackdrop: app.deixis.core.VideoBackdrop = app.deixis.core.VideoBackdrop.BLACK,
+    /** Обратный отсчёт. */
+    val countdown: CountdownSpec? = null,
 )
 
 /** Сетлист: план показа на дату — пара, лекция, служение. */
@@ -169,6 +204,7 @@ sealed interface Slide {
     /** Презентация или документ ещё не переведены: их переводит компьютер при первом показе. */
     data object Pending : Slide
     data class Screen(val width: Int, val height: Int) : Slide
+    data class Countdown(val spec: CountdownSpec) : Slide
 }
 
 /** Что показывается или ждёт в предпросмотре: элемент библиотеки или разовый (текст, Holyrics, экран). */

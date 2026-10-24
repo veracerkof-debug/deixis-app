@@ -76,7 +76,14 @@ data class FrameState(
     val startedAt: Long? = null,
     val now: Long = System.currentTimeMillis(),
     val idle: IdleInfo? = null,
-)
+    /** Идущий обратный отсчёт — для «Сцены», даже когда в зале уже другое. */
+    val timer: app.deixis.core.CountdownContent? = null,
+) {
+    /** Что сейчас написано на отсчётах (в зале и в «Сцене»): кадр перерисовывается, только когда это меняется. */
+    val countdownText: String?
+        get() = listOfNotNull(content as? app.deixis.core.CountdownContent, timer).takeIf { it.isNotEmpty() }
+            ?.joinToString("|") { app.deixis.core.countdownFace(it, now).text }
+}
 
 /**
  * Текст и Писание титрами внизу экрана: на чёрном (проектор поверх сцены) или на чистом зелёном (хромакей).
@@ -133,7 +140,7 @@ class OutputFrames(files: FileStore) {
         OutputLayout.HALL -> slides.render(
             width, height,
             s.content.takeUnless { (it is VideoContent || it is ScreenContent) && s.mode == Mode.NORMAL },
-            s.mode, s.idle,
+            s.mode, s.idle, s.now,
         )
         OutputLayout.LOWER_THIRD -> caption(width, height, s, chroma = false)
         OutputLayout.CHROMA -> caption(width, height, s, chroma = true)
@@ -162,6 +169,7 @@ class OutputFrames(files: FileStore) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
             g.color = OutputTokens.black
             g.fillRect(0, 0, w, h)
+            now = s.now
             val short = minOf(w, h).toFloat()
             val pad = short * OutputTokens.STAGE_PAD
             val label = short * OutputTokens.STAGE_LABEL
@@ -192,6 +200,7 @@ class OutputFrames(files: FileStore) {
             drawLabel(g, "С начала показа", rightX, bottom - label * 1.2f, label, OutputTokens.l2)
             drawText(g, elapsed(s.startedAt, s.now), rightX, timerBase, timerSize, OutputTokens.tint)
             drawText(g, clock.format(Instant.ofEpochMilli(s.now)), rightX, timerBase - timerSize * 1.25f, clockSize, OutputTokens.ink)
+            drawStageTimer(g, s, rightX, timerBase - timerSize * 1.25f - clockSize * 1.1f, timerSize, rightW)
         } finally {
             g.dispose()
         }
@@ -202,7 +211,7 @@ class OutputFrames(files: FileStore) {
         val innerW = w - pad * 2
         val clockSize = minOf(short * OutputTokens.STAGE_CLOCK, innerW / 3.2f)
         val timerSize = minOf(short * OutputTokens.STAGE_TIMER, innerW / 4.5f)
-        val clockBlock = clockSize * 1.25f + timerSize + label * 2.4f
+        val clockBlock = clockSize * 1.25f + timerSize + label * 2.4f + if (s.timer != null) timerSize * 1.3f else 0f
         val avail = h - pad * 3 - labelH * 2 - clockBlock
         val curH = avail * OutputTokens.STAGE_CURRENT_HEIGHT
         val nextH = avail - curH
@@ -223,6 +232,7 @@ class OutputFrames(files: FileStore) {
         drawLabel(g, "С начала показа", pad, bottom - label * 1.2f, label, OutputTokens.l2)
         drawText(g, elapsed(s.startedAt, s.now), pad, timerBase, timerSize, OutputTokens.tint)
         drawText(g, clock.format(Instant.ofEpochMilli(s.now)), pad, timerBase - timerSize * 1.25f, clockSize, OutputTokens.ink)
+        drawStageTimer(g, s, pad, timerBase - timerSize * 1.25f - clockSize * 1.1f, timerSize, innerW)
     }
 
     private fun modeLabel(mode: Mode): String? = when (mode) {
@@ -230,6 +240,21 @@ class OutputFrames(files: FileStore) {
         Mode.BLACK -> "В зале чёрный экран"
         Mode.LOGO -> "В зале логотип"
         Mode.CLEAR -> "В зале текст скрыт"
+    }
+
+    private var now = System.currentTimeMillis()
+
+    /** Отсчёт в «Сцене» отдельной строкой, если в зале уже не он: «Отсчёт 4:59», после нуля — красным. */
+    private fun drawStageTimer(g: Graphics2D, s: FrameState, x: Float, baseline: Float, size: Float, maxW: Float) {
+        val t = s.timer ?: return
+        if ((s.content as? app.deixis.core.CountdownContent)?.id == t.id) return
+        val face = app.deixis.core.countdownFace(t, s.now)
+        if (face.hidden) return
+        val text = "Отсчёт " + face.text
+        // Не шире колонки: кегль уменьшается под длинное время («Отсчёт 1:04:59.3»).
+        val adv = font(size).getStringBounds(text, frc).width.toFloat()
+        val fitted = if (adv > maxW) size * maxW / adv else size
+        drawText(g, text, x, baseline, fitted, if (face.overtime) Color(t.overtimeColor.toInt(), true) else OutputTokens.ink)
     }
 
     private fun drawPanel(g: Graphics2D, c: Content?, video: VideoState?, x: Float, y: Float, w: Float, h: Float, short: Float, current: Boolean) {
@@ -240,6 +265,9 @@ class OutputFrames(files: FileStore) {
                 fill(g, x, y, w, h, radius, OutputTokens.black)
                 blit(g, readableContent(c), x, y, w, h)
             }
+            // Отсчёт меняется каждый миг: рисуется сразу, без запаса готовых картинок.
+            is app.deixis.core.CountdownContent -> runCatching { slides.render(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), c, Mode.NORMAL, null, now) }
+                .getOrNull()?.let { g.drawImage(it, x.toInt(), y.toInt(), null) }
             // Фото и страница вписываются в окно со своими пропорциями: на любом формате монитора без обрезки.
             is ImageContent, is PdfContent -> blit(g, c, x, y, w, h)
             is VideoContent -> drawVideo(g, c, if (current) video else null, x, y, w, h, short)

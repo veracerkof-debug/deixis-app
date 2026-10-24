@@ -105,6 +105,14 @@ class ReceiverCore(
     fun apply(msg: Msg): ErrorMsg? = when (msg) {
         is Show -> show(msg.content, msg.next)
         is SetMode -> { _state.update { it.copy(mode = msg.mode) }; null }
+        is SetTimer -> {
+            val t = msg.timer?.anchored(System.currentTimeMillis())
+            _state.update { s ->
+                val c = s.content
+                s.copy(timer = t, content = if (c is CountdownContent && t != null && c.id == t.id) t else c)
+            }
+            null
+        }
         is VideoCommand -> {
             if (_state.value.content !is VideoContent) ErrorMsg("no_video", "Сейчас не идёт видео")
             else { _videoCommands.tryEmit(msg); null }
@@ -118,7 +126,9 @@ class ReceiverCore(
             files.touch(ref.sha256)
         }
         if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
-        _state.update { ReceiverState(content = content, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next) }
+        // Отсчёт привязывается к часам этого экрана; уйдя из зала, он остаётся в «Сцене».
+        val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
+        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer) }
         return null
     }
 

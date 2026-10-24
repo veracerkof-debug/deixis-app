@@ -15,6 +15,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import app.deixis.core.Connection
 import app.deixis.core.Content
+import app.deixis.core.CountdownContent
 import app.deixis.core.DenyReason
 import app.deixis.core.DefaultBibles
 import app.deixis.core.Discovery
@@ -215,6 +216,7 @@ class Controller(private val app: Application) {
 
     init {
         scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
+        watchCountdown()
         if (store.recovered) scope.launch { messages.emit("Файл библиотеки был испорчен: она восстановлена из последней резервной копии") }
         // Ежедневная резервная копия при запуске.
         scope.launch(Dispatchers.IO) { runCatching { backups.daily(store.data) } }
@@ -410,6 +412,7 @@ class Controller(private val app: Application) {
         Kind.BIBLE -> item.bible?.let { scripture(it) }.orEmpty().map { Slide.Scripture(it) }
         Kind.PHOTO -> listOf(Slide.Picture)
         Kind.VIDEO -> listOf(Slide.Movie)
+        Kind.COUNTDOWN -> listOf(Slide.Countdown(item.countdown ?: CountdownSpec()))
         Kind.PRESENTATION, Kind.FILE -> {
             val pages = if (item.mime == "application/pdf") item.pages else data.value.conversions[item.id]?.pages ?: 0
             if (pages > 0) (0 until pages).map { Slide.Page(it) } else listOf(Slide.Pending)
@@ -451,7 +454,88 @@ class Controller(private val app: Application) {
 
     fun goLiveVideo(cue: Cue, startMs: Long) = goLive(cue.copy(startMs = startMs.coerceAtLeast(0)))
 
+    // ——— Обратный отсчёт ———
+
+    /** Идущий отсчёт: мгновение нуля по часам телефона или остаток на паузе. Экраны привязывают остаток к своим часам. */
+    data class CountdownRun(val itemId: String, val endsAt: Long, val pausedLeft: Long?, val spec: CountdownSpec) {
+        val running get() = pausedLeft == null
+        fun left(now: Long = System.currentTimeMillis()) = pausedLeft ?: (endsAt - now)
+    }
+
+    val timer = MutableStateFlow<CountdownRun?>(null)
+    private var advancedFor: String? = null
+
+    private fun countdownContent(item: LibItem, spec: CountdownSpec, cue: Cue?): CountdownContent {
+        val run = timer.value?.takeIf { it.itemId == item.id } ?: startTimer(item, spec)
+        val base = styleFor(cue)
+        return CountdownContent(
+            id = item.id, remainingMs = run.left(), running = run.running, label = spec.label, labelPosition = spec.labelPosition,
+            format = spec.format, decimals = spec.decimals, afterZero = spec.afterZero, font = spec.font,
+            style = base.copy(sizePercent = spec.sizePercent, valign = spec.valign, color = spec.color ?: base.color),
+        )
+    }
+
+    private fun startTimer(item: LibItem, spec: CountdownSpec): CountdownRun {
+        val run = CountdownRun(item.id, System.currentTimeMillis() + spec.startMs(), null, spec)
+        timer.value = run
+        advancedFor = null
+        return run
+    }
+
+    /** Отправить отсчёт на все экраны: в зале он меняется, если он там, иначе — только в «Сцене». */
+    private fun pushTimer() {
+        val run = timer.value
+        val item = run?.let { item(it.itemId) }
+        val content = if (run != null && item != null) countdownContent(item, run.spec, live.value?.takeIf { it.source.itemId == item.id }) else null
+        outs.value.forEach { it.client.send(app.deixis.core.SetTimer(content)) }
+    }
+
+    fun timerToggle() {
+        val r = timer.value ?: return
+        val now = System.currentTimeMillis()
+        timer.value = if (r.running) r.copy(pausedLeft = r.left(now)) else r.copy(endsAt = now + (r.pausedLeft ?: 0), pausedLeft = null)
+        pushTimer()
+    }
+
+    fun timerAdd(deltaMs: Long) {
+        val r = timer.value ?: return
+        timer.value = if (r.running) r.copy(endsAt = r.endsAt + deltaMs) else r.copy(pausedLeft = (r.pausedLeft ?: 0) + deltaMs)
+        advancedFor = null
+        pushTimer()
+    }
+
+    fun timerRestart() {
+        val r = timer.value ?: return
+        timer.value = r.copy(endsAt = System.currentTimeMillis() + r.spec.startMs(), pausedLeft = null)
+        advancedFor = null
+        pushTimer()
+    }
+
+    /** Убрать отсчёт и из зала (если он там), и из «Сцены». */
+    fun timerStop() {
+        val r = timer.value ?: return
+        timer.value = null
+        outs.value.forEach { it.client.send(app.deixis.core.SetTimer(null)) }
+        if (live.value?.source?.itemId == r.itemId) { live.value = null; outs.value.forEach { it.client.mode(Mode.BLACK) } }
+    }
+
+    /** После нуля «Дальше»: следующий элемент активного сетлиста уходит в зал сам. */
+    private fun watchCountdown() = scope.launch {
+        while (true) {
+            kotlinx.coroutines.delay(200)
+            val r = timer.value ?: continue
+            if (r.spec.afterZero != app.deixis.core.AfterZero.NEXT || r.left() > 0 || advancedFor == r.itemId) continue
+            val cue = live.value?.takeIf { it.source.itemId == r.itemId } ?: continue
+            advancedFor = r.itemId
+            val set = data.value.setlists.firstOrNull { it.id == data.value.active } ?: continue
+            val nextId = set.items.getOrNull(set.items.indexOf(r.itemId) + 1) ?: continue
+            item(nextId)?.let { kotlinx.coroutines.withContext(Dispatchers.Main) { goLive(Cue(sourceOf(it), 0)) } }
+        }
+    }
+
     fun goLive(cue: Cue) {
+        // Отсчёт, который снова идёт в зал после нуля, начинается заново.
+        if (cue.slide is Slide.Countdown) timer.value?.takeIf { it.itemId == cue.source.itemId && it.left() <= 0 }?.let { timer.value = null }
         live.value = cue
         localMode.value = Mode.NORMAL
         if (preview.value?.same(cue) == true) preview.value = null
@@ -552,6 +636,7 @@ class Controller(private val app: Application) {
             is Slide.Text -> TextContent(s.text, style = withBackground(o, styleFor(cue)))
             is Slide.Scripture -> s.content.copy(style = withBackground(o, styleFor(cue)))
             is Slide.Screen -> if (o === primary.value) ScreenContent(s.width, s.height) else null
+            is Slide.Countdown -> item?.let { countdownContent(it, s.spec, cue) }
             is Slide.Picture -> item?.let { ImageContent(fileOn(o, it)) }
             is Slide.Movie -> item?.let {
                 VideoContent(fileOn(o, it), startMs = cue.startMs, fit = it.videoFit, backdrop = it.videoBackdrop, backdropColor = styleFor(cue).background)

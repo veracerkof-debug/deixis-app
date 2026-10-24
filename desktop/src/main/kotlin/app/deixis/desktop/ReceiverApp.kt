@@ -293,6 +293,18 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (before != screens to primaryId) reconcile()
         }.start()
         Timer(VIDEO_REPORT_MS) { hallWindow()?.videoState()?.let { core.reportVideo(it) } }.start()
+        // Обратный отсчёт: с долями секунды — 25 раз в секунду, иначе 4; окна перерисовываются, только когда меняется строка.
+        var lastTick = 0L
+        Timer(COUNTDOWN_MS) {
+            val st = core.state.value
+            val list = listOfNotNull(st.content as? app.deixis.core.CountdownContent, st.timer)
+            if (list.isEmpty()) return@Timer
+            val now = System.currentTimeMillis()
+            if (list.none { it.decimals > 0 } && now - lastTick < COUNTDOWN_SLOW_MS) return@Timer
+            lastTick = now
+            val fs = frameState()
+            windows.values.forEach { it.update(fs) }
+        }.start()
         // Часы и время показа на «Сцене».
         Timer(CLOCK_MS) {
             val stage = windows.values.filter { it.layout == OutputLayout.STAGE }
@@ -311,7 +323,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             address = "${address?.hostAddress ?: "127.0.0.1"}:$port",
             pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name).toUri() },
         )
-        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle)
+        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer)
     }
 
     private fun observe() {
@@ -480,6 +492,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         private const val VIDEO_REPORT_MS = 500
         private const val CLOCK_MS = 1_000
         private const val INSTALL_WAIT_MS = 60_000L
+        private const val COUNTDOWN_MS = 40
+        private const val COUNTDOWN_SLOW_MS = 250L
         private val isWindows = System.getProperty("os.name").orEmpty().lowercase().contains("win")
     }
 }

@@ -214,6 +214,8 @@ private val paths: Map<String, List<Part>> = mapOf(
     "loop" to listOf(Part("M17 2l3 3-3 3"), Part("M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3"), Part("M20 13v2a4 4 0 0 1-4 4H4")),
     "vol" to listOf(Part("M4 9h4l5-4v14l-5-4H4z"), Part("M16.5 8.5a5 5 0 0 1 0 7")),
     "stop" to listOf(Part(rect(6f, 6f, 12f, 12f, 1.5f), fill = true)),
+    "clock" to listOf(Part("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18"), Part("M12 7v5l3 2")),
+    "restart" to listOf(Part("M3 12a9 9 0 1 0 3-6.7"), Part("M3 3v5h5")),
     "trash" to listOf(Part("M4 7h16M10 11v6M14 11v6"), Part("M6 7l1 13h10l1-13M9 7V4h6v3")),
     "edit" to listOf(Part("M4 20h4L19 9l-4-4L4 16z"), Part("M13 7l4 4")),
 )
