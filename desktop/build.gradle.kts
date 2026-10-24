@@ -37,6 +37,7 @@ application {
 tasks.test {
     useJUnitPlatform()
     jvmArgs(macExports)
+    testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Проверка настоящих окон (CI на macOS, Windows и Linux с xvfb): -Ddeixis.gui=1.
     System.getProperty("deixis.gui")?.let { systemProperty("deixis.gui", it) }
     // Для ручной проверки раскладок мониторов: -Ddeixis.outputsPng=папка сохраняет кадры в PNG.

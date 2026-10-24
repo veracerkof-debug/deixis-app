@@ -114,7 +114,8 @@ class DesktopWindowTest {
             assertFalse(onEdt { w.window.isAlwaysOnTop }, "окно оператора не поверх всех: Alt+Tab и ⌘Tab работают")
 
             // Мышь: курсор появляется, правая кнопка открывает меню с выходом.
-            assertFalse(onEdt { w.cursorVisible })
+            // Курсор прячется сам (настоящая мышь над окном могла его показать при появлении окна).
+            waitFor("курсор спрятан", OutputWindow.CURSOR_HIDE_MS + 3_000L) { !w.cursorVisible }
             onEdt { val c = deepest(w); c.dispatchEvent(MouseEvent(c, MouseEvent.MOUSE_MOVED, System.currentTimeMillis(), 0, 10, 10, 0, false)) }
             assertTrue(onEdt { w.cursorVisible }, "курсор после движения мыши")
             onEdt {

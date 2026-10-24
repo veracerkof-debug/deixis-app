@@ -394,7 +394,7 @@ class OutputWindow(
         }
     }
 
-    private companion object {
+    internal companion object {
         const val CARD_SLIDE = "slide"
         const val CARD_VIDEO = "video"
         /** Метка в playingSha: в проигрывателе идёт трансляция экрана, а не файл. */
