@@ -25,7 +25,7 @@ data class Overlays(
     val files: List<FileRef> get() = listOfNotNull(logo?.file)
 }
 
-/** Логотип в углу: картинка с прозрачностью (PNG). Высота — доля высоты экрана в процентах. */
+/** Логотип в углу: картинка с прозрачностью (PNG). Высота — доля меньшей стороны экрана в процентах. */
 @Serializable
 data class LogoOverlay(
     val file: FileRef,
@@ -74,16 +74,19 @@ data class OverlayBox(val left: Float, val top: Float, val width: Float, val hei
 /** Отступ слоя от краёв: безопасное поле экрана, как у текста слайдов. */
 fun overlayMargin(width: Float, height: Float): Float = minOf(width, height) * SAFE_MARGIN
 
+/** Размеры слоя — доли меньшей стороны экрана: на вертикальном экране слой не раздувается. */
+private fun short(width: Float, height: Float) = minOf(width, height)
+
 /** Высота полосы бегущей строки. */
-fun tickerHeight(height: Float): Float = height * TICKER_HEIGHT
+fun tickerHeight(width: Float, height: Float): Float = short(width, height) * TICKER_HEIGHT
 
 fun tickerBox(width: Float, height: Float): OverlayBox {
-    val h = tickerHeight(height)
+    val h = tickerHeight(width, height)
     return OverlayBox(0f, height - h, width, h)
 }
 
 /** Размер шрифта бегущей строки — по высоте полосы. */
-fun tickerFont(height: Float): Float = tickerHeight(height) * 0.55f
+fun tickerFont(width: Float, height: Float): Float = tickerHeight(width, height) * 0.55f
 
 /**
  * Сдвиг текста бегущей строки в миг [now]: текст входит справа и уходит влево, затем снова.
@@ -99,8 +102,8 @@ fun tickerX(width: Float, textWidth: Float, speedPercent: Float, now: Long): Flo
 }
 
 /** Шрифты плашки: имя и подпись, доли высоты экрана. */
-fun lowerThirdTitleFont(height: Float): Float = height * 0.052f
-fun lowerThirdSubtitleFont(height: Float): Float = height * 0.034f
+fun lowerThirdTitleFont(width: Float, height: Float): Float = short(width, height) * 0.052f
+fun lowerThirdSubtitleFont(width: Float, height: Float): Float = short(width, height) * 0.034f
 
 /**
  * Плашка: прижата к левому полю внизу, над бегущей строкой, если та есть. Ширина — по тексту,
@@ -108,31 +111,31 @@ fun lowerThirdSubtitleFont(height: Float): Float = height * 0.034f
  */
 fun lowerThirdBox(width: Float, height: Float, textWidth: Float, hasSubtitle: Boolean, aboveTicker: Boolean): OverlayBox {
     val m = overlayMargin(width, height)
-    val pad = lowerThirdPad(height)
-    val textH = lowerThirdTitleFont(height) * 1.2f + if (hasSubtitle) lowerThirdSubtitleFont(height) * 1.3f else 0f
+    val pad = lowerThirdPad(width, height)
+    val textH = lowerThirdTitleFont(width, height) * 1.2f + if (hasSubtitle) lowerThirdSubtitleFont(width, height) * 1.3f else 0f
     val h = textH + pad * 2
-    val w = (textWidth + pad * 2 + lowerThirdAccent(height)).coerceAtMost(width - m * 2)
-    val bottom = height - m - if (aboveTicker) tickerHeight(height) else 0f
+    val w = (textWidth + pad * 2 + lowerThirdAccent(width, height)).coerceAtMost(width - m * 2)
+    val bottom = height - m - if (aboveTicker) tickerHeight(width, height) else 0f
     return OverlayBox(m, bottom - h, w, h)
 }
 
 /** Внутренний отступ плашки и толщина полосы слева. */
-fun lowerThirdPad(height: Float): Float = height * 0.022f
-fun lowerThirdAccent(height: Float): Float = height * 0.008f
+fun lowerThirdPad(width: Float, height: Float): Float = short(width, height) * 0.022f
+fun lowerThirdAccent(width: Float, height: Float): Float = short(width, height) * 0.008f
 
-/** Логотип: высота — доля экрана, ширина — по пропорциям картинки; в углу с полями. */
+/** Логотип: высота — доля меньшей стороны, ширина — по пропорциям картинки; в углу с полями. */
 fun logoBox(width: Float, height: Float, imageW: Float, imageH: Float, o: LogoOverlay, aboveTicker: Boolean): OverlayBox {
-    val h = height * o.sizePercent.coerceIn(2f, 40f) / 100f
+    val h = short(width, height) * o.sizePercent.coerceIn(2f, 40f) / 100f
     val w = if (imageH > 0f) h * imageW / imageH else h
     return cornerBox(width, height, w, h, o.corner, aboveTicker)
 }
 
 /** Размер шрифта часов. */
-fun clockFont(height: Float): Float = height * 0.05f
+fun clockFont(width: Float, height: Float): Float = short(width, height) * 0.05f
 
 fun cornerBox(width: Float, height: Float, w: Float, h: Float, corner: Corner, aboveTicker: Boolean): OverlayBox {
     val m = overlayMargin(width, height)
-    val bottomEdge = height - m - if (aboveTicker) tickerHeight(height) else 0f
+    val bottomEdge = height - m - if (aboveTicker) tickerHeight(width, height) else 0f
     val x = if (corner == Corner.TOP_LEFT || corner == Corner.BOTTOM_LEFT) m else width - m - w
     val y = if (corner == Corner.TOP_LEFT || corner == Corner.TOP_RIGHT) m else bottomEdge - h
     return OverlayBox(x, y, w, h)

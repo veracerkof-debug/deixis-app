@@ -27,6 +27,9 @@ private const val USAGE = """Deixis для компьютера
       Писание из модулей MyBible: один или два перевода.
   deixis send --to АДРЕС[:ПОРТ] --stream ЗАПИСЬ.h264 [--fps 30] [--seconds N]
       Трансляция записи H.264 так же, как телефон показывает свой экран (для проверки).
+  deixis send --to АДРЕС[:ПОРТ] [--lower "Имя|Подпись"] [--ticker "ТЕКСТ"] [--clock [seconds]]
+               [--logo ЛОГОТИП.png] [--logo-corner top-left|top-right|bottom-left|bottom-right] | --no-overlays
+      Слой поверх показа: плашка, бегущая строка, часы, логотип. Слой задаётся целиком.
   deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal
   deixis send --to АДРЕС[:ПОРТ] --video play|pause|seek=МС|volume=0..200
       Показать файл, текст или переключить режим. --caps — текст заглавными буквами.

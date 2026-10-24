@@ -50,7 +50,7 @@ class OverlayPainter(private val files: FileStore) {
             val box = tickerBox(w, h)
             g.color = argb(t.background)
             g.fill(java.awt.geom.Rectangle2D.Float(box.left, box.top, box.width, box.height))
-            val font = Fonts.slide.deriveFont(tickerFont(h))
+            val font = Fonts.slide.deriveFont(tickerFont(w, h))
             val text = t.text.replace('\n', ' ')
             val layout = TextLayout(text, font, g.fontRenderContext)
             val x = tickerX(w, layout.advance, t.speedPercent, now)
@@ -61,16 +61,16 @@ class OverlayPainter(private val files: FileStore) {
             g.clip = clip
         }
         o.lowerThird?.let { lt ->
-            val titleFont = Fonts.slide.deriveFont(lowerThirdTitleFont(h))
-            val subFont = Fonts.ui.deriveFont(Font.PLAIN, lowerThirdSubtitleFont(h))
+            val titleFont = Fonts.slide.deriveFont(lowerThirdTitleFont(w, h))
+            val subFont = Fonts.ui.deriveFont(Font.PLAIN, lowerThirdSubtitleFont(w, h))
             val frc = g.fontRenderContext
             val title = lt.title.ifBlank { " " }
             val tw = TextLayout(title, titleFont, frc).advance
             val sub = lt.subtitle?.takeIf { it.isNotBlank() }
             val sw = sub?.let { TextLayout(it, subFont, frc).advance } ?: 0f
             val box = lowerThirdBox(w, h, maxOf(tw, sw), sub != null, ticker)
-            val pad = lowerThirdPad(h)
-            val accent = lt.accent?.let { lowerThirdAccent(h) } ?: 0f
+            val pad = lowerThirdPad(w, h)
+            val accent = lt.accent?.let { lowerThirdAccent(w, h) } ?: 0f
             g.color = argb(lt.background)
             g.fill(RoundRectangle2D.Float(box.left, box.top, box.width, box.height, pad, pad))
             lt.accent?.let { a ->
@@ -87,14 +87,14 @@ class OverlayPainter(private val files: FileStore) {
             titleLayout.draw(g, x, y)
             if (sub != null) {
                 val s = TextLayout(sub, subFont, frc)
-                y += titleLayout.descent + lowerThirdTitleFont(h) * 0.2f + s.ascent
+                y += titleLayout.descent + lowerThirdTitleFont(w, h) * 0.2f + s.ascent
                 g.color = argb(lt.color).let { Color(it.red, it.green, it.blue, (it.alpha * SUBTITLE_ALPHA).toInt()) }
                 s.draw(g, x, y)
             }
             g.clip = clip
         }
         o.clock?.let { c ->
-            val font = Fonts.slide.deriveFont(clockFont(h))
+            val font = Fonts.slide.deriveFont(clockFont(w, h))
             val layout = TextLayout(clockText(now, c.seconds), font, g.fontRenderContext)
             val box = cornerBox(w, h, layout.advance, layout.ascent + layout.descent, c.corner, ticker)
             val base = box.top + layout.ascent

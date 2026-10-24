@@ -1,6 +1,13 @@
 package app.deixis.desktop
 
 import app.deixis.core.BibleModule
+import app.deixis.core.ClockOverlay
+import app.deixis.core.Corner
+import app.deixis.core.LogoOverlay
+import app.deixis.core.LowerThird
+import app.deixis.core.Overlays
+import app.deixis.core.SetOverlays
+import app.deixis.core.Ticker
 import app.deixis.core.Connection
 import app.deixis.core.RefMode
 import app.deixis.core.RefPosition
@@ -88,6 +95,7 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
                 "mode" in opts -> client.mode(Mode.valueOf(opts.getValue("mode").uppercase()))
                 "video" in opts -> client.video(parseVideo(opts.getValue("video")) ?: return@runBlocking fail("Неизвестная команда видео"))
                 "stream" in opts -> return@runBlocking stream(client, File(opts.getValue("stream")))
+                OVERLAY_KEYS.any { it in opts } -> return@runBlocking overlays(client)
                 else -> {
                     val content = prepare(client) ?: return@runBlocking 2
                     client.show(content)
@@ -112,6 +120,38 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
         } finally {
             client.close()
         }
+    }
+
+    /**
+     * Слой поверх показа целиком: `--lower "Имя|Подпись"`, `--ticker "текст"`, `--clock` (`--clock seconds`),
+     * `--logo логотип.png` (`--logo-corner top-left|top-right|bottom-left|bottom-right`); `--no-overlays` — убрать слой.
+     */
+    private suspend fun overlays(client: SenderClient): Int {
+        val o = if ("no-overlays" in opts) Overlays() else {
+            val logo = opts["logo"]?.let { path ->
+                val f = File(path)
+                if (!f.isFile) return fail("Нет файла логотипа $path")
+                val ref = client.upload(object : UploadSource {
+                    override val name = f.name
+                    override val size = f.length()
+                    override val mime = mimeOf(f.name)
+                    override fun open(): InputStream = f.inputStream()
+                })
+                val corner = opts["logo-corner"]?.let { c -> Corner.entries.firstOrNull { it.name == c.uppercase().replace('-', '_') } ?: return fail("Неизвестный угол $c") }
+                LogoOverlay(ref, corner = corner ?: Corner.TOP_RIGHT)
+            }
+            Overlays(
+                logo = logo,
+                lowerThird = opts["lower"]?.let { LowerThird(it.substringBefore('|'), it.substringAfter('|', "").ifBlank { null }) },
+                ticker = opts["ticker"]?.let { Ticker(it) },
+                clock = opts["clock"]?.let { ClockOverlay(seconds = it == "seconds") },
+            )
+        }
+        client.send(SetOverlays(o))
+        val shown = withTimeoutOrNull(10_000) { client.state.filterNotNull().first { it.overlays == o } }
+        if (shown == null) return fail("Приёмник не подтвердил слой")
+        println(if (o.isEmpty) "Слой убран" else "Слой показан")
+        return 0
     }
 
     /**
@@ -289,3 +329,5 @@ fun listReceivers(seconds: Long): Int = runBlocking {
     if (seen.isEmpty()) println("Ничего не найдено. Можно указать адрес с экрана приёмника: deixis send --to АДРЕС")
     0
 }
+
+private val OVERLAY_KEYS = listOf("lower", "ticker", "clock", "logo", "no-overlays")

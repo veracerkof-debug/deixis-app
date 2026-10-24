@@ -60,7 +60,7 @@ class OverlaysTest {
             for (c in Corner.entries) {
                 val b = logoBox(w, h, 400f, 200f, LogoOverlay(FileRef("x", "l.png", 1, "image/png"), corner = c), aboveTicker = true)
                 assertTrue(b.left >= m - 0.5f && b.right <= w - m + 0.5f && b.top >= m - 0.5f, "$w×$h $c")
-                assertTrue(b.bottom <= h - tickerHeight(h) - m + 0.5f, "логотип над бегущей строкой: $w×$h $c")
+                assertTrue(b.bottom <= h - tickerHeight(w, h) - m + 0.5f, "логотип над бегущей строкой: $w×$h $c")
                 assertEquals(2f, b.width / b.height, 0.01f, "пропорции картинки")
             }
             val lt = lowerThirdBox(w, h, textWidth = w * 3, hasSubtitle = true, aboveTicker = false)

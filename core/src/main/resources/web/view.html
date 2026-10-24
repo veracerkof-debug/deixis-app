@@ -21,6 +21,8 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
 #backdrop { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; opacity: 0; transition: opacity .5s; pointer-events: none; }
 #backdrop.on { opacity: 1; }
 #stage.over-video { background: transparent !important; }
+/* Слой поверх показа: логотип, плашка, бегущая строка, часы — над всем, по размеру зала. */
+#overlay { position: absolute; pointer-events: none; z-index: 1; }
 #stage > * { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mark { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2vh; }
 .mark b { font-family: "Deixis Mark", Georgia, serif; font-weight: 400; letter-spacing: .18em; padding-left: .18em; }
@@ -98,6 +100,7 @@ img, video { object-fit: contain; background: #000; }
 <body>
 <video id="backdrop" muted playsinline loop preload="auto"></video>
 <div id="stage"></div>
+<canvas id="overlay"></canvas>
 <div id="status"></div>
 <div id="bar"><button id="sound" class="hidden"></button><button id="full" class="hidden"></button></div>
 <div id="tap" class="hidden"></div>
@@ -151,6 +154,7 @@ function layout() {
   Object.assign(stage.style, { width: sw + "px", height: sh + "px", left: (w - sw) / 2 + "px", top: (h - sh) / 2 + "px" });
   if (current) fitText();
   if (outLayout === "stage") fitStage();
+  placeOverlay();
 }
 addEventListener("resize", layout);
 // Шрифт слайда грузится с приёмника: после загрузки ширина букв другая, размер подбирается заново.
@@ -387,6 +391,7 @@ function render(s) {
   current = s;
   const c = s.content;
   setBackdrop(c && c.style && c.style.backgroundVideo);
+  setOverlays(s.overlays, s.mode);
   const k = JSON.stringify([c, s.mode]);
   if (k !== lastKey) {
     lastKey = k;
@@ -734,6 +739,89 @@ if (screenMode) {
 
 // Связь с приёмником: при обрыве остаётся последний кадр, переподключение само.
 let pause = 1000;
+// Слой поверх показа. Раскладка повторяет ядро (Overlays.kt): те же доли экрана, что на ТВ и компьютере.
+// var, а не const: layout() вызывается выше по странице, до этих строк.
+var ov = document.getElementById("overlay"), ovCtx = ov.getContext("2d");
+var ovState = null, ovLogo = null, ovLogoSha = null, ovFrame = 0, ovTimer = 0;
+const OV = { safe: 0.055, ticker: 0.075, tickerFont: 0.55, titleFont: 0.052, subFont: 0.034, pad: 0.022, accent: 0.008, clock: 0.05 };
+function placeOverlay() {
+  if (!ovCtx) return;
+  const r = stage.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  Object.assign(ov.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+  ov.width = Math.round(r.width * dpr); ov.height = Math.round(r.height * dpr);
+  drawOverlay();
+}
+function setOverlays(o, mode) {
+  const shown = o && outLayout === "hall" && (mode === "NORMAL" || mode === "CLEAR") && (o.logo || o.lowerThird || o.ticker || o.clock) ? o : null;
+  ovState = shown;
+  const sha = shown && shown.logo ? shown.logo.file.sha256 : null;
+  if (sha !== ovLogoSha) {
+    ovLogoSha = sha; ovLogo = null;
+    if (sha) { const img = new Image(); img.onload = () => { if (ovLogoSha === sha) { ovLogo = img; drawOverlay(); } }; img.src = url("/view/file/" + sha); }
+  }
+  drawOverlay();
+}
+function cornerBox(w, h, bw, bh, corner, aboveTicker) {
+  const m = Math.min(w, h) * OV.safe, bottom = h - m - (aboveTicker ? Math.min(w, h) * OV.ticker : 0);
+  const left = corner === "TOP_LEFT" || corner === "BOTTOM_LEFT", top = corner === "TOP_LEFT" || corner === "TOP_RIGHT";
+  return { x: left ? m : w - m - bw, y: top ? m : bottom - bh, w: bw, h: bh };
+}
+function drawOverlay() {
+  // Один цикл перерисовки, сколько бы раз её ни просили (новый слой, размер окна, загрузился логотип).
+  cancelAnimationFrame(ovFrame); clearTimeout(ovTimer);
+  const w = ov.width, h = ov.height, g = ovCtx, o = ovState;
+  g.clearRect(0, 0, w, h);
+  if (!o || !w || !h) return;
+  // Размеры — доли меньшей стороны (как в ядре); поля — тоже.
+  const u = Math.min(w, h), font = (px) => `600 ${px}px "Deixis Slide", system-ui, sans-serif`, ticker = !!o.ticker, now = Date.now() - clockOffset;
+  if (o.ticker) {
+    const th = u * OV.ticker, top = h - th, tk = o.ticker;
+    g.fillStyle = argb(tk.background == null ? 0xD9101418 : tk.background); g.fillRect(0, top, w, th);
+    g.font = font(th * OV.tickerFont); g.textBaseline = "middle";
+    const text = String(tk.text || "").replace(/\n/g, " "), tw = g.measureText(text).width;
+    const speed = w * Math.min(100, Math.max(1, tk.speedPercent || 10)) / 100, path = w + tw;
+    const x = w - (now / 1000 * speed) % path;
+    g.save(); g.beginPath(); g.rect(0, top, w, th); g.clip();
+    g.fillStyle = argb(tk.color == null ? 0xFFFFFFFF : tk.color); g.fillText(text, x, top + th / 2);
+    g.restore();
+  }
+  if (o.lowerThird) {
+    const lt = o.lowerThird, m = u * OV.safe, pad = u * OV.pad, acc = lt.accent === null ? 0 : u * OV.accent;
+    const ts = u * OV.titleFont, ss = u * OV.subFont, sub = lt.subtitle && lt.subtitle.trim() ? lt.subtitle : null;
+    g.font = font(ts); const tw = g.measureText(lt.title || "").width;
+    g.font = font(ss); const sw = sub ? g.measureText(sub).width : 0;
+    const bh = ts * 1.2 + (sub ? ss * 1.3 : 0) + pad * 2, bw = Math.min(Math.max(tw, sw) + pad * 2 + u * OV.accent, w - m * 2);
+    const bx = m, by = h - m - (ticker ? u * OV.ticker : 0) - bh;
+    g.fillStyle = argb(lt.background == null ? 0xD9101418 : lt.background);
+    g.beginPath(); (g.roundRect ? g.roundRect(bx, by, bw, bh, pad / 2) : g.rect(bx, by, bw, bh)); g.fill();
+    if (acc) { g.fillStyle = argb(lt.accent == null ? 0xFF3D8BFD : lt.accent); g.fillRect(bx, by, acc, bh); }
+    g.save(); g.beginPath(); g.rect(bx, by, bw, bh); g.clip();
+    g.textBaseline = "alphabetic"; g.fillStyle = argb(lt.color == null ? 0xFFFFFFFF : lt.color);
+    g.font = font(ts); g.fillText(lt.title || "", bx + acc + pad, by + pad + ts * 0.95);
+    if (sub) { g.globalAlpha = 0.8; g.font = font(ss); g.fillText(sub, bx + acc + pad, by + pad + ts * 1.2 + ss * 1.0); g.globalAlpha = 1; }
+    g.restore();
+  }
+  if (o.clock) {
+    const c = o.clock, d = new Date(now), size = u * OV.clock;
+    let text = d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
+    if (c.seconds) text += ":" + String(d.getSeconds()).padStart(2, "0");
+    g.font = font(size); g.textBaseline = "top";
+    const b = cornerBox(w, h, g.measureText(text).width, size * 1.1, c.corner || "TOP_LEFT", ticker);
+    g.shadowColor = "rgba(0,0,0,.6)"; g.shadowBlur = u * 0.004; g.shadowOffsetY = u * 0.002;
+    g.fillStyle = argb(c.color == null ? 0xFFFFFFFF : c.color); g.fillText(text, b.x, b.y);
+    g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0;
+  }
+  if (o.logo && ovLogo) {
+    const l = o.logo, lh = u * Math.min(40, Math.max(2, l.sizePercent || 10)) / 100, lw = lh * ovLogo.naturalWidth / (ovLogo.naturalHeight || 1);
+    const b = cornerBox(w, h, lw, lh, l.corner || "TOP_RIGHT", ticker);
+    g.globalAlpha = Math.min(1, Math.max(0, l.opacity == null ? 1 : l.opacity)); g.drawImage(ovLogo, b.x, b.y, b.w, b.h); g.globalAlpha = 1;
+  }
+  // Бегущая строка — каждый кадр; часы — дважды в секунду.
+  if (o.ticker) ovFrame = requestAnimationFrame(drawOverlay);
+  else if (o.clock) ovTimer = setTimeout(() => { ovFrame = requestAnimationFrame(drawOverlay); }, 500);
+}
+placeOverlay();
+
 function connect() {
   const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + url(preview ? "/view/ws?preview=1" : screenMode ? "/view/ws?screen=1" : "/view/ws"));
   let lastMessage = performance.now();
