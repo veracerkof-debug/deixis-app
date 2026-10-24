@@ -85,7 +85,9 @@ class VideoFitGuiTest {
             // Полоса кадра — та же, что при чёрных полях: размытые поля бывают ярко-красными и сами.
             // Края полосы не считаются: там сглаживание при масштабе кадра (на Маке кадр рисует само окно).
             val xs = (cols.first() + 4 until cols.last() - 4 step 4)
-            val bad = xs.flatMap { x -> (4 until 446 step 4).filter { y -> !red(blur.getRGB(x, y)) }.map { y -> x to y } }
+            // Верх и низ тоже: на Маке кадр масштабирует окно, и крайние строки бывают смешаны с полем.
+            println("верхний край кадра: ${(0..8).map { y -> Color(blur.getRGB(400, y)) }}")
+            val bad = xs.flatMap { x -> (8 until 442 step 4).filter { y -> !red(blur.getRGB(x, y)) }.map { y -> x to y } }
             assertTrue(bad.isEmpty(), "в кадре посторонние точки (надписи VLC): ${bad.size}, например ${bad.take(5)}")
 
             val fill = shot("fill", VideoFit.FILL, VideoBackdrop.BLACK) { redColumns(it).size > 780 }
