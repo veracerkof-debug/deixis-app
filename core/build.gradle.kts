@@ -47,3 +47,6 @@ tasks.test {
 tasks.processResources {
     from(rootProject.file("CHANGELOG.md")) { rename { "changelog.md" } }
 }
+
+// Данные прошлых версий (testdata/compat): новая сборка обязана их прочитать.
+tasks.test { systemProperty("deixis.compat", rootProject.file("testdata/compat").path) }

@@ -144,7 +144,7 @@ fun OutputCell(c: Controller, o: OutputView) {
     val ui = LocalUi.current
     // Экран Deixis в сети: касание открывает его обновления.
     val open = if (o.state == OutState.ONLINE && o.target.kind == Target.Kind.NETWORK) ({ ui.push("Экран «${o.target.name}»") { ScreenUpdateSheet(c, o.target) } }) else null
-    Cell(o.target.name, "${o.target.via} · ${o.state.text}" + (o.info?.version?.let { " · $it" } ?: ""), o.target.icon, chevron = null, onClick = open) {
+    Cell(o.target.name, "${o.target.via} · ${o.state.text}" + (o.info?.appVersion?.let { " · $it" } ?: ""), o.target.icon, chevron = null, onClick = open) {
         when (o.state) {
             OutState.OFFLINE -> Pill("Повторить") { c.retry(o.target) }
             OutState.PIN -> Pill("PIN", tint = true) { c.needPin.value = o.target }
@@ -202,6 +202,7 @@ fun SettingsSheet(c: Controller) {
     Group {
         SwitchRow("Церковный раздел", st.church, "Библия и Holyrics на главном") { v -> c.setSettings { it.copy(church = v) } }
     }
+    BackupsSection(c, LocalUi.current)
     UpdatesSection()
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = T.gapS)) {

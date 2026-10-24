@@ -81,7 +81,8 @@ jobs:
           DEIXIS_KEYSTORE_PASSWORD: ${{ secrets.DEIXIS_KEYSTORE_PASSWORD }}
           DEIXIS_KEY_ALIAS: ${{ secrets.DEIXIS_KEY_ALIAS }}
           DEIXIS_KEY_PASSWORD: ${{ secrets.DEIXIS_KEY_PASSWORD }}
-        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease --continue
+        # Сначала проверки, в том числе чтение данных прошлых версий: если что-то не читается, выпуск не выходит.
+        run: ./gradlew :core:test :android:phone:testReleaseUnitTest :android:phone:assembleRelease :android:tv:assembleRelease --continue
       - name: Имена файлов
         shell: bash
         run: |

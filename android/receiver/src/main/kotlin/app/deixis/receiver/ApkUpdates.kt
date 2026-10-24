@@ -37,9 +37,12 @@ object ApkUpdates {
     fun abis(): List<String> = Build.SUPPORTED_ABIS.toList()
 
     /** Обновлятель приложения: телефон (универсальная версия) или Deixis TV. */
-    fun updater(context: Context, target: UpdateTarget, scope: CoroutineScope): Updater {
-        val app = context.applicationContext
-        return Updater(currentVersion(app), target, File(app.filesDir, "updates"), scope, abis()) { file, _ -> install(app, file) }
+    fun updater(context: Context, target: UpdateTarget, scope: CoroutineScope, beforeInstall: (app.deixis.core.Release) -> Unit = {}): Updater {
+        val ctx = context.applicationContext
+        return Updater(currentVersion(ctx), target, File(ctx.filesDir, "updates"), scope, abis()) { file, release ->
+            beforeInstall(release)
+            install(ctx, file)
+        }
     }
 
     private fun installerOf(context: Context): String? = runCatching {

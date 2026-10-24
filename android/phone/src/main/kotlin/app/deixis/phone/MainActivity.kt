@@ -29,7 +29,10 @@ class PhoneApp : Application() {
 
     /** Обновления из выпусков GitHub; общий для пульта и режима экрана. */
     val updater by lazy {
-        app.deixis.receiver.ApkUpdates.updater(this, app.deixis.core.UpdateTarget.PHONE, appScope).also { u ->
+        // Перед каждым обновлением — резервная копия библиотеки.
+        app.deixis.receiver.ApkUpdates.updater(this, app.deixis.core.UpdateTarget.PHONE, appScope, beforeInstall = { r ->
+            runCatching { controller.backupNow("before-update-${r.version}") }
+        }).also { u ->
             app.deixis.receiver.ApkUpdates.onResult = { err -> if (err != null) u.installCancelled(err) }
             u.start()
         }

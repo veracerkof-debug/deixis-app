@@ -121,6 +121,16 @@ class Controller(private val app: Application) {
     // ——— Библиотека, сетлисты, настройки ———
     private val store = Store(app)
     val data = MutableStateFlow(store.data)
+    val backups = Backups(app)
+
+    /** Копия сейчас (кнопка в настройках или перед обновлением). */
+    fun backupNow(reason: String = "manual"): String = backups.save(store.data, reason)
+
+    /** Восстановить библиотеку из копии; текущая сначала сохраняется копией. */
+    fun restore(d: StoreData) {
+        runCatching { backups.save(store.data, "before-restore") }
+        data.value = store.replace(d)
+    }
     private fun edit(change: (StoreData) -> StoreData) { data.value = store.update(change) }
 
     val settings: StateFlow<AppSettings> = data.map { it.settings }.stateIn(scope, SharingStarted.Eagerly, store.data.settings)
@@ -205,6 +215,9 @@ class Controller(private val app: Application) {
 
     init {
         scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
+        if (store.recovered) scope.launch { messages.emit("Файл библиотеки был испорчен: она восстановлена из последней резервной копии") }
+        // Ежедневная резервная копия при запуске.
+        scope.launch(Dispatchers.IO) { runCatching { backups.daily(store.data) } }
         seedDemo()
         // Прежние настройки (до библиотеки) переносятся один раз.
         val old = app.getSharedPreferences("settings", Context.MODE_PRIVATE)

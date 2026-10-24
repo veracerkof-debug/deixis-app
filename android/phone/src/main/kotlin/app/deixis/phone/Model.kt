@@ -108,16 +108,32 @@ data class StoreData(
 data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false)
 
 /** Хранилище библиотеки и сетлистов: один JSON в памяти приложения, запись после каждого изменения. */
-class Store(context: Context) {
+class Store(private val context: Context) {
     private val file = File(context.filesDir, "library.json")
+
+    /** Основной файл не прочитался, и библиотека восстановлена из резервной копии. */
+    var recovered = false
+        private set
 
     var data: StoreData = load()
         private set
 
+    /**
+     * Файл не читается (испорчен или записан непонятной версией) — его нельзя молча заменить пустой библиотекой:
+     * он откладывается рядом, а библиотека берётся из самой свежей резервной копии.
+     */
     private fun load(): StoreData {
+        if (!file.isFile) return firstRun()
         val saved = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), file.readText()) }.getOrNull()
-        return saved ?: firstRun()
+        if (saved != null) return saved
+        runCatching { file.copyTo(File(file.parentFile, "library.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
+        val backup = runCatching { Backups(context).newest() }.getOrNull()
+        recovered = backup != null
+        return backup ?: firstRun()
     }
+
+    /** Заменить всю библиотеку (восстановление из копии). */
+    fun replace(d: StoreData): StoreData = update { d }
 
     /** Первый запуск: пустой сетлист на сегодня, чтобы на главном было куда добавлять. */
     private fun firstRun(): StoreData {

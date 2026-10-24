@@ -88,7 +88,7 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Сборка APK
-        run: ./gradlew :android:phone:assembleDebug :android:tv:assembleDebug --continue
+        run: ./gradlew :android:phone:testDebugUnitTest :android:phone:assembleDebug :android:tv:assembleDebug --continue
       - uses: actions/upload-artifact@v4
         with:
           name: deixis-android

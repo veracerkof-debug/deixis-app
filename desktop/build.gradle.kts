@@ -47,6 +47,7 @@ sourceSets.main { resources.srcDir(writeVersion) }
 tasks.test {
     useJUnitPlatform()
     jvmArgs(macExports)
+    systemProperty("deixis.compat", rootProject.file("testdata/compat").path)
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Проверка настоящих окон (CI на macOS, Windows и Linux с xvfb): -Ddeixis.gui=1.
     System.getProperty("deixis.gui")?.let { systemProperty("deixis.gui", it) }

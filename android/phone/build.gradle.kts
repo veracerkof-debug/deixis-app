@@ -62,4 +62,9 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 dependencies {
     implementation(project(":android:receiver"))
     implementation(libs.activity.compose)
+
+    testImplementation(libs.kotlin.test.junit)
 }
+
+// Данные прошлых версий (testdata/compat): новая сборка обязана их прочитать.
+android.testOptions.unitTests.all { it.systemProperty("deixis.compat", rootProject.file("testdata/compat").path) }
