@@ -204,8 +204,10 @@ class ScreenRelay(
         links[e.id] = Link(e.id, e.host, e.port, e.token!!)
     }
 
-    private fun publish() {
-        val list = synchronized(lock) {
+    // Список собирается и записывается под одним замком: иначе два одновременных вызова могут
+    // записать устаревшее состояние («offline») поверх свежего.
+    private fun publish() = synchronized(lock) {
+        val list = run {
             val ids = LinkedHashSet<String>().apply { addAll(found.keys); addAll(entries.values.filter { it.linked }.map { it.id }) }
             ids.map { id ->
                 val f = found[id]
