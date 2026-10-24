@@ -50,7 +50,11 @@ tasks.test {
     systemProperty("deixis.compat", rootProject.file("testdata/compat").path)
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Проверка настоящих окон (CI на macOS, Windows и Linux с xvfb): -Ddeixis.gui=1.
-    System.getProperty("deixis.gui")?.let { systemProperty("deixis.gui", it) }
+    System.getProperty("deixis.gui")?.let {
+        systemProperty("deixis.gui", it)
+        // Каждая проверка окон — в своём процессе: окна, полный экран Mac и VLC одной не влияют на другую.
+        forkEvery = 1
+    }
     // Для ручной проверки раскладок мониторов: -Ddeixis.outputsPng=папка сохраняет кадры в PNG.
     System.getProperty("deixis.outputsPng")?.let { systemProperty("deixis.outputsPng", it) }
 }

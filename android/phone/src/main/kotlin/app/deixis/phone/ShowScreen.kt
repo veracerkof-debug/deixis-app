@@ -276,6 +276,7 @@ private fun Tiles(c: Controller, h: HolyricsSource, ui: Ui, wrap: Boolean) {
         add(TileSpec("Фото", "photo") { ui.sheet("Фото") { PickSheet(c, ui, PickKind.PHOTO) } })
         add(TileSpec("Текст", "text") { ui.sheet("Текст") { TextSheet(c, ui) } })
         add(TileSpec("Отсчёт", "clock") { ui.sheet("Обратный отсчёт") { CountdownSheet(c, ui) } })
+        add(TileSpec("Поверх", "layers") { ui.sheet("Поверх показа") { OverlaySheet(c, ui) } })
         add(TileSpec(if (sharing) "Остановить экран" else "Экран телефона", "phone") {
             if (sharing) ScreenShareService.stop(context) else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
         })

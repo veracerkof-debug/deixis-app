@@ -5,6 +5,9 @@ import glob
 import sys
 import xml.etree.ElementTree as ET
 
+# Консоль Windows в CI — cp1252: без этого русские сообщения роняют сводку.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 found = 0
 for path in sorted(glob.glob("**/build/test-results/**/TEST-*.xml", recursive=True)):
     try:

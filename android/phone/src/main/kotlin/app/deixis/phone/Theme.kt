@@ -218,6 +218,7 @@ private val paths: Map<String, List<Part>> = mapOf(
     "restart" to listOf(Part("M3 12a9 9 0 1 0 3-6.7"), Part("M3 3v5h5")),
     "trash" to listOf(Part("M4 7h16M10 11v6M14 11v6"), Part("M6 7l1 13h10l1-13M9 7V4h6v3")),
     "edit" to listOf(Part("M4 20h4L19 9l-4-4L4 16z"), Part("M13 7l4 4")),
+    "layers" to listOf(Part("M12 3l9 5-9 5-9-5z"), Part("M3 13l9 5 9-5")),
 )
 
 private val vectors = mutableMapOf<String, ImageVector>()

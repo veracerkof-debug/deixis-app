@@ -14,6 +14,9 @@ import app.deixis.core.ClockOverlay
 import app.deixis.core.VideoContent
 import app.deixis.core.VideoState
 import app.deixis.core.sha256Of
+import app.deixis.core.lowerThirdPad
+import app.deixis.core.overlayMargin
+import app.deixis.core.tickerHeight
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -92,7 +95,13 @@ class OverlayGuiTest {
             SwingUtilities.invokeAndWait { w.update(FrameState(TextContent("Слайд"), Mode.NORMAL, overlays = layer)) }
             val one = shot("slide")
             assertTrue(red(at(one, 0.5f, 0.97f)), "бегущая строка внизу: ${at(one, 0.5f, 0.97f)}")
-            assertTrue(green(at(one, 0.07f, 0.85f)), "плашка над строкой: ${at(one, 0.07f, 0.85f)}")
+            // Точка внутри плашки у левого края, где нет букв: по раскладке ядра.
+            val cw = one.width.toFloat()
+            val ch = one.height.toFloat()
+            val px = overlayMargin(cw, ch) + lowerThirdPad(cw, ch) * 0.4f
+            val py = ch - overlayMargin(cw, ch) - tickerHeight(cw, ch) - lowerThirdPad(cw, ch) * 0.6f
+            val plate = Color(one.getRGB(px.toInt(), py.toInt()))
+            assertTrue(green(plate), "плашка над строкой: $plate в ($px, $py)")
             assertTrue(blue(at(one, 0.9f, 0.1f)), "логотип справа вверху: ${at(one, 0.9f, 0.1f)}")
             // Бегущая строка идёт: кадры через полсекунды различаются в полосе строки.
             val a = shot("ticker-a")

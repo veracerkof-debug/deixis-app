@@ -139,6 +139,19 @@ data class StoreData(
     val localFiles: Map<String, String> = emptyMap(),
     /** Демо-материалы добавлены (один раз, при первом запуске). */
     val demoSeeded: Boolean = false,
+    /** Слой поверх показа: что включено сейчас. Логотип — файл телефона из [localFiles]. */
+    val overlays: app.deixis.core.Overlays = app.deixis.core.Overlays(),
+    /** Заготовки слоя, чтобы не набирать заново: имена для плашки и тексты бегущей строки. */
+    val overlayDrafts: OverlayDrafts = OverlayDrafts(),
+)
+
+/** Последние плашки и строки: чаще всего ведущий показывает одни и те же имена. */
+@Serializable
+data class OverlayDrafts(
+    val lowerThirds: List<app.deixis.core.LowerThird> = emptyList(),
+    val tickers: List<String> = emptyList(),
+    /** Логотип, выбранный однажды: включается одним касанием. */
+    val logo: app.deixis.core.LogoOverlay? = null,
 )
 
 /** Тема оформления слайдов с текстом: фон, цвет, размер, тень, плашка, положение. */

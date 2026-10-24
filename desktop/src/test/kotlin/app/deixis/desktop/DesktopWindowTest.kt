@@ -139,7 +139,11 @@ class DesktopWindowTest {
             onEdt { windowed.window.dispatchEvent(KeyEvent(windowed.window, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), 0, KeyEvent.VK_F11, KeyEvent.CHAR_UNDEFINED)) }
             waitFor("снова весь экран после F11") { app.windowsForTest().singleOrNull()?.mode == expected }
             val full = onEdt { app.windowsForTest().single() }
-            waitFor("весь экран после F11") { full.window.isShowing && full.window.bounds.size == screen.size }
+            try {
+                waitFor("весь экран после F11") { full.window.isShowing && full.window.bounds.size == screen.size }
+            } catch (e: AssertionError) {
+                throw AssertionError("${e.message}: окно ${onEdt { full.window.bounds }}, видно ${onEdt { full.window.isShowing }}, экран $screen", e)
+            }
 
             // Выход: Ctrl+Q и ⌘Q.
             val mod = if (MacScreen.isMac) KeyEvent.META_DOWN_MASK else KeyEvent.CTRL_DOWN_MASK

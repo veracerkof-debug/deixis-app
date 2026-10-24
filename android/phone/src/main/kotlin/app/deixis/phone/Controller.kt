@@ -18,6 +18,9 @@ import app.deixis.core.Content
 import app.deixis.core.AfterZero
 import app.deixis.core.CountdownContent
 import app.deixis.core.SetTimer
+import app.deixis.core.SetOverlays
+import app.deixis.core.Overlays
+import app.deixis.core.LowerThird
 import app.deixis.core.DenyReason
 import app.deixis.core.DefaultBibles
 import app.deixis.core.Discovery
@@ -383,7 +386,10 @@ class Controller(private val app: Application) {
                     }
                     // Подключился или вернулся — сразу получает то, что сейчас в зале.
                     val now = it is Connection.Connected
-                    if (now && !was) live.value?.let { cue -> deliverTo(o, cue) }
+                    if (now && !was) {
+                        live.value?.let { cue -> deliverTo(o, cue) }
+                        sendOverlays(o, overlays.value)
+                    }
                     was = now
                 }
             },
@@ -702,9 +708,42 @@ class Controller(private val app: Application) {
             o.delivered += ref.sha256
             true
         } catch (e: Exception) {
-            messages.emit("Видеофон не передан: ${e.message}")
+            messages.emit("Файл «${ref.name}» не передан: ${e.message}")
             false
         }
+    }
+
+    // ——— Поверх показа ———
+
+    val overlays: StateFlow<Overlays> = data.map { it.overlays }.stateIn(scope, SharingStarted.Eagerly, store.data.overlays)
+    val overlayDrafts: StateFlow<OverlayDrafts> = data.map { it.overlayDrafts }.stateIn(scope, SharingStarted.Eagerly, store.data.overlayDrafts)
+
+    /** Слой целиком: сохраняется и сразу идёт на все экраны; заготовки пополняются тем, что показали. */
+    fun setOverlays(o: Overlays) {
+        edit { d ->
+            val drafts = d.overlayDrafts
+            d.copy(
+                overlays = o,
+                overlayDrafts = drafts.copy(
+                    lowerThirds = o.lowerThird?.let { lt -> (listOf(lt) + drafts.lowerThirds.filter { it.title != lt.title || it.subtitle != lt.subtitle }).take(OVERLAY_DRAFTS) } ?: drafts.lowerThirds,
+                    tickers = o.ticker?.let { t -> (listOf(t.text) + drafts.tickers.filter { it != t.text }).take(OVERLAY_DRAFTS) } ?: drafts.tickers,
+                    logo = o.logo ?: drafts.logo,
+                ),
+            )
+        }
+        outs.value.forEach { sendOverlays(it, o) }
+    }
+
+    fun forgetLowerThird(lt: LowerThird) = edit { d -> d.copy(overlayDrafts = d.overlayDrafts.copy(lowerThirds = d.overlayDrafts.lowerThirds - lt)) }
+    fun forgetTicker(text: String) = edit { d -> d.copy(overlayDrafts = d.overlayDrafts.copy(tickers = d.overlayDrafts.tickers - text)) }
+
+    /** Логотип с телефона: файл передаётся один раз; не передался — слой идёт без логотипа, а не ждёт. */
+    private fun sendOverlays(o: Output, layer: Overlays) = scope.launch {
+        if (o.client.connection.value !is Connection.Connected) return@launch
+        val logo = layer.logo
+        val shown = if (logo != null && !deliverLocal(o, logo.file)) layer.copy(logo = null) else layer
+        // Пока файл шёл, слой могли сменить: устаревший не отправляется.
+        if (overlays.value == layer) o.client.send(SetOverlays(shown))
     }
 
     // ——— Темы ———
@@ -1139,3 +1178,6 @@ class Controller(private val app: Application) {
 
     private fun key(t: Target) = if (t.kind == Target.Kind.CABLE || t.kind == Target.Kind.MIRACAST) "cable" else t.id
 }
+
+/** Сколько последних плашек и строк помнит пульт. */
+private const val OVERLAY_DRAFTS = 8
