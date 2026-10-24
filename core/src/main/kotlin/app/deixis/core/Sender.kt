@@ -278,6 +278,16 @@ class SenderClient(
     }
 
     /**
+     * Кто этот приёмник: постоянный id, настоящее имя, платформа (без сопряжения). По id один и тот же экран,
+     * введённый по IP и найденный в сети, остаётся одним устройством.
+     */
+    suspend fun info(): ReceiverInfo {
+        val r = http.get("http://$host:$port/info")
+        if (r.status != HttpStatusCode.OK) throw IOException("Приёмник ответил ${r.status}")
+        return DeixisJson.decodeFromString(ReceiverInfo.serializer(), r.bodyAsText())
+    }
+
+    /**
      * Обновления приёмника: без [req] — состояние, с ним — действие («check», «install») или настройки.
      * null — приёмник не обновляется с пульта (старая версия или телефон со своими настройками).
      */

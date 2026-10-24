@@ -177,7 +177,7 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
             }
             GHead("Зрители")
             ViewersBlock(c)
-            val free = targets.filter { t -> outputs.none { it.target.id == t.id } }
+            val free = targets.filter { t -> outputs.none { c.sameScreen(t, it) } }
             if (free.isNotEmpty()) {
                 GHead("Рядом в сети")
                 Group {

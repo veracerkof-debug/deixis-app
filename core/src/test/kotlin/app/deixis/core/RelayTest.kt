@@ -170,4 +170,22 @@ class RelayTest {
         assertTrue(relay.link(LinkRequest("tv", pin = tv.pairing.pin)).ok)
         relay.waitState("tv", "online")
     }
+
+    /** Экран, подключённый по IP, и он же, найденный в сети, — одно устройство с настоящим именем. */
+    @Test
+    fun screenByAddressAndFoundInNetworkIsOneDevice() = runBlocking<Unit> {
+        val pc = core("pc")
+        val tv = core("tv")
+        val (_, tvPort) = serve(tv)
+        val relay = ScreenRelay(pc, MemoryRelayStore(), scope, "Компьютер")
+        stops += { relay.close() }
+        assertTrue(relay.link(LinkRequest("127.0.0.1:$tvPort", pin = tv.pairing.pin, host = "127.0.0.1", port = tvPort)).ok)
+        relay.waitState("tv", "online")
+        relay.found(listOf(FoundReceiver("tv", "Приёмник tv", "127.0.0.1", tvPort, "test")))
+        val list = relay.outputs.value
+        assertEquals(listOf("tv"), list.map { it.id }, "одно устройство, а не два: $list")
+        assertEquals("Приёмник tv", list.single().name, "настоящее имя, а не адрес")
+        assertTrue(list.single().linked)
+        assertFalse(relay.link(LinkRequest("x", host = "127.0.0.1", port = serve(pc).second)).ok, "свой адрес не подключается")
+    }
 }

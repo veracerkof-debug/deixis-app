@@ -156,7 +156,7 @@ class Controller(private val app: Application) {
 
     /** Все экраны, которые видит телефон: кабель или Миракаст, найденные в сети, введённые вручную, DLNA. */
     val targets: StateFlow<List<Target>> = combine(cable, found, manual, dlna.found) { c, f, m, d ->
-        listOfNotNull(c) + f + m.filter { x -> f.none { it.host == x.host && it.port == x.port } } +
+        listOfNotNull(c) + f + m.filter { x -> f.none { it.id == x.id || (it.host == x.host && it.port == x.port) } } +
             d.map { Target(it.id, it.name, it.host, 0, Target.Kind.DLNA) }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
@@ -253,7 +253,8 @@ class Controller(private val app: Application) {
         runCatching { multicastLock?.release() }
     }
 
-    fun isConnected(t: Target) = outs.value.any { it.target.id == t.id } || dlnaTarget.value?.id == t.id
+    fun isConnected(t: Target) = outs.value.any { it.target.id == t.id || (it.client.connection.value as? Connection.Connected)?.receiver?.id == t.id } ||
+        dlnaTarget.value?.id == t.id
     fun isPaired(t: Target) = t.kind == Target.Kind.DLNA || prefs.getString(key(t), null) != null
 
     /** Подключает экран к показу; первый раз спрашивает PIN. */
@@ -327,10 +328,21 @@ class Controller(private val app: Application) {
         val host = input.trim().substringBefore(':')
         if (host.isEmpty()) return
         val port = input.substringAfter(':', "").toIntOrNull() ?: ReceiverServer.DEFAULT_PORT
-        val t = Target("$host:$port", host, host, port, Target.Kind.MANUAL)
-        manual.value = manual.value.filter { it.id != t.id } + t
-        connect(t)
+        // Сначала спросить экран, кто он: тот же экран, найденный в сети, останется одним устройством,
+        // с настоящим именем и тем же сопряжением. Экран старой версии или без ответа — по адресу.
+        scope.launch {
+            val probe = SenderClient(host, port, deviceName, scope)
+            val info = try { probe.info() } catch (e: Exception) { null } finally { probe.close() }
+            val t = if (info != null) Target(info.id, info.name, host, port, Target.Kind.MANUAL, info.platform)
+            else Target("$host:$port", host, host, port, Target.Kind.MANUAL)
+            if (isConnected(t)) { messages.emit("«${t.name}» уже подключён"); return@launch }
+            manual.value = manual.value.filter { it.id != t.id } + t
+            connect(t)
+        }
     }
+
+    /** Тот же экран в нескольких видах (по адресу и найденный в сети): сравнение по id приёмника. */
+    fun sameScreen(a: Target, o: OutputView): Boolean = a.id == o.target.id || a.id == o.info?.id
 
     /** Кабель HDMI или Миракаст: приёмник в этом же телефоне, сопряжение не нужно. */
     fun setCable(t: Target?, token: String?) {

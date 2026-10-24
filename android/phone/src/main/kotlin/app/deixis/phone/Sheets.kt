@@ -116,7 +116,7 @@ fun ConnectSheet(c: Controller, ui: Ui) {
             OutputCell(c, o)
         }
     }
-    val free = targets.filter { t -> outputs.none { it.target.id == t.id } }
+    val free = targets.filter { t -> outputs.none { c.sameScreen(t, it) } }
     GHead("Найдено в сети")
     Group {
         if (free.isEmpty()) Cell("Ищем экраны Deixis…", "Приёмник должен быть в этой же сети Wi-Fi", chevron = null)
@@ -143,8 +143,9 @@ fun ConnectSheet(c: Controller, ui: Ui) {
 fun OutputCell(c: Controller, o: OutputView) {
     val ui = LocalUi.current
     // Экран Deixis в сети: касание открывает его обновления.
-    val open = if (o.state == OutState.ONLINE && o.target.kind == Target.Kind.NETWORK) ({ ui.push("Экран «${o.target.name}»") { ScreenUpdateSheet(c, o.target) } }) else null
-    Cell(o.target.name, "${o.target.via} · ${o.state.text}" + (o.info?.appVersion?.let { " · $it" } ?: ""), o.target.icon, chevron = null, onClick = open) {
+    val open = if (o.state == OutState.ONLINE && (o.target.kind == Target.Kind.NETWORK || o.target.kind == Target.Kind.MANUAL)) ({ ui.push("Экран «${o.info?.name ?: o.target.name}»") { ScreenUpdateSheet(c, o.target) } }) else null
+    // Имя — то, что сообщил сам экран, а не адрес, по которому его подключили.
+    Cell(o.info?.name ?: o.target.name, "${o.target.via} · ${o.state.text}" + (o.info?.appVersion?.let { " · $it" } ?: ""), o.target.icon, chevron = null, onClick = open) {
         when (o.state) {
             OutState.OFFLINE -> Pill("Повторить") { c.retry(o.target) }
             OutState.PIN -> Pill("PIN", tint = true) { c.needPin.value = o.target }

@@ -117,7 +117,25 @@ class ScreenRelay(
         publish()
     }
 
-    suspend fun link(req: LinkRequest): LinkResult {
+    suspend fun link(request: LinkRequest): LinkResult {
+        // Экран по адресу: сначала узнать его постоянный id, чтобы он не появился вторым рядом с найденным в сети.
+        val req = if (request.host != null && synchronized(lock) { found[request.id] == null }) {
+            val probe = clientFactory(request.host, request.port ?: ReceiverServer.DEFAULT_PORT, scope)
+            try {
+                val info = probe.info()
+                if (info.id == core.info.id) return LinkResult(false, error = "Это адрес самого компьютера")
+                synchronized(lock) {
+                    if (entries[info.id] == null) entries[info.id] = RelayEntry(info.id, info.name, request.host, request.port ?: ReceiverServer.DEFAULT_PORT, info.platform)
+                }
+                request.copy(id = info.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                request
+            } finally {
+                probe.close()
+            }
+        } else request
         val target = synchronized(lock) {
             val known = entries[req.id]
             val f = found[req.id]
