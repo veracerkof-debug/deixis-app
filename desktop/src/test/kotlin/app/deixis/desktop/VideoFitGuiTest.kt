@@ -44,7 +44,8 @@ class VideoFitGuiTest {
             frame.isUndecorated = true
             pane = VideoPane(player)
             frame.contentPane = pane
-            frame.setBounds(0, 0, 800, 450)
+            // Не в углу экрана: на Маке верх экрана занимает строка меню, и она попадала бы в снимок.
+            frame.setBounds(100, 100, 800, 450)
             frame.isVisible = true
         }
         try {
