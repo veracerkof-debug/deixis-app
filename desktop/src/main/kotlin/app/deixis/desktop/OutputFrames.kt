@@ -78,6 +78,8 @@ data class FrameState(
     val idle: IdleInfo? = null,
     /** Идущий обратный отсчёт — для «Сцены», даже когда в зале уже другое. */
     val timer: app.deixis.core.CountdownContent? = null,
+    /** Слой поверх показа; рисуется поверх кадра зала, сам кадр от него не зависит. */
+    val overlays: app.deixis.core.Overlays = app.deixis.core.Overlays(),
 ) {
     /** Что сейчас написано на отсчётах (в зале и в «Сцене»): кадр перерисовывается, только когда это меняется. */
     val countdownText: String?

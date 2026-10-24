@@ -26,12 +26,24 @@ class VideoPane(private val player: VideoPlayer) : JPanel(null) {
     var backdropColor: Long = 0xFF000000
         set(v) { field = v; repaint() }
 
+    /** Слой поверх показа над кадром (когда кадр рисует само окно — на Маке). */
+    var overlay: ((Graphics2D) -> Unit)? = null
+        set(v) { field = v; layer.isVisible = v != null; layer.repaint() }
+
+    // Прозрачный компонент над кадром: кадр видео перерисовывается сам по себе, и всё, что нарисовано
+    // поверх него в самой панели, он бы затирал. Сосед сверху Swing перерисовывает вместе с кадром.
+    private val layer = object : JPanel(null) {
+        init { isOpaque = false; isVisible = false }
+        override fun paintComponent(g: Graphics) { overlay?.invoke(g as Graphics2D) }
+    }
+
     private var blurred: BufferedImage? = null
     private val blurTimer = Timer(BLUR_MS) { refreshBlur() }
 
     init {
         background = Color.BLACK
         isOpaque = true
+        add(layer)
         player.view?.let { add(it) }
         player.onVideoSize = { relayout() }
         addComponentListener(object : ComponentAdapter() {
@@ -43,6 +55,7 @@ class VideoPane(private val player: VideoPlayer) : JPanel(null) {
     fun reset() { blurred = null; relayout(); updateBlur() }
 
     fun relayout() {
+        layer.setBounds(0, 0, width, height)
         val v = player.view ?: return
         val w = width.toFloat()
         val h = height.toFloat()
@@ -99,6 +112,9 @@ class VideoPane(private val player: VideoPlayer) : JPanel(null) {
             g2.fillRect(0, 0, width, height)
         }
     }
+
+    /** Слой и кадр перекрываются: Swing должен рисовать их вместе. */
+    override fun isOptimizedDrawingEnabled() = false
 
     private companion object {
         const val BLUR_MS = 1_500

@@ -66,9 +66,15 @@ jobs:
       - name: VLC и ffmpeg (видео на настоящем VLC)
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq vlc ffmpeg > /dev/null
+      - name: VLC и ffmpeg на Windows (слой поверх VLC в отдельном окне)
+        if: runner.os == 'Windows'
+        run: choco install vlc ffmpeg -y --no-progress > /dev/null
+      - name: VLC и ffmpeg на macOS (кадры через память, слой поверх)
+        if: runner.os == 'macOS'
+        run: brew install --cask vlc > /dev/null && brew install ffmpeg > /dev/null
       - name: Проверка окон
         run: |
-          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*' --tests '*BackdropGuiTest*')
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*' --tests '*BackdropGuiTest*' --tests '*OverlayGuiTest*')
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
           else

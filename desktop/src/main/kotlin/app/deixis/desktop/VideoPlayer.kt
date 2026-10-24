@@ -41,6 +41,9 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
     }
     val view: Component? get() = component
 
+    /** VLC рисует в своё окно (Windows, Linux): поверх него рисовать можно только отдельным окном. */
+    val nativeWindow: Boolean get() = component is EmbeddedMediaPlayerComponent
+
     /** Поверхность, по которой щёлкает оператор: сам кадр видео. */
     val surface: Component?
         get() = when (val c = component) {

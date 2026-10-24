@@ -323,7 +323,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             address = "${address?.hostAddress ?: "127.0.0.1"}:$port",
             pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name).toUri() },
         )
-        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer)
+        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays)
     }
 
     private fun observe() {

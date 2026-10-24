@@ -3,6 +3,8 @@ package app.deixis.desktop
 import app.deixis.core.FileStore
 import app.deixis.core.Mode
 import app.deixis.core.OutputLayout
+import app.deixis.core.Overlays
+import app.deixis.core.overlaysVisible
 import app.deixis.core.ScreenContent
 import app.deixis.core.VideoCommand
 import app.deixis.core.VideoContent
@@ -99,6 +101,12 @@ class OutputWindow(
     var primary = false
 
     private val frames = OutputFrames(files)
+    private val overlayPainter = OverlayPainter(files)
+    /** Что сейчас поверх показа в зале (уже с учётом «Чёрного» и «Заставки»). */
+    private var overlays = Overlays()
+    private val overlayTimer = Timer(OVERLAY_TICK_MS) { repaintOverlay() }
+    /** Окно слоя над видео, когда VLC рисует в своё окно; null — не нужно или система не умеет прозрачных окон. */
+    private var overlayWindow: OverlayWindow? = null
     private val frame = JFrame("Deixis")
     private val cards = JPanel(CardLayout())
     private val slide = SlideView()
@@ -269,6 +277,40 @@ class OutputWindow(
             else -> s.content to s.mode
         }
         if (key != drawnKey) { drawnKey = key; applyBackdrop(s); redraw(s) }
+        setOverlays(if (layout == OutputLayout.HALL && overlaysVisible(s.mode)) s.overlays else Overlays())
+    }
+
+    private fun paintOverlay(g: Graphics2D, w: Int, h: Int) =
+        overlayPainter.paint(g, w.toFloat(), h.toFloat(), overlays, System.currentTimeMillis())
+
+    private fun setOverlays(o: Overlays) {
+        if (o == overlays) return
+        overlays = o
+        overlayTimer.stop()
+        overlayPainter.tickMs(o)?.let { overlayTimer.delay = it; overlayTimer.initialDelay = it; overlayTimer.start() }
+        placeOverlay()
+        repaintOverlay()
+    }
+
+    /**
+     * Где рисуется слой: на кадре слайда, поверх кадра видео на Маке, а когда VLC рисует в своё окно —
+     * в прозрачном окне над ним. Без прозрачных окон (Linux без композитора) над видео слоя нет.
+     */
+    private fun placeOverlay() {
+        val pane = videoPane
+        val overVideo = pane != null && pane.isVisible && video?.nativeWindow == true
+        val needWindow = overVideo && !overlays.isEmpty && OverlayWindow.supported(frame)
+        if (needWindow && overlayWindow == null) overlayWindow = OverlayWindow(frame) { g, w, h -> paintOverlay(g, w, h) }
+        overlayWindow?.let { it.showing = needWindow }
+        slide.overlay = if (overlays.isEmpty) null else { g, w, h -> paintOverlay(g, w, h) }
+        pane?.let { p -> p.overlay = if (overlays.isEmpty || video?.nativeWindow == true) null else { g -> paintOverlay(g, p.width, p.height) } }
+    }
+
+    private fun repaintOverlay() {
+        if (overlays.isEmpty && overlayWindow?.showing != true) return
+        slide.repaint()
+        videoPane?.repaint()
+        overlayWindow?.repaintLayer()
     }
 
     fun videoCommand(cmd: VideoCommand) {
@@ -303,6 +345,9 @@ class OutputWindow(
         playingSha = null
         showSlide()
     }
+
+    /** Слой сейчас (для проверки). */
+    internal val overlaysForTest: Overlays get() = overlays
 
     private fun applyVideo(s: FrameState) {
         if (primary) host.reportError(null)
@@ -351,9 +396,9 @@ class OutputWindow(
         }.apply { isRepeats = false }.start()
     }
 
-    private fun showVideo() = (cards.layout as CardLayout).show(cards, CARD_VIDEO)
+    private fun showVideo() { (cards.layout as CardLayout).show(cards, CARD_VIDEO); placeOverlay() }
 
-    private fun showSlide() = (cards.layout as CardLayout).show(cards, CARD_SLIDE)
+    private fun showSlide() { (cards.layout as CardLayout).show(cards, CARD_SLIDE); placeOverlay() }
 
     private fun redraw(s: FrameState) {
         val w = slide.width.takeIf { it > 0 } ?: return
@@ -389,6 +434,9 @@ class OutputWindow(
     }
 
     fun dispose() {
+        overlayTimer.stop()
+        overlayWindow?.dispose()
+        overlayWindow = null
         releaseBackdrop()
         KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(keys)
         cursorTimer.stop()
@@ -412,6 +460,9 @@ class OutputWindow(
         var frame: BufferedImage? = null
             set(value) { field = value; repaint() }
         var backdrop: BackgroundVideo? = null
+        /** Слой поверх показа: рисуется поверх кадра при каждой перерисовке, кадр слайда не пересчитывается. */
+        var overlay: ((Graphics2D, Int, Int) -> Unit)? = null
+            set(v) { field = v; repaint() }
         private var fadeFrom: BufferedImage? = null
         private var fadeStart = 0L
         private val fadeTimer = Timer(FADE_TICK_MS) { repaint(); if (System.currentTimeMillis() - fadeStart > FADE_MS) { fadeFrom = null; (it.source as Timer).stop() } }
@@ -437,6 +488,7 @@ class OutputWindow(
                 g2.composite = java.awt.AlphaComposite.SrcOver
             }
             frame?.let { g.drawImage(it, 0, 0, width, height, null) }
+            overlay?.invoke(g2, width, height)
         }
 
         private fun cover(g: Graphics2D, img: BufferedImage) {
@@ -475,6 +527,8 @@ class OutputWindow(
         /** Метка в playingSha: в проигрывателе идёт трансляция экрана, а не файл. */
         const val STREAM = "screen"
         const val STREAM_RESTART_MS = 300
+        /** Слой без движения перерисовывать не нужно; таймер берёт частоту у [OverlayPainter.tickMs]. */
+        const val OVERLAY_TICK_MS = 500
         const val WINDOWED_WIDTH = 960
         const val WINDOWED_HEIGHT = 540
         const val CURSOR_HIDE_MS = 2_000
