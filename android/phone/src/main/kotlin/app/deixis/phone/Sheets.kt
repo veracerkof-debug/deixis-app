@@ -204,6 +204,7 @@ fun SettingsSheet(c: Controller) {
     }
     BackupsSection(c, LocalUi.current)
     UpdatesSection()
+    FeedbackSection()
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = T.gapS)) {
         Mark(T.fPill, P.current.l2)
