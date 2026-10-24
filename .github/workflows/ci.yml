@@ -29,6 +29,9 @@ jobs:
         with:
           name: frames
           path: build/frames/
+      - name: Что упало
+        if: failure()
+        run: python3 tools/test-failures.py
       - name: Отчёты тестов
         if: failure()
         uses: actions/upload-artifact@v4
@@ -85,6 +88,9 @@ jobs:
             echo "::error::Проверка окон пропущена: нет экрана"; exit 1
           fi
           grep -h -A6 '<system-out>' desktop/build/test-results/test/TEST-app.deixis.desktop.DesktopWindowTest.xml || true
+      - name: Что упало
+        if: failure()
+        run: python3 tools/test-failures.py
       - name: Отчёты тестов
         if: failure()
         uses: actions/upload-artifact@v4
