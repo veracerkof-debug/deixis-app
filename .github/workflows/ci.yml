@@ -22,7 +22,13 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Тесты и сборка
-        run: ./gradlew :core:test :desktop:test :desktop:distZip --stacktrace
+        run: ./gradlew :core:test :desktop:test :desktop:distZip -Ddeixis.outputsPng=$PWD/build/frames --stacktrace
+      - name: Кадры всех форматов экрана
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frames
+          path: build/frames/
       - name: Отчёты тестов
         if: failure()
         uses: actions/upload-artifact@v4

@@ -202,31 +202,49 @@ fun Wordmark(heightFraction: Float, color: Color = Color.White) {
 private fun IdleScreen(name: String, pin: String, address: String?, pairingUri: String?) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
+        val w = with(density) { maxWidth.toPx() }
         val h = with(density) { maxHeight.toPx() }
-        fun sp(fraction: Float) = with(density) { (h * fraction).toSp() }
-        fun dp(fraction: Float): Dp = with(density) { (h * fraction).toDp() }
+        // Широкий экран: QR слева от PIN, размеры от кадра 16:9 внутри экрана. Квадратный и вертикальный —
+        // всё столбиком, размеры от ширины. Знак не шире экрана, длинные строки переносятся.
+        val tall = w < h * app.deixis.core.SIDE_BY_SIDE_MIN_ASPECT
+        val u = if (tall) minOf(w, h * 9f / 16f) else minOf(h, w * 9f / 16f)
+        fun sp(fraction: Float) = with(density) { (u * fraction).toSp() }
+        fun dp(fraction: Float): Dp = with(density) { (u * fraction).toDp() }
+        val markFraction = minOf(if (tall) 0.16f else 0.12f, w * 0.9f / app.deixis.core.LogoMark.WIDTH_EM / u)
         val dim = Color.White.copy(alpha = 0.6f)
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            BasicText("ΔΕΙΞΙΣ", style = TextStyle(fontFamily = Didot, fontSize = sp(0.12f), letterSpacing = 0.18.em, color = Color.White))
+        val pinBlock: @Composable (Alignment.Horizontal) -> Unit = { align ->
+            Column(horizontalAlignment = align) {
+                BasicText("PIN для подключения", style = TextStyle(fontFamily = NotoSans, fontSize = sp(if (tall) 0.04f else 0.025f), color = dim))
+                BasicText(pin.toCharArray().joinToString(" "), style = TextStyle(fontFamily = NotoSans, fontSize = sp(if (tall) 0.11f else 0.07f), color = Color.White, letterSpacing = 0.1.em))
+                BasicText(address ?: "Нет подключения к сети", style = TextStyle(fontFamily = NotoSans, fontSize = sp(if (tall) 0.04f else 0.025f), color = dim), maxLines = 1)
+            }
+        }
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = with(density) { (w * 0.05f).toDp() }),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            BasicText("ΔΕΙΞΙΣ", style = TextStyle(fontFamily = Didot, fontSize = sp(markFraction), letterSpacing = 0.18.em, color = Color.White), maxLines = 1)
             Spacer(Modifier.height(dp(0.04f)))
-            BasicText(name, style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.04f), color = Color.White.copy(alpha = 0.85f)))
+            BasicText(
+                name, style = TextStyle(fontFamily = NotoSans, fontSize = sp(if (tall) 0.06f else 0.04f), color = Color.White.copy(alpha = 0.85f), textAlign = TextAlign.Center),
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(dp(0.06f)))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (tall) {
+                if (pairingUri != null) { QrCode(pairingUri, Modifier.size(dp(0.5f))); Spacer(Modifier.height(dp(0.06f))) }
+                pinBlock(Alignment.CenterHorizontally)
+            } else Row(verticalAlignment = Alignment.CenterVertically) {
                 if (pairingUri != null) {
                     QrCode(pairingUri, Modifier.size(dp(0.2f)))
                     Spacer(Modifier.width(dp(0.04f)))
                 }
-                Column {
-                    BasicText("PIN для подключения", style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.025f), color = dim))
-                    BasicText(pin.toCharArray().joinToString(" "), style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.07f), color = Color.White, letterSpacing = 0.1.em))
-                    BasicText(address ?: "Нет подключения к сети", style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.025f), color = dim))
-                }
+                pinBlock(Alignment.Start)
             }
             Spacer(Modifier.height(dp(0.08f)))
             BasicText(
                 if (pairingUri != null) "Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно"
                 else "Подключите приставку к сети Wi-Fi, чтобы появился QR-код для телефона",
-                style = TextStyle(fontFamily = NotoSans, fontSize = sp(0.025f), color = Color.White.copy(alpha = 0.45f), textAlign = TextAlign.Center),
+                style = TextStyle(fontFamily = NotoSans, fontSize = sp(if (tall) 0.035f else 0.025f), color = Color.White.copy(alpha = 0.45f), textAlign = TextAlign.Center),
             )
         }
     }

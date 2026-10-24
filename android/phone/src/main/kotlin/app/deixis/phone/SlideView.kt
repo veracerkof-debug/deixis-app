@@ -55,9 +55,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import app.deixis.core.TextStyle as SlideStyle
 
+/**
+ * Пропорции экрана в зале (ширина к высоте): превью слайдов в тех же пропорциях, что и вывод.
+ * Пока экран не подключён — 16:9. Крайние форматы ограничены, чтобы превью оставались видны в списках.
+ */
+val LocalScreenRatio = androidx.compose.runtime.staticCompositionLocalOf { 16f / 9f }
+
+fun screenRatio(info: app.deixis.core.ReceiverInfo?): Float {
+    val w = info?.screenWidth ?: 0
+    val h = info?.screenHeight ?: 0
+    return if (w > 0 && h > 0) (w.toFloat() / h).coerceIn(S.MIN_RATIO, S.MAX_RATIO) else 16f / 9f
+}
+
 /** Пропорции превью слайда — доли его высоты, как на выводе. */
 private object S {
-    const val ratio = 16f / 9f
+    const val MIN_RATIO = 0.5f
+    const val MAX_RATIO = 3.6f
     const val pad = 0.05f
     const val lineHeight = 1.2f
     const val maxText = 0.11f
@@ -96,7 +109,7 @@ fun SlideView(
 ) {
     val p = P.current
     Box(
-        modifier.fillMaxWidth().aspectRatio(S.ratio).frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
+        modifier.fillMaxWidth().aspectRatio(LocalScreenRatio.current).frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
             .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
         contentAlignment = Alignment.Center,
     ) {
@@ -133,7 +146,8 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
         is Slide.Text -> SlideText(listOf(slide.text), null, style)
         is Slide.Scripture -> {
             val c = slide.content
-            if (c.sideBySide && c.blocks.size > 1) Row(Modifier.fillMaxSize()) {
+            // Как на выводе: рядом — только на широком экране, иначе друг под другом.
+            if (c.sideBySide && c.blocks.size > 1 && LocalScreenRatio.current >= app.deixis.core.SIDE_BY_SIDE_MIN_ASPECT) Row(Modifier.fillMaxSize()) {
                 c.blocks.forEach { b -> Box(Modifier.weight(1f).fillMaxHeight()) { SlideText(listOf(b.text), b.ref, style) } }
             } else SlideText(c.blocks.map { it.text }, c.ref ?: c.blocks.firstOrNull()?.ref, style)
         }

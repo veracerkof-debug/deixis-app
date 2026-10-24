@@ -69,6 +69,13 @@ img, video { object-fit: contain; background: #000; }
 #stageView .vid .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stageView .vid .bar { height: .18em; border-radius: 999px; background: var(--l2); overflow: hidden; }
 #stageView .vid .bar > div { height: 100%; width: 0; background: var(--tint); }
+/* Квадратный и вертикальный экран: два перевода друг под другом, «Сцена» сверху вниз (как на компьютере). */
+@media (max-aspect-ratio: 6/5) {
+  .scripture.side .blocks { flex-direction: column; gap: .6em; }
+  #stageView { flex-direction: column; }
+  #stageView .cur { flex: 0 0 calc(var(--st-cur) - var(--st-pad)); }
+  #stageView .next { aspect-ratio: auto; max-height: none; flex: 1; }
+}
 #stageView .clock { margin-top: auto; font-size: var(--st-clock); line-height: 1; font-variant-numeric: tabular-nums; }
 #stageView .timer { font-size: var(--st-timer); line-height: 1.2; color: var(--tint); font-variant-numeric: tabular-nums; }
 </style>

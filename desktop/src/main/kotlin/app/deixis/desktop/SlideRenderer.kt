@@ -73,35 +73,78 @@ class SlideRenderer(
         return img
     }
 
+    /**
+     * Экран ожидания: знак, имя, QR-код и PIN. На широком экране (16:9, 4:3, 32:9) — QR слева от PIN,
+     * размеры от высоты 16:9-кадра внутри экрана; на квадратном и вертикальном — всё столбиком по ширине.
+     * Строки, которые не помещаются по ширине, уменьшаются, а не обрезаются.
+     */
     private fun drawIdle(g: Graphics2D, w: Int, h: Int, idle: IdleInfo) {
-        drawWordmark(g, w, h, h * 0.36f, h * 0.12f)
-        val ui = Fonts.ui
-        drawCentered(g, idle.name, ui.deriveFont(h * 0.04f), w, h * 0.50f, Color(255, 255, 255, 220))
-
-        val qrSize = (h * 0.18f).toInt()
-        val blockTop = (h * 0.58f).toInt()
-        val textX: Int
-        if (idle.pairingUri != null) {
-            val qrX = w / 2 - qrSize - (h * 0.03f).toInt()
-            drawQr(g, idle.pairingUri, qrX, blockTop, qrSize)
-            textX = w / 2 + (h * 0.01f).toInt()
-        } else {
-            textX = w / 2 - (h * 0.15f).toInt()
-        }
-        g.color = Color(255, 255, 255, 150)
-        g.font = ui.deriveFont(h * 0.025f)
-        g.drawString("PIN для подключения", textX, blockTop + (h * 0.04f).toInt())
-        g.color = Color.WHITE
-        g.font = ui.deriveFont(mapOf(TextAttribute.TRACKING to 0.2f)).deriveFont(h * 0.07f)
-        g.drawString(idle.pin.toCharArray().joinToString(" "), textX, blockTop + (h * 0.12f).toInt())
-        g.color = Color(255, 255, 255, 150)
-        g.font = ui.deriveFont(h * 0.025f)
-        g.drawString(idle.address, textX, blockTop + (h * 0.17f).toInt())
-
         val hint = if (idle.pairingUri != null) "Наведите камеру телефона на QR-код — откроется пульт, приложение не нужно"
         else "Подключите компьютер к сети Wi-Fi, чтобы появился QR-код для телефона"
-        drawCentered(g, "$hint · Выход — Ctrl+Q", ui.deriveFont(h * 0.025f), w, h * 0.88f, Color(255, 255, 255, 110))
+        val maxW = w * 0.9f
+        if (w < h * app.deixis.core.SIDE_BY_SIDE_MIN_ASPECT) { drawIdleTall(g, w, h, idle, hint, maxW); return }
+        // Кадр 16:9 внутри экрана: на 32:9 он по высоте, на 4:3 — по ширине.
+        val u = minOf(h.toFloat(), w * 9f / 16f)
+        val top = (h - u) / 2f
+        drawWordmark(g, w, h, top + u * 0.36f, fitMark(u * 0.12f, maxW))
+        val ui = Fonts.ui
+        drawCentered(g, idle.name, fitFont(idle.name, ui.deriveFont(u * 0.04f), maxW), w, top + u * 0.50f, Color(255, 255, 255, 220))
+
+        val qrSize = (u * 0.18f).toInt()
+        val blockTop = (top + u * 0.58f).toInt()
+        val textX: Int
+        if (idle.pairingUri != null) {
+            val qrX = w / 2 - qrSize - (u * 0.03f).toInt()
+            drawQr(g, idle.pairingUri, qrX, blockTop, qrSize)
+            textX = w / 2 + (u * 0.01f).toInt()
+        } else {
+            textX = w / 2 - (u * 0.15f).toInt()
+        }
+        g.color = Color(255, 255, 255, 150)
+        g.font = ui.deriveFont(u * 0.025f)
+        g.drawString("PIN для подключения", textX, blockTop + (u * 0.04f).toInt())
+        g.color = Color.WHITE
+        g.font = ui.deriveFont(mapOf(TextAttribute.TRACKING to 0.2f)).deriveFont(u * 0.07f)
+        g.drawString(idle.pin.toCharArray().joinToString(" "), textX, blockTop + (u * 0.12f).toInt())
+        g.color = Color(255, 255, 255, 150)
+        g.font = ui.deriveFont(u * 0.025f)
+        g.drawString(idle.address, textX, blockTop + (u * 0.17f).toInt())
+        drawCentered(g, hint, fitFont(hint, ui.deriveFont(u * 0.025f), maxW), w, top + u * 0.88f, Color(255, 255, 255, 110))
     }
+
+    /** Вертикальный и квадратный экран: знак, имя, QR, PIN, адрес и подсказка столбиком по центру. */
+    private fun drawIdleTall(g: Graphics2D, w: Int, h: Int, idle: IdleInfo, hint: String, maxW: Float) {
+        val u = minOf(w.toFloat(), h * 9f / 16f)
+        val ui = Fonts.ui
+        val qr = if (idle.pairingUri != null) (u * 0.5f).toInt() else 0
+        // Высота столбика в долях u: знак, имя, QR, подпись PIN, PIN, адрес.
+        val total = u * 0.22f + u * 0.1f + qr + u * 0.08f + u * 0.14f + u * 0.08f
+        var y = (h - total) / 2f
+        drawWordmark(g, w, h, y + u * 0.08f, fitMark(u * 0.16f, maxW))
+        y += u * 0.22f
+        drawCentered(g, idle.name, fitFont(idle.name, ui.deriveFont(u * 0.06f), maxW), w, y, Color(255, 255, 255, 220))
+        y += u * 0.1f
+        if (idle.pairingUri != null) { drawQr(g, idle.pairingUri, (w - qr) / 2, y.toInt(), qr); y += qr + u * 0.06f }
+        drawCentered(g, "PIN для подключения", ui.deriveFont(u * 0.04f), w, y, Color(255, 255, 255, 150))
+        y += u * 0.12f
+        val pin = idle.pin.toCharArray().joinToString(" ")
+        drawCentered(g, pin, ui.deriveFont(mapOf(TextAttribute.TRACKING to 0.2f)).deriveFont(u * 0.11f), w, y, Color.WHITE)
+        y += u * 0.1f
+        drawCentered(g, idle.address, fitFont(idle.address, ui.deriveFont(u * 0.04f), maxW), w, y, Color(255, 255, 255, 150))
+        // Подсказка внизу экрана, в две строки, если не помещается.
+        val hf = ui.deriveFont(u * 0.035f)
+        val lines = app.deixis.core.wrapLine(hint, maxW) { TextLayout(it, hf, frc).advance }
+        lines.forEachIndexed { i, line -> drawCentered(g, line, hf, w, h - u * 0.08f - (lines.size - 1 - i) * u * 0.05f, Color(255, 255, 255, 110)) }
+    }
+
+    /** Шрифт уменьшается, пока строка не уместится в [maxW]. */
+    private fun fitFont(text: String, font: Font, maxW: Float): Font {
+        val adv = TextLayout(text.ifEmpty { " " }, font, frc).advance
+        return if (adv <= maxW) font else font.deriveFont(font.size2D * maxW / adv)
+    }
+
+    /** Кегль знака ΔΕΙΞΙΣ, при котором он умещается в [maxW]. */
+    private fun fitMark(size: Float, maxW: Float): Float = minOf(size, maxW / app.deixis.core.LogoMark.WIDTH_EM)
 
     private fun drawWordmark(g: Graphics2D, w: Int, h: Int, centerY: Float, size: Float) {
         val font = Fonts.mark.deriveFont(mapOf(TextAttribute.TRACKING to 0.18f)).deriveFont(size)

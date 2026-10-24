@@ -9,6 +9,16 @@ const val SAFE_MARGIN = 0.055f
 /** Добавка для ТВ: часть телевизоров обрезает края картинки (overscan), доля ширины и высоты. */
 const val OVERSCAN_MARGIN = 0.03f
 
+/** Два перевода в колонки — только если экран шире этого (ширина к высоте); иначе друг под другом. */
+const val SIDE_BY_SIDE_MIN_ASPECT = 1.2f
+
+/** Кегль подписи: не больше [size] и такой, чтобы строка уместилась в [width] (узкий экран). */
+fun fitWidth(text: String?, size: Float, width: Float, measure: (String, Float) -> Float): Float {
+    if (text.isNullOrEmpty() || size <= 0f) return size
+    val w = measure(text, size)
+    return if (w <= width) size else size * width / w * 0.98f
+}
+
 /** Межстрочный интервал слайдов. */
 const val SLIDE_LINE_HEIGHT = 1.2f
 
@@ -184,7 +194,7 @@ fun layoutSlideText(
     lineHeight: Float = style.lineHeight,
 ): SlideTextLayout {
     val area = safeArea(width, height, overscan, style.margins)
-    val refSize = minOf(width, height) * 0.045f
+    val refSize = fitWidth(ref?.let { styledText(it, style) }, minOf(width, height) * 0.045f, area.width, measure)
     val refH = if (ref != null) refSize * lineHeight * 1.5f else 0f
     val boxH = area.height - refH
     val fitted = fitParagraphs(

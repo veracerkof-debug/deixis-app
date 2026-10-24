@@ -151,7 +151,7 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .sw[aria-pressed="true"] { outline: var(--ring) solid var(--tint); outline-offset: var(--ring); }
 
 /* Слайд: пропорции вывода 16:9, текст подбирается под размер, как в зале */
-.slide { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: var(--r-slide); overflow: hidden; background: var(--sl-bg, var(--slide-bg)) center / cover no-repeat;
+.slide { position: relative; aspect-ratio: var(--screen-ratio, 16 / 9); width: 100%; border-radius: var(--r-slide); overflow: hidden; background: var(--sl-bg, var(--slide-bg)) center / cover no-repeat;
          color: var(--sl-ink, var(--slide-ink)); container-type: inline-size; display: flex; align-items: center; justify-content: center; font-family: var(--f-slide); }
 .slide.v-TOP { align-items: flex-start; } .slide.v-BOTTOM { align-items: flex-end; }
 .slide img, .slide video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
@@ -165,6 +165,7 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .slide.caps .txt, .slide.caps .sc { text-transform: uppercase; }
 .slide .sc { position: relative; padding: 5.5cqw; display: flex; flex-direction: column; gap: 2cqw; text-align: center; line-height: 1.25; width: 100%; white-space: pre-line; }
 .slide .sc .cols { display: flex; gap: 4cqw; text-align: left; }
+.screen-tall .slide .sc .cols { flex-direction: column; text-align: inherit; }
 .slide .sc .cols > div { flex: 1; min-width: 0; }
 .slide .sc .r { font-size: .6em; opacity: .8; }
 .slide .mk { font-family: var(--f-mark); letter-spacing: .18em; font-size: 7cqw; color: var(--slide-ink); }
@@ -328,7 +329,7 @@ textarea.big.tall { min-height: var(--editor-h); }
 .full .ft .ttl { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .full .stage { flex: 1; display: grid; place-items: center; padding: var(--g4) var(--g6); min-height: 0; touch-action: none; }
 .full .stage .slide { border-radius: var(--r-full); max-height: 100%; width: auto; height: auto; max-width: 100%; }
-.full .stage .fit { width: min(100%, calc((100vh - var(--full-chrome)) * 16 / 9)); }
+.full .stage .fit { width: min(100%, calc((100vh - var(--full-chrome)) * var(--screen-ratio, 16 / 9))); }
 .full .stage video.pv { width: 100%; height: 100%; object-fit: contain; background: var(--full-bg); }
 .full .fb { display: flex; gap: var(--g4); padding: var(--g5) var(--g6) var(--g6); flex-wrap: wrap; }
 .full .fb .btn { background: var(--full-btn); color: var(--full-ink); flex: 1; min-width: 0; }
@@ -874,6 +875,13 @@ setLang(settings.lang);
 
 // ——— Связь: тот же протокол, что у приложения Deixis ———
 let receiver = null, state = null, viewKey = null, awaiting = null, ws = null;
+/* Превью слайдов — в пропорциях экрана в зале; два перевода рядом только на широком экране (как на выводе). */
+function setScreenRatio(r) {
+  const w = r && r.screenWidth, h = r && r.screenHeight;
+  const ratio = w > 0 && h > 0 ? Math.min(3.6, Math.max(0.5, w / h)) : 16 / 9;
+  document.documentElement.style.setProperty("--screen-ratio", String(ratio));
+  document.documentElement.classList.toggle("screen-tall", ratio < 1.2);
+}
 // iPhone обрывает соединение, когда экран гаснет или Safari уходит в фон, а после возврата сокет может
 // казаться живым. Поэтому связь проверяется по ответам каждую секунду, а при возврате на страницу,
 // появлении сети и восстановлении из кэша — переподключение сразу, без ожидания.
@@ -900,6 +908,7 @@ function connect(pin) {
     if (m.type === "paired") { token = m.token; store.set("token", token); if (params.has("pin")) history.replaceState(null, "", "/remote"); }
     else if (m.type === "welcome") {
       receiver = m.receiver; viewKey = m.viewKey || null;
+      setScreenRatio(receiver);
       store.set("receiver", { id: receiver.id, port: location.port });
       pause = 500; fails = 0;
       const first = !everOnline;

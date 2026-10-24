@@ -124,7 +124,7 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
                 .swipes(onLeft = { move(1) }, onRight = { move(-1) }, onDown = close, onUp = { if (spec != FullSpec.Live) go() }),
             contentAlignment = Alignment.Center,
         ) {
-            val w = minOf(maxWidth, maxHeight * 16f / 9f)
+            val w = minOf(maxWidth, maxHeight * LocalScreenRatio.current)
             CueView(c, cue, style, Modifier.width(w), mode = if (spec == FullSpec.Live) mode else Mode.NORMAL, round = 4.dp)
         }
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = T.gap, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

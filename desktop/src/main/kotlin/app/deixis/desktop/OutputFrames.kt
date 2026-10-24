@@ -58,6 +58,8 @@ object OutputTokens {
     const val STAGE_RADIUS = 0.018f
     /** Доля ширины под окно «Сейчас». */
     const val STAGE_CURRENT_WIDTH = 0.62f
+    /** Вертикальный монитор: доля высоты под окно «Сейчас» (остальное — «Далее»). */
+    const val STAGE_CURRENT_HEIGHT = 0.62f
 
     // Титры: поля в процентах от экрана (низ экрана), предел кегля — доля меньшей стороны.
     val CAPTION_MARGINS = Margins(left = 6f, top = 64f, right = 6f, bottom = 7f)
@@ -164,6 +166,8 @@ class OutputFrames(files: FileStore) {
             val pad = short * OutputTokens.STAGE_PAD
             val label = short * OutputTokens.STAGE_LABEL
             val labelH = label * 2f
+            // Вертикальный и квадратный монитор: «Сейчас» сверху, «Далее» и часы под ним.
+            if (w < h * app.deixis.core.SIDE_BY_SIDE_MIN_ASPECT) { stageTall(g, w, h, s, short, pad, label, labelH); return img }
             val leftW = w * OutputTokens.STAGE_CURRENT_WIDTH - pad * 1.5f
             val rightX = pad + leftW + pad
             val rightW = w - rightX - pad
@@ -194,6 +198,33 @@ class OutputFrames(files: FileStore) {
         return img
     }
 
+    private fun stageTall(g: Graphics2D, w: Int, h: Int, s: FrameState, short: Float, pad: Float, label: Float, labelH: Float) {
+        val innerW = w - pad * 2
+        val clockSize = minOf(short * OutputTokens.STAGE_CLOCK, innerW / 3.2f)
+        val timerSize = minOf(short * OutputTokens.STAGE_TIMER, innerW / 4.5f)
+        val clockBlock = clockSize * 1.25f + timerSize + label * 2.4f
+        val avail = h - pad * 3 - labelH * 2 - clockBlock
+        val curH = avail * OutputTokens.STAGE_CURRENT_HEIGHT
+        val nextH = avail - curH
+
+        drawLabel(g, "Сейчас", pad, pad, label, OutputTokens.l2)
+        modeLabel(s.mode)?.let { drawPill(g, it, pad + innerW, pad, label) }
+        val curTop = pad + labelH
+        drawPanel(g, s.content, s.video, pad, curTop, innerW, curH, short, current = true)
+
+        val nextLabel = curTop + curH + pad
+        drawLabel(g, "Далее", pad, nextLabel, label, OutputTokens.l2)
+        val nextTop = nextLabel + labelH
+        if (s.next != null) drawPanel(g, s.next, null, pad, nextTop, innerW, nextH, short, current = false)
+        else drawNote(g, "Нет следующего слайда", pad, nextTop, innerW, nextH, short, OutputTokens.l2)
+
+        val bottom = h - pad
+        val timerBase = bottom - label * 1.6f
+        drawLabel(g, "С начала показа", pad, bottom - label * 1.2f, label, OutputTokens.l2)
+        drawText(g, elapsed(s.startedAt, s.now), pad, timerBase, timerSize, OutputTokens.tint)
+        drawText(g, clock.format(Instant.ofEpochMilli(s.now)), pad, timerBase - timerSize * 1.25f, clockSize, OutputTokens.ink)
+    }
+
     private fun modeLabel(mode: Mode): String? = when (mode) {
         Mode.NORMAL -> null
         Mode.BLACK -> "В зале чёрный экран"
@@ -209,12 +240,8 @@ class OutputFrames(files: FileStore) {
                 fill(g, x, y, w, h, radius, OutputTokens.black)
                 blit(g, readableContent(c), x, y, w, h)
             }
-            is ImageContent, is PdfContent -> {
-                // Слайд в пропорциях зала, по центру своего окна.
-                val sw = minOf(w, h * 16f / 9f)
-                val sh = sw * 9f / 16f
-                blit(g, c, x + (w - sw) / 2f, y + (h - sh) / 2f, sw, sh)
-            }
+            // Фото и страница вписываются в окно со своими пропорциями: на любом формате монитора без обрезки.
+            is ImageContent, is PdfContent -> blit(g, c, x, y, w, h)
             is VideoContent -> drawVideo(g, c, if (current) video else null, x, y, w, h, short)
             is ScreenContent -> drawNote(g, "Трансляция экрана", x, y, w, h, short, OutputTokens.ink)
         }

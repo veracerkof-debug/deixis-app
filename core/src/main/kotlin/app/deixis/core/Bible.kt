@@ -213,11 +213,12 @@ fun layoutScripture(
     val refRatio = 0.55f
     val blocks = c.blocks.map { b -> ScriptureBlock(styledText(b.text, c.style), b.ref?.let { styledText(it, c.style) }) }
     val globalRef = c.ref?.let { styledText(it, c.style) }
-    val columns = if (c.sideBySide) blocks.size else 1
+    // Два перевода рядом — только на широком экране; на квадратном, вертикальном и узком — друг под другом.
+    val columns = if (c.sideBySide && width >= height * SIDE_BY_SIDE_MIN_ASPECT) blocks.size else 1
     val colGap = if (columns > 1) short * 0.05f else 0f
     val colW = (area.width - colGap * (columns - 1)) / columns
     // Адрес одной строкой — своим кеглем от экрана, текст стихов подбирается под оставшееся место.
-    val globalRefSize = short * 0.045f
+    val globalRefSize = fitWidth(globalRef, short * 0.045f, area.width, measure)
     val globalRefH = if (globalRef != null) globalRefSize * lineHeight + gap / 2 else 0f
     val areaTop = area.top + if (globalRef != null && c.refPosition == RefPosition.TOP) globalRefH else 0f
     val areaH = area.height - globalRefH

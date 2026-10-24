@@ -97,7 +97,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         val idFile = File(opts.dataDir, "id")
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
-        val screen = Toolkit.getDefaultToolkit().screenSize
+        // Пульт строит превью в пропорциях зала: размер первого монитора, который показывает зал.
+        val screen = hallSize()
         // Компьютер может стоять рядом с Holyrics: тогда фото и видео из Holyrics берутся прямо из его папки.
         // PPTX и PPT переводятся в PDF всегда: PowerPoint, LibreOffice или Keynote этого компьютера,
         // без них — встроенный перевод. Документы и таблицы — только Office или LibreOffice.
@@ -126,6 +127,19 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         core.updates = updates
         server = ReceiverServer(core, opts.port)
     }
+
+    /** Размер монитора зала по сохранённому выбору; без мониторов (проверки) — 1920×1080. */
+    private fun hallSize(): java.awt.Dimension = runCatching {
+        val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        val list = ge.screenDevices.map { d ->
+            val b = d.defaultConfiguration.bounds
+            val m = runCatching { d.displayMode }.getOrNull()
+            ScreenInfo(d.iDstring, b.x, b.y, m?.width?.takeIf { it > 0 } ?: b.width, m?.height?.takeIf { it > 0 } ?: b.height)
+        }
+        val hall = resolveMonitors(list, ge.defaultScreenDevice.iDstring, monitorStore.load())
+            .firstOrNull { it.enabled && it.layout == OutputLayout.HALL } ?: error("нет монитора зала")
+        java.awt.Dimension(hall.width, hall.height)
+    }.getOrDefault(java.awt.Dimension(1920, 1080))
 
     fun run() {
         port = runBlocking { server.start() }
