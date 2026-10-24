@@ -153,6 +153,11 @@ data class TextStyle(
     val box: Long? = null,
     /** Картинка фона; приёмник должен её иметь, как и любой файл показа. */
     val backgroundImage: FileRef? = null,
+    /**
+     * Видеофон (как анимированный фон Holyrics): играет по кругу без звука и не начинается заново,
+     * пока у следующих слайдов тот же фон; текст меняется поверх. Сильнее картинки фона.
+     */
+    val backgroundVideo: FileRef? = null,
     /** Название оформления для пульта, например тема Holyrics. */
     val name: String? = null,
 )
@@ -235,7 +240,7 @@ fun decodeMsg(text: String): Msg? = try {
 
 /** Все файлы, нужные слайду: сам файл и картинка фона из оформления. */
 val Content.files: List<FileRef>
-    get() = listOfNotNull(file, style?.backgroundImage)
+    get() = listOfNotNull(file, style?.backgroundImage, style?.backgroundVideo)
 
 /** Оформление текста слайда, если оно у слайда есть. */
 val Content.style: TextStyle?

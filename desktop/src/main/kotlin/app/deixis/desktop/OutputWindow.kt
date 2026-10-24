@@ -7,6 +7,7 @@ import app.deixis.core.ScreenContent
 import app.deixis.core.VideoCommand
 import app.deixis.core.VideoContent
 import app.deixis.core.VideoState
+import app.deixis.core.style
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -192,6 +193,9 @@ class OutputWindow(
     /** Курсор сейчас виден (для проверки). */
     internal val cursorVisible: Boolean get() = frame.cursor !== HIDDEN_CURSOR
 
+    /** Видеофон (для проверки). */
+    internal val backdropForTest: BackgroundVideo? get() = backdrop
+
     /** Окно Swing (для проверки). */
     internal val window: JFrame get() = frame
 
@@ -245,7 +249,7 @@ class OutputWindow(
     fun setLayout(l: OutputLayout) {
         if (l == layout) return
         layout = l
-        if (l != OutputLayout.HALL) releaseVideo()
+        if (l != OutputLayout.HALL) { releaseVideo(); releaseBackdrop() }
         drawnKey = null
         videoKey = null
         state?.let(::update)
@@ -264,7 +268,7 @@ class OutputWindow(
             OutputLayout.STAGE -> listOf(s.copy(now = s.now / 1000), s.countdownText)
             else -> s.content to s.mode
         }
-        if (key != drawnKey) { drawnKey = key; redraw(s) }
+        if (key != drawnKey) { drawnKey = key; applyBackdrop(s); redraw(s) }
     }
 
     fun videoCommand(cmd: VideoCommand) {
@@ -378,7 +382,14 @@ class OutputWindow(
         }
     }
 
+    private fun releaseBackdrop() {
+        runCatching { backdrop?.release() }
+        backdrop = null
+        slide.backdrop = null
+    }
+
     fun dispose() {
+        releaseBackdrop()
         KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(keys)
         cursorTimer.stop()
         menuOpen?.isVisible = false
@@ -390,19 +401,72 @@ class OutputWindow(
     /** Освобождение при выходе из приложения (не из потока окна). */
     fun release() {
         runCatching { video?.release() }
+        runCatching { backdrop?.release() }
     }
 
+    /**
+     * Кадр слайда; под ним — видеофон, если он есть (кадр видео по размеру экрана с обрезкой краёв, как фото фона).
+     * Смена видеофона — плавная: прежний кадр растворяется за [FADE_MS].
+     */
     private class SlideView : JPanel() {
         var frame: BufferedImage? = null
             set(value) { field = value; repaint() }
+        var backdrop: BackgroundVideo? = null
+        private var fadeFrom: BufferedImage? = null
+        private var fadeStart = 0L
+        private val fadeTimer = Timer(FADE_TICK_MS) { repaint(); if (System.currentTimeMillis() - fadeStart > FADE_MS) { fadeFrom = null; (it.source as Timer).stop() } }
 
         init { background = Color.BLACK; isDoubleBuffered = true }
 
+        /** Видеофон меняется: запомнить последний кадр прежнего и растворить его поверх нового. */
+        fun fadeOut() {
+            fadeFrom = backdrop?.frame?.let { f -> BufferedImage(f.width, f.height, BufferedImage.TYPE_INT_RGB).also { it.createGraphics().apply { drawImage(f, 0, 0, null); dispose() } } }
+            fadeStart = System.currentTimeMillis()
+            if (fadeFrom != null) fadeTimer.restart()
+        }
+
         override fun paintComponent(g: Graphics) {
             super.paintComponent(g)
-            (g as? Graphics2D)?.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            val g2 = g as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            backdrop?.frame?.let { cover(g2, it) }
+            fadeFrom?.let { f ->
+                val a = (1f - (System.currentTimeMillis() - fadeStart).toFloat() / FADE_MS).coerceIn(0f, 1f)
+                g2.composite = java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, a)
+                cover(g2, f)
+                g2.composite = java.awt.AlphaComposite.SrcOver
+            }
             frame?.let { g.drawImage(it, 0, 0, width, height, null) }
         }
+
+        private fun cover(g: Graphics2D, img: BufferedImage) {
+            val s = maxOf(width.toDouble() / img.width, height.toDouble() / img.height)
+            val dw = (img.width * s).toInt()
+            val dh = (img.height * s).toInt()
+            g.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh, null)
+        }
+
+        private companion object {
+            const val FADE_MS = 500L
+            const val FADE_TICK_MS = 30
+        }
+    }
+
+    // Видеофон: живёт, пока у слайдов тот же фон; только на мониторах «Зал».
+    private var backdrop: BackgroundVideo? = null
+
+    private fun applyBackdrop(s: FrameState) {
+        val ref = s.content?.style?.backgroundVideo?.takeIf { layout == OutputLayout.HALL && s.mode != Mode.BLACK && s.mode != Mode.LOGO }
+        val b = backdrop
+        if (ref == null) {
+            if (b?.playingSha != null) { slide.fadeOut(); b.stop() }
+            return
+        }
+        val file = host.file(ref.sha256) ?: return
+        val bg = b ?: BackgroundVideo { slide.repaint() }.also { backdrop = it; slide.backdrop = it }
+        if (!bg.available) return
+        if (bg.playingSha != null && bg.playingSha != ref.sha256) slide.fadeOut()
+        bg.play(file, ref.sha256)
     }
 
     internal companion object {

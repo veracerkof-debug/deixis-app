@@ -88,6 +88,10 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
     val photo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> st = st.copy(backgroundImage = ref) }.onFailure { e -> ui.toast(e.message ?: "Фото не открылось") } } }
     }
+    // Видеофон, как анимированный фон Holyrics: играет по кругу без звука, текст меняется поверх.
+    val video = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> st = st.copy(backgroundVideo = ref) }.onFailure { e -> ui.toast(e.message ?: "Видео не открылось") } } }
+    }
     SlideView(Slide.Text(SAMPLE), null, st, Modifier.padding(bottom = T.gutter))
     Field(name, "Название темы", Modifier.padding(bottom = T.gap)) { name = it }
     Group {
@@ -105,6 +109,10 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
         Sep(T.gutter)
         Cell(if (st.backgroundImage != null) "Фон: ${st.backgroundImage?.name}" else "Фото на фон", kind = "photo", chevron = null, onClick = { photo.launch(arrayOf("image/*")) }) {
             if (st.backgroundImage != null) Pill("Убрать") { st = st.copy(backgroundImage = null) }
+        }
+        Sep(T.gutter)
+        Cell(if (st.backgroundVideo != null) "Видеофон: ${st.backgroundVideo?.name}" else "Видеофон", "Играет по кругу без звука, текст меняется поверх", kind = "media", chevron = null, onClick = { video.launch(arrayOf("video/*")) }) {
+            if (st.backgroundVideo != null) Pill("Убрать") { st = st.copy(backgroundVideo = null) }
         }
         Sep(T.gutter)
         Cell("Цвет текста", chevron = null) {

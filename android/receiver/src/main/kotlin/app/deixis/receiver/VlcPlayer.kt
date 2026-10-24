@@ -189,3 +189,42 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
         libVlc.release()
     }
 }
+
+/** Проигрыватель видеофона: без звука, по кругу, заполняет экран (лишнее по краям обрезается). */
+class BackdropPlayer(context: Context) {
+    private val libVlc = LibVLC(context.applicationContext, arrayListOf("--no-osd", "--no-video-title-show", "--no-audio", "--deinterlace=-1", "--input-repeat=65535"))
+    private val player = MediaPlayer(libVlc)
+    private var attached = false
+
+    init {
+        // Конец файла — снова сначала, без паузы: фон не замирает.
+        player.setEventListener { e -> if (e.type == MediaPlayer.Event.EndReached) Handler(Looper.getMainLooper()).post { player.stop(); player.play() } }
+    }
+
+    fun attach(layout: VLCVideoLayout) {
+        if (attached) player.detachViews()
+        player.attachViews(layout, null, false, false)
+        player.videoScale = MediaPlayer.ScaleType.SURFACE_FIT_SCREEN
+        attached = true
+    }
+
+    fun detach() { if (attached) player.detachViews(); attached = false }
+
+    fun play(file: File) {
+        val media = Media(libVlc, file.absolutePath)
+        media.setHWDecoderEnabled(true, false)
+        media.addOption(":no-audio")
+        media.addOption(":input-repeat=65535")
+        player.media = media
+        media.release()
+        player.volume = 0
+        player.play()
+    }
+
+    fun release() {
+        detach()
+        runCatching { player.stop() }
+        player.release()
+        libVlc.release()
+    }
+}

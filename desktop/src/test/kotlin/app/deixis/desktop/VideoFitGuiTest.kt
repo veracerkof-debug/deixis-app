@@ -53,14 +53,21 @@ class VideoFitGuiTest {
             while (player.displaySize() == null && System.currentTimeMillis() < end) Thread.sleep(100)
             assertTrue(player.displaySize() != null, "VLC узнал размер кадра")
             val robot = Robot()
-            fun shot(name: String, fit: VideoFit, backdrop: VideoBackdrop, color: Long = 0xFF000000): java.awt.image.BufferedImage {
+            fun redColumns(img: java.awt.image.BufferedImage) = (0 until img.width).filter { x -> red(img.getRGB(x, img.height / 2)) }
+            // Снимок, когда кадр уже на экране: на загруженной машине VLC выводит первый кадр не сразу.
+            fun shot(name: String, fit: VideoFit, backdrop: VideoBackdrop, color: Long = 0xFF000000, ready: (java.awt.image.BufferedImage) -> Boolean = { redColumns(it).isNotEmpty() }): java.awt.image.BufferedImage {
                 SwingUtilities.invokeAndWait { pane.fit = fit; pane.backdrop = backdrop; pane.backdropColor = color }
-                Thread.sleep(2_500)
-                val img = robot.createScreenCapture(Rectangle(frame.locationOnScreen.x, frame.locationOnScreen.y, 800, 450))
+                Thread.sleep(1_500)
+                val until = System.currentTimeMillis() + 10_000
+                var img = robot.createScreenCapture(Rectangle(frame.locationOnScreen.x, frame.locationOnScreen.y, 800, 450))
+                while (!ready(img) && System.currentTimeMillis() < until) {
+                    Thread.sleep(300)
+                    img = robot.createScreenCapture(Rectangle(frame.locationOnScreen.x, frame.locationOnScreen.y, 800, 450))
+                }
                 pngDir?.let { it.mkdirs(); ImageIO.write(img, "png", File(it, "$name.png")) }
+                println("$name: столбцов кадра ${redColumns(img).size}, окон вывода VLC ${runCatching { player.state() }.getOrNull()}")
                 return img
             }
-            fun redColumns(img: java.awt.image.BufferedImage) = (0 until img.width).filter { x -> red(img.getRGB(x, img.height / 2)) }
 
             val fit = shot("fit-black", VideoFit.FIT, VideoBackdrop.BLACK)
             val cols = redColumns(fit)
@@ -68,22 +75,22 @@ class VideoFitGuiTest {
             assertTrue(cols.size in 240..266 && cols.first() in 260..285, "вписано по центру: ${cols.size} столбцов с ${cols.firstOrNull()}")
             assertTrue(Color(fit.getRGB(20, 225)).let { it.red < 30 && it.green < 30 && it.blue < 30 }, "поля чёрные")
 
-            val theme = shot("fit-theme", VideoFit.FIT, VideoBackdrop.THEME, 0xFF18233A)
+            val theme = shot("fit-theme", VideoFit.FIT, VideoBackdrop.THEME, 0xFF18233A) { Color(it.getRGB(20, 225)).blue > 40 }
             assertTrue(Color(theme.getRGB(20, 225)).let { it.blue > 40 && it.red < 40 }, "поля цвета темы")
 
-            val blur = shot("fit-blur", VideoFit.FIT, VideoBackdrop.BLUR)
+            val blur = shot("fit-blur", VideoFit.FIT, VideoBackdrop.BLUR) { Color(it.getRGB(20, 225)).red > 40 }
             assertTrue(Color(blur.getRGB(20, 225)).let { it.red > 40 && it.green < 40 }, "поля — размытый кадр (тёмно-красные)")
             // Снимки для размытых полей не оставляют на видео ни превью, ни надписей VLC: в кадре только кадр.
             val foreign = (280 until 520 step 4).sumOf { x -> (0 until 450 step 4).count { y -> !red(blur.getRGB(x, y)) } }
             assertTrue(foreign == 0, "в кадре посторонние точки (надписи VLC): $foreign")
 
-            val fill = shot("fill", VideoFit.FILL, VideoBackdrop.BLACK)
+            val fill = shot("fill", VideoFit.FILL, VideoBackdrop.BLACK) { redColumns(it).size > 780 }
             assertTrue(redColumns(fill).size > 780, "заполнить: кадр на всю ширину")
 
-            val stretch = shot("stretch", VideoFit.STRETCH, VideoBackdrop.BLACK)
+            val stretch = shot("stretch", VideoFit.STRETCH, VideoBackdrop.BLACK) { red(it.getRGB(400, 5)) }
             assertTrue(redColumns(stretch).size > 780 && red(stretch.getRGB(400, 5)) && red(stretch.getRGB(400, 444)), "растянуть: весь экран")
 
-            val orig = shot("original", VideoFit.ORIGINAL, VideoBackdrop.BLACK)
+            val orig = shot("original", VideoFit.ORIGINAL, VideoBackdrop.BLACK) { redColumns(it).size in 350..370 }
             val oc = redColumns(orig)
             assertTrue(oc.size in 350..370, "исходный размер: 360 столбцов, а не ${oc.size}")
         } finally {

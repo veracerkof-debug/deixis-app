@@ -118,6 +118,12 @@ fun ReceiverScreen(
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // Видеофон — самый нижний слой: играет без перерыва, пока у слайдов тот же фон; смена — плавная.
+        val backdropRef = (content as? TextContent)?.style?.backgroundVideo ?: (content as? ScriptureContent)?.style?.backgroundVideo
+            ?: (content as? app.deixis.core.CountdownContent)?.style?.backgroundVideo
+        androidx.compose.animation.Crossfade(backdropRef?.sha256, label = "backdrop") { sha ->
+            if (sha != null) BackdropVideo(runtime, sha)
+        }
         if (video != null) VideoSurface(player, video)
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
@@ -161,6 +167,19 @@ private fun VideoSurface(player: VlcPlayer, c: VideoContent) {
             onRelease = { player.detach() },
         )
     }
+}
+
+/** Видеофон: свой беззвучный проигрыватель по кругу, на весь экран с обрезкой краёв (как фото фона). */
+@Composable
+private fun BackdropVideo(runtime: ReceiverRuntime, sha: String) {
+    val context = LocalContext.current
+    val file = remember(sha) { runtime.core.files.file(sha) } ?: return
+    val player = remember(sha) { BackdropPlayer(context) }
+    androidx.compose.runtime.DisposableEffect(sha) {
+        player.play(file)
+        onDispose { player.release() }
+    }
+    AndroidView(factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it) } }, modifier = Modifier.fillMaxSize(), onRelease = { player.detach() })
 }
 
 /** Размытые поля: кадр из файла раз в несколько секунд, уменьшенный до горстки пикселей и растянутый, приглушённый. */
@@ -443,6 +462,8 @@ private fun rememberBackground(runtime: ReceiverRuntime, style: SlideStyle): Bit
 
 /** Цвет фона, поверх — картинка во весь экран с обрезкой краёв. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: SlideStyle, bg: Bitmap?) {
+    // Под слайдом видеофон: слайд прозрачный, фон — кадры видео.
+    if (style.backgroundVideo != null) return
     drawRect(Color(style.background.toInt()))
     bg ?: return
     val scale = maxOf(size.width / bg.width, size.height / bg.height)

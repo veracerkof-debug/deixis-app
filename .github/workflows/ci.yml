@@ -68,7 +68,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq vlc ffmpeg > /dev/null
       - name: Проверка окон
         run: |
-          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*')
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*' --tests '*BackdropGuiTest*')
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
           else

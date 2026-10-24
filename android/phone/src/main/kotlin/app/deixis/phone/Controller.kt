@@ -15,7 +15,9 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import app.deixis.core.Connection
 import app.deixis.core.Content
+import app.deixis.core.AfterZero
 import app.deixis.core.CountdownContent
+import app.deixis.core.SetTimer
 import app.deixis.core.DenyReason
 import app.deixis.core.DefaultBibles
 import app.deixis.core.Discovery
@@ -487,7 +489,7 @@ class Controller(private val app: Application) {
         val run = timer.value
         val item = run?.let { item(it.itemId) }
         val content = if (run != null && item != null) countdownContent(item, run.spec, live.value?.takeIf { it.source.itemId == item.id }) else null
-        outs.value.forEach { it.client.send(app.deixis.core.SetTimer(content)) }
+        outs.value.forEach { it.client.send(SetTimer(content)) }
     }
 
     fun timerToggle() {
@@ -515,7 +517,7 @@ class Controller(private val app: Application) {
     fun timerStop() {
         val r = timer.value ?: return
         timer.value = null
-        outs.value.forEach { it.client.send(app.deixis.core.SetTimer(null)) }
+        outs.value.forEach { it.client.send(SetTimer(null)) }
         if (live.value?.source?.itemId == r.itemId) { live.value = null; outs.value.forEach { it.client.mode(Mode.BLACK) } }
     }
 
@@ -524,7 +526,7 @@ class Controller(private val app: Application) {
         while (true) {
             kotlinx.coroutines.delay(200)
             val r = timer.value ?: continue
-            if (r.spec.afterZero != app.deixis.core.AfterZero.NEXT || r.left() > 0 || advancedFor == r.itemId) continue
+            if (r.spec.afterZero != AfterZero.NEXT || r.left() > 0 || advancedFor == r.itemId) continue
             val cue = live.value?.takeIf { it.source.itemId == r.itemId } ?: continue
             advancedFor = r.itemId
             val set = data.value.setlists.firstOrNull { it.id == data.value.active } ?: continue
@@ -651,8 +653,8 @@ class Controller(private val app: Application) {
     private fun nextFor(o: Output, cue: Cue): Content? {
         val next = cue.copy(index = cue.index + 1, startMs = 0)
         return when (val s = next.slide) {
-            is Slide.Text -> TextContent(s.text, style = styleFor(next).copy(backgroundImage = null))
-            is Slide.Scripture -> s.content.copy(style = styleFor(next).copy(backgroundImage = null))
+            is Slide.Text -> TextContent(s.text, style = styleFor(next).copy(backgroundImage = null, backgroundVideo = null))
+            is Slide.Scripture -> s.content.copy(style = styleFor(next).copy(backgroundImage = null, backgroundVideo = null))
             is Slide.Page -> {
                 val item = item(cue.source.itemId)
                 val ref = item?.let { data.value.hashes[it.id] }?.takeIf { it.sha256 in o.delivered && item.mime == "application/pdf" }
@@ -664,7 +666,9 @@ class Controller(private val app: Application) {
     }
 
     /** Фон темы — картинка телефона: передаётся на экран один раз; если не вышло, слайд показывается без неё. */
-    private suspend fun withBackground(o: Output, st: TextStyle): TextStyle {
+    private suspend fun withBackground(o: Output, style: TextStyle): TextStyle {
+        // Видеофон передаётся так же, как картинка фона; не передался — слайд идёт без него, а не ждёт.
+        val st = style.backgroundVideo?.let { v -> if (deliverLocal(o, v)) style else style.copy(backgroundVideo = null) } ?: style
         val ref = st.backgroundImage ?: return st
         if (ref.sha256 in o.delivered) return st
         val uri = data.value.localFiles[ref.sha256] ?: return st.copy(backgroundImage = null)
@@ -681,6 +685,25 @@ class Controller(private val app: Application) {
         } catch (e: Exception) {
             messages.emit("Фон темы не передан: ${e.message}")
             st.copy(backgroundImage = null)
+        }
+    }
+
+    /** Файл телефона (фон темы, видеофон) на экран; true — он там есть. */
+    private suspend fun deliverLocal(o: Output, ref: FileRef): Boolean {
+        if (ref.sha256 in o.delivered) return true
+        val uri = data.value.localFiles[ref.sha256] ?: return false
+        return try {
+            o.client.upload(object : UploadSource {
+                override val name = ref.name
+                override val size = ref.size
+                override val mime = ref.mime
+                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error("Файл фона недоступен")
+            }, sha256 = ref.sha256)
+            o.delivered += ref.sha256
+            true
+        } catch (e: Exception) {
+            messages.emit("Видеофон не передан: ${e.message}")
+            false
         }
     }
 

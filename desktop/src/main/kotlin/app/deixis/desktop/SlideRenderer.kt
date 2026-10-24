@@ -10,6 +10,7 @@ import app.deixis.core.layoutScripture
 import app.deixis.core.TextContent
 import app.deixis.core.TextStyle
 import app.deixis.core.VideoContent
+import app.deixis.core.style
 import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
 import org.apache.pdfbox.Loader
@@ -47,15 +48,20 @@ class SlideRenderer(
 
     /** Бросает исключение, если файл нельзя прочитать: вызывающий покажет чёрный экран и сообщит пульту. */
     fun render(width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?, now: Long = System.currentTimeMillis()): BufferedImage {
-        val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), BufferedImage.TYPE_INT_RGB)
+        // Слайд поверх видеофона — прозрачный: фон рисует окно из кадров видео, здесь только текст.
+        val overVideo = content?.style?.backgroundVideo != null && (mode == Mode.NORMAL || mode == Mode.CLEAR)
+        val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), if (overVideo) BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB)
+        transparentBackground = overVideo
         val g = img.createGraphics()
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-            g.color = Color.BLACK
-            g.fillRect(0, 0, width, height)
+            if (!overVideo) {
+                g.color = Color.BLACK
+                g.fillRect(0, 0, width, height)
+            }
             when {
                 mode == Mode.BLACK -> Unit
                 mode == Mode.LOGO -> drawWordmark(g, width, height, height / 2f, app.deixis.core.LogoMark.size(width.toFloat(), height.toFloat()))
@@ -169,7 +175,10 @@ class SlideRenderer(
     }
 
     /** Фон оформления: цвет, поверх — картинка во весь экран с обрезкой краёв, как фон темы. */
+    private var transparentBackground = false
+
     private fun drawBackground(g: Graphics2D, w: Int, h: Int, style: TextStyle) {
+        if (transparentBackground) return
         g.color = Color(style.background.toInt(), true)
         g.fillRect(0, 0, w, h)
         val ref = style.backgroundImage ?: return
