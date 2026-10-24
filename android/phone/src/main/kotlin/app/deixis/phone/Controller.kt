@@ -440,6 +440,15 @@ class Controller(private val app: Application) {
     }
 
     /** Видео в зал с позиции предпросмотра. */
+    /** Как видео ложится на экран. Если оно сейчас в зале — меняется сразу, фильм не начинается заново. */
+    fun setVideoFit(itemId: String, fit: app.deixis.core.VideoFit, backdrop: app.deixis.core.VideoBackdrop) {
+        edit { d -> d.copy(items = d.items.map { if (it.id == itemId) it.copy(videoFit = fit, videoBackdrop = backdrop) else it }) }
+        live.value?.takeIf { it.source.itemId == itemId }?.let { cue ->
+            // Позиция — та, где фильм идёт сейчас: экраны не перематывают его назад.
+            deliver(cue.copy(startMs = receiverState.value?.video?.positionMs ?: cue.startMs))
+        }
+    }
+
     fun goLiveVideo(cue: Cue, startMs: Long) = goLive(cue.copy(startMs = startMs.coerceAtLeast(0)))
 
     fun goLive(cue: Cue) {
@@ -544,7 +553,9 @@ class Controller(private val app: Application) {
             is Slide.Scripture -> s.content.copy(style = withBackground(o, styleFor(cue)))
             is Slide.Screen -> if (o === primary.value) ScreenContent(s.width, s.height) else null
             is Slide.Picture -> item?.let { ImageContent(fileOn(o, it)) }
-            is Slide.Movie -> item?.let { VideoContent(fileOn(o, it), startMs = cue.startMs) }
+            is Slide.Movie -> item?.let {
+                VideoContent(fileOn(o, it), startMs = cue.startMs, fit = it.videoFit, backdrop = it.videoBackdrop, backdropColor = styleFor(cue).background)
+            }
             is Slide.Page -> item?.let { pageOn(o, it, s.index) }
             is Slide.Pending -> item?.let { convertOn(o, it, cue) }
             null -> null

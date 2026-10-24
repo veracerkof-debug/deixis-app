@@ -10,8 +10,10 @@ import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import uk.co.caprica.vlcj.player.component.CallbackMediaPlayerComponent
 import uk.co.caprica.vlcj.player.component.EmbeddedMediaPlayerComponent
 import uk.co.caprica.vlcj.player.component.InputEvents
+import uk.co.caprica.vlcj.player.component.callback.FilledCallbackImagePainter
 import uk.co.caprica.vlcj.player.component.callback.ScaledCallbackImagePainter
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
+import uk.co.caprica.vlcj.media.VideoOrientation
 import java.awt.Component
 import java.io.File
 import javax.swing.SwingUtilities
@@ -25,7 +27,7 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
     val available: Boolean = vlcFound
 
     /** Параметры libVLC для диагностики на месте, например `DEIXIS_VLC_ARGS="--vout=xcb_x11 -vv"`. */
-    private val vlcArgs = System.getenv("DEIXIS_VLC_ARGS")?.split(' ')?.filter { it.isNotBlank() }.orEmpty()
+    private val vlcArgs = DEFAULT_ARGS + System.getenv("DEIXIS_VLC_ARGS")?.split(' ')?.filter { it.isNotBlank() }.orEmpty()
 
     /**
      * Windows и Linux: VLC рисует прямо в окно. На macOS встроить окно VLC в окно Java нельзя (зависает),
@@ -54,6 +56,31 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
             else -> null
         }
 
+    /** Кадр сменил размер (новый файл, поворот): окно перекладывает кадр. Вызывается в потоке окон. */
+    var onVideoSize: (() -> Unit)? = null
+
+    /** Размер кадра для показа (с пропорциями пикселя и поворотом); null — ещё неизвестен. */
+    fun displaySize(): Pair<Float, Float>? = runCatching {
+        val t = player?.media()?.info()?.videoTracks()?.firstOrNull() ?: return@runCatching null
+        if (t.width() <= 0 || t.height() <= 0) return@runCatching null
+        val o = t.orientation()
+        val rotated = o == VideoOrientation.LEFT_TOP || o == VideoOrientation.LEFT_BOTTOM ||
+            o == VideoOrientation.RIGHT_TOP || o == VideoOrientation.RIGHT_BOTTOM
+        app.deixis.core.displaySize(t.width(), t.height(), t.sampleAspectRatio(), t.sampleAspectRatioBase(), rotated)
+    }.getOrNull()
+
+    /** Растянуть кадр на окно [size] (ширина, высота) без сохранения пропорций; null — обычные пропорции. */
+    fun stretchTo(size: Pair<Int, Int>?) {
+        when (val c = component) {
+            // На Маке кадр рисует само окно: растянуть — другой способ рисования, а не пропорции VLC.
+            is CallbackMediaPlayerComponent -> c.setImagePainter(if (size != null) FilledCallbackImagePainter() else ScaledCallbackImagePainter())
+            else -> runCatching { player?.video()?.setAspectRatio(size?.let { "${it.first}:${it.second}" }) }
+        }
+    }
+
+    /** Уменьшенный снимок текущего кадра — для размытых полей. */
+    fun snapshot(width: Int): java.awt.image.BufferedImage? = runCatching { player?.snapshots()?.get(width, 0) }.getOrNull()
+
     private var currentName = ""
     private var resumeAfterHide = false
 
@@ -65,6 +92,14 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
 
             override fun finished(mediaPlayer: MediaPlayer) {
                 SwingUtilities.invokeLater(onFinished)
+            }
+
+            override fun videoOutput(mediaPlayer: MediaPlayer, newCount: Int) {
+                SwingUtilities.invokeLater { onVideoSize?.invoke() }
+            }
+
+            override fun elementaryStreamSelected(mediaPlayer: MediaPlayer, type: uk.co.caprica.vlcj.media.TrackType, id: Int) {
+                if (type == uk.co.caprica.vlcj.media.TrackType.VIDEO) SwingUtilities.invokeLater { onVideoSize?.invoke() }
             }
         })
     }
@@ -173,6 +208,13 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
         const val STREAM_CACHING_MS = 150
 
         private val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+
+        /**
+         * Чересстрочное видео (ТВ-записи, старые камеры) — без «гребёнки»: VLC сам решает, нужен ли фильтр.
+         * Никаких надписей VLC поверх видео в зале: ни громкости, ни названия файла, ни превью снимка
+         * (снимки кадра делаются для размытых полей).
+         */
+        private val DEFAULT_ARGS = listOf("--deinterlace=-1", "--deinterlace-mode=yadif", "--no-osd", "--no-snapshot-preview", "--no-video-title-show")
 
         /** Поиск VLC один раз на всю программу: окна вывода пересоздаются, а поиск небыстрый. */
         val vlcFound: Boolean by lazy {

@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.layout.layout
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -59,7 +61,9 @@ private object V {
 @Composable
 fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
     val context = LocalContext.current
-    val item = c.item(cue.source.itemId)
+    // Элемент из библиотеки «вживую»: смена вписывания сразу видна в предпросмотре.
+    val lib by c.data.collectAsState()
+    val item = lib.items.firstOrNull { it.id == cue.source.itemId }
     var error by remember { mutableStateOf<String?>(null) }
     val player = remember { VlcPlayer(context) { error = it } }
     var pos by remember { mutableStateOf(0L) }
@@ -97,12 +101,45 @@ fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
             Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp).swipes(onDown = close),
             contentAlignment = Alignment.Center,
         ) {
-            val a = player.aspect.value
-            val m = if (a == null || a <= 0f) Modifier.fillMaxSize()
-            else if (a >= maxWidth / maxHeight) Modifier.fillMaxWidth().aspectRatio(a)
-            else Modifier.fillMaxHeight().aspectRatio(a)
-            AndroidView(factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it) } }, modifier = m, onRelease = { player.detach() })
+            // Предпросмотр — в пропорциях экрана в зале и с тем же вписыванием, что увидит зал.
+            val ratio = LocalScreenRatio.current
+            val sw = minOf(maxWidth, maxHeight * ratio)
+            val sh = sw / ratio
+            val fit = item?.videoFit ?: app.deixis.core.VideoFit.FIT
+            val backdrop = item?.videoBackdrop ?: app.deixis.core.VideoBackdrop.BLACK
+            val bg = if (backdrop == app.deixis.core.VideoBackdrop.THEME) Color(c.styleFor(cue).background) else Color.Black
+            Box(Modifier.size(sw, sh).clip(RoundedCornerShape(4.dp)).background(bg)) {
+                val d = androidx.compose.ui.platform.LocalDensity.current
+                val wpx = with(d) { sw.toPx() }
+                val hpx = with(d) { sh.toPx() }
+                val size = player.size.value
+                // «Исходный» в предпросмотре — в масштабе экрана зала: как доля его ширины.
+                val screenW = c.receiverInfo.value?.screenWidth?.takeIf { it > 0 }?.toFloat() ?: wpx
+                val vs = size?.let { if (fit == app.deixis.core.VideoFit.ORIGINAL) it.first * wpx / screenW to it.second * wpx / screenW else it }
+                val r = app.deixis.core.videoRect(wpx, hpx, vs?.first ?: wpx, vs?.second ?: hpx, if (vs == null) app.deixis.core.VideoFit.FIT else fit)
+                LaunchedEffect(fit) { player.setStretch(fit == app.deixis.core.VideoFit.STRETCH) }
+                if (backdrop == app.deixis.core.VideoBackdrop.BLUR) Box(Modifier.fillMaxSize().background(Color(0xFF3A3A3C)))
+                AndroidView(
+                    factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it); player.setStretch(fit == app.deixis.core.VideoFit.STRETCH) } },
+                    modifier = Modifier.layout { m, _ ->
+                        val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(r.width.toInt().coerceAtLeast(1), r.height.toInt().coerceAtLeast(1)))
+                        layout(wpx.toInt(), hpx.toInt()) { p.place(r.left.toInt(), r.top.toInt()) }
+                    },
+                    onRelease = { player.detach() },
+                )
+            }
             error?.let { Txt(it, T.fSub, V.ink, modifier = Modifier.padding(T.gutter)) }
+        }
+        // Как видео ляжет на экран зала и чем заполнить поля.
+        item?.let { it ->
+            Seg(listOf("Вписать", "Заполнить", "Растянуть", "Исходный"), app.deixis.core.VideoFit.entries.indexOf(it.videoFit), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+                c.setVideoFit(it.id, app.deixis.core.VideoFit.entries[i], it.videoBackdrop)
+            }
+            if (it.videoFit == app.deixis.core.VideoFit.FIT || it.videoFit == app.deixis.core.VideoFit.ORIGINAL) {
+                Seg(listOf("Поля чёрные", "Размытые", "Цвет темы"), app.deixis.core.VideoBackdrop.entries.indexOf(it.videoBackdrop), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+                    c.setVideoFit(it.id, it.videoFit, app.deixis.core.VideoBackdrop.entries[i])
+                }
+            }
         }
         // Перемотка: палец двигает позицию, на телефоне она применяется при отпускании.
         Row(Modifier.fillMaxWidth().padding(horizontal = T.gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gap)) {

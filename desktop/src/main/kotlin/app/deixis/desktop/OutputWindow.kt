@@ -102,6 +102,7 @@ class OutputWindow(
     private val cards = JPanel(CardLayout())
     private val slide = SlideView()
     private var video: VideoPlayer? = null
+    private var videoPane: VideoPane? = null
     private var playingSha: String? = null
     private var state: FrameState? = null
     private var drawnKey: Any? = null
@@ -279,14 +280,19 @@ class OutputWindow(
             onFinished = { if (playingSha == STREAM) restartStream() else if (primary) host.reportVideo(video?.state()) },
         )
         video = v
-        v.view?.let { it.background = Color.BLACK; cards.add(it, CARD_VIDEO); cards.revalidate() }
+        v.view?.let { it.background = Color.BLACK }
+        val pane = VideoPane(v)
+        videoPane = pane
+        cards.add(pane, CARD_VIDEO)
+        cards.revalidate()
         v.surface?.let { s -> s.isFocusable = false; if (shared) listenMouse(s) }
     }
 
     private fun releaseVideo() {
         val v = video ?: return
         runCatching { v.stop() }
-        v.view?.let { cards.remove(it) }
+        videoPane?.let { cards.remove(it) }
+        videoPane = null
         runCatching { v.release() }
         video = null
         playingSha = null
@@ -310,9 +316,12 @@ class OutputWindow(
                 val file = host.file(content.file.sha256)
                 if (file == null) { if (primary) host.reportError("Нет файла «${content.file.name}»"); return }
                 playingSha = content.file.sha256
+                videoPane?.reset()
                 // Монитор подключили посреди фильма: он подхватывает с того же места.
                 v.play(file, content.file.name, content.loop, s.video?.positionMs ?: content.startMs, audio = primary)
             }
+            // Как кадр ложится на экран и чем заполнены поля — меняется и без перезапуска фильма.
+            videoPane?.let { p -> p.fit = content.fit; p.backdrop = content.backdrop; p.backdropColor = content.backdropColor }
             if (s.mode == Mode.NORMAL) { v.unhide(); showVideo() } else { v.hide(); showSlide() }
         } else if (content is ScreenContent && v != null && v.available) {
             if (playingSha != STREAM) {
@@ -321,6 +330,7 @@ class OutputWindow(
                 v.playStream(host.streamUrl())
             }
             // «Чёрный» и «Логотип» закрывают трансляцию, но поток не рвут: картинка вернётся сразу.
+            videoPane?.let { p -> p.fit = app.deixis.core.VideoFit.FIT; p.backdrop = app.deixis.core.VideoBackdrop.BLACK }
             if (s.mode == Mode.NORMAL) showVideo() else showSlide()
         } else {
             if (content is ScreenContent && primary) host.reportError("На этом компьютере не найден VLC: трансляцию экрана показать нельзя")

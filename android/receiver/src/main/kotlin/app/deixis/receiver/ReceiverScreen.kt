@@ -30,7 +30,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,7 +118,7 @@ fun ReceiverScreen(
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (video != null) VideoSurface(player)
+        if (video != null) VideoSurface(player, video)
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
         when {
@@ -133,21 +136,69 @@ fun ReceiverScreen(
     }
 }
 
-/** Видео вписано целиком по своим пропорциям: вертикальное — с полями по бокам, без обрезки. */
+/**
+ * Видео по формуле ядра ([app.deixis.core.videoRect]): вписано (по умолчанию), заполняет, растянуто или в исходном
+ * размере. Поля вокруг вписанного кадра — чёрные, цвета темы или размытая копия кадра.
+ */
 @Composable
-private fun VideoSurface(player: VlcPlayer) {
-    val aspect = player.aspect.value
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val m = if (aspect == null || aspect <= 0f) Modifier.fillMaxSize()
-        else if (aspect >= maxWidth / maxHeight) Modifier.fillMaxWidth().aspectRatio(aspect)
-        else Modifier.fillMaxHeight().aspectRatio(aspect)
+private fun VideoSurface(player: VlcPlayer, c: VideoContent) {
+    val size = player.size.value
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (c.backdrop == app.deixis.core.VideoBackdrop.THEME) Color(c.backdropColor) else Color.Black)) {
+        if (c.backdrop == app.deixis.core.VideoBackdrop.BLUR) BlurBackdrop(player)
+        val d = LocalDensity.current
+        val w = with(d) { maxWidth.toPx() }
+        val h = with(d) { maxHeight.toPx() }
+        val r = app.deixis.core.videoRect(w, h, size?.first ?: w, size?.second ?: h, if (size == null) app.deixis.core.VideoFit.FIT else c.fit)
+        LaunchedEffect(c.fit) { player.setStretch(c.fit == app.deixis.core.VideoFit.STRETCH) }
         AndroidView(
-            factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it) } },
-            modifier = m,
+            factory = { ctx -> VLCVideoLayout(ctx).also { player.attach(it); player.setStretch(c.fit == app.deixis.core.VideoFit.STRETCH) } },
+            // Окно кадра может быть больше экрана (заполнить, исходный 4K): лишнее срезает край экрана.
+            modifier = Modifier.layout { m, _ ->
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(r.width.toInt().coerceAtLeast(1), r.height.toInt().coerceAtLeast(1)))
+                layout(w.toInt(), h.toInt()) { p.place(r.left.toInt(), r.top.toInt()) }
+            },
             onRelease = { player.detach() },
         )
     }
 }
+
+/** Размытые поля: кадр из файла раз в несколько секунд, уменьшенный до горстки пикселей и растянутый, приглушённый. */
+@Composable
+private fun BlurBackdrop(player: VlcPlayer) {
+    var frame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val file = player.file
+    LaunchedEffect(file) {
+        if (file == null) return@LaunchedEffect
+        val r = android.media.MediaMetadataRetriever()
+        try {
+            r.setDataSource(file.absolutePath)
+            while (true) {
+                val us = player.state().positionMs * 1000
+                val big = withContext(Dispatchers.IO) { runCatching { r.getFrameAtTime(us, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }.getOrNull() }
+                if (big != null) {
+                    val tw = BLUR_W
+                    val th = (BLUR_W * big.height / big.width.coerceAtLeast(1)).coerceAtLeast(1)
+                    frame = android.graphics.Bitmap.createScaledBitmap(big, tw, th, true)
+                    big.recycle()
+                }
+                delay(BLUR_MS)
+            }
+        } finally {
+            runCatching { r.release() }
+        }
+    }
+    frame?.let { b ->
+        androidx.compose.foundation.Image(
+            b.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+        )
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = BLUR_DIM)))
+    }
+}
+
+private const val BLUR_W = 16
+private const val BLUR_MS = 3_000L
+private const val BLUR_DIM = 0.45f
 
 /** Поверхность для трансляции экрана с пропорциями источника, по центру на чёрном. */
 @Composable

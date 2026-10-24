@@ -63,9 +63,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+      - name: VLC и ffmpeg (видео на настоящем VLC)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq vlc ffmpeg > /dev/null
       - name: Проверка окон
         run: |
-          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*')
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*')
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
           else

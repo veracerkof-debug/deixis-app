@@ -21,7 +21,11 @@ import java.io.File
  */
 class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
 
-    private val libVlc = LibVLC(context.applicationContext, arrayListOf("--no-sub-autodetect-file", "--audio-time-stretch"))
+    private val libVlc = LibVLC(context.applicationContext, arrayListOf(
+            "--no-sub-autodetect-file", "--audio-time-stretch",
+            // Чересстрочное видео без «гребёнки»; никаких надписей VLC поверх зала.
+            "--deinterlace=-1", "--deinterlace-mode=yadif", "--no-osd", "--no-video-title-show",
+        ))
     private val player = MediaPlayer(libVlc)
     private val main = Handler(Looper.getMainLooper())
 
@@ -39,10 +43,22 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
      */
     val aspect = mutableStateOf<Float?>(null)
 
+    /** Размер кадра для показа (с пропорциями пикселя и поворотом): для режима «Исходный размер». */
+    val size = mutableStateOf<Pair<Float, Float>?>(null)
+
+    /** Текущий файл: для размытых полей (кадр берётся из файла, а не с экрана). */
+    var file: File? = null
+        private set
+
+    /** Растянуть кадр на окно без сохранения пропорций; иначе кадр вписан в окно своих пропорций. */
+    fun setStretch(stretch: Boolean) {
+        if (attached) player.videoScale = if (stretch) MediaPlayer.ScaleType.SURFACE_FILL else MediaPlayer.ScaleType.SURFACE_BEST_FIT
+    }
+
     init {
         player.setEventListener { event ->
             when (event.type) {
-                MediaPlayer.Event.Vout -> main.post { trackAspect()?.let { aspect.value = it } }
+                MediaPlayer.Event.Vout -> main.post { trackSize()?.let { size.value = it; aspect.value = it.first / it.second } }
                 MediaPlayer.Event.EncounteredError -> main.post { onError("Не удалось воспроизвести «$name»") }
                 MediaPlayer.Event.EndReached -> if (loop) main.post { player.stop(); player.play() }
             }
@@ -68,7 +84,9 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
         userPaused = false
         stuckReported = false
         resumeAfterHide = false
-        aspect.value = fileAspect(file)
+        this.file = file
+        size.value = fileSize(file)
+        aspect.value = size.value?.let { it.first / it.second }
         val media = Media(libVlc, file.absolutePath)
         media.setHWDecoderEnabled(true, false)
         if (startMs > 0) media.addOption(":start-time=${startMs / 1000.0}")
@@ -86,6 +104,8 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
         stuckReported = false
         resumeAfterHide = false
         aspect.value = null
+        size.value = null
+        file = null
         val media = Media(libVlc, fd)
         media.setHWDecoderEnabled(true, false)
         if (startMs > 0) media.addOption(":start-time=${startMs / 1000.0}")
@@ -141,29 +161,26 @@ class VlcPlayer(context: Context, private val onError: (String) -> Unit) {
         }
     }
 
-    private fun fileAspect(file: File): Float? = runCatching {
+    private fun fileSize(file: File): Pair<Float, Float>? = runCatching {
         val r = MediaMetadataRetriever()
         try {
             r.setDataSource(file.absolutePath)
-            val w = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toFloatOrNull() ?: return@runCatching null
-            val h = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toFloatOrNull() ?: return@runCatching null
+            val w = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: return@runCatching null
+            val h = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: return@runCatching null
             val rot = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
-            if (w <= 0f || h <= 0f) null else if (rot % 180 != 0) h / w else w / h
+            if (w <= 0 || h <= 0) null else app.deixis.core.displaySize(w, h, rotated = rot % 180 != 0)
         } finally {
             runCatching { r.release() }
         }
     }.getOrNull()
 
-    /** Пропорции из дорожки VLC: если файл не прочитался заранее (редкий контейнер). */
-    private fun trackAspect(): Float? = runCatching {
+    /** Размер из дорожки VLC — точнее (пропорции пикселя) и для редких контейнеров. */
+    private fun trackSize(): Pair<Float, Float>? = runCatching {
         val t = player.currentVideoTrack ?: return@runCatching null
         if (t.width <= 0 || t.height <= 0) return@runCatching null
-        val sar = if (t.sarNum > 0 && t.sarDen > 0) t.sarNum.toFloat() / t.sarDen else 1f
-        val w = t.width * sar
-        val h = t.height.toFloat()
         val rotated = t.orientation == IMedia.VideoTrack.Orientation.RightTop || t.orientation == IMedia.VideoTrack.Orientation.LeftBottom ||
             t.orientation == IMedia.VideoTrack.Orientation.LeftTop || t.orientation == IMedia.VideoTrack.Orientation.RightBottom
-        if (rotated) h / w else w / h
+        app.deixis.core.displaySize(t.width, t.height, t.sarNum, t.sarDen, rotated)
     }.getOrNull()
 
     fun release() {

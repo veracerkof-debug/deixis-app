@@ -57,6 +57,9 @@ data class LibItem(
     /** Оформление, пришедшее с элементом (например тема Holyrics). */
     val style: TextStyle? = null,
     val created: Long = System.currentTimeMillis(),
+    /** Видео: как ложится на экран и чем заполнены поля. */
+    val videoFit: app.deixis.core.VideoFit = app.deixis.core.VideoFit.FIT,
+    val videoBackdrop: app.deixis.core.VideoBackdrop = app.deixis.core.VideoBackdrop.BLACK,
 )
 
 /** Сетлист: план показа на дату — пара, лекция, служение. */

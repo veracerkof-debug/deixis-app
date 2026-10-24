@@ -33,6 +33,12 @@ body { font-family: -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
 .scripture.side .blocks > div { flex: 1; }
 .scripture .r { font-size: .55em; opacity: .75; }
 img, video { object-fit: contain; background: #000; }
+/* Видео ложится как на остальных экранах: вписать, заполнить, растянуть, исходный размер; поля — чёрные, цвета темы или размытые. */
+#stage video.fit-FILL { object-fit: cover; }
+#stage video.fit-STRETCH { object-fit: fill; }
+#stage video.fit-ORIGINAL { object-fit: none; }
+#stage video.on-backdrop { background: transparent; }
+#stage canvas.bd { filter: blur(3vmin) brightness(.55); transform: scale(1.1); }
 .note { display: flex; align-items: center; justify-content: center; text-align: center; padding: 8%; box-sizing: border-box; opacity: .7; font-size: 16px; }
 #bar { transition: opacity .24s; }
 #bar.away { opacity: 0; }
@@ -366,6 +372,24 @@ function showVideo(c) {
   // Формат проверяет сам браузер: если не сможет играть, сработает error и появится пояснение.
   v.src = url("/view/file/" + c.file.sha256);
   v.addEventListener("error", () => { if (video === v) { video = null; stage.replaceChildren(note(t.videoHere)); updateButtons(); } });
+  const fit = c.fit || "FIT", backdrop = c.backdrop || "BLACK";
+  v.className = "fit-" + fit + (backdrop !== "BLACK" ? " on-backdrop" : "");
+  // Исходный размер — пиксель видео в пиксель экрана, а не в «пиксель» страницы.
+  if (fit === "ORIGINAL") v.style.transform = "scale(" + (1 / (window.devicePixelRatio || 1)) + ")";
+  stage.style.background = backdrop === "THEME" ? argb(c.backdropColor) : "#000";
+  if (backdrop === "BLUR") {
+    // Размытые поля: кадр раз в полторы секунды на холст в 16 точек — растянутый, он и есть размытие.
+    const cv = document.createElement("canvas");
+    cv.className = "bd"; cv.width = 16; cv.height = 9;
+    const ctx = cv.getContext("2d");
+    const tick = () => {
+      if (video !== v) return;
+      if (v.readyState >= 2 && v.videoWidth) { cv.height = Math.max(1, Math.round(16 * v.videoHeight / v.videoWidth)); ctx.drawImage(v, 0, 0, cv.width, cv.height); }
+      setTimeout(tick, 1500);
+    };
+    v.addEventListener("loadeddata", tick, { once: true });
+    stage.append(cv);
+  }
   stage.append(v);
   video = v;
 }

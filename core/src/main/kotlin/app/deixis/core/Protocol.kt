@@ -86,7 +86,34 @@ data class TextContent(val text: String, val ref: String? = null, val style: Tex
 data class ImageContent(val file: FileRef) : Content
 
 @Serializable @SerialName("video")
-data class VideoContent(val file: FileRef, val loop: Boolean = false, val startMs: Long = 0) : Content
+data class VideoContent(
+    val file: FileRef,
+    val loop: Boolean = false,
+    val startMs: Long = 0,
+    /** Как кадр ложится на экран; по умолчанию вписан целиком, без обрезки и растяжения. */
+    val fit: VideoFit = VideoFit.FIT,
+    /** Чем заполнены поля вокруг вписанного кадра. */
+    val backdrop: VideoBackdrop = VideoBackdrop.BLACK,
+    /** Цвет полей для [VideoBackdrop.THEME] (ARGB) — фон темы. */
+    val backdropColor: Long = 0xFF000000,
+) : Content
+
+/** Как видео ложится на экран. */
+@Serializable
+enum class VideoFit {
+    /** Вписать: кадр целиком, поля по бокам или сверху и снизу. */
+    FIT,
+    /** Заполнить: экран целиком, лишнее по краям обрезается. */
+    FILL,
+    /** Растянуть: экран целиком, пропорции не сохраняются. */
+    STRETCH,
+    /** Исходный размер: пиксель в пиксель по центру. */
+    ORIGINAL,
+}
+
+/** Поля вокруг вписанного кадра. */
+@Serializable
+enum class VideoBackdrop { BLACK, BLUR, THEME }
 
 @Serializable @SerialName("pdf")
 data class PdfContent(val file: FileRef, val page: Int) : Content
