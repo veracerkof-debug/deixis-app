@@ -498,6 +498,12 @@ const TR = {
   convertedPdf: ["переведено в PDF", "PDF ga o‘girilgan", "converted to PDF"],
   screenShare: ["Экран телефона", "Telefon ekrani", "Phone screen"],
   countdown: ["Обратный отсчёт", "Teskari sanoq", "Countdown"],
+  tLayer: ["Поверх", "Ustidan", "Overlay"],
+  layerTitle: ["Поверх показа", "Namoyish ustidan", "Over the show"],
+  layerSamples: ["Примеры", "Namunalar", "Examples"],
+  layerHint: ["Слой виден поверх слайдов, фото и видео и не меняется вместе с ними. Касание — пример сразу в зал; «Чёрный» убирает и слой.", "Qatlam slaydlar, rasm va video ustida ko‘rinadi va ular bilan birga o‘zgarmaydi. Bosish — namuna darhol zalga; «Qora» qatlamni ham olib tashlaydi.", "The layer stays over slides, photos and video and does not change with them. Tap an example to put it live; “Black” hides the layer too."],
+  layerClear: ["Убрать слой", "Qatlamni olib tashlash", "Remove the layer"],
+  layerOn: ["Сейчас в зале", "Hozir zalda", "Live now"],
 
   // Типы
   tPres: ["Презентация", "Taqdimot", "Presentation"],
@@ -1603,6 +1609,7 @@ const I = {
   song: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   bible: '<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M12 8v6M9.5 10.5h5"/>',
   file: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   media: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/>',
   proj: '<rect x="2" y="8" width="20" height="9" rx="2"/><circle cx="16" cy="12.5" r="2.5"/><path d="M6 12.5h4"/>',
   tv: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8"/>',
@@ -1834,7 +1841,7 @@ function setlistHTML(wide) {
     ${items.length ? `<p class="note">${esc(t.setHint)}</p>` : ""}</div>`;
 }
 function tilesHTML() {
-  const list = [["pres", t.tPres, "pres"], ["video", t.tVideo, "media"], ["photo", t.tPhoto, "photo"], ["text", t.tText, "text"], ["file", t.tFile, "file"]];
+  const list = [["pres", t.tPres, "pres"], ["video", t.tVideo, "media"], ["photo", t.tPhoto, "photo"], ["text", t.tText, "text"], ["layer", t.tLayer, "layers"], ["file", t.tFile, "file"]];
   if (settings.church) list.push(["bible", t.tBible, "bible"], ["holyrics", "Holyrics", "song"]);
   return `<div class="tiles" role="group" aria-label="${esc(t.showWhat)}" data-key="tiles">${list.map(([k, l, i]) => `<button class="tile" data-act="tile" data-k="${k}">${ico(i)}<span>${esc(l)}</span></button>`).join("")}</div>`;
 }
@@ -2156,6 +2163,23 @@ function sheetSettings() {
     <p class="note">${esc(t.autoFit)}</p>
     <p class="note"><span class="mark" style="font-size:var(--fs-m)">ΔΕΙΞΙΣ</span> · GPL-3.0 · ${esc(t.ethics)}</p>`;
   }, { auto: true });
+}
+// Примеры слоя «Поверх показа»: картинки примеров приёмник кладёт к себе, пульт шлёт сам слой.
+let LAYER = [], LAYER_ON = -1;
+function sheetLayer() {
+  const body = () => {
+    const on = state && state.overlays && (state.overlays.logo || state.overlays.lowerThird || state.overlays.ticker || state.overlays.clock);
+    const rows = LAYER.map((smp, i) => `<button class="row" data-act="layer" data-i="${i}"><span class="main"><div>${esc(smp.name)}</div><div class="s">${esc(layerParts(smp.overlays))}</div></span>${i === LAYER_ON && on ? `<span class="s">${esc(t.layerOn)}</span>` : ""}</button>`).join("");
+    return `<div class="ghead">${esc(t.layerSamples)}</div><div class="group">${rows || `<div class="row"><span class="main s">${esc(t.loading)}</span></div>`}</div>
+      <div class="mb"><button class="btn" data-act="layerclear">${esc(t.layerClear)}</button></div>
+      <p class="note">${esc(t.layerHint)}</p>`;
+  };
+  openSheet(t.layerTitle, body, { auto: true });
+  if (!LAYER.length) getJson("/overlay-samples").then((l) => { LAYER = l; refreshSheet(); }).catch((e) => toast(e.message));
+}
+function layerParts(o) {
+  const names = { ru: ["плашка", "строка", "часы", "логотип"], uz: ["lavha", "satr", "soat", "logotip"], en: ["name plate", "ticker", "clock", "logo"] }[lang] || [];
+  return [o.lowerThird && `${names[0]}: ${o.lowerThird.title}`, o.ticker && names[1], o.clock && names[2], o.logo && names[3]].filter(Boolean).join(" · ");
 }
 function sheetText() {
   openSheet(t.tText, `<div class="stack"><textarea class="big" id="ftext" placeholder="${esc(t.textPlaceholder)}"></textarea>
@@ -2532,12 +2556,15 @@ const A = {
   style: () => sheetStyle(),
   tile: (d) => {
     if (d.k === "text") return sheetText();
+    if (d.k === "layer") return sheetLayer();
     if (d.k === "bible") return A.tab({ id: "bible" });
     if (d.k === "holyrics") return sheetHolyrics();
     sheetPick(d.k);
   },
   find: () => sheetFind(), setpick: () => sheetSetpick(), settings: () => sheetSettings(),
   closesheet: () => closeSheet(),
+  layer: (d) => { const smp = LAYER[+d.i]; if (smp && send({ type: "overlays", overlays: smp.overlays })) { LAYER_ON = +d.i; refreshSheet(); } },
+  layerclear: () => { if (send({ type: "overlays", overlays: {} })) { LAYER_ON = -1; refreshSheet(); } },
   pickpre: (d) => { const it = item(d.id); closeSheet(); if (it) { S.open = it.id; toPreviewItem(it); } },
   findpre: (d) => { const it = item(d.id); closeSheet(); if (it) { S.tab = "show"; toPreviewItem(it); } },
   device: (d) => { pickToLib = !!d.lib; const i = $("#pick"); i.accept = d.accept || ""; i.multiple = !!d.lib; i.click(); },

@@ -149,3 +149,87 @@ fun clockText(now: Long, seconds: Boolean, zone: ZoneId = ZoneId.systemDefault()
 }
 
 private const val TICKER_HEIGHT = 0.075f
+
+/** Элемент слоя и насколько он сейчас виден: 0 — ещё (или уже) нет, 1 — на месте. */
+data class Shown<T>(val value: T, val presence: Float)
+
+/** Что рисовать в миг кадра: элементы слоя, каждый со своей долей появления. */
+data class OverlayFrame(
+    val logo: Shown<LogoOverlay>? = null,
+    val lowerThird: Shown<LowerThird>? = null,
+    val ticker: Shown<Ticker>? = null,
+    val clock: Shown<ClockOverlay>? = null,
+    /** Кто-то ещё появляется или уходит: кадры нужны чаще. */
+    val moving: Boolean = false,
+) {
+    val isEmpty: Boolean get() = logo == null && lowerThird == null && ticker == null && clock == null
+}
+
+/**
+ * Движение слоя: элемент появляется плавно, уходит плавно, новая плашка вместо прежней въезжает заново.
+ * Каждый экран ведёт его по своим часам с мига, когда получил слой. «Чёрный» и «Заставка» убирают слой
+ * сразу ([update] с instant = true): это аварийные кнопки, ждать нельзя.
+ */
+class OverlayMotion(private val durationMs: Long = OVERLAY_MOTION_MS) {
+    private class Track<T : Any> {
+        var value: T? = null
+        var visible = false
+        var since = 0L
+        var from = 0f
+
+        fun set(next: T?, now: Long, duration: Long, instant: Boolean) {
+            val p = presence(now, duration)
+            when {
+                instant -> { value = next; visible = next != null; since = now - duration; from = if (visible) 1f else 0f; if (next == null) value = null }
+                next == null && visible -> { visible = false; since = now; from = p }
+                next != null && !visible -> { value = next; visible = true; since = now; from = p }
+                next != null && next != value -> {
+                    // Плашка с другим именем въезжает заново; часы и логотип при смене угла — тоже.
+                    value = next; since = now; from = 0f
+                }
+            }
+        }
+
+        fun presence(now: Long, duration: Long): Float {
+            val t = ((now - since).toFloat() / duration).coerceIn(0f, 1f)
+            return if (visible) from + (1f - from) * t else from * (1f - t)
+        }
+
+        fun shown(now: Long, duration: Long): Shown<T>? {
+            val v = value ?: return null
+            val p = presence(now, duration)
+            if (!visible && p <= 0f) { value = null; return null }
+            return Shown(v, easeOutCubic(p))
+        }
+
+        fun moving(now: Long, duration: Long) = value != null && now - since < duration
+    }
+
+    private val logo = Track<LogoOverlay>()
+    private val lowerThird = Track<LowerThird>()
+    private val ticker = Track<Ticker>()
+    private val clock = Track<ClockOverlay>()
+
+    @Synchronized
+    fun update(o: Overlays, now: Long, instant: Boolean = false) {
+        logo.set(o.logo, now, durationMs, instant)
+        lowerThird.set(o.lowerThird, now, durationMs, instant)
+        ticker.set(o.ticker, now, durationMs, instant)
+        clock.set(o.clock, now, durationMs, instant)
+    }
+
+    @Synchronized
+    fun frame(now: Long): OverlayFrame = OverlayFrame(
+        logo.shown(now, durationMs),
+        lowerThird.shown(now, durationMs),
+        ticker.shown(now, durationMs),
+        clock.shown(now, durationMs),
+        moving = listOf(logo, lowerThird, ticker, clock).any { it.moving(now, durationMs) },
+    )
+}
+
+/** Плавное торможение в конце: элемент быстро выходит и мягко встаёт на место. */
+fun easeOutCubic(t: Float): Float { val u = 1f - t.coerceIn(0f, 1f); return 1f - u * u * u }
+
+/** Сколько длится появление и уход элемента слоя. */
+const val OVERLAY_MOTION_MS = 450L

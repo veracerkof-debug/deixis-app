@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -46,7 +47,22 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             }
         }
     }
+    val samples by produceState(emptyList<app.deixis.core.OverlaySample>()) { value = runCatching { c.overlaySamples() }.getOrDefault(emptyList()) }
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
+        GHead("Примеры")
+        Note("Готовые слои, чтобы посмотреть, как они появляются и уходят. Касание — сразу в зал.")
+        Group {
+            samples.forEachIndexed { i, smp ->
+                if (i > 0) Sep(T.gutter)
+                val live = o == smp.overlays
+                Cell(smp.name, sampleParts(smp.overlays), chevron = null, open = live, onClick = {
+                    smp.overlays.lowerThird?.let { title = it.title; subtitle = it.subtitle.orEmpty() }
+                    smp.overlays.ticker?.let { ticker = it.text }
+                    c.setOverlays(smp.overlays)
+                })
+            }
+        }
+
         GHead("Плашка с именем")
         Field(title, "Имя: «Анна Иванова»") { title = it }
         Field(subtitle, "Подпись: «Тема: весна»") { subtitle = it }
@@ -134,3 +150,11 @@ fun OverlaySheet(c: Controller, ui: Ui) {
         Note("Слой виден поверх слайдов, фото и видео; «Чёрный» и «Логотип» убирают и его. Зрители в браузере видят его тоже.")
     }
 }
+
+/** Из чего состоит пример: «плашка: Анна Иванова · часы». */
+private fun sampleParts(o: app.deixis.core.Overlays): String = listOfNotNull(
+    o.lowerThird?.let { "плашка: ${it.title}" },
+    o.ticker?.let { "строка" },
+    o.clock?.let { "часы" },
+    o.logo?.let { "логотип" },
+).joinToString(" · ")

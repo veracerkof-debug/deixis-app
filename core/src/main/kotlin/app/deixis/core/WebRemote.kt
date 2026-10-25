@@ -319,6 +319,23 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
         }
     }
 
+    // Примеры слоя «Поверх показа»: картинки примеров кладутся в файлы приёмника, пульт шлёт сам слой.
+    get("/overlay-samples") {
+        if (!call.authorized()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
+        val list = withContext(Dispatchers.IO) {
+            OverlaySamples.images.forEach { name ->
+                val b = OverlaySamples.bytes(name)
+                val sha = sha256Of(b.inputStream())
+                if (core.files.file(sha) == null) core.files.append(sha, b.size.toLong(), 0, b.inputStream())
+            }
+            OverlaySamples.all()
+        }
+        call.respondText(
+            DeixisJson.encodeToString(ListSerializer(OverlaySampleInfo.serializer()), list.map { OverlaySampleInfo(it.name, it.overlays) }),
+            ContentType.Application.Json,
+        )
+    }
+
     get("/pdf/{sha}/pages") {
         if (!call.authorized()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
         val file = core.files.file(call.parameters["sha"].orEmpty()) ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
@@ -509,3 +526,6 @@ const val HEADER_NAME = "Deixis-Name"
 
 private fun remoteResource(path: String): ByteArray =
     ReceiverCore::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: error("Нет ресурса $path")
+
+@Serializable
+internal data class OverlaySampleInfo(val name: String, val overlays: Overlays)

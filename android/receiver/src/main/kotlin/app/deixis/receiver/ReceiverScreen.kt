@@ -141,7 +141,7 @@ fun ReceiverScreen(
             content is ScreenContent -> Unit
         }
         // Слой поверх показа — над всем, включая видео; «Чёрный» и «Заставка» убирают и его.
-        if (app.deixis.core.overlaysVisible(mode) && !state.overlays.isEmpty) OverlayLayer(runtime, state.overlays)
+        OverlayLayer(runtime, state.overlays, visible = app.deixis.core.overlaysVisible(mode))
     }
 }
 

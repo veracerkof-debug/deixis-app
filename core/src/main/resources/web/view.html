@@ -739,11 +739,32 @@ if (screenMode) {
 
 // Связь с приёмником: при обрыве остаётся последний кадр, переподключение само.
 let pause = 1000;
-// Слой поверх показа. Раскладка повторяет ядро (Overlays.kt): те же доли экрана, что на ТВ и компьютере.
+// Слой поверх показа. Раскладка и движение повторяют ядро (Overlays.kt, OverlayMotion): те же доли экрана
+// и то же появление, что на ТВ и компьютере. Плашка въезжает слева, строка поднимается снизу, логотип и часы
+// проявляются; «Чёрный» и «Заставка» убирают слой сразу.
 // var, а не const: layout() вызывается выше по странице, до этих строк.
 var ov = document.getElementById("overlay"), ovCtx = ov.getContext("2d");
-var ovState = null, ovLogo = null, ovLogoSha = null, ovFrame = 0, ovTimer = 0;
-const OV = { safe: 0.055, ticker: 0.075, tickerFont: 0.55, titleFont: 0.052, subFont: 0.034, pad: 0.022, accent: 0.008, clock: 0.05 };
+var ovLogo = null, ovLogoSha = null, ovFrame = 0, ovTimer = 0;
+var OV = { safe: 0.055, ticker: 0.075, tickerFont: 0.55, titleFont: 0.052, subFont: 0.034, pad: 0.022, accent: 0.008, clock: 0.05, motion: 450, logoGrow: 0.85 };
+var ovTracks = { logo: {}, lowerThird: {}, ticker: {}, clock: {} };
+function trackSet(tr, next, now, instant) {
+  const p = trackRaw(tr, now), nk = next ? JSON.stringify(next) : null;
+  if (instant) { tr.value = next; tr.key = nk; tr.visible = !!next; tr.since = now - OV.motion; tr.from = next ? 1 : 0; return; }
+  if (!next && tr.visible) { tr.visible = false; tr.since = now; tr.from = p; }
+  else if (next && !tr.visible) { tr.value = next; tr.key = nk; tr.visible = true; tr.since = now; tr.from = p; }
+  else if (next && nk !== tr.key) { tr.value = next; tr.key = nk; tr.since = now; tr.from = 0; }
+}
+function trackRaw(tr, now) {
+  const k = Math.min(1, Math.max(0, (now - (tr.since || 0)) / OV.motion));
+  return tr.visible ? (tr.from || 0) + (1 - (tr.from || 0)) * k : (tr.from || 0) * (1 - k);
+}
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+function trackShown(tr, now) {
+  if (!tr.value) return null;
+  const p = trackRaw(tr, now);
+  if (!tr.visible && p <= 0) { tr.value = null; return null; }
+  return { v: tr.value, p: easeOut(p) };
+}
 function placeOverlay() {
   if (!ovCtx) return;
   const r = stage.getBoundingClientRect(), dpr = devicePixelRatio || 1;
@@ -752,73 +773,85 @@ function placeOverlay() {
   drawOverlay();
 }
 function setOverlays(o, mode) {
-  const shown = o && outLayout === "hall" && (mode === "NORMAL" || mode === "CLEAR") && (o.logo || o.lowerThird || o.ticker || o.clock) ? o : null;
-  ovState = shown;
-  const sha = shown && shown.logo ? shown.logo.file.sha256 : null;
+  const visible = outLayout === "hall" && (mode === "NORMAL" || mode === "CLEAR");
+  const src = visible && o ? o : {}, now = Date.now();
+  for (const k of Object.keys(ovTracks)) trackSet(ovTracks[k], src[k] || null, now, !visible);
+  const lt = ovTracks.logo.value, sha = lt ? lt.file.sha256 : null;
   if (sha !== ovLogoSha) {
     ovLogoSha = sha; ovLogo = null;
     if (sha) { const img = new Image(); img.onload = () => { if (ovLogoSha === sha) { ovLogo = img; drawOverlay(); } }; img.src = url("/view/file/" + sha); }
   }
   drawOverlay();
 }
-function cornerBox(w, h, bw, bh, corner, aboveTicker) {
-  const m = Math.min(w, h) * OV.safe, bottom = h - m - (aboveTicker ? Math.min(w, h) * OV.ticker : 0);
+function cornerBox(w, h, bw, bh, corner, lift) {
+  const m = Math.min(w, h) * OV.safe, bottom = h - m - lift;
   const left = corner === "TOP_LEFT" || corner === "BOTTOM_LEFT", top = corner === "TOP_LEFT" || corner === "TOP_RIGHT";
   return { x: left ? m : w - m - bw, y: top ? m : bottom - bh, w: bw, h: bh };
 }
 function drawOverlay() {
   // Один цикл перерисовки, сколько бы раз её ни просили (новый слой, размер окна, загрузился логотип).
   cancelAnimationFrame(ovFrame); clearTimeout(ovTimer);
-  const w = ov.width, h = ov.height, g = ovCtx, o = ovState;
+  const w = ov.width, h = ov.height, g = ovCtx, now = Date.now();
   g.clearRect(0, 0, w, h);
-  if (!o || !w || !h) return;
+  if (!w || !h) return;
+  const F = {}; let moving = false;
+  for (const k of Object.keys(ovTracks)) { F[k] = trackShown(ovTracks[k], now); if (ovTracks[k].value && now - ovTracks[k].since < OV.motion) moving = true; }
+  if (!F.logo && !F.lowerThird && !F.ticker && !F.clock) return;
   // Размеры — доли меньшей стороны (как в ядре); поля — тоже.
-  const u = Math.min(w, h), font = (px) => `600 ${px}px "Deixis Slide", system-ui, sans-serif`, ticker = !!o.ticker, now = Date.now() - clockOffset;
-  if (o.ticker) {
-    const th = u * OV.ticker, top = h - th, tk = o.ticker;
+  const u = Math.min(w, h), font = (px) => `600 ${px}px "Deixis Slide", system-ui, sans-serif`, clockNow = now - clockOffset;
+  const lift = u * OV.ticker * (F.ticker ? F.ticker.p : 0);
+  if (F.ticker) {
+    const tk = F.ticker.v, p = F.ticker.p, th = u * OV.ticker, top = h - th * p;
+    g.globalAlpha = p;
     g.fillStyle = argb(tk.background == null ? 0xD9101418 : tk.background); g.fillRect(0, top, w, th);
     g.font = font(th * OV.tickerFont); g.textBaseline = "middle";
     const text = String(tk.text || "").replace(/\n/g, " "), tw = g.measureText(text).width;
     const speed = w * Math.min(100, Math.max(1, tk.speedPercent || 10)) / 100, path = w + tw;
-    const x = w - (now / 1000 * speed) % path;
+    const x = w - (clockNow / 1000 * speed) % path;
     g.save(); g.beginPath(); g.rect(0, top, w, th); g.clip();
     g.fillStyle = argb(tk.color == null ? 0xFFFFFFFF : tk.color); g.fillText(text, x, top + th / 2);
-    g.restore();
+    g.restore(); g.globalAlpha = 1;
   }
-  if (o.lowerThird) {
-    const lt = o.lowerThird, m = u * OV.safe, pad = u * OV.pad, acc = lt.accent === null ? 0 : u * OV.accent;
+  if (F.lowerThird) {
+    const lt = F.lowerThird.v, p = F.lowerThird.p, m = u * OV.safe, pad = u * OV.pad, acc = lt.accent === null ? 0 : u * OV.accent;
     const ts = u * OV.titleFont, ss = u * OV.subFont, sub = lt.subtitle && lt.subtitle.trim() ? lt.subtitle : null;
     g.font = font(ts); const tw = g.measureText(lt.title || "").width;
     g.font = font(ss); const sw = sub ? g.measureText(sub).width : 0;
     const bh = ts * 1.2 + (sub ? ss * 1.3 : 0) + pad * 2, bw = Math.min(Math.max(tw, sw) + pad * 2 + u * OV.accent, w - m * 2);
-    const bx = m, by = h - m - (ticker ? u * OV.ticker : 0) - bh;
+    // Въезжает слева из-за края экрана.
+    const bx = m - (m + bw) * (1 - p), by = h - m - lift - bh;
+    g.globalAlpha = p;
     g.fillStyle = argb(lt.background == null ? 0xD9101418 : lt.background);
     g.beginPath(); (g.roundRect ? g.roundRect(bx, by, bw, bh, pad / 2) : g.rect(bx, by, bw, bh)); g.fill();
     if (acc) { g.fillStyle = argb(lt.accent == null ? 0xFF3D8BFD : lt.accent); g.fillRect(bx, by, acc, bh); }
     g.save(); g.beginPath(); g.rect(bx, by, bw, bh); g.clip();
     g.textBaseline = "alphabetic"; g.fillStyle = argb(lt.color == null ? 0xFFFFFFFF : lt.color);
     g.font = font(ts); g.fillText(lt.title || "", bx + acc + pad, by + pad + ts * 0.95);
-    if (sub) { g.globalAlpha = 0.8; g.font = font(ss); g.fillText(sub, bx + acc + pad, by + pad + ts * 1.2 + ss * 1.0); g.globalAlpha = 1; }
-    g.restore();
+    if (sub) { g.globalAlpha = 0.8 * p; g.font = font(ss); g.fillText(sub, bx + acc + pad, by + pad + ts * 1.2 + ss * 1.0); }
+    g.restore(); g.globalAlpha = 1;
   }
-  if (o.clock) {
-    const c = o.clock, d = new Date(now), size = u * OV.clock;
+  if (F.clock) {
+    const c = F.clock.v, d = new Date(clockNow), size = u * OV.clock;
     let text = d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
     if (c.seconds) text += ":" + String(d.getSeconds()).padStart(2, "0");
     g.font = font(size); g.textBaseline = "top";
-    const b = cornerBox(w, h, g.measureText(text).width, size * 1.1, c.corner || "TOP_LEFT", ticker);
+    const corner = c.corner || "TOP_LEFT", b = cornerBox(w, h, g.measureText(text).width, size * 1.1, corner, corner.startsWith("BOTTOM") ? lift : 0);
+    g.globalAlpha = F.clock.p;
     g.shadowColor = "rgba(0,0,0,.6)"; g.shadowBlur = u * 0.004; g.shadowOffsetY = u * 0.002;
     g.fillStyle = argb(c.color == null ? 0xFFFFFFFF : c.color); g.fillText(text, b.x, b.y);
-    g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0;
+    g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0; g.globalAlpha = 1;
   }
-  if (o.logo && ovLogo) {
-    const l = o.logo, lh = u * Math.min(40, Math.max(2, l.sizePercent || 10)) / 100, lw = lh * ovLogo.naturalWidth / (ovLogo.naturalHeight || 1);
-    const b = cornerBox(w, h, lw, lh, l.corner || "TOP_RIGHT", ticker);
-    g.globalAlpha = Math.min(1, Math.max(0, l.opacity == null ? 1 : l.opacity)); g.drawImage(ovLogo, b.x, b.y, b.w, b.h); g.globalAlpha = 1;
+  if (F.logo && ovLogo) {
+    const l = F.logo.v, p = F.logo.p, lh = u * Math.min(40, Math.max(2, l.sizePercent || 10)) / 100, lw = lh * ovLogo.naturalWidth / (ovLogo.naturalHeight || 1);
+    const corner = l.corner || "TOP_RIGHT", b = cornerBox(w, h, lw, lh, corner, corner.startsWith("BOTTOM") ? lift : 0);
+    // Проявляется и чуть вырастает до своего размера.
+    const k = OV.logoGrow + (1 - OV.logoGrow) * p, dw = b.w * k, dh = b.h * k;
+    g.globalAlpha = p * Math.min(1, Math.max(0, l.opacity == null ? 1 : l.opacity));
+    g.drawImage(ovLogo, b.x + (b.w - dw) / 2, b.y + (b.h - dh) / 2, dw, dh); g.globalAlpha = 1;
   }
-  // Бегущая строка — каждый кадр; часы — дважды в секунду.
-  if (o.ticker) ovFrame = requestAnimationFrame(drawOverlay);
-  else if (o.clock) ovTimer = setTimeout(() => { ovFrame = requestAnimationFrame(drawOverlay); }, 500);
+  // Движение и бегущая строка — каждый кадр; часы — дважды в секунду.
+  if (moving || F.ticker) ovFrame = requestAnimationFrame(drawOverlay);
+  else if (F.clock) ovTimer = setTimeout(() => { ovFrame = requestAnimationFrame(drawOverlay); }, 500);
 }
 placeOverlay();
 

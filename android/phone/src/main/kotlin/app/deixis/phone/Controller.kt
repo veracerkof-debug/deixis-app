@@ -21,6 +21,8 @@ import app.deixis.core.SetTimer
 import app.deixis.core.SetOverlays
 import app.deixis.core.Overlays
 import app.deixis.core.LowerThird
+import app.deixis.core.OverlaySample
+import app.deixis.core.OverlaySamples
 import app.deixis.core.DenyReason
 import app.deixis.core.DefaultBibles
 import app.deixis.core.Discovery
@@ -732,6 +734,25 @@ class Controller(private val app: Application) {
             )
         }
         outs.value.forEach { sendOverlays(it, o) }
+    }
+
+    /**
+     * Примеры слоя: картинки примеров копируются в память телефона один раз и передаются экрану, как
+     * любой логотип. Нужны, чтобы посмотреть слой и его движение, ничего не набирая.
+     */
+    suspend fun overlaySamples(): List<OverlaySample> = withContext(Dispatchers.IO) {
+        val dir = java.io.File(app.filesDir, "overlay-samples").apply { mkdirs() }
+        val refs = OverlaySamples.images.associateWith { name ->
+            val ref = OverlaySamples.ref(name)
+            val f = java.io.File(dir, name)
+            if (!f.isFile || f.length() != ref.size) f.writeBytes(OverlaySamples.bytes(name))
+            ref to Uri.fromFile(f).toString()
+        }
+        withContext(Dispatchers.Main) {
+            val missing = refs.values.filter { (ref, uri) -> data.value.localFiles[ref.sha256] != uri }
+            if (missing.isNotEmpty()) edit { d -> d.copy(localFiles = d.localFiles + missing.associate { (ref, uri) -> ref.sha256 to uri }) }
+        }
+        OverlaySamples.all { name -> refs.getValue(name).first }
     }
 
     fun forgetLowerThird(lt: LowerThird) = edit { d -> d.copy(overlayDrafts = d.overlayDrafts.copy(lowerThirds = d.overlayDrafts.lowerThirds - lt)) }

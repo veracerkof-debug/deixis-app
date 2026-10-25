@@ -3,6 +3,7 @@ package app.deixis.desktop
 import app.deixis.core.FileStore
 import app.deixis.core.Mode
 import app.deixis.core.OutputLayout
+import app.deixis.core.OverlayMotion
 import app.deixis.core.Overlays
 import app.deixis.core.overlaysVisible
 import app.deixis.core.ScreenContent
@@ -104,7 +105,9 @@ class OutputWindow(
     private val overlayPainter = OverlayPainter(files)
     /** Что сейчас поверх показа в зале (уже с учётом «Чёрного» и «Заставки»). */
     private var overlays = Overlays()
-    private val overlayTimer = Timer(OVERLAY_TICK_MS) { repaintOverlay() }
+    /** Появление и уход элементов слоя; кадр слоя берётся у него в миг перерисовки. */
+    private val motion = OverlayMotion()
+    private val overlayTimer = Timer(OVERLAY_TICK_MS) { tickOverlay() }
     /** Окно слоя над видео, когда VLC рисует в своё окно; null — не нужно или система не умеет прозрачных окон. */
     private var overlayWindow: OverlayWindow? = null
     private val frame = JFrame("Deixis")
@@ -277,18 +280,33 @@ class OutputWindow(
             else -> s.content to s.mode
         }
         if (key != drawnKey) { drawnKey = key; applyBackdrop(s); redraw(s) }
-        setOverlays(if (layout == OutputLayout.HALL && overlaysVisible(s.mode)) s.overlays else Overlays())
+        // «Чёрный» и «Заставка» убирают слой сразу, без ухода; остальное — плавно.
+        val visible = layout == OutputLayout.HALL && overlaysVisible(s.mode)
+        setOverlays(if (visible) s.overlays else Overlays(), instant = !visible)
     }
 
-    private fun paintOverlay(g: Graphics2D, w: Int, h: Int) =
-        overlayPainter.paint(g, w.toFloat(), h.toFloat(), overlays, System.currentTimeMillis())
+    private fun paintOverlay(g: Graphics2D, w: Int, h: Int) {
+        val now = System.currentTimeMillis()
+        overlayPainter.paint(g, w.toFloat(), h.toFloat(), motion.frame(now), now)
+    }
 
-    private fun setOverlays(o: Overlays) {
+    private fun setOverlays(o: Overlays, instant: Boolean = false) {
         if (o == overlays) return
         overlays = o
-        overlayTimer.stop()
-        overlayPainter.tickMs(o)?.let { overlayTimer.delay = it; overlayTimer.initialDelay = it; overlayTimer.start() }
+        motion.update(o, System.currentTimeMillis(), instant)
         placeOverlay()
+        tickOverlay()
+    }
+
+    /** Перерисовка слоя и частота следующей: пока что-то движется — каждый кадр, стоит — реже или никогда. */
+    private fun tickOverlay() {
+        val f = motion.frame(System.currentTimeMillis())
+        val tick = overlayPainter.tickMs(f)
+        if (tick == null) overlayTimer.stop() else if (!overlayTimer.isRunning || overlayTimer.delay != tick) {
+            overlayTimer.delay = tick; overlayTimer.initialDelay = tick; overlayTimer.restart()
+        }
+        // Ушёл последний элемент: слой больше не нужен ни в окне, ни поверх видео.
+        if (f.isEmpty && overlays.isEmpty) placeOverlay()
         repaintOverlay()
     }
 
@@ -299,15 +317,16 @@ class OutputWindow(
     private fun placeOverlay() {
         val pane = videoPane
         val overVideo = pane != null && pane.isVisible && video?.nativeWindow == true
-        val needWindow = overVideo && !overlays.isEmpty && OverlayWindow.supported(frame)
+        // Слой нужен, пока в нём что-то есть или ещё уходит.
+        val active = !overlays.isEmpty || !motion.frame(System.currentTimeMillis()).isEmpty
+        val needWindow = overVideo && active && OverlayWindow.supported(frame)
         if (needWindow && overlayWindow == null) overlayWindow = OverlayWindow(frame) { g, w, h -> paintOverlay(g, w, h) }
         overlayWindow?.let { it.showing = needWindow }
-        slide.overlay = if (overlays.isEmpty) null else { g, w, h -> paintOverlay(g, w, h) }
-        pane?.let { p -> p.overlay = if (overlays.isEmpty || video?.nativeWindow == true) null else { g -> paintOverlay(g, p.width, p.height) } }
+        slide.overlay = if (!active) null else { g, w, h -> paintOverlay(g, w, h) }
+        pane?.let { p -> p.overlay = if (!active || video?.nativeWindow == true) null else { g -> paintOverlay(g, p.width, p.height) } }
     }
 
     private fun repaintOverlay() {
-        if (overlays.isEmpty && overlayWindow?.showing != true) return
         slide.repaint()
         videoPane?.repaint()
         overlayWindow?.repaintLayer()
