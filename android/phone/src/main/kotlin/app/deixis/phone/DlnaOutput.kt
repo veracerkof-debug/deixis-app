@@ -1,5 +1,6 @@
 package app.deixis.phone
 
+import app.deixis.core.LogoStyle
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -110,7 +111,7 @@ class DlnaOutput(private val app: Application) {
 
     /** «Чёрный», «Логотип», «Очистить»: повторное нажатие возвращает показ. */
     /** Вид заставки «Логотип» на телевизоре. */
-    var logo = app.deixis.core.LogoStyle.WORDMARK
+    var logo = LogoStyle.WORDMARK
 
     suspend fun toggle(m: Mode) {
         mode = if (mode == m) Mode.NORMAL else m

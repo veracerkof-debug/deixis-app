@@ -1,5 +1,7 @@
 package app.deixis.phone
 
+import app.deixis.core.Overlays
+import app.deixis.core.OverlaySample
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -47,7 +49,7 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             }
         }
     }
-    val samples by produceState(emptyList<app.deixis.core.OverlaySample>()) { value = runCatching { c.overlaySamples() }.getOrDefault(emptyList()) }
+    val samples by produceState(emptyList<OverlaySample>()) { value = runCatching { c.overlaySamples() }.getOrDefault(emptyList()) }
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
         GHead("Примеры")
         Note("Готовые слои, чтобы посмотреть, как они появляются и уходят. Касание — сразу в зал.")
@@ -146,13 +148,13 @@ fun OverlaySheet(c: Controller, ui: Ui) {
                 }
             }
         }
-        if (!o.isEmpty) Pill("Убрать всё") { c.setOverlays(app.deixis.core.Overlays()) }
+        if (!o.isEmpty) Pill("Убрать всё") { c.setOverlays(Overlays()) }
         Note("Слой виден поверх слайдов, фото и видео; «Чёрный» и «Логотип» убирают и его. Зрители в браузере видят его тоже.")
     }
 }
 
 /** Из чего состоит пример: «плашка: Анна Иванова · часы». */
-private fun sampleParts(o: app.deixis.core.Overlays): String = listOfNotNull(
+private fun sampleParts(o: Overlays): String = listOfNotNull(
     o.lowerThird?.let { "плашка: ${it.title}" },
     o.ticker?.let { "строка" },
     o.clock?.let { "часы" },

@@ -1,5 +1,6 @@
 package app.deixis.phone
 
+import app.deixis.core.LogoStyle
 import app.deixis.core.Mode
 
 import android.Manifest
@@ -202,8 +203,8 @@ fun SettingsSheet(c: Controller) {
         SwitchRow("Текст заглавными буквами", st.caps, "Песни, тексты и Писание в зале") { v -> c.setSettings { it.copy(caps = v) } }
     }
     GHead("Заставка «Логотип»")
-    Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), app.deixis.core.LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
-        c.setSettings { it.copy(logo = app.deixis.core.LogoStyle.entries[i]) }
+    Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
+        c.setSettings { it.copy(logo = LogoStyle.entries[i]) }
     }
     SlideView(null, null, c.styleFor(null), Modifier.padding(top = T.gapS), mode = Mode.LOGO, logo = st.logo)
     Note("Так выглядит экран в зале по кнопке «Логотип».")

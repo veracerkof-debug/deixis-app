@@ -1,5 +1,7 @@
 package app.deixis.phone
 
+import app.deixis.core.Overlays
+import app.deixis.core.LogoStyle
 import android.content.Context
 import app.deixis.core.DeixisJson
 import app.deixis.core.FileRef
@@ -116,7 +118,7 @@ data class AppSettings(
     val caps: Boolean = false,
     val church: Boolean = true,
     /** Вид заставки «Логотип»: ΔΕΙΞΙΣ, большая Δ, δεῖξις или Deixis. */
-    val logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
+    val logo: LogoStyle = LogoStyle.WORDMARK,
 )
 
 /** Перевод презентации или документа на компьютере: PDF лежит на том приёмнике, который его сделал. */
@@ -142,7 +144,7 @@ data class StoreData(
     /** Демо-материалы добавлены (один раз, при первом запуске). */
     val demoSeeded: Boolean = false,
     /** Слой поверх показа: что включено сейчас. Логотип — файл телефона из [localFiles]. */
-    val overlays: app.deixis.core.Overlays = app.deixis.core.Overlays(),
+    val overlays: Overlays = Overlays(),
     /** Заготовки слоя, чтобы не набирать заново: имена для плашки и тексты бегущей строки. */
     val overlayDrafts: OverlayDrafts = OverlayDrafts(),
 )

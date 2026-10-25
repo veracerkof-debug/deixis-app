@@ -1,5 +1,6 @@
 package app.deixis.phone
 
+import app.deixis.core.LogoStyle
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -103,14 +104,14 @@ fun Modifier.frame(frame: Frame, live: Color, pre: Color, width: Dp, radius: Dp)
  * страницу PDF, кадр фото или видео.
  */
 /** Вид заставки «Логотип» для превью: задаётся один раз наверху по настройке. */
-val LocalLogoStyle = androidx.compose.runtime.staticCompositionLocalOf { app.deixis.core.LogoStyle.WORDMARK }
+val LocalLogoStyle = androidx.compose.runtime.staticCompositionLocalOf { LogoStyle.WORDMARK }
 
 @Composable
 fun SlideView(
     slide: Slide?, item: LibItem?, style: SlideStyle, modifier: Modifier = Modifier,
     mode: Mode = Mode.NORMAL, num: Int? = null, frame: Frame = Frame.NONE, round: Dp = T.rSlide,
     /** Вид заставки «Логотип» — какой выбран в настройках. */
-    logo: app.deixis.core.LogoStyle = LocalLogoStyle.current,
+    logo: LogoStyle = LocalLogoStyle.current,
 ) {
     val p = P.current
     Box(
