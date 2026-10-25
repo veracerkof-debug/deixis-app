@@ -30,7 +30,7 @@ private const val USAGE = """Deixis для компьютера
   deixis send --to АДРЕС[:ПОРТ] [--lower "Имя|Подпись"] [--ticker "ТЕКСТ"] [--clock [seconds]]
                [--logo ЛОГОТИП.png] [--logo-corner top-left|top-right|bottom-left|bottom-right] | --no-overlays
       Слой поверх показа: плашка, бегущая строка, часы, логотип. Слой задаётся целиком.
-  deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal
+  deixis send --to АДРЕС[:ПОРТ] --mode black|logo|clear|normal [--logo-style wordmark|delta|greek|latin]
   deixis send --to АДРЕС[:ПОРТ] --video play|pause|seek=МС|volume=0..200
       Показать файл, текст или переключить режим. --caps — текст заглавными буквами.
       --theme тема.json — оформление из темы Holyrics, --background фон.jpg — картинка фона. Ключ --watch N печатает состояние N секунд.

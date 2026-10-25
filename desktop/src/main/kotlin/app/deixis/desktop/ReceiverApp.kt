@@ -142,6 +142,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }.getOrDefault(java.awt.Dimension(1920, 1080))
 
     fun run() {
+        AppIcon.applyToDock()
         port = runBlocking { server.start() }
         advertisement = runCatching { Discovery.advertise(core.info, port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
@@ -323,7 +324,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             address = "${address?.hostAddress ?: "127.0.0.1"}:$port",
             pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name).toUri() },
         )
-        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays)
+        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo)
     }
 
     private fun observe() {

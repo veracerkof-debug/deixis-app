@@ -43,8 +43,9 @@ data class SetTimer(val timer: CountdownContent?) : Msg
 @Serializable @SerialName("overlays")
 data class SetOverlays(val overlays: Overlays) : Msg
 
+/** [logo] — вид заставки «Логотип»; null — оставить, какой был (старый пульт его не шлёт). */
 @Serializable @SerialName("mode")
-data class SetMode(val mode: Mode) : Msg
+data class SetMode(val mode: Mode, val logo: LogoStyle? = null) : Msg
 
 @Serializable @SerialName("video")
 data class VideoCommand(
@@ -221,6 +222,8 @@ data class ReceiverState(
     val timer: CountdownContent? = null,
     /** Поверх показа: логотип, плашка, бегущая строка, часы. Смена слайда его не трогает. */
     val overlays: Overlays = Overlays(),
+    /** Вид заставки «Логотип». */
+    val logo: LogoStyle = LogoStyle.WORDMARK,
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */

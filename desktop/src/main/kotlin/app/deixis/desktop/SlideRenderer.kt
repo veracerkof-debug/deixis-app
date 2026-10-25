@@ -2,6 +2,8 @@ package app.deixis.desktop
 
 import app.deixis.core.Content
 import app.deixis.core.FileStore
+import app.deixis.core.LogoMark
+import app.deixis.core.LogoStyle
 import app.deixis.core.ImageContent
 import app.deixis.core.Mode
 import app.deixis.core.PdfContent
@@ -47,7 +49,10 @@ class SlideRenderer(
     private var pdfCache: Pair<String, BufferedImage>? = null
 
     /** Бросает исключение, если файл нельзя прочитать: вызывающий покажет чёрный экран и сообщит пульту. */
-    fun render(width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?, now: Long = System.currentTimeMillis()): BufferedImage {
+    fun render(
+        width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?, now: Long = System.currentTimeMillis(),
+        logo: LogoStyle = LogoStyle.WORDMARK,
+    ): BufferedImage {
         // Слайд поверх видеофона — прозрачный: фон рисует окно из кадров видео, здесь только текст.
         val overVideo = content?.style?.backgroundVideo != null && (mode == Mode.NORMAL || mode == Mode.CLEAR)
         val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), if (overVideo) BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB)
@@ -64,7 +69,7 @@ class SlideRenderer(
             }
             when {
                 mode == Mode.BLACK -> Unit
-                mode == Mode.LOGO -> drawWordmark(g, width, height, height / 2f, app.deixis.core.LogoMark.size(width.toFloat(), height.toFloat()))
+                mode == Mode.LOGO -> drawLogo(g, width, height, logo)
                 content == null -> if (idle != null) drawIdle(g, width, height, idle)
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)
                 content is ScriptureContent -> drawScripture(g, width, height, content, clear = mode == Mode.CLEAR)
@@ -152,6 +157,30 @@ class SlideRenderer(
 
     /** Кегль знака ΔΕΙΞΙΣ, при котором он умещается в [maxW]. */
     private fun fitMark(size: Float, maxW: Float): Float = minOf(size, maxW / app.deixis.core.LogoMark.WIDTH_EM)
+
+    /** Заставка «Логотип»: знак ΔΕΙΞΙΣ, большая Δ значка, δεῖξις или Deixis — на всю ширину с полями. */
+    private fun drawLogo(g: Graphics2D, w: Int, h: Int, style: LogoStyle) {
+        g.color = Color.WHITE
+        val text = LogoMark.text(style)
+        if (text == null) {
+            val (outer, inner) = LogoMark.delta(w.toFloat(), h.toFloat())
+            val path = java.awt.geom.Path2D.Float(java.awt.geom.Path2D.WIND_EVEN_ODD)
+            for (tri in listOf(outer, inner)) {
+                path.moveTo(tri[0].first, tri[0].second)
+                tri.drop(1).forEach { (x, y) -> path.lineTo(x, y) }
+                path.closePath()
+            }
+            g.fill(path)
+            return
+        }
+        val track = LogoMark.tracking(style)
+        val probe = Fonts.mark.deriveFont(mapOf(TextAttribute.TRACKING to track)).deriveFont(PROBE)
+        val em = (TextLayout(text, probe, frc).advance - PROBE * track) / PROBE
+        val size = LogoMark.size(w.toFloat(), h.toFloat(), em, style)
+        val layout = TextLayout(text, probe.deriveFont(size), frc)
+        // Трекинг добавляет пробел и после последней буквы — вычитаем его, чтобы знак стоял ровно по центру.
+        layout.draw(g, (w - (layout.advance - size * track)) / 2f, h / 2f + layout.ascent / 2f - layout.descent / 2f)
+    }
 
     private fun drawWordmark(g: Graphics2D, w: Int, h: Int, centerY: Float, size: Float) {
         val font = Fonts.mark.deriveFont(mapOf(TextAttribute.TRACKING to 0.18f)).deriveFont(size)
@@ -359,3 +388,6 @@ fun renderPdfPagePng(file: java.io.File, page: Int, maxWidth: Int): ByteArray = 
     val img = PDFRenderer(doc).renderImage(page, scale, ImageType.RGB)
     java.io.ByteArrayOutputStream().also { ImageIO.write(img, "png", it) }.toByteArray()
 }
+
+/** Кегль, которым меряется ширина надписи знака. */
+private const val PROBE = 100f

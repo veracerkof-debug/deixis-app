@@ -110,7 +110,7 @@ class OutputWindow(
     private val overlayTimer = Timer(OVERLAY_TICK_MS) { tickOverlay() }
     /** Окно слоя над видео, когда VLC рисует в своё окно; null — не нужно или система не умеет прозрачных окон. */
     private var overlayWindow: OverlayWindow? = null
-    private val frame = JFrame("Deixis")
+    private val frame = JFrame("Deixis").also(AppIcon::apply)
     private val cards = JPanel(CardLayout())
     private val slide = SlideView()
     private var video: VideoPlayer? = null
@@ -275,7 +275,7 @@ class OutputWindow(
         }
         // Отсчёт перерисовывается, когда меняется его строка; остальное — когда меняется показ.
         val key: Any = when (layout) {
-            OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText)
+            OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText, s.logo)
             OutputLayout.STAGE -> listOf(s.copy(now = s.now / 1000), s.countdownText)
             else -> s.content to s.mode
         }

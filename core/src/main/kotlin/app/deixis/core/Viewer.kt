@@ -36,6 +36,8 @@ data class ViewerState(
     val now: Long? = null,
     /** Слой поверх показа: и зрителям, и экрану в браузере. */
     val overlays: Overlays = Overlays(),
+    /** Вид заставки «Логотип». */
+    val logo: LogoStyle = LogoStyle.WORDMARK,
 )
 
 /** Код закрытия WebSocket, если ключ в ссылке неверный или устарел. */
@@ -91,7 +93,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         if (!preview) core.viewerJoined()
         val updates = launch {
             core.state
-                .map { ViewerState(it.content, it.mode, it.video, next = if (screen) it.next else null, startedAt = core.showStartedAt, overlays = it.overlays) }
+                .map { ViewerState(it.content, it.mode, it.video, next = if (screen) it.next else null, startedAt = core.showStartedAt, overlays = it.overlays, logo = it.logo) }
                 .distinctUntilChanged()
                 .collect { send(Frame.Text(DeixisJson.encodeToString(ViewerState.serializer(), it.copy(now = System.currentTimeMillis())))) }
         }

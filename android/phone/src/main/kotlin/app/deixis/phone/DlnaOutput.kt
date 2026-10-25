@@ -109,6 +109,9 @@ class DlnaOutput(private val app: Application) {
     }
 
     /** «Чёрный», «Логотип», «Очистить»: повторное нажатие возвращает показ. */
+    /** Вид заставки «Логотип» на телевизоре. */
+    var logo = app.deixis.core.LogoStyle.WORDMARK
+
     suspend fun toggle(m: Mode) {
         mode = if (mode == m) Mode.NORMAL else m
         state.value = state.value?.copy(mode = mode)
@@ -131,7 +134,7 @@ class DlnaOutput(private val app: Application) {
         val address = Discovery.localAddress()?.hostAddress ?: throw IOException("Телефон не в сети Wi-Fi")
         val c = shown
         when {
-            mode != Mode.NORMAL || c == null -> picture(t, s, address, renderSlideBitmap(app, c, if (c == null) Mode.BLACK else mode))
+            mode != Mode.NORMAL || c == null -> picture(t, s, address, renderSlideBitmap(app, c, if (c == null) Mode.BLACK else mode, logo = logo))
             c is ImageContent || c is VideoContent -> {
                 val ref = if (c is ImageContent) c.file else (c as VideoContent).file
                 val src = sources[ref.sha256] ?: throw IOException("Файл «${ref.name}» не найден на телефоне")

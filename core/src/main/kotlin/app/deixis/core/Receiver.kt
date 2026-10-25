@@ -104,7 +104,7 @@ class ReceiverCore(
     /** Применяет команду источника. Возвращает ошибку, если команду выполнить нельзя; показ при этом не меняется. */
     fun apply(msg: Msg): ErrorMsg? = when (msg) {
         is Show -> show(msg.content, msg.next)
-        is SetMode -> { _state.update { it.copy(mode = msg.mode) }; null }
+        is SetMode -> { _state.update { it.copy(mode = msg.mode, logo = msg.logo ?: it.logo) }; null }
         is SetTimer -> {
             val t = msg.timer?.anchored(System.currentTimeMillis())
             _state.update { s ->
@@ -133,7 +133,7 @@ class ReceiverCore(
         if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
         // Отсчёт привязывается к часам этого экрана; уйдя из зала, он остаётся в «Сцене».
         val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
-        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays) }
+        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays, logo = it.logo) }
         return null
     }
 

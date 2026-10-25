@@ -97,3 +97,35 @@ class OverlaysTest {
         assertEquals("0:13", clockText(t, seconds = false, zone = ZoneOffset.ofHours(10)))
     }
 }
+
+class LogoStyleTest {
+    @Test
+    fun logoStyleTravelsWithModeAndOldRemotesKeepIt() {
+        val core = ReceiverCore(ReceiverInfo("tv", "ТВ", "test", "0"), FileStore(File(createTempDirectory("logo").toFile(), "files")), Pairing(MemoryTokenStore()))
+        core.apply(SetMode(Mode.LOGO, LogoStyle.DELTA))
+        assertEquals(LogoStyle.DELTA, core.state.value.logo)
+        // Старый пульт шлёт режим без вида: вид остаётся прежним.
+        val old = decodeMsg("""{"type":"mode","mode":"LOGO"}""") as SetMode
+        core.apply(old)
+        assertEquals(LogoStyle.DELTA, core.state.value.logo)
+        core.apply(Show(TextContent("Слайд")))
+        assertEquals(LogoStyle.DELTA, core.state.value.logo, "смена слайда вид не сбрасывает")
+    }
+
+    @Test
+    fun bigDeltaFitsEveryScreenAndKeepsItsShape() {
+        for ((w, h) in listOf(1920f to 1080f, 1024f to 768f, 1080f to 1920f, 3840f to 1080f, 400f to 1200f)) {
+            val (outer, inner) = LogoMark.delta(w, h)
+            val xs = outer.map { it.first }
+            val ys = outer.map { it.second }
+            assertTrue(xs.min() >= 0f && xs.max() <= w && ys.min() >= 0f && ys.max() <= h, "$w×$h: Δ на экране")
+            assertEquals(w / 2, (xs.min() + xs.max()) / 2, 0.5f, "по центру по ширине")
+            assertEquals(h / 2, (ys.min() + ys.max()) / 2, 0.5f, "по центру по высоте")
+            assertTrue(inner.all { (x, y) -> x > xs.min() && x < xs.max() && y > ys.min() && y < ys.max() }, "вырез внутри")
+            assertEquals(52f / 54f, (xs.max() - xs.min()) / (ys.max() - ys.min()), 0.01f, "пропорции значка")
+        }
+        assertEquals(null, LogoMark.text(LogoStyle.DELTA))
+        assertEquals("δεῖξις", LogoMark.text(LogoStyle.GREEK))
+        assertEquals("Deixis", LogoMark.text(LogoStyle.LATIN))
+    }
+}

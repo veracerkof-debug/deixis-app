@@ -156,7 +156,7 @@ object UpdatesWindow {
     fun show(u: DesktopUpdates, app: UpdateApp) {
         open?.let { it.toFront(); return }
         val t = WindowTokens
-        val frame = JFrame("Обновления Deixis")
+        val frame = JFrame("Обновления Deixis").also(AppIcon::apply)
         val root = JPanel(BorderLayout(0, t.GAP))
         root.background = t.background
         root.border = BorderFactory.createEmptyBorder(t.PAD, t.PAD, t.PAD, t.PAD)
@@ -254,7 +254,7 @@ object UpdatesWindow {
     fun whatsNew(entries: List<ChangelogEntry>) {
         if (entries.isEmpty()) return
         val t = WindowTokens
-        val frame = JFrame("Что нового в Deixis")
+        val frame = JFrame("Что нового в Deixis").also(AppIcon::apply)
         val root = JPanel(BorderLayout(0, t.GAP))
         root.background = t.background
         root.border = BorderFactory.createEmptyBorder(t.PAD, t.PAD, t.PAD, t.PAD)

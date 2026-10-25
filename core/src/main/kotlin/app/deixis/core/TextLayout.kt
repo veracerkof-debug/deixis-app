@@ -218,14 +218,66 @@ fun layoutSlideText(
     return SlideTextLayout(size, placed, refSize, area.right, area.bottom - descent(refSize), ref?.let { styledText(it, style) }, block)
 }
 
-/** Знак ΔΕΙΞΙΣ на «Логотипе»: на всю ширину экрана с полями, не выше доли высоты. */
+/** Как выглядит заставка «Логотип». */
+@kotlinx.serialization.Serializable
+enum class LogoStyle {
+    /** ΔΕΙΞΙΣ заглавными с разрядкой — знак по умолчанию. */
+    WORDMARK,
+    /** Одна большая Δ, как на значке приложения: контур на весь экран. */
+    DELTA,
+    /** δεῖξις — по-гречески строчными. */
+    GREEK,
+    /** Deixis — латиницей. */
+    LATIN,
+}
+
+/** Знак на «Логотипе»: на всю ширину экрана с полями, не выше доли высоты. */
 object LogoMark {
-    /** Ширина знака в кеглях шрифта GFS Didot с трекингом 0.18 (без пробела после последней буквы). */
+    /** Ширина знака ΔΕΙΞΙΣ в кеглях шрифта GFS Didot с трекингом 0.18 (без пробела после последней буквы). */
     const val WIDTH_EM = 4.386f
     /** Доля ширины экрана. */
     const val FILL = 0.86f
     const val MAX_HEIGHT = 0.6f
+    /** Высота большой Δ — доля высоты экрана. */
+    const val DELTA_HEIGHT = 0.72f
 
-    /** Кегль знака для экрана [width] × [height]. */
-    fun size(width: Float, height: Float): Float = minOf(width * FILL / WIDTH_EM, height * MAX_HEIGHT)
+    /** Кегль знака ΔΕΙΞΙΣ для экрана [width] × [height]. */
+    fun size(width: Float, height: Float): Float = size(width, height, WIDTH_EM)
+
+    /** Строчные надписи (δεῖξις, Deixis) — уже знака: крупные строчные на всю ширину давят. */
+    const val FILL_LOWER = 0.66f
+
+    /** Кегль надписи [style] шириной [widthEm] кеглей (её меряет платформа своим шрифтом). */
+    fun size(width: Float, height: Float, widthEm: Float, style: LogoStyle = LogoStyle.WORDMARK): Float =
+        minOf(width * (if (style == LogoStyle.WORDMARK) FILL else FILL_LOWER) / widthEm, height * MAX_HEIGHT)
+
+    /** Надпись знака; у [LogoStyle.DELTA] надписи нет — это фигура ([delta]). */
+    fun text(style: LogoStyle): String? = when (style) {
+        LogoStyle.WORDMARK -> "ΔΕΙΞΙΣ"
+        LogoStyle.GREEK -> "δεῖξις"
+        LogoStyle.LATIN -> "Deixis"
+        LogoStyle.DELTA -> null
+    }
+
+    /** Разрядка букв, доля кегля: заглавным — широкая, строчным — лёгкая. */
+    fun tracking(style: LogoStyle): Float = if (style == LogoStyle.WORDMARK) 0.18f else 0.04f
+
+    /**
+     * Большая Δ — та же фигура, что на значке приложения (ic_launcher: треугольник 28…80 × 26…80 с вырезом
+     * 37…71 × 38…74 в поле 108). Возвращает внешний и внутренний треугольники в точках экрана; рисуется
+     * внешний, внутренний вырезается (чётно-нечётная заливка).
+     */
+    fun delta(width: Float, height: Float): Pair<List<Pair<Float, Float>>, List<Pair<Float, Float>>> {
+        val h = minOf(height * DELTA_HEIGHT, width * FILL * DELTA_BOX_H / DELTA_BOX_W)
+        val k = h / DELTA_BOX_H
+        val x0 = (width - DELTA_BOX_W * k) / 2 - DELTA_BOX_X * k
+        val y0 = (height - h) / 2 - DELTA_BOX_Y * k
+        fun pt(x: Float, y: Float) = (x0 + x * k) to (y0 + y * k)
+        return listOf(pt(54f, 26f), pt(80f, 80f), pt(28f, 80f)) to listOf(pt(54f, 38f), pt(37f, 74f), pt(71f, 74f))
+    }
+
+    private const val DELTA_BOX_X = 28f
+    private const val DELTA_BOX_Y = 26f
+    private const val DELTA_BOX_W = 52f
+    private const val DELTA_BOX_H = 54f
 }

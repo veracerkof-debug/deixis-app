@@ -115,6 +115,8 @@ data class AppSettings(
     val volumeKeys: Boolean = false,
     val caps: Boolean = false,
     val church: Boolean = true,
+    /** Вид заставки «Логотип»: ΔΕΙΞΙΣ, большая Δ, δεῖξις или Deixis. */
+    val logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
 )
 
 /** Перевод презентации или документа на компьютере: PDF лежит на том приёмнике, который его сделал. */

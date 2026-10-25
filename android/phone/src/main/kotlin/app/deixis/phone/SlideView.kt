@@ -102,10 +102,15 @@ fun Modifier.frame(frame: Frame, live: Color, pre: Color, width: Dp, radius: Dp)
  * Превью слайда в пропорциях вывода. Показывает то же, что увидит зал: оформление, режим,
  * страницу PDF, кадр фото или видео.
  */
+/** Вид заставки «Логотип» для превью: задаётся один раз наверху по настройке. */
+val LocalLogoStyle = androidx.compose.runtime.staticCompositionLocalOf { app.deixis.core.LogoStyle.WORDMARK }
+
 @Composable
 fun SlideView(
     slide: Slide?, item: LibItem?, style: SlideStyle, modifier: Modifier = Modifier,
     mode: Mode = Mode.NORMAL, num: Int? = null, frame: Frame = Frame.NONE, round: Dp = T.rSlide,
+    /** Вид заставки «Логотип» — какой выбран в настройках. */
+    logo: app.deixis.core.LogoStyle = LocalLogoStyle.current,
 ) {
     val p = P.current
     Box(
@@ -115,14 +120,7 @@ fun SlideView(
     ) {
         when {
             mode == Mode.BLACK -> {}
-            mode == Mode.LOGO -> BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val d = LocalDensity.current
-                val px = with(d) { app.deixis.core.LogoMark.size(maxWidth.toPx(), maxHeight.toPx()) }
-                BasicText(
-                    "ΔΕΙΞΙΣ", Modifier.padding(start = with(d) { (px * 0.18f).toDp() }),
-                    style = TextStyle(fontFamily = Didot, fontSize = with(d) { px.toSp() }, letterSpacing = 0.18.em, color = Color.White), maxLines = 1, softWrap = false,
-                )
-            }
+            mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
             mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
             else -> { BackgroundImage(style); SlideBody(slide, item, style) }
         }

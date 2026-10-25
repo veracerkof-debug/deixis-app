@@ -129,7 +129,7 @@ fun ReceiverScreen(
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
         when {
             mode == Mode.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
-            mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { LogoFull() }
+            mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { LogoFull(state.logo) }
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
             content is TextContent -> TextSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             content is ScriptureContent -> ScriptureSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
@@ -250,17 +250,6 @@ private fun ScreenSurface(runtime: ReceiverRuntime, c: ScreenContent) {
 }
 
 /** «Логотип»: знак на всю ширину экрана. Пробел трекинга после последней буквы уравновешен слева. */
-@Composable
-fun LogoFull(color: Color = Color.White) {
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val d = LocalDensity.current
-        val px = with(d) { app.deixis.core.LogoMark.size(maxWidth.toPx(), maxHeight.toPx()) }
-        val size = with(d) { px.toSp() }
-        val pad = with(d) { (px * 0.18f).toDp() }
-        BasicText("ΔΕΙΞΙΣ", Modifier.padding(start = pad), style = TextStyle(fontFamily = Didot, fontSize = size, letterSpacing = 0.18.em, color = color), maxLines = 1, softWrap = false)
-    }
-}
-
 /** Знак ΔΕΙΞΙΣ. [heightFraction] — размер буквы как доля высоты экрана. */
 @Composable
 fun Wordmark(heightFraction: Float, color: Color = Color.White) {

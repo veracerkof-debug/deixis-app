@@ -143,7 +143,11 @@ class Controller(private val app: Application) {
 
     val settings: StateFlow<AppSettings> = data.map { it.settings }.stateIn(scope, SharingStarted.Eagerly, store.data.settings)
     fun setSettings(change: (AppSettings) -> AppSettings) {
+        val before = settings.value.logo
         edit { it.copy(settings = change(it.settings)) }
+        // Другой вид «Логотипа» виден сразу, если логотип сейчас в зале.
+        val logo = settings.value.logo
+        if (logo != before && mode.value == Mode.LOGO) outs.value.forEach { it.client.mode(Mode.LOGO, logo) }
         // Регистр меняется сразу и в зале.
         live.value?.let { c -> if (c.slide is Slide.Text || c.slide is Slide.Scripture) deliver(c) }
     }
@@ -569,7 +573,9 @@ class Controller(private val app: Application) {
     fun mode(m: Mode) {
         val next = if (mode.value == m) Mode.NORMAL else m
         localMode.value = next
-        outs.value.forEach { it.client.mode(next) }
+        val logo = settings.value.logo
+        outs.value.forEach { it.client.mode(next, logo) }
+        dlna.logo = logo
         if (dlnaTarget.value != null) scope.launch { runCatching { dlna.toggle(m) } }
     }
 

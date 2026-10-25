@@ -234,6 +234,7 @@ class ScreenRelay(
         val mode: Mode,
         val timer: CountdownContent? = null,
         val overlays: Overlays = Overlays(),
+        val logo: LogoStyle = LogoStyle.WORDMARK,
     )
 
     private inner class Link(val id: String, val host: String, val port: Int, token: String) {
@@ -263,7 +264,7 @@ class ScreenRelay(
             }
             linkScope.launch {
                 client.connection.map { it is Connection.Connected }.distinctUntilChanged()
-                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer, it.overlays) }.distinctUntilChanged()) { online, m -> online to m }
+                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer, it.overlays, it.logo) }.distinctUntilChanged()) { online, m -> online to m }
                     .collectLatest { (online, m) ->
                         if (!online) { sent = null; syncing.value = false; return@collectLatest }
                         mirror(m)
@@ -290,12 +291,12 @@ class ScreenRelay(
             val content = m.content
             if (content == null) {
                 // Показа ещё не было: экран остаётся в ожидании, но режим повторяется.
-                if (prev?.mode != m.mode && m.mode != Mode.NORMAL) client.mode(m.mode)
+                if ((prev?.mode != m.mode || prev.logo != m.logo) && m.mode != Mode.NORMAL) client.mode(m.mode, m.logo)
                 sent = m
                 return
             }
             if (prev != null && prev.content == content && prev.next == m.next) {
-                if (prev.mode != m.mode) client.mode(m.mode)
+                if (prev.mode != m.mode || prev.logo != m.logo) client.mode(m.mode, m.logo)
                 sent = m
                 if (content is ScreenContent) forwardStream()
                 return
@@ -323,7 +324,7 @@ class ScreenRelay(
                 else -> content
             }
             if (!client.show(shown, m.next)) return
-            if (m.mode != Mode.NORMAL) client.mode(m.mode)
+            if (m.mode != Mode.NORMAL) client.mode(m.mode, m.logo)
             if (content is VideoContent && live.video?.playing == false) client.video(VideoCommand(VideoAction.PAUSE))
             sent = m
             // Файлы следующего слайда — заранее, чтобы переход был мгновенным. Не вышло — не страшно.

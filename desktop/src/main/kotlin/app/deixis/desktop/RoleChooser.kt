@@ -64,7 +64,7 @@ object RoleChooser {
     /** Показывает окно; [onPick] получает выбор или null, если окно закрыли. Только в потоке окон. */
     fun show(current: Role?, onPick: (Role?) -> Unit): JFrame {
         val t = ChooserTokens
-        val frame = JFrame("Deixis")
+        val frame = JFrame("Deixis").also(AppIcon::apply)
         var done = false
         fun finish(r: Role?) {
             if (done) return

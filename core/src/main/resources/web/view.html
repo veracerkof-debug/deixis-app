@@ -176,6 +176,35 @@ function mark(sub, full) {
   return d;
 }
 
+// Заставка «Логотип» — как в ядре (LogoMark): ΔΕΙΞΙΣ, большая Δ значка, δεῖξις или Deixis.
+function logoMark(style) {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  const d = document.createElement("div");
+  d.className = "mark";
+  if (style === "DELTA") {
+    const th = Math.min(h * 0.72, w * 0.86 * 54 / 52), k = th / 54, x0 = (w - 52 * k) / 2 - 28 * k, y0 = (h - th) / 2 - 26 * k;
+    const pt = (x, y) => `${(x0 + x * k).toFixed(1)},${(y0 + y * k).toFixed(1)}`;
+    d.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;inset:0"><path fill="#fff" fill-rule="evenodd" d="M${pt(54, 26)}L${pt(80, 80)}L${pt(28, 80)}Z M${pt(54, 38)}L${pt(37, 74)}L${pt(71, 74)}Z"/></svg>`;
+    return d;
+  }
+  const text = { GREEK: "δεῖξις", LATIN: "Deixis" }[style] || "ΔΕΙΞΙΣ", track = style === "GREEK" || style === "LATIN" ? 0.04 : 0.18;
+  const fill = style === "GREEK" || style === "LATIN" ? 0.66 : 0.86;
+  const b = document.createElement("b");
+  b.textContent = text;
+  b.style.letterSpacing = track + "em";
+  b.style.paddingLeft = track + "em";
+  const fit = () => {
+    const g = document.createElement("canvas").getContext("2d");
+    g.font = '400 100px "Deixis Mark", Georgia, serif';
+    const em = (g.measureText(text).width + 100 * track * (text.length - 1)) / 100;
+    b.style.fontSize = Math.min(w * fill / em, h * 0.6) + "px";
+  };
+  fit();
+  if (document.fonts) document.fonts.load('100px "Deixis Mark"').then(fit, () => {});
+  d.append(b);
+  return d;
+}
+
 function note(text) {
   const d = document.createElement("div");
   d.className = "note";
@@ -392,7 +421,7 @@ function render(s) {
   const c = s.content;
   setBackdrop(c && c.style && c.style.backgroundVideo);
   setOverlays(s.overlays, s.mode);
-  const k = JSON.stringify([c, s.mode]);
+  const k = JSON.stringify([c, s.mode, s.mode === "LOGO" ? s.logo : null]);
   if (k !== lastKey) {
     lastKey = k;
     // Фото и страницы PDF сначала загружаются, потом подменяют прежний кадр: без чёрной вспышки между слайдами.
@@ -417,7 +446,7 @@ function render(s) {
     } else if (s.mode === "BLACK") {
       // чёрный экран
     } else if (s.mode === "LOGO") {
-      stage.append(mark(null, true));
+      stage.append(logoMark(s.logo));
     } else if (!c) {
       stage.append(mark(t.wait));
     } else if (c.type === "text") {

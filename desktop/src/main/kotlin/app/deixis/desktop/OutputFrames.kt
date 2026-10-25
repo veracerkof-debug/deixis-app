@@ -80,6 +80,8 @@ data class FrameState(
     val timer: app.deixis.core.CountdownContent? = null,
     /** Слой поверх показа; рисуется поверх кадра зала, сам кадр от него не зависит. */
     val overlays: app.deixis.core.Overlays = app.deixis.core.Overlays(),
+    /** Вид заставки «Логотип». */
+    val logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
 ) {
     /** Что сейчас написано на отсчётах (в зале и в «Сцене»): кадр перерисовывается, только когда это меняется. */
     val countdownText: String?
@@ -142,7 +144,7 @@ class OutputFrames(files: FileStore) {
         OutputLayout.HALL -> slides.render(
             width, height,
             s.content.takeUnless { (it is VideoContent || it is ScreenContent) && s.mode == Mode.NORMAL },
-            s.mode, s.idle, s.now,
+            s.mode, s.idle, s.now, s.logo,
         )
         OutputLayout.LOWER_THIRD -> caption(width, height, s, chroma = false)
         OutputLayout.CHROMA -> caption(width, height, s, chroma = true)

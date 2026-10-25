@@ -222,10 +222,10 @@ jobs:
           )
           [ -n "$VLC_OPT" ] && args+=(--java-options "$VLC_OPT" --app-content content/vlc)
           case "${{ runner.os }}" in
-            Windows) args+=(--win-menu --win-shortcut --win-dir-chooser --win-upgrade-uuid 6f3c1a52-8d0b-4c1e-9a77-2b5e4d1c9f10) ;;
+            Windows) args+=(--icon desktop/packaging/deixis.ico --win-menu --win-shortcut --win-dir-chooser --win-upgrade-uuid 6f3c1a52-8d0b-4c1e-9a77-2b5e4d1c9f10) ;;
             # Полный экран macOS (MacScreen) и имя в меню программы.
-            macOS) args+=(--java-options "--add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED" --mac-package-name Deixis) ;;
-            Linux) args+=(--linux-shortcut --linux-package-name deixis --linux-package-deps "libvlc5, vlc-plugin-base, vlc-plugin-video-output, libreoffice-impress-nogui | libreoffice-impress, libreoffice-writer-nogui | libreoffice-writer, libreoffice-calc-nogui | libreoffice-calc, fonts-crosextra-carlito, fonts-crosextra-caladea, fonts-liberation2 | fonts-liberation") ;;
+            macOS) args+=(--icon desktop/packaging/deixis.icns --java-options "--add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED" --mac-package-name Deixis) ;;
+            Linux) args+=(--icon desktop/packaging/deixis.png --linux-shortcut --linux-package-name deixis --linux-package-deps "libvlc5, vlc-plugin-base, vlc-plugin-video-output, libreoffice-impress-nogui | libreoffice-impress, libreoffice-writer-nogui | libreoffice-writer, libreoffice-calc-nogui | libreoffice-calc, fonts-crosextra-carlito, fonts-crosextra-caladea, fonts-liberation2 | fonts-liberation") ;;
           esac
           jpackage "${args[@]}"
           ls -la out

@@ -17,24 +17,17 @@ import app.deixis.core.TextStyle as SlideStyle
  * Слайд картинкой — для экранов, которые умеют показывать только фото (DLNA-телевизоры).
  * Рисуется тем же расчётом, что и на Deixis TV, поэтому выглядит так же. [background] — картинка фона оформления.
  */
-fun renderSlideBitmap(context: Context, content: Content?, mode: Mode, width: Int = 1920, height: Int = 1080, background: Bitmap? = null): Bitmap {
+fun renderSlideBitmap(
+    context: Context, content: Content?, mode: Mode, width: Int = 1920, height: Int = 1080, background: Bitmap? = null,
+    logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
+): Bitmap {
     val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     c.drawColor(android.graphics.Color.BLACK)
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = context.resources.getFont(R.font.noto_sans_semibold) }
     when {
         mode == Mode.BLACK -> Unit
-        mode == Mode.LOGO -> {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = context.resources.getFont(R.font.gfs_didot)
-                textSize = app.deixis.core.LogoMark.size(width.toFloat(), height.toFloat())
-                letterSpacing = 0.18f
-                color = android.graphics.Color.WHITE
-                textAlign = Paint.Align.CENTER
-            }
-            // Трекинг добавляет пробел после последней буквы: сдвиг на его половину ставит знак ровно по центру.
-            c.drawText("ΔΕΙΞΙΣ", width / 2f + p.textSize * 0.09f, height / 2f - (p.ascent() + p.descent()) / 2, p)
-        }
+        mode == Mode.LOGO -> drawLogoMark(c, width.toFloat(), height.toFloat(), logo, context.resources.getFont(R.font.gfs_didot), android.graphics.Color.WHITE)
         content is TextContent -> {
             background(c, content.style, background, width, height)
             if (mode != Mode.CLEAR) {

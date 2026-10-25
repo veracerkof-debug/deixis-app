@@ -169,6 +169,8 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .slide .sc .cols > div { flex: 1; min-width: 0; }
 .slide .sc .r { font-size: .6em; opacity: .8; }
 .slide .mk { font-family: var(--f-mark); letter-spacing: .18em; font-size: 7cqw; color: var(--slide-ink); }
+.slide .mk.lower { letter-spacing: .04em; font-size: 10cqw; }
+.slide .mkd { height: 100%; width: auto; color: var(--slide-ink); }
 .slide .num { position: absolute; left: var(--g3); top: var(--g2); font-size: var(--fs-tab); color: var(--slide-num); font-weight: 600; font-family: var(--f-ui); z-index: 2; background: var(--slide-num-bg); border-radius: var(--r-pill); padding: 0 var(--g3); }
 .slide .lbl { position: absolute; right: var(--g3); top: var(--g2); font-size: var(--fs-xs); color: var(--slide-num); font-family: var(--f-ui); z-index: 2; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slide .vid { position: absolute; right: 3cqw; bottom: 3cqw; font-size: max(var(--fs-xs), 4cqw); font-family: var(--f-ui); color: var(--slide-num); z-index: 2; font-variant-numeric: tabular-nums; }
@@ -498,6 +500,7 @@ const TR = {
   convertedPdf: ["переведено в PDF", "PDF ga o‘girilgan", "converted to PDF"],
   screenShare: ["Экран телефона", "Telefon ekrani", "Phone screen"],
   countdown: ["Обратный отсчёт", "Teskari sanoq", "Countdown"],
+  logoHead: ["Заставка «Логотип»", "«Logotip» ekrani", "“Logo” screen"],
   tLayer: ["Поверх", "Ustidan", "Overlay"],
   layerTitle: ["Поверх показа", "Namoyish ustidan", "Over the show"],
   layerSamples: ["Примеры", "Namunalar", "Examples"],
@@ -861,7 +864,7 @@ const DEFAULT_BIBLES = ["RST.SQLite3", "KJV.SQLite3"];
 let settings = (() => {
   const s = store.get("settings", {}) || {};
   const b = s.bible || {};
-  return Object.assign({ theme: "auto", alwaysPre: false, clicker: true, caps: false, church: true, lang: null, holyrics: null }, s, {
+  return Object.assign({ theme: "auto", alwaysPre: false, clicker: true, caps: false, church: true, lang: null, holyrics: null, logo: "WORDMARK" }, s, {
     bible: { selected: Array.isArray(b.selected) ? b.selected : [], options: Object.assign({}, BIBLE_OPTIONS, b.options || {}), last: b.last || [500, 3], history: Array.isArray(b.history) ? b.history : [] },
   });
 })();
@@ -1177,7 +1180,7 @@ function step(d) {
 }
 function setMode(m) {
   if (!online) { toast(t.lost); return; }
-  send({ type: "mode", mode: mode() === m ? "NORMAL" : m });
+  send({ type: "mode", mode: mode() === m ? "NORMAL" : m, logo: settings.logo || "WORDMARK" });
 }
 function video(action, arg) {
   const v = state && state.video;
@@ -1640,13 +1643,19 @@ function loadInner() {
   if (!p) return "";
   return `<i></i><span>${p.pct != null ? p.pct + "%" : esc(t.preparingShort)}</span><small>${esc(p.text)} · ${esc(p.name)}</small>`;
 }
+// Заставка «Логотип» в превью — тот вид, что в зале (как LogoMark в ядре).
+function logoMarkHTML(style) {
+  if (style === "DELTA") return `<svg class="mkd" viewBox="16 16 76 76" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M54 26L80 80L28 80Z M54 38L37 74L71 74Z"/></svg>`;
+  const text = { GREEK: "δεῖξις", LATIN: "Deixis" }[style];
+  return text ? `<div class="mk lower">${text}</div>` : `<div class="mk">ΔΕΙΞΙΣ</div>`;
+}
 function slideHTML(c, o = {}) {
   const m = o.mode || "NORMAL", cls = o.cls || "";
   const extra = (o.num ? `<span class="num">${o.num}</span>` : "") + (o.label ? `<span class="lbl">${esc(o.label)}</span>` : "")
     + (o.time ? `<span class="vid" ${o.timeId ? `id="${o.timeId}"` : ""}>${esc(o.time)}</span>` : "")
     + (o.load ? `<div class="load" id="loadNow">${loadInner()}</div>` : "");
   if (m === "BLACK") return `<div class="slide ${cls}">${extra}</div>`;
-  if (m === "LOGO") return `<div class="slide ${cls}"><div class="mk">ΔΕΙΞΙΣ</div>${extra}</div>`;
+  if (m === "LOGO") return `<div class="slide ${cls}">${logoMarkHTML((state && state.logo) || settings.logo)}${extra}</div>`;
   if (!c) return `<div class="slide ${cls}">${o.empty ? `<span class="empty">${esc(o.empty)}</span>` : ""}${extra}</div>`;
   const clear = m === "CLEAR";
   const ph = (icon, text) => `<div class="ph">${ico(icon)}<span>${esc(text)}</span></div>`;
@@ -2158,6 +2167,7 @@ function sheetSettings() {
       ${swRow("alwaysPre", st.alwaysPre, t.alwaysPre, t.alwaysPreSub)}
       ${swRow("clicker", st.clicker, t.clicker, t.clickerSub)}
       ${swRow("caps", st.caps, t.capsSet, t.capsSub)}</div>
+    <div class="ghead">${esc(t.logoHead)}</div><div class="mb">${seg("logostyle", [["WORDMARK", "ΔΕΙΞΙΣ"], ["DELTA", "Δ"], ["GREEK", "δεῖξις"], ["LATIN", "Deixis"]], st.logo || "WORDMARK")}</div>
     <div class="ghead">${esc(t.sectionsHead)}</div><div class="group">${swRow("church", st.church, t.churchLbl, t.churchSub)}</div>
     <div class="ghead">${esc(t.language)}</div><div class="mb">${seg("lang", [["ru", "Русский"], ["uz", "O‘zbekcha"], ["en", "English"]], lang)}</div>
     <p class="note">${esc(t.autoFit)}</p>
@@ -2680,6 +2690,8 @@ const A = {
   tedel: () => { D.themes = D.themes.filter((x) => x.id !== TE.id); saveData(); toast(t.themeDeleted); sheetStyle(); },
   // Настройки
   theme: (d) => { settings.theme = d.v; save(); render(); refreshSheet(); },
+  // Другой вид «Логотипа» сразу виден в зале, если логотип сейчас там.
+  logostyle: (d) => { settings.logo = d.v; save(); if (mode() === "LOGO") send({ type: "mode", mode: "LOGO", logo: d.v }); render(); refreshSheet(); },
   lang: (d) => { settings.lang = d.v; save(); setLang(d.v); render(); sheetSettings(); },
   setting: (d) => {
     settings[d.k] = !settings[d.k]; save();

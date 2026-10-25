@@ -92,7 +92,10 @@ class SendCommand(private val opts: Map<String, String>, private val tokensFile:
             scope.launch { client.errors.collect { System.err.println("Приёмник: ${it.message}") } }
 
             when {
-                "mode" in opts -> client.mode(Mode.valueOf(opts.getValue("mode").uppercase()))
+                "mode" in opts -> client.mode(
+                    Mode.valueOf(opts.getValue("mode").uppercase()),
+                    opts["logo-style"]?.let { v -> app.deixis.core.LogoStyle.entries.firstOrNull { it.name == v.uppercase() } ?: return@runBlocking fail("Вид логотипа: wordmark, delta, greek, latin") },
+                )
                 "video" in opts -> client.video(parseVideo(opts.getValue("video")) ?: return@runBlocking fail("Неизвестная команда видео"))
                 "stream" in opts -> return@runBlocking stream(client, File(opts.getValue("stream")))
                 OVERLAY_KEYS.any { it in opts } -> return@runBlocking overlays(client)

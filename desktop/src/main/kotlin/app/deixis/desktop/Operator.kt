@@ -4,18 +4,14 @@ import app.deixis.core.MonitorOutput
 import app.deixis.core.MonitorRequest
 import app.deixis.core.OutputLayout
 import java.awt.CheckboxMenuItem
-import java.awt.Color
 import java.awt.Desktop
 import java.awt.Menu
 import java.awt.MenuItem
 import java.awt.PopupMenu
-import java.awt.RenderingHints
 import java.awt.SystemTray
 import java.awt.Toolkit
 import java.awt.TrayIcon
 import java.awt.datatransfer.StringSelection
-import java.awt.font.FontRenderContext
-import java.awt.font.TextLayout
 import java.awt.image.BufferedImage
 import java.io.File
 import java.net.URI
@@ -160,19 +156,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
             }
         }
 
-        /** Значок — буква Δ знаком Deixis, белая на чёрном (DESIGN.md, «Знак»). */
-        private fun iconImage(size: Int): BufferedImage {
-            val img = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
-            val g = img.createGraphics()
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-            g.color = OutputTokens.black
-            g.fillRoundRect(0, 0, size, size, size / 4, size / 4)
-            val layout = TextLayout("Δ", Fonts.mark.deriveFont(size * 0.8f), FontRenderContext(null, true, true))
-            g.color = Color.WHITE
-            layout.draw(g, (size - layout.advance) / 2f, size / 2f + layout.ascent / 2f - layout.descent / 2f)
-            g.dispose()
-            return img
-        }
+        /** Значок — тот же, что у приложения на телефоне и у установщика (AppIcon). */
+        private fun iconImage(size: Int): BufferedImage = AppIcon.image(size) ?: BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
     }
 }

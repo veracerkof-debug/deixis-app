@@ -1,5 +1,7 @@
 package app.deixis.phone
 
+import app.deixis.core.Mode
+
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -199,6 +201,12 @@ fun SettingsSheet(c: Controller) {
         Sep(T.gutter)
         SwitchRow("Текст заглавными буквами", st.caps, "Песни, тексты и Писание в зале") { v -> c.setSettings { it.copy(caps = v) } }
     }
+    GHead("Заставка «Логотип»")
+    Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), app.deixis.core.LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
+        c.setSettings { it.copy(logo = app.deixis.core.LogoStyle.entries[i]) }
+    }
+    SlideView(null, null, c.styleFor(null), Modifier.padding(top = T.gapS), mode = Mode.LOGO, logo = st.logo)
+    Note("Так выглядит экран в зале по кнопке «Логотип».")
     GHead("Разделы")
     Group {
         SwitchRow("Церковный раздел", st.church, "Библия и Holyrics на главном") { v -> c.setSettings { it.copy(church = v) } }
