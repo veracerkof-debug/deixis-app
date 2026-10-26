@@ -326,75 +326,12 @@ private fun QrCode(text: String, modifier: Modifier) {
 
 @Composable
 private fun TextSlide(runtime: ReceiverRuntime, c: TextContent, clear: Boolean, overscan: Boolean) {
-    val context = LocalContext.current
-    val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
-    val bg = rememberBackground(runtime, c.style)
-    Canvas(Modifier.fillMaxSize()) {
-        drawStyleBackground(c.style, bg)
-        if (clear) return@Canvas
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
-        val layout = layoutSlideText(
-            c.text, c.ref, size.width, size.height, c.style,
-            measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
-            ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
-            descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
-            overscan = overscan,
-        )
-        paint.textSize = layout.fontSize
-        drawIntoCanvas { canvas ->
-            val nc = canvas.nativeCanvas
-            layout.block?.let { b -> drawBox(nc, c.style, b.left, b.top, b.right, b.bottom, layout.fontSize) }
-            for (line in layout.lines) drawStyledText(nc, line.text, line.x, line.baseline, layout.fontSize, paint, c.style)
-            layout.ref?.let {
-                val refPaint = Paint(paint).apply {
-                    textSize = layout.refFontSize
-                    clearShadowLayer()
-                    alpha = 190
-                    textAlign = Paint.Align.RIGHT
-                }
-                nc.drawText(it, layout.refRight, layout.refBaseline, refPaint)
-            }
-        }
-    }
+    TextSlideCanvas(c.text, c.ref, c.style, clear, overscan, rememberBackground(runtime, c.style))
 }
 
 @Composable
 private fun ScriptureSlide(runtime: ReceiverRuntime, c: ScriptureContent, clear: Boolean, overscan: Boolean) {
-    val context = LocalContext.current
-    val typeface = remember { context.resources.getFont(R.font.noto_sans_semibold) }
-    val bg = rememberBackground(runtime, c.style)
-    Canvas(Modifier.fillMaxSize()) {
-        drawStyleBackground(c.style, bg)
-        if (clear) return@Canvas
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.typeface = typeface }
-        val lines = layoutScripture(
-            c, size.width, size.height,
-            measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
-            ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
-            descent = { sz -> paint.textSize = sz; paint.fontMetrics.descent },
-            overscan = overscan,
-        )
-        drawIntoCanvas { canvas ->
-            val nc = canvas.nativeCanvas
-            if (c.style.box != null && lines.isNotEmpty()) {
-                val size = lines.filter { !it.ref }.maxOfOrNull { it.size } ?: lines.first().size
-                val right = lines.maxOf { paint.textSize = it.size; it.x + paint.measureText(it.text) }
-                val pad = size * 0.35f
-                drawBox(nc, c.style, lines.minOf { it.x } - pad, lines.minOf { it.baseline - it.size } - pad * 0.6f, right + pad, lines.maxOf { it.baseline + it.size * 0.3f } + pad * 0.6f, size)
-            }
-            for (l in lines) {
-                if (l.ref) {
-                    paint.textSize = l.size
-                    paint.color = c.style.color.toInt()
-                    paint.clearShadowLayer()
-                    paint.alpha = 190
-                    nc.drawText(l.text, l.x, l.baseline, paint)
-                } else {
-                    drawStyledText(nc, l.text, l.x, l.baseline, l.size, paint, c.style)
-                }
-            }
-        }
-    }
+    ScriptureSlideCanvas(c, clear, overscan, rememberBackground(runtime, c.style))
 }
 
 /**
@@ -452,7 +389,7 @@ private fun rememberBackground(runtime: ReceiverRuntime, style: SlideStyle): Bit
 }
 
 /** Цвет фона, поверх — картинка во весь экран с обрезкой краёв. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: SlideStyle, bg: Bitmap?) {
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: SlideStyle, bg: Bitmap?) {
     // Под слайдом видеофон: слайд прозрачный, фон — кадры видео.
     if (style.backgroundVideo != null) return
     drawRect(Color(style.background.toInt()))

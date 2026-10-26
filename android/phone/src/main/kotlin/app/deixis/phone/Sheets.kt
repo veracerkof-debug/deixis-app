@@ -265,7 +265,7 @@ fun PickSheet(c: Controller, ui: Ui, kind: PickKind) {
         Group {
             list.forEachIndexed { i, it ->
                 if (i > 0) Sep()
-                Cell(it.title, subOf(c, it), it.kind.icon, onClick = { ui.closeAll(); showItem(c, ui, it) })
+                Cell(it.title, subOf(c, it), it.kind.icon, item = it, onClick = { ui.closeAll(); showItem(c, ui, it) })
             }
         }
     }
@@ -334,7 +334,7 @@ fun FindSheet(c: Controller, ui: Ui) {
         if (found.isEmpty()) Cell("Ничего не найдено", chevron = null)
         found.forEachIndexed { i, it ->
             if (i > 0) Sep()
-            Cell(it.title, subOf(c, it), it.kind.icon, chevron = null, onClick = {
+            Cell(it.title, subOf(c, it), it.kind.icon, chevron = null, item = it, onClick = {
                 ui.closeAll(); ui.tab = AppTab.SHOW
                 tapToPreview(c, ui, it)
             }) {
@@ -461,7 +461,7 @@ fun StyleSheet(c: Controller, ui: Ui) {
         }
         Sep(T.gutter)
         Cell("Размер текста", chevron = null) {
-            Stepper("${d.sizePercent.toInt()}", { set(d.copy(sizePercent = (d.sizePercent - 2).coerceAtLeast(8f))) }, { set(d.copy(sizePercent = (d.sizePercent + 2).coerceAtMost(32f))) })
+            Stepper("${d.sizePercent.toInt()}", { set(d.copy(sizePercent = textSizeStep(d.sizePercent, up = false))) }, { set(d.copy(sizePercent = textSizeStep(d.sizePercent, up = true))) })
         }
         Sep(T.gutter)
         SwitchRow("Тень", d.shadow) { set(d.copy(shadow = it)) }

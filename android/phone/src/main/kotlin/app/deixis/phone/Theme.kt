@@ -344,7 +344,10 @@ fun Tag(text: String, live: Boolean) {
 @Composable
 fun Cell(
     title: String, sub: String? = null, kind: String? = null, open: Boolean = false, chevron: String? = "chev",
-    onLong: (() -> Unit)? = null, onClick: (() -> Unit)? = null, trailing: @Composable RowScope.() -> Unit = {},
+    onLong: (() -> Unit)? = null, onClick: (() -> Unit)? = null,
+    /** Элемент библиотеки: у фото, видео и PDF вместо значка — миниатюра самого файла. */
+    item: LibItem? = null,
+    trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val p = P.current
     val click = onClick
@@ -356,7 +359,7 @@ fun Cell(
             .padding(horizontal = T.gutter, vertical = T.rowPadV),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        kind?.let { Kind(it) }
+        if (item != null && hasThumb(item)) ItemThumb(item, T.kind) { kind?.let { Kind(it) } } else kind?.let { Kind(it) }
         Column(Modifier.weight(1f)) {
             Txt(title, lines = 1)
             sub?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fSub, p.l2, lines = 1) }
@@ -473,3 +476,12 @@ fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -> Unit) 
 fun Note(text: String, modifier: Modifier = Modifier) {
     Txt(text, T.fSub, P.current.l2, modifier = modifier.padding(start = 4.dp, end = 4.dp, top = T.gapS, bottom = T.gutter))
 }
+
+/** Размер текста оформления: от очень мелкого (2) до крупного (40); у мелких шаг 1, дальше 2. */
+fun textSizeStep(v: Float, up: Boolean): Float {
+    val step = if (v < 10f || (!up && v <= 10f)) 1f else 2f
+    return (kotlin.math.round(v) + if (up) step else -step).coerceIn(TEXT_SIZE_MIN, TEXT_SIZE_MAX)
+}
+
+const val TEXT_SIZE_MIN = 2f
+const val TEXT_SIZE_MAX = 40f

@@ -120,7 +120,7 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
         }
         Sep(T.gutter)
         Cell("Размер текста", chevron = null) {
-            Stepper("${st.sizePercent.toInt()}", { st = st.copy(sizePercent = (st.sizePercent - 2).coerceAtLeast(8f)) }, { st = st.copy(sizePercent = (st.sizePercent + 2).coerceAtMost(32f)) })
+            Stepper("${st.sizePercent.toInt()}", { st = st.copy(sizePercent = textSizeStep(st.sizePercent, up = false)) }, { st = st.copy(sizePercent = textSizeStep(st.sizePercent, up = true)) })
         }
         Sep(T.gutter)
         SwitchRow("Тень", st.shadow) { st = st.copy(shadow = it) }

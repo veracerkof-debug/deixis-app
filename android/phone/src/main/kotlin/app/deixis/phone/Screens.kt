@@ -82,7 +82,7 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
                         Column(Modifier.fillMaxWidth().groupCell(i == 0, i == list.lastIndex)) {
                             if (i > 0) Sep()
                             Cell(
-                                it.title, subOf(c, it), it.kind.icon,
+                                it.title, subOf(c, it), it.kind.icon, item = it,
                                 onLong = { ui.sheet(it.title) { ItemMenu(c, ui, it, inSet = false) } },
                                 onClick = { ui.full = FullSpec.Local(Cue(c.sourceOf(it), 0)) },
                             )

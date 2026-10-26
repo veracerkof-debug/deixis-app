@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -376,7 +377,7 @@ private fun LazyListScope.setRow(
         if (!first) Sep()
         val isLive = live?.source?.itemId == it.id && mode != Mode.BLACK
         Cell(
-            it.title, subOf(c, it), it.kind.icon, open = open, chevron = if (open) "down" else "chev",
+            it.title, subOf(c, it), it.kind.icon, open = open, item = it, chevron = if (open) "down" else "chev",
             onLong = if (recent) null else ({ ui.sheet(it.title) { ItemMenu(c, ui, it, inSet = true) } }),
             onClick = {
                 if (recent) c.toPreview(Cue(c.sourceOf(it), 0))
@@ -507,12 +508,17 @@ fun openStyle(c: Controller, ui: Ui) {
 private fun RowScope.BarBtn(icon: String, text: String, pressed: Boolean = false, weight: Float = 1f, onClick: () -> Unit) {
     val p = P.current
     Column(
-        Modifier.weight(weight).heightIn(min = T.barBtn).clip(RoundedCornerShape(T.rBtn)).background(if (pressed) p.ink else p.fill)
+        // Нажатое — акцентом, как «В зал»: видно в любой теме пульта, в том числе в «Бумаге».
+        Modifier.weight(weight).heightIn(min = T.barBtn).clip(RoundedCornerShape(T.rBtn)).background(if (pressed) p.tint else p.fill)
             .press(scaleTo = 0.94f, label = text, onClick = onClick).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, if (pressed) p.bg else p.ink, T.iconBar)
-        Txt(text, T.fBar, if (pressed) p.bg else p.ink, FontWeight.SemiBold, lines = 1)
+        Icon(icon, if (pressed) Color.White else p.ink, T.iconBar)
+        // На узком телефоне шесть кнопок в ряд: подпись уменьшается по ширине кнопки, а не обрезается.
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 2.dp), contentAlignment = Alignment.Center) {
+            val fit = with(LocalDensity.current) { (maxWidth / (text.length * BAR_CHAR_EM)).toSp() }
+            Txt(text, if (fit < T.fBar) fit else T.fBar, if (pressed) Color.White else p.ink, FontWeight.SemiBold, lines = 1)
+        }
     }
 }
 
@@ -546,3 +552,6 @@ private fun VideoSeek(position: Long, duration: Long, onSeek: (Long) -> Unit) {
         Txt(clock(duration), T.fLabel, p.l2)
     }
 }
+
+/** Средняя ширина буквы подписи кнопки, доля кегля: по ней подпись ужимается до ширины кнопки. */
+private const val BAR_CHAR_EM = 0.58f

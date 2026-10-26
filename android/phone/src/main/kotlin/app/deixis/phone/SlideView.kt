@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -68,16 +69,10 @@ fun screenRatio(info: app.deixis.core.ReceiverInfo?): Float {
     return if (w > 0 && h > 0) (w.toFloat() / h).coerceIn(S.MIN_RATIO, S.MAX_RATIO) else 16f / 9f
 }
 
-/** Пропорции превью слайда — доли его высоты, как на выводе. */
+/** Превью слайда: крайние форматы экрана и размер миниатюр файлов. */
 private object S {
     const val MIN_RATIO = 0.5f
     const val MAX_RATIO = 3.6f
-    const val pad = 0.05f
-    const val lineHeight = 1.2f
-    const val maxText = 0.11f
-    const val fill = 0.8f
-    const val charWidth = 0.55f
-    const val ref = 0.045f
     const val thumbWidth = 480
     val pageBg = Color(0xFF2A2A2C)
     val paper = Color(0xFFFFFFFF)
@@ -99,13 +94,16 @@ fun Modifier.frame(frame: Frame, live: Color, pre: Color, width: Dp, radius: Dp)
     )
 }
 
-/**
- * Превью слайда в пропорциях вывода. Показывает то же, что увидит зал: оформление, режим,
- * страницу PDF, кадр фото или видео.
- */
 /** Вид заставки «Логотип» для превью: задаётся один раз наверху по настройке. */
 val LocalLogoStyle = androidx.compose.runtime.staticCompositionLocalOf { LogoStyle.WORDMARK }
 
+/**
+ * Превью слайда в пропорциях вывода. Показывает то же, что увидит зал: оформление, режим,
+ * страницу PDF, кадр фото или видео.
+ *
+ * Место под превью — постоянное (от квадрата до 21:9), а слайд внутри — в настоящих пропорциях экрана:
+ * вертикальный экран в зале не растягивает пульт в высоту, сверхширокий — не превращает превью в полоску.
+ */
 @Composable
 fun SlideView(
     slide: Slide?, item: LibItem?, style: SlideStyle, modifier: Modifier = Modifier,
@@ -114,46 +112,51 @@ fun SlideView(
     logo: LogoStyle = LocalLogoStyle.current,
 ) {
     val p = P.current
-    Box(
-        modifier.fillMaxWidth().aspectRatio(LocalScreenRatio.current).frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
-            .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            mode == Mode.BLACK -> {}
-            mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
-            mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
-            else -> { BackgroundImage(style); SlideBody(slide, item, style) }
-        }
-        num?.let {
-            Txt("$it", T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopStart).padding(start = T.gapS, top = 4.dp))
+    val ratio = LocalScreenRatio.current
+    val slot = ratio.coerceIn(SLOT_MIN, SLOT_MAX)
+    Box(modifier.fillMaxWidth().aspectRatio(slot), contentAlignment = Alignment.Center) {
+        Box(
+            (if (ratio < slot) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).aspectRatio(ratio)
+                .frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
+                .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                mode == Mode.BLACK -> {}
+                mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
+                mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
+                else -> { BackgroundImage(style); SlideBody(slide, item, style) }
+            }
+            num?.let {
+                Txt("$it", T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopStart).padding(start = T.gapS, top = 4.dp))
+            }
         }
     }
 }
+
+/** Место под превью: не уже квадрата и не шире 21:9, что бы ни стояло в зале. */
+private const val SLOT_MIN = 1f
+private const val SLOT_MAX = 21f / 9f
 
 /** Фото фона темы (только у слайдов с текстом), обрезка по экрану, как на выводе. */
 @Composable
 private fun BackgroundImage(style: SlideStyle) {
     val ref = style.backgroundImage ?: return
     val uri = LocalBackgrounds.current(ref.sha256) ?: return
-    Thumb(LibItem("bg", Kind.PHOTO, ref.name, uri = uri), ThumbKind.PHOTO, 0) {}
+    Thumb(LibItem("bg", Kind.PHOTO, ref.name, uri = uri), ThumbKind.PHOTO, 0, ContentScale.Crop) {}
 }
 
 @Composable
 private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
     when (slide) {
-        is Slide.Text -> SlideText(listOf(slide.text), null, style)
-        is Slide.Scripture -> {
-            val c = slide.content
-            // Как на выводе: рядом — только на широком экране, иначе друг под другом.
-            if (c.sideBySide && c.blocks.size > 1 && LocalScreenRatio.current >= app.deixis.core.SIDE_BY_SIDE_MIN_ASPECT) Row(Modifier.fillMaxSize()) {
-                c.blocks.forEach { b -> Box(Modifier.weight(1f).fillMaxHeight()) { SlideText(listOf(b.text), b.ref, style) } }
-            } else SlideText(c.blocks.map { it.text }, c.ref ?: c.blocks.firstOrNull()?.ref, style)
-        }
+        // Текст и Писание — той же раскладкой, что в зале: превью — уменьшенный экран, а не прикидка.
+        is Slide.Text -> app.deixis.receiver.TextSlideCanvas(slide.text, null, style, drawBackground = false)
+        is Slide.Scripture -> app.deixis.receiver.ScriptureSlideCanvas(slide.content.copy(style = style), drawBackground = false)
         is Slide.Page -> Thumb(item, ThumbKind.PAGE, slide.index) { PagePlaceholder(slide.index + 1) }
         is Slide.Picture -> Thumb(item, ThumbKind.PHOTO, 0) { Icon("photo", Color.White, T.icon) }
         is Slide.Movie -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Thumb(item, ThumbKind.VIDEO, 0) {}
+            // Как ляжет в зале: «Заполнить» — с обрезкой, «Растянуть» — во весь кадр, иначе вписано.
+            Thumb(item, ThumbKind.VIDEO, 0, when (item?.videoFit) { app.deixis.core.VideoFit.FILL -> ContentScale.Crop; app.deixis.core.VideoFit.STRETCH -> ContentScale.FillBounds; else -> ContentScale.Fit }) {}
             Icon("play", Color.White, T.icon)
         }
         is Slide.Pending -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
@@ -162,55 +165,9 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
         }
         is Slide.Screen -> Icon("phone", Color.White, T.icon)
         // Превью отсчёта: сколько он будет идти, в оформлении зала.
-        is Slide.Countdown -> SlideText(listOf(slide.spec.title), slide.spec.label, style.copy(color = slide.spec.color ?: style.color))
-    }
-}
-
-/** Текст слайда: размер подбирается под превью так же, как на выводе — до полей и предела из оформления. */
-@Composable
-private fun SlideText(paras: List<String>, ref: String?, style: SlideStyle) {
-    val color = Color(style.color)
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-      val outerW = maxWidth
-      val outerH = maxHeight
-      BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = outerW * S.pad, vertical = outerH * S.pad), contentAlignment = Alignment.Center) {
-        val text = paras.joinToString("\n").let { if (style.caps) it.uppercase() else it }
-        val lines = text.lines().size.coerceAtLeast(1)
-        val longest = text.lines().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
-        val h = maxHeight
-        val byLimit = h * (S.maxText * style.sizePercent / 20f)
-        val byHeight = h * S.fill / (lines * S.lineHeight)
-        val byWidth = maxWidth / (longest * S.charWidth)
-        val size = minOf(byLimit, byHeight, byWidth)
-        val density = LocalDensity.current
-        val fs = with(density) { size.toSp() }
-        val base = TextStyle(
-            fontSize = fs, lineHeight = (S.lineHeight).em, fontWeight = FontWeight.SemiBold, textAlign = when (style.align) {
-                app.deixis.core.HAlign.LEFT -> TextAlign.Left
-                app.deixis.core.HAlign.RIGHT -> TextAlign.Right
-                else -> TextAlign.Center
-            },
+        is Slide.Countdown -> app.deixis.receiver.TextSlideCanvas(
+            listOfNotNull(slide.spec.label, slide.spec.title).joinToString("\n"), null, style.copy(color = slide.spec.color ?: style.color), drawBackground = false,
         )
-        val shadow = if (style.shadow) Shadow(Color(style.shadowColor), Offset(0f, with(density) { (size * 0.06f).toPx() }), with(density) { (size * 0.2f).toPx() }) else null
-        val place = when (style.valign) {
-            app.deixis.core.VAlign.TOP -> Alignment.TopCenter
-            app.deixis.core.VAlign.BOTTOM -> Alignment.BottomCenter
-            else -> Alignment.Center
-        }
-        Box(
-            Modifier.align(place).then(if (style.box != null) Modifier.background(Color(style.box!!)).padding(horizontal = size * 0.4f, vertical = size * 0.15f) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (style.outline) BasicText(
-                text, style = base.copy(color = Color(style.outlineColor), drawStyle = Stroke(with(density) { (size * style.outlineWidth * 2).toPx() })),
-            )
-            BasicText(text, style = base.copy(color = color, shadow = shadow))
-        }
-        ref?.let {
-            val rs = with(density) { (h * S.ref * 2).toSp() }
-            BasicText(it, Modifier.align(Alignment.BottomEnd), style = TextStyle(fontSize = rs, color = color.copy(alpha = 0.75f), fontWeight = FontWeight.Medium))
-        }
-      }
     }
 }
 
@@ -233,7 +190,12 @@ enum class ThumbKind { PAGE, PHOTO, VIDEO }
 
 /** Кадр файла с телефона: страница PDF, фото, кадр видео. Считается один раз и держится в памяти. */
 @Composable
-private fun Thumb(item: LibItem?, kind: ThumbKind, index: Int, placeholder: @Composable () -> Unit) {
+private fun Thumb(
+    item: LibItem?, kind: ThumbKind, index: Int,
+    /** Как в зале: фото, страница и видео вписаны целиком; фон темы и миниатюры в списках — с обрезкой. */
+    scale: ContentScale = ContentScale.Fit,
+    placeholder: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val uri = item?.uri
     val key = "$uri#$kind#$index"
@@ -241,8 +203,26 @@ private fun Thumb(item: LibItem?, kind: ThumbKind, index: Int, placeholder: @Com
         if (value == null && uri != null && (kind != ThumbKind.PAGE || item?.mime == "application/pdf")) value = Thumbs.load(context, key, Uri.parse(uri), kind, index)
     }
     val b = bmp
-    if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = if (kind == ThumbKind.PAGE) ContentScale.Fit else ContentScale.Crop)
+    if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = scale)
     else placeholder()
+}
+
+/** У фото, видео и PDF есть что показать вместо значка. */
+fun hasThumb(item: LibItem): Boolean = item.uri != null &&
+    (item.kind == Kind.PHOTO || item.kind == Kind.VIDEO || item.mime == "application/pdf")
+
+/** Миниатюра файла квадратом [size]: фото, кадр видео, первая страница PDF; пока считается — [placeholder]. */
+@Composable
+fun ItemThumb(item: LibItem, size: Dp, placeholder: @Composable () -> Unit) {
+    val kind = when {
+        item.kind == Kind.PHOTO -> ThumbKind.PHOTO
+        item.kind == Kind.VIDEO -> ThumbKind.VIDEO
+        else -> ThumbKind.PAGE
+    }
+    Box(Modifier.size(size).clip(RoundedCornerShape(T.rSlide)).background(if (kind == ThumbKind.PAGE) S.pageBg else Color.Black), contentAlignment = Alignment.Center) {
+        Thumb(item, kind, 0, ContentScale.Crop, placeholder)
+        if (kind == ThumbKind.VIDEO) Icon("play", Color.White, size * 0.4f)
+    }
 }
 
 object Thumbs {
