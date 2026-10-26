@@ -266,11 +266,22 @@ class ReceiverServer(
     fun stop() {
         cleaner?.cancel()
         cleaner = null
+        // Открытые сессии пультов закрываются сразу: пульт видит обрыв, а не ждёт, пока сервер дождётся их.
+        sessions.forEach { it.cancel() }
+        sessions.clear()
         server?.stop(500, 2_000)
         server = null
     }
 
+    private val sessions = java.util.concurrent.ConcurrentHashMap.newKeySet<kotlinx.coroutines.Job>()
+
     private suspend fun handleSession(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
+        val job = coroutineContext[kotlinx.coroutines.Job]
+        job?.let(sessions::add)
+        try { session(ws) } finally { job?.let(sessions::remove) }
+    }
+
+    private suspend fun session(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
         // Первое сообщение — hello с токеном или pair с PIN. Без него сессия закрывается.
         val first = withTimeoutOrNull(10_000) {
             (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg)
