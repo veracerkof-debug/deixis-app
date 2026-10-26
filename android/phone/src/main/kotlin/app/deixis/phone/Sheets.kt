@@ -44,7 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.deixis.core.qrMatrix
-import app.deixis.core.splitIntoSlides
 import java.time.LocalDate
 
 /** Действия, которым нужен системный экран: выбор файлов, разрешение на трансляцию. */
@@ -202,6 +201,13 @@ fun SettingsSheet(c: Controller) {
         Sep(T.gutter)
         SwitchRow("Текст заглавными буквами", st.caps, "Песни, тексты и Писание в зале") { v -> c.setSettings { it.copy(caps = v) } }
     }
+    GHead("Оформление")
+    val ui = LocalUi.current
+    Group {
+        Cell("Оформление по умолчанию", "Фон, шрифт, размер — для всех слайдов без своего", kind = "brush", onClick = {
+            ui.push("Оформление по умолчанию") { DefaultStyleEditor(c, ui) }
+        })
+    }
     GHead("Заставка «Логотип»")
     Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
         c.setSettings { it.copy(logo = LogoStyle.entries[i]) }
@@ -276,30 +282,9 @@ fun PickSheet(c: Controller, ui: Ui, kind: PickKind) {
     Note(kind.formats)
 }
 
+/** «Текст» на главном: разовый показ со своими слайдами, по желанию — в библиотеку. */
 @Composable
-fun TextSheet(c: Controller, ui: Ui) {
-    var text by remember { mutableStateOf("") }
-    var save by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Field(text, "Любой текст: объявление, стих, номер машины", single = false, minHeight = 150.dp) { text = it }
-        Note("Пустая строка начинает новый слайд. Длинный текст разбивается сам.", Modifier)
-        Group { SwitchRow("Сохранить в библиотеку", save) { save = it } }
-        val go = { live: Boolean ->
-            val source = if (save) {
-                val item = LibItem(Store.newId(), Kind.TEXT, text.lineSequence().first().take(40), slides = splitIntoSlides(text))
-                c.saveItem(item); c.sourceOf(item)
-            } else c.textSource(text)
-            if (source != null) {
-                ui.closeAll()
-                if (live) { c.goLive(Cue(source, 0)); ui.toast("В зале") } else c.toPreview(Cue(source, 0))
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-            Btn("В предпросмотр", Modifier.weight(1f), enabled = text.isNotBlank()) { go(false) }
-            Btn("В зал", Modifier.weight(1f), kind = BtnKind.TINT, enabled = text.isNotBlank()) { go(true) }
-        }
-    }
-}
+fun TextSheet(c: Controller, ui: Ui) = SongEditor(c, ui, Kind.TEXT, quick = true)
 
 @Composable
 fun MirrorSheet(c: Controller, ui: Ui) {
@@ -395,7 +380,14 @@ fun ItemMenu(c: Controller, ui: Ui, item: LibItem, inSet: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
         Btn("Во весь экран", icon = "show") { ui.closeAll(); ui.full = FullSpec.Local(Cue(c.sourceOf(item), 0)) }
         Btn("В предпросмотр", icon = "up") { ui.closeAll(); ui.tab = AppTab.SHOW; tapToPreview(c, ui, item) }
-        if (item.kind == Kind.SONG || item.kind == Kind.TEXT) Btn("Править", icon = "edit") { ui.push("Править") { EditSheet(c, ui, item.kind, item) } }
+        if (item.kind == Kind.SONG || item.kind == Kind.TEXT) Btn("Править слайды", icon = "edit") { ui.push("Править") { EditSheet(c, ui, item.kind, item) } }
+        // Тема на весь документ сразу, как в Holyrics: видно в «Предпросмотре», в зал — по «Применить в зал».
+        if (item.kind == Kind.SONG || item.kind == Kind.TEXT || item.kind == Kind.BIBLE) Btn("Оформление", icon = "brush") {
+            ui.closeAll(); ui.tab = AppTab.SHOW
+            c.toPreview(Cue(c.sourceOf(item), 0))
+            c.draftScope = Controller.StyleScope.ITEM
+            openStyle(c, ui)
+        }
         if (item.kind == Kind.BIBLE) Btn("Другое место", icon = "bible") { ui.push("Библия") { BiblePicker(c, ui, item) } }
         if (inSet) {
             Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
@@ -418,23 +410,9 @@ fun ItemMenu(c: Controller, ui: Ui, item: LibItem, inSet: Boolean) {
     }
 }
 
-/** Песня или текст: название и слайды через пустую строку. */
+/** Новая песня или текст и правка своих: редактор слайдов, как в Holyrics. */
 @Composable
-fun EditSheet(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null) {
-    var title by remember { mutableStateOf(item?.title ?: "") }
-    var text by remember { mutableStateOf(item?.slides?.joinToString("\n\n") ?: "") }
-    Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Field(title, if (kind == Kind.SONG) "Название песни" else "Название") { title = it }
-        Field(text, if (kind == Kind.SONG) "Куплеты и припев. Пустая строка — новый слайд" else "Текст. Пустая строка — новый слайд", single = false, minHeight = 220.dp) { text = it }
-        val slides = splitIntoSlides(text)
-        Note(if (slides.isEmpty()) "Пока пусто" else slidesText(slides.size), Modifier)
-        Btn("Сохранить", kind = BtnKind.TINT, enabled = slides.isNotEmpty()) {
-            val name = title.ifBlank { text.lineSequence().first().take(40) }
-            c.saveItem((item ?: LibItem(Store.newId(), kind, name)).copy(title = name, slides = slides, labels = emptyList()))
-            ui.closeAll(); ui.toast("Сохранено")
-        }
-    }
-}
+fun EditSheet(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null) = SongEditor(c, ui, kind, item)
 
 // ——— Оформление ———
 
@@ -467,15 +445,39 @@ fun StyleSheet(c: Controller, ui: Ui) {
         SwitchRow("Тень", d.shadow) { set(d.copy(shadow = it)) }
         Sep(T.gutter)
         SwitchRow("Обводка", d.outline) { set(d.copy(outline = it)) }
+        Sep(T.gutter)
+        Cell("Все настройки", "Фото и видеофон, плашка, выравнивание, положение", onClick = {
+            ui.push("Все настройки оформления") { DraftControls(c, ui) }
+        })
     }
     GHead("Применить к")
     val scopes = Controller.StyleScope.entries
-    Seg(listOf("Слайду", "Элементу", "Сетлисту", "Всегда"), scopes.indexOf(to), Modifier.fillMaxWidth().padding(bottom = T.gutter)) { to = scopes[it]; c.draftScope = scopes[it] }
-    Note("Правка видна в окне «Предпросмотр». Зал её не увидит до «Применить в зал».", Modifier)
+    val cue = c.preview.value ?: c.live.value
+    val doc = if (cue?.source?.kind == Kind.SONG) "Вся песня" else "Весь документ"
+    Seg(listOf("Этот слайд", doc, "Сетлист", "По умолчанию"), scopes.indexOf(to), Modifier.fillMaxWidth().padding(bottom = T.gutter), scroll = true) { to = scopes[it]; c.draftScope = scopes[it] }
+    Note(
+        when (to) {
+            Controller.StyleScope.SLIDE -> "Только этот слайд; остальные слайды — как были."
+            Controller.StyleScope.ITEM -> "Все слайды этого элемента; прежнее оформление отдельных слайдов снимается."
+            Controller.StyleScope.SET -> "Всё в этом сетлисте, у чего нет своего оформления."
+            Controller.StyleScope.ALL -> "Везде, где нет своего оформления у элемента или сетлиста."
+        } + " Правка видна в «Предпросмотре»; в зал — по «Применить в зал».",
+        Modifier,
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
         Btn("Отменить", Modifier.weight(1f)) { c.cancelDraft(); ui.closeAll() }
         Btn("Применить в зал", Modifier.weight(1f), kind = BtnKind.TINT) { c.applyDraft(to); ui.closeAll(); ui.toast("Оформление в зале") }
     }
+}
+
+/** Вся правка оформления во время показа: те же настройки, что у темы; видна в «Предпросмотре». */
+@Composable
+private fun DraftControls(c: Controller, ui: Ui) {
+    val draft by c.draft.collectAsState()
+    val d = draft ?: return
+    SlideView(Slide.Text("Господь — Пастырь мой;\nя ни в чём не буду нуждаться"), null, d, Modifier.padding(bottom = T.gutter))
+    StyleControls(c, ui, d) { c.draft.value = it }
+    Btn("Готово", kind = BtnKind.TINT) { ui.close() }
 }
 
 // ——— Библиотека: добавить ———

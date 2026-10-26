@@ -129,6 +129,10 @@ fun SlideView(
             }
             num?.let {
                 Txt("$it", T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopStart).padding(start = T.gapS, top = 4.dp))
+                // Подпись слайда песни («Припев») — в плитках сетлиста, как в Holyrics.
+                (slide as? Slide.Text)?.label?.let { l ->
+                    Txt(l, T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopEnd).padding(end = T.gapS, top = 4.dp), lines = 1)
+                }
             }
         }
     }

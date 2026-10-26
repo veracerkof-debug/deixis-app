@@ -81,60 +81,12 @@ fun ThemesRow(c: Controller, ui: Ui, current: TextStyle, onPick: (Theme) -> Unit
  */
 @Composable
 fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
-    val scope = rememberCoroutineScope()
     val own = theme != null && !theme.builtIn
     var name by remember { mutableStateOf(if (own) theme!!.name else (theme?.name?.let { "$it — копия" } ?: "Моя тема")) }
     var st by remember { mutableStateOf((theme?.style ?: base ?: TextStyle()).copy(name = null)) }
-    val photo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> st = st.copy(backgroundImage = ref) }.onFailure { e -> ui.toast(e.message ?: "Фото не открылось") } } }
-    }
-    // Видеофон, как анимированный фон Holyrics: играет по кругу без звука, текст меняется поверх.
-    val video = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> st = st.copy(backgroundVideo = ref) }.onFailure { e -> ui.toast(e.message ?: "Видео не открылось") } } }
-    }
     SlideView(Slide.Text(SAMPLE), null, st, Modifier.padding(bottom = T.gutter))
     Field(name, "Название темы", Modifier.padding(bottom = T.gap)) { name = it }
-    Group {
-        Cell("Фон", chevron = null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-                backgrounds.take(4).forEach { (v, n) -> Swatch(Color(v), st.background == v && st.backgroundImage == null, "Фон: $n") { st = st.copy(background = v, backgroundImage = null) } }
-            }
-        }
-        Sep(T.gutter)
-        Cell("Ещё цвета", chevron = null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-                backgrounds.drop(4).forEach { (v, n) -> Swatch(Color(v), st.background == v && st.backgroundImage == null, "Фон: $n") { st = st.copy(background = v, backgroundImage = null) } }
-            }
-        }
-        Sep(T.gutter)
-        Cell(if (st.backgroundImage != null) "Фон: ${st.backgroundImage?.name}" else "Фото на фон", kind = "photo", chevron = null, onClick = { photo.launch(arrayOf("image/*")) }) {
-            if (st.backgroundImage != null) Pill("Убрать") { st = st.copy(backgroundImage = null) }
-        }
-        Sep(T.gutter)
-        Cell(if (st.backgroundVideo != null) "Видеофон: ${st.backgroundVideo?.name}" else "Видеофон", "Играет по кругу без звука, текст меняется поверх", kind = "media", chevron = null, onClick = { video.launch(arrayOf("video/*")) }) {
-            if (st.backgroundVideo != null) Pill("Убрать") { st = st.copy(backgroundVideo = null) }
-        }
-        Sep(T.gutter)
-        Cell("Цвет текста", chevron = null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) { inks.forEach { (v, n) -> Swatch(Color(v), st.color == v, "Цвет: $n") { st = st.copy(color = v) } } }
-        }
-        Sep(T.gutter)
-        Cell("Размер текста", chevron = null) {
-            Stepper("${st.sizePercent.toInt()}", { st = st.copy(sizePercent = textSizeStep(st.sizePercent, up = false)) }, { st = st.copy(sizePercent = textSizeStep(st.sizePercent, up = true)) })
-        }
-        Sep(T.gutter)
-        SwitchRow("Тень", st.shadow) { st = st.copy(shadow = it) }
-        Sep(T.gutter)
-        SwitchRow("Обводка", st.outline) { st = st.copy(outline = it) }
-        Sep(T.gutter)
-        SwitchRow("Плашка под текстом", st.box != null, "Тёмная полоса: текст читается на любом фото") { st = st.copy(box = if (it) 0xB4000000 else null) }
-        Sep(T.gutter)
-        SwitchRow("Заглавные буквы", st.caps) { st = st.copy(caps = it) }
-    }
-    GHead("Выравнивание")
-    Seg(listOf("Слева", "По центру", "Справа"), HAlign.entries.indexOf(st.align), Modifier.fillMaxWidth().padding(bottom = T.gutter)) { st = st.copy(align = HAlign.entries[it]) }
-    GHead("Положение")
-    Seg(listOf("Сверху", "По центру", "Снизу"), VAlign.entries.indexOf(st.valign), Modifier.fillMaxWidth().padding(bottom = T.gutter)) { st = st.copy(valign = VAlign.entries[it]) }
+    StyleControls(c, ui, st) { st = it }
     Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
         if (own) Btn("Удалить", Modifier.weight(1f), kind = BtnKind.RED) { c.deleteTheme(theme!!.id); ui.close(); ui.toast("Тема удалена") }
         Btn("Сохранить", Modifier.weight(1f), kind = BtnKind.TINT, enabled = name.isNotBlank()) {
@@ -145,5 +97,77 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
             ui.close()
             ui.toast("Тема «${t.name}» сохранена")
         }
+    }
+}
+
+/**
+ * Настройки оформления: фон (цвет, фото, видеофон), цвет и размер текста, тень, обводка, плашка, заглавные,
+ * выравнивание, положение. Общие для редактора темы и оформления по умолчанию.
+ */
+@Composable
+fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) -> Unit) {
+    val scope = rememberCoroutineScope()
+    val photo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundImage = ref)) }.onFailure { e -> ui.toast(e.message ?: "Фото не открылось") } } }
+    }
+    // Видеофон, как анимированный фон Holyrics: играет по кругу без звука, текст меняется поверх.
+    val video = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundVideo = ref)) }.onFailure { e -> ui.toast(e.message ?: "Видео не открылось") } } }
+    }
+    Group {
+        Cell("Фон", chevron = null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
+                backgrounds.take(4).forEach { (v, n) -> Swatch(Color(v), st.background == v && st.backgroundImage == null, "Фон: $n") { onChange(st.copy(background = v, backgroundImage = null)) } }
+            }
+        }
+        Sep(T.gutter)
+        Cell("Ещё цвета", chevron = null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
+                backgrounds.drop(4).forEach { (v, n) -> Swatch(Color(v), st.background == v && st.backgroundImage == null, "Фон: $n") { onChange(st.copy(background = v, backgroundImage = null)) } }
+            }
+        }
+        Sep(T.gutter)
+        Cell(if (st.backgroundImage != null) "Фон: ${st.backgroundImage?.name}" else "Фото на фон", kind = "photo", chevron = null, onClick = { photo.launch(arrayOf("image/*")) }) {
+            if (st.backgroundImage != null) Pill("Убрать") { onChange(st.copy(backgroundImage = null)) }
+        }
+        Sep(T.gutter)
+        Cell(if (st.backgroundVideo != null) "Видеофон: ${st.backgroundVideo?.name}" else "Видеофон", "Играет по кругу без звука, текст меняется поверх", kind = "media", chevron = null, onClick = { video.launch(arrayOf("video/*")) }) {
+            if (st.backgroundVideo != null) Pill("Убрать") { onChange(st.copy(backgroundVideo = null)) }
+        }
+        Sep(T.gutter)
+        Cell("Цвет текста", chevron = null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) { inks.forEach { (v, n) -> Swatch(Color(v), st.color == v, "Цвет: $n") { onChange(st.copy(color = v)) } } }
+        }
+        Sep(T.gutter)
+        Cell("Размер текста", chevron = null) {
+            Stepper("${st.sizePercent.toInt()}", { onChange(st.copy(sizePercent = textSizeStep(st.sizePercent, up = false))) }, { onChange(st.copy(sizePercent = textSizeStep(st.sizePercent, up = true))) })
+        }
+        Sep(T.gutter)
+        SwitchRow("Тень", st.shadow) { onChange(st.copy(shadow = it)) }
+        Sep(T.gutter)
+        SwitchRow("Обводка", st.outline) { onChange(st.copy(outline = it)) }
+        Sep(T.gutter)
+        SwitchRow("Плашка под текстом", st.box != null, "Тёмная полоса: текст читается на любом фото") { onChange(st.copy(box = if (it) 0xB4000000 else null)) }
+        Sep(T.gutter)
+        SwitchRow("Заглавные буквы", st.caps) { onChange(st.copy(caps = it)) }
+    }
+    GHead("Выравнивание")
+    Seg(listOf("Слева", "По центру", "Справа"), HAlign.entries.indexOf(st.align), Modifier.fillMaxWidth().padding(bottom = T.gutter)) { onChange(st.copy(align = HAlign.entries[it])) }
+    GHead("Положение")
+    Seg(listOf("Сверху", "По центру", "Снизу"), VAlign.entries.indexOf(st.valign), Modifier.fillMaxWidth().padding(bottom = T.gutter)) { onChange(st.copy(valign = VAlign.entries[it])) }
+}
+
+/** Оформление по умолчанию: как выглядит любой слайд, пока у элемента или сетлиста нет своего. */
+@Composable
+fun DefaultStyleEditor(c: Controller, ui: Ui) {
+    var st by remember { mutableStateOf(c.defaultStyle()) }
+    SlideView(Slide.Text(SAMPLE), null, st, Modifier.padding(bottom = T.gutter))
+    GHead("Темы")
+    ThemesRow(c, ui, st) { t -> st = t.style.copy(name = t.name) }
+    StyleControls(c, ui, st) { st = it }
+    Note("Своё оформление у песни, документа или сетлиста сильнее этого: «Вид» во время показа.", Modifier.padding(bottom = T.gap))
+    Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
+        Btn("Как было", Modifier.weight(1f)) { st = TextStyle() }
+        Btn("Сохранить", Modifier.weight(1f), kind = BtnKind.TINT) { c.setDefaultStyle(st); ui.close(); ui.toast("Оформление по умолчанию сохранено") }
     }
 }

@@ -609,8 +609,16 @@ class Controller(private val app: Application) {
 
     enum class StyleScope { SLIDE, ITEM, SET, ALL }
 
-    /** Куда сохраняется правка оформления при «В зал»: по умолчанию — для сетлиста. */
-    var draftScope = StyleScope.SET
+    /** Куда сохраняется правка оформления при «В зал»: по умолчанию — на весь документ (песню), как в Holyrics. */
+    var draftScope = StyleScope.ITEM
+
+    /** Оформление по умолчанию: любой слайд, у которого нет своего (элемента, сетлиста). */
+    fun defaultStyle(): TextStyle = data.value.styles["all"] ?: TextStyle()
+
+    fun setDefaultStyle(st: TextStyle) {
+        edit { it.copy(styles = it.styles + ("all" to st.copy(caps = false))) }
+        live.value?.let(::deliver)
+    }
 
     fun startDraft() { draft.value = draft.value ?: styleFor(preview.value ?: live.value) }
     fun cancelDraft() { draft.value = null }
@@ -626,7 +634,11 @@ class Controller(private val app: Application) {
             StyleScope.SET -> data.value.active?.let { "set:$it" }
             StyleScope.ALL -> "all"
         } ?: "all"
-        edit { it.copy(styles = it.styles + (key to st.copy(caps = false))) }
+        edit { d ->
+            // На весь документ — как в Holyrics: прежнее оформление отдельных слайдов этого документа снимается.
+            val cleared = if (to == StyleScope.ITEM && id != null) d.styles.filterKeys { !it.startsWith("slide:$id:") } else d.styles
+            d.copy(styles = cleared + (key to st.copy(caps = false)))
+        }
         draft.value = null
         live.value?.let(::deliver)
     }

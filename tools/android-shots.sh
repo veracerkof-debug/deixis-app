@@ -35,6 +35,31 @@ PY
   sleep 2
 }
 
+# Удержание элемента (меню элемента в сетлисте и библиотеке).
+hold() {
+  tap_xy "$1" || return 1
+  adb shell input swipe $xy $xy 900
+  sleep 2
+}
+
+tap_xy() {
+  adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+  adb shell cat /sdcard/ui.xml > shots/ui.xml
+  xy=$(python3 - "$1" shots/ui.xml <<'PY'
+import re, sys
+import xml.etree.ElementTree as ET
+want, path = sys.argv[1], sys.argv[2]
+root = ET.parse(path).getroot()
+for n in root.iter("node"):
+    if want in (n.get("text"), n.get("content-desc")):
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+PY
+)
+  [ -n "$xy" ] || { echo "=== нет на экране: «$1»"; return 1; }
+}
+
 shot() {
   adb exec-out screencap -p > "shots/$1.png"
   python3 - "shots/$1.png" "shots/view/$1.jpg" <<'PY'
@@ -67,6 +92,12 @@ scene() {
 }
 
 scene phone-16x9
+# Оформление во время показа: «Вид».
+tap "Вид" && shot phone-style
+# Редактор песни: удержание песни в сетлисте → «Править слайды».
+open_app
+hold "Коль славен наш Господь в Сионе" && tap "Править слайды" && shot phone-song-editor
+adb shell input swipe 500 1600 500 600 300; sleep 1; shot phone-song-editor-2
 scene phone-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size 2560x1600
 adb shell wm density 320
