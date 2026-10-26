@@ -101,6 +101,14 @@ adb shell input swipe 500 1600 500 600 300; sleep 1; shot phone-song-editor-2
 # «Показать» — «+» рядом с поиском: файлы, текст, отсчёт, слой.
 open_app
 tap "Показать" && shot phone-show-menu
+# Презентация листается: «Сейчас» меняет страницу по «Дальше», предпросмотр — по касанию плитки.
+open_app
+adb shell input swipe 500 1500 500 500 400; sleep 1
+if tap "Город пятнадцати минут.pdf"; then
+  tap "Слайд 1" && tap "В зал" && shot phone-pdf-1
+  tap "Дальше" && shot phone-pdf-2
+  tap "Слайд 3" && shot phone-pdf-3
+fi
 scene phone-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size 2560x1600
 adb shell wm density 320

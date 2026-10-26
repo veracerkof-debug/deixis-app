@@ -212,8 +212,11 @@ private fun Thumb(
     val context = LocalContext.current
     val uri = item?.uri
     val key = "$uri#$kind#$index"
+    // Состояние produceState не сбрасывается при смене ключа: новая страница грузится всегда, а до тех пор
+    // видна прежняя — листание без мигания заглушкой.
     val bmp by produceState(Thumbs.cached(key), key) {
-        if (value == null && uri != null && (kind != ThumbKind.PAGE || item?.mime == "application/pdf")) value = Thumbs.load(context, key, Uri.parse(uri), kind, index)
+        value = Thumbs.cached(key)
+            ?: if (uri != null && (kind != ThumbKind.PAGE || item?.mime == "application/pdf")) Thumbs.load(context, key, Uri.parse(uri), kind, index) else null
     }
     val b = bmp
     if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = scale)
