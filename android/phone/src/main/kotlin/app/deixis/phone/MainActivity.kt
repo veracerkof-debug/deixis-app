@@ -26,6 +26,9 @@ class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
     val controller by lazy { Controller(this) }
     val holyrics by lazy { HolyricsSource(this, controller) }
+    /** Пульт сейчас на экране телефона. */
+    @Volatile var remoteVisible = false
+
     /** Кабель и Миракаст: приёмник второго экрана на всё приложение. */
     val cast by lazy { CastOutput(this) { controller } }
 
@@ -120,27 +123,13 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (castView == null) return super.dispatchKeyEvent(event)
         val c = (application as PhoneApp).controller
-        val st = c.settings.value
-        val free = ui.sheet == null
-        val action = when (event.keyCode) {
-            KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT -> if (st.clicker) 1 else null
-            KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (st.clicker) -1 else null
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_SPACE -> if (st.clicker && free) 1 else null
-            KeyEvent.KEYCODE_DPAD_LEFT -> if (st.clicker && free) -1 else null
-            KeyEvent.KEYCODE_B -> if (st.clicker && free) 0 else null
-            KeyEvent.KEYCODE_VOLUME_DOWN -> if (st.volumeKeys) 1 else null
-            KeyEvent.KEYCODE_VOLUME_UP -> if (st.volumeKeys) -1 else null
-            else -> null
-        } ?: return super.dispatchKeyEvent(event)
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            if (action == 0) c.mode(Mode.BLACK) else c.step(action)
-        }
-        return true
+        return clickerKey(c, event, free = ui.sheet == null) || super.dispatchKeyEvent(event)
     }
 
     override fun onStart() {
         super.onStart()
         if (castView == null) return
+        (application as PhoneApp).remoteVisible = true
         val controller = (application as PhoneApp).controller
         controller.startDiscovery()
         // Служба связи не могла начаться в фоне — начинается, как только пульт снова открыт.
@@ -149,6 +138,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        (application as PhoneApp).remoteVisible = false
         if (castView != null) (application as PhoneApp).controller.stopDiscovery()
         super.onStop()
     }
@@ -188,3 +178,26 @@ private fun CrashScreen(text: String, onContinue: () -> Unit) {
 
 /** Отладочная сборка: `am start --ef deixis.test.ratio 0.5625` — превью как у вертикального экрана в зале. */
 private const val TEST_RATIO = "deixis.test.ratio"
+
+/**
+ * Bluetooth-кликер и педаль: «Вперёд» и «Назад», B — чёрный экран. Стрелки и пробел работают,
+ * только пока не открыта шторка с полем ввода ([free]). Кнопки громкости — если включены в настройках.
+ * true — клавиша обработана.
+ */
+fun clickerKey(c: Controller, event: KeyEvent, free: Boolean): Boolean {
+    val st = c.settings.value
+    val action = when (event.keyCode) {
+        KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT -> if (st.clicker) 1 else null
+        KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (st.clicker) -1 else null
+        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_SPACE -> if (st.clicker && free) 1 else null
+        KeyEvent.KEYCODE_DPAD_LEFT -> if (st.clicker && free) -1 else null
+        KeyEvent.KEYCODE_B -> if (st.clicker && free) 0 else null
+        KeyEvent.KEYCODE_VOLUME_DOWN -> if (st.volumeKeys) 1 else null
+        KeyEvent.KEYCODE_VOLUME_UP -> if (st.volumeKeys) -1 else null
+        else -> null
+    } ?: return false
+    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+        if (action == 0) c.mode(Mode.BLACK) else c.step(action)
+    }
+    return true
+}

@@ -120,12 +120,13 @@ if tap_scroll "Город пятнадцати минут.pdf"; then
   tap "Слайд 3" && shot phone-pdf-3
 fi
 # Второй экран (как кабель или Миракаст): эмулятор рисует его окном поверх основного.
-adb shell settings put global overlay_display_devices 1280x720/240
-sleep 4
 open_app
-sleep 4
 show_song
+adb shell settings put global overlay_display_devices 1280x720/240
+sleep 8
 shot phone-cast
+# Пульт снова впереди: касания идут ему, а не окну зала.
+tap "Дальше" && shot phone-cast-next
 adb shell dumpsys activity activities | grep -E "CastActivity|Display #" | head -12
 adb logcat -d | grep -iE "AndroidRuntime|deixis|CastActivity|BackgroundActivity|Abort background" | tail -30
 # Пульт свёрнут: вывод на втором экране остаётся.

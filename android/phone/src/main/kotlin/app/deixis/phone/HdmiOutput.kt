@@ -122,6 +122,10 @@ class CastOutput(private val app: Application, private val controller: () -> Con
             )
         }.isSuccess
         if (!opened) { _fallback.value = display; return }
+        // Новое окно забирает фокус: пульт, если он был открыт, снова впереди — касания и кликер у него.
+        if ((app as PhoneApp).remoteVisible) main.postDelayed({
+            runCatching { app.startActivity(Intent(app, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
+        }, REFOCUS_MS)
         // Из фона Android молча не открывает окна: тогда выручает пульт, когда он открыт.
         main.postDelayed({ if (activity == null && shown?.displayId == display.displayId) _fallback.value = display }, OPEN_WAIT_MS)
     }
@@ -149,6 +153,7 @@ class CastOutput(private val app: Application, private val controller: () -> Con
     private companion object {
         const val TYPE_WIFI = 3
         const val OPEN_WAIT_MS = 2_000L
+        const val REFOCUS_MS = 400L
     }
 }
 
@@ -179,6 +184,10 @@ class CastActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
+
+    /** Если клавиши всё же пришли сюда — кликер листает, как в пульте. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean =
+        clickerKey((application as PhoneApp).controller, event, free = true) || super.dispatchKeyEvent(event)
 
     override fun onDestroy() {
         player?.release()
