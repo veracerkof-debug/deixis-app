@@ -131,10 +131,13 @@ class SenderClient(
     fun connect(token: String) {
         this.token = token
         loop?.cancel()
-        outbox = Channel(Channel.BUFFERED)
         loop = scope.launch {
             var pause = 500L
             while (isActive) {
+                // Своя очередь на каждую сессию: команды, застрявшие в оборванной, не приходят потом
+                // в новую — в зал не возвращается слайд, который давно пролистали.
+                outbox.close()
+                outbox = Channel(Channel.BUFFERED)
                 _connection.value = Connection.Connecting
                 try {
                     http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/ws") {
@@ -179,8 +182,9 @@ class SenderClient(
                 send(Frame.Text(Ping(System.currentTimeMillis()).encode()))
             }
         }
+        val box = outbox
         val writer = launch {
-            for (msg in outbox) send(Frame.Text(msg.encode()))
+            for (msg in box) send(Frame.Text(msg.encode()))
         }
         try {
             for (frame in incoming) {
@@ -313,6 +317,9 @@ class SenderClient(
         if (r.status != HttpStatusCode.OK) return null
         return DeixisJson.decodeFromString(UpdateState.serializer(), r.bodyAsText())
     }
+
+    /** Сколько файла уже на экране: целиком, частью (передача оборвалась) или нисколько. */
+    suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 
     private suspend fun fileStatus(sha: String, token: String): FileStatus {
         val r = http.get("http://$host:$port/files/$sha") { header("Authorization", "Bearer $token") }

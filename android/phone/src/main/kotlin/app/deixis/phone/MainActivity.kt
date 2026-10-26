@@ -3,6 +3,8 @@ package app.deixis.phone
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import app.deixis.core.HolyricsLink
 import android.view.KeyEvent
 import app.deixis.core.Mode
@@ -24,6 +26,8 @@ class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
     val controller by lazy { Controller(this) }
     val holyrics by lazy { HolyricsSource(this, controller) }
+    /** Кабель и Миракаст: приёмник второго экрана на всё приложение. */
+    val cast by lazy { CastOutput(this) { controller } }
 
     private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
 
@@ -64,7 +68,8 @@ class PhoneApp : Application() {
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var hdmi: HdmiOutput
+    /** Запасной вывод на второй экран через пульт; null — пульт не открыт как пульт (сбой, режим ТВ). */
+    private var castView: CastPresentation? = null
     private val ui = Ui()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,7 +92,10 @@ class MainActivity : ComponentActivity() {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             intent?.getFloatExtra(TEST_RATIO, 0f)?.takeIf { it > 0f }?.let { controller.testRatio.value = it }
         }
-        hdmi = HdmiOutput(this, controller)
+        val cast = (application as PhoneApp).cast
+        castView = CastPresentation(this, cast).also { v ->
+            lifecycleScope.launch { cast.fallback.collect { v.update(it) } }
+        }
         setContent { DeixisPhone(controller, (application as PhoneApp).holyrics, ui) }
         handleLink(intent)
     }
@@ -110,7 +118,7 @@ class MainActivity : ComponentActivity() {
      * только пока не открыта шторка с полем ввода. Кнопки громкости — если включены в настройках.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (!::hdmi.isInitialized) return super.dispatchKeyEvent(event)
+        if (castView == null) return super.dispatchKeyEvent(event)
         val c = (application as PhoneApp).controller
         val st = c.settings.value
         val free = ui.sheet == null
@@ -132,19 +140,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (!::hdmi.isInitialized) return
+        if (castView == null) return
         val controller = (application as PhoneApp).controller
         controller.startDiscovery()
-        hdmi.start()
+        // Служба связи не могла начаться в фоне — начинается, как только пульт снова открыт.
+        controller.keepAlive()
+        (application as PhoneApp).cast.start()
     }
 
     override fun onStop() {
-        if (::hdmi.isInitialized) (application as PhoneApp).controller.stopDiscovery()
+        if (castView != null) (application as PhoneApp).controller.stopDiscovery()
         super.onStop()
     }
 
     override fun onDestroy() {
-        if (isFinishing && ::hdmi.isInitialized) hdmi.stop()
+        // Приёмник второго экрана живёт дольше пульта: закрывается только запасной вывод через пульт.
+        castView?.dismiss()
         super.onDestroy()
     }
 }

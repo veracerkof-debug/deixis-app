@@ -119,6 +119,22 @@ if tap_scroll "Город пятнадцати минут.pdf"; then
   tap "Дальше" && shot phone-pdf-2
   tap "Слайд 3" && shot phone-pdf-3
 fi
+# Второй экран (как кабель или Миракаст): эмулятор рисует его окном поверх основного.
+adb shell settings put global overlay_display_devices 1280x720/240
+sleep 4
+open_app
+sleep 4
+show_song
+shot phone-cast
+# Пульт свёрнут: вывод на втором экране остаётся.
+adb shell input keyevent KEYCODE_HOME
+sleep 8
+shot phone-cast-background
+# Библиотека: у фото, видео и PDF — есть ли файл на экране.
+open_app
+tap "Библиотека" && shot phone-library
+adb shell settings put global overlay_display_devices none
+sleep 2
 scene phone-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size 2560x1600
 adb shell wm density 320

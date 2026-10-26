@@ -187,7 +187,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     val draft by c.draft.collectAsState()
     val mode by c.mode.collectAsState()
     val state by c.receiverState.collectAsState()
-    val progress by c.progress.collectAsState()
+    val progress by c.busy.collectAsState()
     @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
     val liveName = when (mode) {
         Mode.BLACK -> "Чёрный экран"
@@ -289,6 +289,12 @@ private fun ShowMenu(c: Controller, ui: Ui) {
             if (sharing) { ui.closeAll(); ScreenShareService.stop(context) } else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
         })
         add(TileSpec("Файл", "file") { ui.sheet("Файл") { PickSheet(c, ui, PickKind.FILE) } })
+        // Тяжёлые файлы службы — на экраны заранее, пока в зале идёт другое.
+        add(TileSpec("Файлы сетлиста — на экраны заранее", "send") {
+            ui.closeAll()
+            val n = c.sendSetAhead()
+            ui.toast(when { n < 0 -> "Нет подключённых экранов"; n == 0 -> "В сетлисте нет фото, видео и PDF"; else -> "Передаются в фоне: $n, в зале ничего не меняется" })
+        })
         // Церковный раздел: Библия и Holyrics. Выключается в настройках.
         if (settings.church) {
             add(TileSpec("Библия", "bible") { ui.closeAll(); ui.tab = AppTab.BIBLE })

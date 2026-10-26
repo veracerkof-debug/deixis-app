@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Wi-Fi без сна, пока работает экран (WifiLock). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Обновление из выпуска GitHub (ApkUpdates); на Android 12+ — без вопроса, если прошлую версию ставил Deixis. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />

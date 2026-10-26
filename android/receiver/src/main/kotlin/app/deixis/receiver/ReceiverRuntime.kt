@@ -63,6 +63,7 @@ class ReceiverRuntime(
     private val connectivity: ConnectivityManager? = appContext.getSystemService(ConnectivityManager::class.java)
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     // Свой поток: JmDNS открывается и закрывается долго, поток событий сети занимать нельзя.
+    private var wifiLock: WifiManager.WifiLock? = null
     private val net = Executors.newSingleThreadScheduledExecutor { Thread(it, "deixis-net").apply { isDaemon = true } }
     @Volatile private var stopped = false
 
@@ -94,9 +95,21 @@ class ReceiverRuntime(
     suspend fun start() = withContext(Dispatchers.IO) {
         actualPort = server.start()
         if (loopbackOnly) return@withContext
+        holdWifi()
         refresh()
         // Проектор мог запуститься раньше, чем подключился Wi-Fi, а роутер — сменить адрес: следим за сетью.
         watchNetwork()
+    }
+
+    /**
+     * Wi-Fi без сна, пока работает экран: приставки и проекторы иначе усыпляют радио между пакетами,
+     * пульт теряет связь, а передача файла рвётся на середине.
+     */
+    private fun holdWifi() {
+        val wifi = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
+        @Suppress("DEPRECATION")
+        val mode = if (android.os.Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        wifiLock = runCatching { wifi.createWifiLock(mode, "deixis-screen").apply { setReferenceCounted(false); acquire() } }.getOrNull()
     }
 
     private fun watchNetwork() {
@@ -173,6 +186,8 @@ class ReceiverRuntime(
             advertised = null
             runCatching { multicastLock?.release() }
         }
+        runCatching { wifiLock?.release() }
+        wifiLock = null
         runCatching { server.stop() }
     }
 

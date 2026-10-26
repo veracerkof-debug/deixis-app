@@ -15,6 +15,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import app.deixis.core.Connection
 import app.deixis.core.Content
+import app.deixis.core.FileStatus
 import app.deixis.core.AfterZero
 import app.deixis.core.CountdownContent
 import app.deixis.core.SetTimer
@@ -66,11 +67,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
@@ -116,6 +121,23 @@ private class Output(val target: Target, val client: SenderClient) {
     var jobs: List<Job> = emptyList()
     /** Хэши файлов, которые уже целиком на этом экране. */
     val delivered = mutableSetOf<String>()
+    /** Что этот пульт последним показал здесь: по нему переподключение понимает, что слать нечего. */
+    var lastShown: Pair<Cue, Content>? = null
+    /** Файлы, отправленные заранее, идут по одному: зал не ждёт, пока делится канал между ними. */
+    val ahead = Mutex()
+}
+
+/** Файл элемента на экранах: на скольких он целиком, что передаётся сейчас, остался ли обрывок. */
+data class OnScreens(val screens: Int, val done: Int, val transfer: Controller.Transfer?, val partial: Boolean)
+
+/** Размер для людей: «4,2 МБ», «320 МБ», «1,3 ГБ». */
+fun mb(bytes: Long): String {
+    val m = bytes / 1_048_576.0
+    return when {
+        m >= 1024 -> "%.1f ГБ".format(m / 1024)
+        m >= 10 -> "%.0f МБ".format(m)
+        else -> "%.1f МБ".format(m)
+    }
 }
 
 /** Логика пульта без экрана: экраны, библиотека, сетлисты, «Сейчас» и «Предпросмотр». */
@@ -184,6 +206,15 @@ class Controller(private val app: Application) {
         else combine(list.map { o -> combine(o.client.connection, o.syncing) { conn, sync -> view(o.target, conn, sync) } }) { it.toList() }
     }.combine(dlnaTarget) { list, d -> list + listOfNotNull(d?.let { OutputView(it, OutState.ONLINE, null) }) }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Пока подключён хотя бы один экран, связь держит видимая служба: в фоне Android иначе усыпляет сеть. */
+    fun keepAlive() {
+        if (outs.value.isNotEmpty() || dlnaTarget.value != null) ShowService.start(app)
+    }
+
+    private val keepAliveJob = scope.launch {
+        outputs.map { it.isNotEmpty() }.distinctUntilChanged().collect { if (it) ShowService.start(app) }
+    }
 
     private fun view(t: Target, c: Connection, sync: Int) = OutputView(
         t,
@@ -368,7 +399,8 @@ class Controller(private val app: Application) {
         if (t != null && token != null) {
             prefs.edit().putString(key(t), token).apply()
             cable.value = t
-            if (!isConnected(t)) open(t, token)
+            // Тот же экран по другому адресу (приёмник начат заново) — переподключиться, а не слать в пустоту.
+            if (!isConnected(t) || outs.value.none { it.target == t }) open(t, token)
         } else {
             old?.let { c -> outs.value.firstOrNull { it.target.id == c.id }?.let(::close) }
             cable.value = null
@@ -395,10 +427,16 @@ class Controller(private val app: Application) {
                         prefs.edit().remove(key(t)).apply()
                         needPin.value = t
                     }
-                    // Подключился или вернулся — сразу получает то, что сейчас в зале.
+                    // Подключился или вернулся — сразу получает то, что сейчас в зале. Если на экране уже
+                    // ровно это, ничего не шлётся: видео не начинается заново, слайд не мигает.
                     val now = it is Connection.Connected
                     if (now && !was) {
-                        live.value?.let { cue -> deliverTo(o, cue) }
+                        refreshStored(o)
+                        live.value?.let { cue ->
+                            val last = o.lastShown
+                            val same = last != null && last.first == cue && c.state.value?.content == last.second
+                            if (!same) deliverTo(o, cue)
+                        }
                         sendOverlays(o, overlays.value)
                     }
                     was = now
@@ -661,7 +699,9 @@ class Controller(private val app: Application) {
         try {
             val content = contentFor(o, cue) ?: return@launch
             // Пока файл шёл, в зал могли отправить другое: устаревший слайд не показывается.
-            if (live.value == cue || live.value?.same(cue) == true) o.client.show(content, nextFor(o, cue))
+            if (live.value == cue || live.value?.same(cue) == true) {
+                if (o.client.show(content, nextFor(o, cue))) o.lastShown = cue to content
+            }
         } catch (e: Exception) {
             messages.emit("«${o.target.name}»: ${e.message ?: "не удалось показать"}")
         }
@@ -878,11 +918,33 @@ class Controller(private val app: Application) {
         if (!canSendAhead(item)) return 0
         val ready = outs.value.filter { it.client.connection.value is Connection.Connected }
         ready.forEach { o ->
+            val key = "${o.target.id}/${item.id}"
+            val sha = data.value.hashes[item.id]?.sha256
+            if (sha != null && sha in o.delivered) return@forEach
+            transfers.update { if (key in it) it else it + (key to Transfer(item.id, o.target.id, o.target.name, item.title, 0, item.size, queued = true)) }
             scope.launch {
-                runCatching { fileOn(o, item) }.onFailure { e -> if (e !is kotlinx.coroutines.CancellationException) messages.emit("«${o.target.name}»: ${e.message}") }
+                try {
+                    // По одному файлу на экран: каждый доходит быстрее, чем все вместе по общему каналу.
+                    o.ahead.withLock { fileOn(o, item) }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    messages.emit("«${o.target.name}»: ${e.message}")
+                } finally {
+                    transfers.update { if (it[key]?.queued == true) it - key else it }
+                }
             }
         }
         return ready.size
+    }
+
+    /** Все фото, видео и PDF выбранного сетлиста — на экраны заранее, по очереди. Возвращает, сколько файлов. */
+    fun sendSetAhead(): Int {
+        val ids = activeSet.value?.items.orEmpty()
+        val files = ids.mapNotNull(::item).filter(::canSendAhead)
+        if (outs.value.none { it.client.connection.value is Connection.Connected }) return -1
+        files.forEach { sendAhead(it) }
+        return files.size
     }
 
     /** У элемента есть файл, который экран хранит у себя: фото, видео, PDF. */
@@ -896,23 +958,100 @@ class Controller(private val app: Application) {
         val uri = Uri.parse(item.uri ?: error("Файл «${item.title}» не найден"))
         val known = data.value.hashes[item.id]
         val source = sourceFor(uri, item)
+        val key = "${o.target.id}/${item.id}"
+        var shown = -1
+        // Ход передачи: только вперёд и не чаще, чем меняется десятая доля процента.
+        fun report(bytes: Long, preparing: Boolean) {
+            val total = source.size
+            val tenths = if (total > 0) (bytes * 1000 / total).toInt() else 1000
+            if (!preparing && tenths <= shown) return
+            if (!preparing) shown = tenths
+            val before = transfers.value[key]
+            if (before != null && !preparing && !before.preparing && bytes < before.sent) return
+            transfers.update { it + (key to Transfer(item.id, o.target.id, o.target.name, item.title, bytes, total, preparing)) }
+        }
         o.syncing.value++
         try {
-            // Хэш большого файла считается долго: показываем ход и запоминаем результат.
+            report(0, preparing = true)
+            // Хэш большого файла считается долго: показываем ход и запоминаем его сразу — второй экран
+            // и проверка «что уже на экране» его не считают заново.
             val sha = known?.sha256 ?: withContext(Dispatchers.IO) {
-                source.open().use { input -> hashWithProgress(input, source.size) { p -> progress.value = "«${item.title}»: подготовка $p%" } }
-            }
-            val ref = o.client.upload(source, sha256 = sha) { sent, total ->
-                val p = if (total == 0L) 100 else (sent * 100 / total).toInt()
-                progress.value = "«${item.title}» → ${o.target.name}: $p%"
-            }
+                var last = -1
+                source.open().use { input ->
+                    hashWithProgress(input, source.size) { p -> if (p != last) { last = p; report(source.size * p / 100, preparing = true) } }
+                }
+            }.also { sha -> edit { d -> d.copy(hashes = d.hashes + (item.id to FileRef(sha, source.name, source.size, source.mime))) } }
+            val ref = o.client.upload(source, sha256 = sha) { sent, _ -> report(sent, preparing = false) }
             o.delivered += ref.sha256
-            if (known == null) edit { d -> d.copy(hashes = d.hashes + (item.id to ref)) }
+            noteStored(o, FileStatus(ref.sha256, ref.size, true))
             return ref
         } finally {
             o.syncing.value--
-            progress.value = null
+            transfers.update { it - key }
         }
+    }
+
+    // ——— Файлы на экранах ———
+
+    /** Передача файла на экран; ключ — «экран/элемент». */
+    data class Transfer(
+        val itemId: String, val outputId: String, val screen: String, val title: String,
+        val sent: Long, val total: Long,
+        /** Считается хэш: файл ещё не идёт по сети. */
+        val preparing: Boolean = false,
+        /** Отправлен заранее и ждёт своей очереди. */
+        val queued: Boolean = false,
+    ) {
+        val percent: Int get() = if (total <= 0) 100 else (sent * 100 / total).toInt().coerceIn(0, 100)
+
+        /** ««Maus.pdf» → ADT-3: 37 % · 120 из 320 МБ». */
+        val text: String get() = when {
+            queued -> "«$title» → $screen: в очереди"
+            preparing -> "«$title»: подготовка $percent %"
+            else -> "«$title» → $screen: $percent % · ${mb(sent)} из ${mb(total)}"
+        }
+    }
+
+    val transfers = MutableStateFlow<Map<String, Transfer>>(emptyMap())
+
+    /** Ход для окна «Сейчас»: перевод, Holyrics или передача файла, которого ждёт зал. Фоновые — не здесь. */
+    val busy: StateFlow<String?> by lazy {
+        combine(progress, transfers, live) { p, t, l ->
+            p ?: l?.source?.itemId?.let { id -> t.values.firstOrNull { it.itemId == id && !it.queued }?.text }
+        }.stateIn(scope, SharingStarted.Eagerly, null)
+    }
+
+    /** Что лежит на экранах: id экрана → хэш → сколько байт там уже есть. */
+    val stored = MutableStateFlow<Map<String, Map<String, FileStatus>>>(emptyMap())
+
+    private fun noteStored(o: Output, st: FileStatus) {
+        val id = o.target.id
+        stored.update { it + (id to (it[id].orEmpty() + (st.sha256 to st))) }
+    }
+
+    /**
+     * Экран подключился: спросить, какие файлы библиотеки на нём уже есть (отправленные раньше
+     * лежат там сутки). Целиком лежащие больше не передаются — показ начинается сразу.
+     */
+    private fun refreshStored(o: Output) = scope.launch {
+        val hashes = data.value.items.filter(::canSendAhead).mapNotNull { data.value.hashes[it.id]?.sha256 }.distinct()
+        for (sha in hashes) {
+            val st = runCatching { o.client.fileStatus(sha) }.getOrNull() ?: continue
+            if (st.complete) o.delivered += sha
+            noteStored(o, st)
+        }
+    }
+
+    /** Как файл элемента лежит на подключённых экранах; null — у элемента нет такого файла или экранов нет. */
+    fun onScreens(item: LibItem, screens: List<OutputView>, transfers: Map<String, Transfer>, stored: Map<String, Map<String, FileStatus>>): OnScreens? {
+        if (!canSendAhead(item)) return null
+        val online = screens.filter { it.state == OutState.ONLINE || it.state == OutState.SYNC }.filter { it.target.kind != Target.Kind.DLNA }
+        if (online.isEmpty()) return null
+        val sha = data.value.hashes[item.id]?.sha256
+        val done = online.count { o -> sha != null && stored[o.target.id]?.get(sha)?.complete == true }
+        val moving = online.mapNotNull { o -> transfers["${o.target.id}/${item.id}"] }
+        val partial = sha != null && online.any { o -> stored[o.target.id]?.get(sha)?.let { !it.complete && it.bytes > 0 } == true }
+        return OnScreens(online.size, done, moving.firstOrNull { !it.queued } ?: moving.firstOrNull(), partial)
     }
 
     private fun hashWithProgress(input: InputStream, size: Long, onProgress: (Int) -> Unit): String {

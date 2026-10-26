@@ -85,13 +85,52 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
                                 it.title, subOf(c, it), it.kind.icon, item = it,
                                 onLong = { ui.sheet(it.title) { ItemMenu(c, ui, it, inSet = false) } },
                                 onClick = { ui.full = FullSpec.Local(Cue(c.sourceOf(it), 0)) },
-                            )
+                            ) { FileBadge(c, ui, it) }
                         }
                     }
                 }
                 item("g:$k") { Spacer(Modifier.height(20.dp)) }
             }
             item("note") { Note("Удержание элемента — править, удалить, в сетлист.", Modifier.padding(horizontal = T.gutter)) }
+        }
+    }
+}
+
+/**
+ * Файл на экранах — справа в строке библиотеки: «на экране», ход передачи, «в очереди» или кнопка
+ * «отправить заранее». Видно только при подключённых экранах и только у фото, видео и PDF.
+ */
+@Composable
+fun FileBadge(c: Controller, ui: Ui, item: LibItem) {
+    val screens by c.outputs.collectAsState()
+    val transfers by c.transfers.collectAsState()
+    val stored by c.stored.collectAsState()
+    // Хэш элемента появляется после первой передачи: от него зависит, найдётся ли файл на экране.
+    @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
+    val st = c.onScreens(item, screens, transfers, stored) ?: return
+    val p = P.current
+    val t = st.transfer
+    when {
+        t != null -> Txt(if (t.queued) "в очереди" else if (t.preparing) "готовится" else "${t.percent} %", T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
+        st.done == st.screens -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon("onscreen", p.tintText, T.iconS)
+            Txt(if (st.screens == 1) "на экране" else "на всех", T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
+        }
+        else -> Row(
+            Modifier.press(label = "Отправить «${item.title}» на экраны заранее") {
+                ui.toast(if (c.sendAhead(item) > 0) "Передаётся в фоне: в зале ничего не меняется" else "Нет подключённых экранов")
+            }.padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon("send", p.l2, T.iconS)
+            Txt(
+                when {
+                    st.done > 0 -> "${st.done} из ${st.screens}"
+                    st.partial -> "дослать"
+                    else -> "отправить"
+                },
+                T.fTag, p.l2, FontWeight.SemiBold, lines = 1,
+            )
         }
     }
 }

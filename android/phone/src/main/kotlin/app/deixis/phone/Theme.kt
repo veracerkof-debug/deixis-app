@@ -216,6 +216,9 @@ private val paths: Map<String, List<Part>> = mapOf(
     "trash" to listOf(Part("M4 7h16M10 11v6M14 11v6"), Part("M6 7l1 13h10l1-13M9 7V4h6v3")),
     "edit" to listOf(Part("M4 20h4L19 9l-4-4L4 16z"), Part("M13 7l4 4")),
     "layers" to listOf(Part("M12 3l9 5-9 5-9-5z"), Part("M3 13l9 5 9-5")),
+    // Отправить на экран: экран и стрелка вверх в нём; файл на экране — экран с галочкой.
+    "send" to listOf(Part(rect(3f, 4f, 18f, 12f, 1.5f)), Part("M8 20h8"), Part("M12 13V7M9 10l3-3 3 3")),
+    "onscreen" to listOf(Part(rect(3f, 4f, 18f, 12f, 1.5f)), Part("M8 20h8"), Part("M8.5 10l2.5 2.5 4.5-4.5")),
 )
 
 private val vectors = mutableMapOf<String, ImageVector>()

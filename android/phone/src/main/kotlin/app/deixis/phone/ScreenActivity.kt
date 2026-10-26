@@ -57,23 +57,6 @@ class ScreenActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    @Suppress("DEPRECATION")
-    private fun hideSystemBars() {
-        // Окно создаётся при первом обращении к decorView: без него Android 11 падает на insetsController.
-        val decor = window.decorView
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            decor.windowInsetsController?.let {
-                it.hide(WindowInsets.Type.systemBars())
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            decor.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        }
-    }
-
     companion object {
         /** Телевизор, приставка или устройство без сенсорного экрана: пультом здесь не пользуются. */
         fun isTelevision(context: Context): Boolean {
@@ -81,6 +64,24 @@ class ScreenActivity : ComponentActivity() {
             return ui.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
                 !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
         }
+    }
+}
+
+/** Во весь экран, без панелей Android: на выводе в зал не бывает интерфейса. */
+@Suppress("DEPRECATION")
+internal fun android.app.Activity.hideSystemBars() {
+    // Окно создаётся при первом обращении к decorView: без него Android 11 падает на insetsController.
+    val decor = window.decorView
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        window.setDecorFitsSystemWindows(false)
+        decor.windowInsetsController?.let {
+            it.hide(WindowInsets.Type.systemBars())
+            it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    } else {
+        decor.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
     }
 }
 
