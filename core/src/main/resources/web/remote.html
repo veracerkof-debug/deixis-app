@@ -2294,6 +2294,8 @@ const allThemes = () => BUILT_IN().concat(D.themes);
 const BGS = [[0xFF000000, "black"], [0xFF18233A, "navy"], [0xFF4A3420, "warm"], [0xFF20443A, "green"], [0xFF3A2A4A, "plum"], [0xFFF4EFE6, "paper"]];
 const INKS = [[0xFFFFFFFF, "white"], [0xFFF4EFE6, "paper"], [0xFFFFD43B, "gold"], [0xFF2B2620, "dark"]];
 const colorName = (k) => ({ black: t.cBlack, navy: t.cNavy, warm: t.cWarm, green: t.cGreen, plum: t.cPlum, paper: t.cPaper, white: t.cWhite, gold: t.cGold, dark: t.cDark }[k]);
+// Размер текста оформления — как на телефоне: от очень мелкого (2) до 40; у мелких шаг 1, дальше 2.
+const sizeStep = (v, up) => { const r = Math.round(v), step = r < 10 || (!up && r <= 10) ? 1 : 2; return Math.min(40, Math.max(2, r + (up ? step : -step))); };
 const sameStyle = (a, b) => { const k = ["background", "color", "sizePercent", "shadow", "outline", "align", "valign", "box"]; return k.every((x) => (a[x] ?? null) === (b[x] ?? null)) && ((a.backgroundImage && a.backgroundImage.sha256) || null) === ((b.backgroundImage && b.backgroundImage.sha256) || null); };
 const swatches = (act, list, cur, key) => `<span class="swatches">${list.map(([v, n]) => `<button class="sw" style="background:${argbCss(v)}" data-act="${act}" data-k="${key}" data-v="${v}" aria-pressed="${(cur >>> 0) === v}" aria-label="${esc(colorName(n))}"></button>`).join("")}</span>`;
 function themesRow(cur) {
@@ -2656,7 +2658,7 @@ const A = {
   rmmod: (d) => removeModule(d.id),
   // Оформление
   st: (d) => { S.draft[d.k] = Number(d.v); if (d.k === "background") S.draft.backgroundImage = null; render(); refreshSheet(); },
-  fs: (d) => { S.draft.sizePercent = Math.min(32, Math.max(8, Math.round(S.draft.sizePercent) + Number(d.d))); render(); refreshSheet(); },
+  fs: (d) => { S.draft.sizePercent = sizeStep(S.draft.sizePercent, Number(d.d) > 0); render(); refreshSheet(); },
   stflag: (d) => { S.draft[d.k] = !S.draft[d.k]; render(); refreshSheet(); },
   stscope: (d) => { S.draftScope = d.v; refreshSheet(); },
   stcancel: () => { S.draft = null; closeSheet(); render(); },
@@ -2669,7 +2671,7 @@ const A = {
   },
   newtheme: () => sheetThemeEditor(null),
   te: (d) => { TE.st[d.k] = Number(d.v); if (d.k === "background") TE.st.backgroundImage = null; refreshSheet(); },
-  tefs: (d) => { TE.st.sizePercent = Math.min(32, Math.max(8, Math.round(TE.st.sizePercent) + Number(d.d))); refreshSheet(); },
+  tefs: (d) => { TE.st.sizePercent = sizeStep(TE.st.sizePercent, Number(d.d) > 0); refreshSheet(); },
   teflag: (d) => { if (d.k === "box") TE.st.box = TE.st.box != null ? null : 0xB4000000; else TE.st[d.k] = !TE.st[d.k]; refreshSheet(); },
   tealign: (d) => { TE.st.align = d.v; refreshSheet(); },
   tevalign: (d) => { TE.st.valign = d.v; refreshSheet(); },

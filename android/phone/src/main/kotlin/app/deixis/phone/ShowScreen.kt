@@ -35,6 +35,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -115,7 +116,11 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
             if (w >= 700.dp) Row(Modifier.fillMaxSize()) {
                 Column(Modifier.width(minOf(w * 0.42f, 440.dp)).fillMaxHeight()) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = tall)
+                        // Два окна друг под другом должны поместиться в колонку вместе с панелью кнопок.
+                        val col = minOf(w * 0.42f, 440.dp) - T.gutter * 2
+                        val each = (maxHeight - T.barBtn - MONITOR_CHROME * 2) / 2
+                        val slotMin = if (tall && each > 0.dp) col / each else 1f
+                        if (holyricsRemote) HolyricsLiveCard(h) else CompositionLocalProvider(LocalSlotMin provides maxOf(1f, slotMin)) { Monitors(c, ui, stacked = tall) }
                         Tiles(c, h, ui, wrap = true)
                     }
                     if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
@@ -553,5 +558,8 @@ private fun VideoSeek(position: Long, duration: Long, onSeek: (Long) -> Unit) {
     }
 }
 
+/** Подписи, подсказка и отступы вокруг окна «Сейчас» или «Предпросмотр». */
+private val MONITOR_CHROME = 72.dp
+
 /** Средняя ширина буквы подписи кнопки, доля кегля: по ней подпись ужимается до ширины кнопки. */
-private const val BAR_CHAR_EM = 0.58f
+private const val BAR_CHAR_EM = 0.68f

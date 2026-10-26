@@ -113,30 +113,39 @@ fun SlideView(
 ) {
     val p = P.current
     val ratio = LocalScreenRatio.current
-    val slot = ratio.coerceIn(SLOT_MIN, SLOT_MAX)
-    Box(modifier.fillMaxWidth().aspectRatio(slot), contentAlignment = Alignment.Center) {
-        Box(
-            (if (ratio < slot) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).aspectRatio(ratio)
-                .frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
-                .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                mode == Mode.BLACK -> {}
-                mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
-                mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
-                else -> { BackgroundImage(style); SlideBody(slide, item, style) }
-            }
-            num?.let {
-                Txt("$it", T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopStart).padding(start = T.gapS, top = 4.dp))
-                // Подпись слайда песни («Припев») — в плитках сетлиста, как в Holyrics.
-                (slide as? Slide.Text)?.label?.let { l ->
-                    Txt(l, T.fNum, Color.White.copy(alpha = 0.75f), FontWeight.SemiBold, Modifier.align(Alignment.TopEnd).padding(end = T.gapS, top = 4.dp), lines = 1)
+    val slot = ratio.coerceIn(LocalSlotMin.current.coerceAtMost(SLOT_MAX), SLOT_MAX)
+    val label = (slide as? Slide.Text)?.label
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(slot), contentAlignment = Alignment.Center) {
+            Box(
+                (if (ratio < slot) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).aspectRatio(ratio)
+                    .frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
+                    .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    mode == Mode.BLACK -> {}
+                    mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
+                    mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
+                    else -> { BackgroundImage(style); SlideBody(slide, item, style) }
                 }
+            }
+        }
+        // Номер и подпись («Припев») — под плиткой, как в Holyrics: не ложатся на текст слайда.
+        num?.let {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
+                Txt("$it", T.fNum, p.l2, FontWeight.SemiBold)
+                label?.let { l -> Txt(l, T.fNum, p.tintText, FontWeight.SemiBold, lines = 1) }
             }
         }
     }
 }
+
+/**
+ * Самое узкое место под превью. Обычно квадрат; там, где «Сейчас» и «Предпросмотр» стоят друг под
+ * другом в невысокой колонке планшета, раскладка поднимает его, чтобы оба окна поместились целиком.
+ */
+val LocalSlotMin = androidx.compose.runtime.compositionLocalOf { SLOT_MIN }
 
 /** Место под превью: не уже квадрата и не шире 21:9, что бы ни стояло в зале. */
 private const val SLOT_MIN = 1f
