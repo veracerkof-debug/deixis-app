@@ -405,7 +405,8 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                     val cue = Cue(c.sourceOf(it), i)
                     SlideView(
                         slides[i], it, c.styleFor(cue),
-                        Modifier.weight(1f).padding(T.gapXs).combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
+                        Modifier.weight(1f).padding(T.gapXs).semantics { contentDescription = "Слайд ${i + 1}" }
+                            .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                         num = i + 1, frame = if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                     )
                 }

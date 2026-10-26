@@ -113,7 +113,8 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     val theme = if (settings.darkLive && showing && (settings.theme == "light" || settings.theme == "paper")) "dark" else settings.theme
     LaunchedEffect(controller) { controller.messages.collect { ui.toast(it) } }
     val info by controller.receiverInfo.collectAsState()
-    CompositionLocalProvider(P provides paletteOf(theme), LocalScreenRatio provides screenRatio(info), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo) {
+    val testRatio by controller.testRatio.collectAsState()
+    CompositionLocalProvider(P provides paletteOf(theme), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo) {
         Root(controller, holyrics, ui)
     }
 }

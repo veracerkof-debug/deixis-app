@@ -208,6 +208,9 @@ class Controller(private val app: Application) {
         o?.client?.viewKey?.map { k -> if (k != null && o.target.kind == Target.Kind.NETWORK) o.client.viewLocalUrl() else null } ?: flowOf(null)
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** Формат экрана в зале для проверки интерфейса без экрана (только отладочная сборка). */
+    val testRatio = MutableStateFlow<Float?>(null)
+
     // ——— «Сейчас» и «Предпросмотр» ———
     val live = MutableStateFlow<Cue?>(null)
     val preview = MutableStateFlow<Cue?>(null)

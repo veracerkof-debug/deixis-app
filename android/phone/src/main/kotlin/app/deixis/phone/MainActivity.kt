@@ -83,6 +83,10 @@ class MainActivity : ComponentActivity() {
             return
         }
         val controller = (application as PhoneApp).controller
+        // Проверка интерфейса на эмуляторе (только отладочная сборка): формат экрана в зале без самого экрана.
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            intent?.getFloatExtra(TEST_RATIO, 0f)?.takeIf { it > 0f }?.let { controller.testRatio.value = it }
+        }
         hdmi = HdmiOutput(this, controller)
         setContent { DeixisPhone(controller, (application as PhoneApp).holyrics, ui) }
         handleLink(intent)
@@ -170,3 +174,6 @@ private fun CrashScreen(text: String, onContinue: () -> Unit) {
         ) { androidx.compose.foundation.text.BasicText("Продолжить", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 17.sp)) }
     }
 }
+
+/** Отладочная сборка: `am start --ef deixis.test.ratio 0.5625` — превью как у вертикального экрана в зале. */
+private const val TEST_RATIO = "deixis.test.ratio"
