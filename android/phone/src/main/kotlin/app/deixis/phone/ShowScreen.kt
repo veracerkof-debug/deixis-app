@@ -113,12 +113,13 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val w = maxWidth
             val tall = maxHeight > 500.dp
+            val height = maxHeight
             if (w >= 700.dp) Row(Modifier.fillMaxSize()) {
                 Column(Modifier.width(minOf(w * 0.42f, 440.dp)).fillMaxHeight()) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         // Два окна друг под другом должны поместиться в колонку вместе с панелью кнопок.
                         val col = minOf(w * 0.42f, 440.dp) - T.gutter * 2
-                        val each = (maxHeight - T.barBtn - MONITOR_CHROME * 2) / 2
+                        val each = (height - T.barBtn - MONITOR_CHROME * 2) / 2
                         val slotMin = if (tall && each > 0.dp) col / each else 1f
                         if (holyricsRemote) HolyricsLiveCard(h) else CompositionLocalProvider(LocalSlotMin provides maxOf(1f, slotMin)) { Monitors(c, ui, stacked = tall) }
                         Tiles(c, h, ui, wrap = true)
