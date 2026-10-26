@@ -35,6 +35,17 @@ PY
   sleep 2
 }
 
+# Касание элемента ниже края: список листается вверх, пока элемент не появится.
+tap_scroll() {
+  size=$(adb shell wm size | tail -1 | grep -o "[0-9]*x[0-9]*")
+  w=${size%x*}; h=${size#*x}
+  for i in 1 2 3 4 5 6; do
+    tap "$1" 2>/dev/null | grep -q "нет на экране" || return 0
+    adb shell input swipe $((w / 2)) $((h * 70 / 100)) $((w / 2)) $((h * 40 / 100)) 400; sleep 1
+  done
+  echo "=== нет на экране: «$1»"; return 1
+}
+
 # Удержание элемента (меню элемента в сетлисте и библиотеке).
 hold() {
   tap_xy "$1" || return 1
@@ -103,8 +114,7 @@ open_app
 tap "Показать" && shot phone-show-menu
 # Презентация листается: «Сейчас» меняет страницу по «Дальше», предпросмотр — по касанию плитки.
 open_app
-adb shell input swipe 500 1500 500 500 400; sleep 1
-if tap "Город пятнадцати минут.pdf"; then
+if tap_scroll "Город пятнадцати минут.pdf"; then
   tap "Слайд 1" && tap "В зал" && shot phone-pdf-1
   tap "Дальше" && shot phone-pdf-2
   tap "Слайд 3" && shot phone-pdf-3
