@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -293,10 +292,20 @@ class ReceiverServer(
         }
         if (!ok) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
 
-        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.info, core.state.value, core.viewKey).encode()))
-        val updates = launch {
-            core.state.drop(1).collect { send(Frame.Text(Status(it).encode())) }
+        // Подписка — до приветствия, и состояние в приветствии — то же, что первое в подписке. Иначе
+        // команда, пришедшая сразу после входа (переподключение шлёт слайд мгновенно), меняла экран
+        // раньше, чем начиналась подписка, и пульт так и не узнавал об этом.
+        var welcomeState: ReceiverState? = null
+        val welcomed = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val updates = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            core.state.collect { s ->
+                if (welcomeState == null) { welcomeState = s; return@collect }
+                welcomed.await()
+                send(Frame.Text(Status(s).encode()))
+            }
         }
+        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.info, welcomeState ?: core.state.value, core.viewKey).encode()))
+        welcomed.complete(Unit)
         try {
             for (frame in incoming) {
                 if (frame !is Frame.Text) continue

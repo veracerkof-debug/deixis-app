@@ -133,6 +133,20 @@ class EndToEndTest {
         c.close()
     }
 
+    /** Слайд, отправленный сразу после входа (так делает переподключение), пульт видит в состоянии экрана. */
+    @Test
+    fun showRightAfterConnectReachesSenderState() = runBlocking {
+        val token = client().pair(core.pairing.pin)
+        repeat(20) { n ->
+            val c = client()
+            c.connect(token)
+            c.connected()
+            c.show(TextContent("Слайд $n"))
+            step("слайд $n в состоянии пульта") { c.state.filterNotNull().first { it.content == TextContent("Слайд $n") } }
+            c.close()
+        }
+    }
+
     @Test
     fun showWithMissingFileReturnsErrorAndKeepsScreen() = runBlocking {
         val c = client()
