@@ -49,6 +49,7 @@ class CastOutput(private val app: Application, private val controller: () -> Con
     var runtime: ReceiverRuntime? = null
         private set
     private var wireless: Boolean? = null
+    private var runtimeSize: Pair<Int, Int>? = null
 
     /** Второй экран, на который сейчас идёт вывод. */
     private var shown: Display? = null
@@ -87,10 +88,13 @@ class CastOutput(private val app: Application, private val controller: () -> Con
     private fun show(display: Display) {
         shown = display
         val isWireless = isWireless(display)
-        if (runtime == null || wireless != isWireless) {
+        // Пульт рисует превью в пропорциях этого экрана, а не телефона.
+        val size = android.graphics.Point().also { @Suppress("DEPRECATION") display.getRealSize(it) }.let { it.x to it.y }
+        if (runtime == null || wireless != isWireless || runtimeSize != size) {
             runtime?.stop()
             wireless = isWireless
-            runtime = ReceiverRuntime(app, if (isWireless) "Беспроводной дисплей" else "Кабель HDMI", "android-hdmi", File(app.filesDir, "hdmi"), port = 0, loopbackOnly = true)
+            runtimeSize = size
+            runtime = ReceiverRuntime(app, if (isWireless) "Беспроводной дисплей" else "Кабель HDMI", "android-hdmi", File(app.filesDir, "hdmi"), port = 0, loopbackOnly = true, screen = size)
         }
         val rt = runtime!!
         scope.launch {
@@ -158,7 +162,8 @@ class CastActivity : ComponentActivity() {
         val rt = cast.runtime
         // Второй экран отключили, и Android перенёс окно на телефон: здесь ему не место.
         if (rt == null || onPhoneScreen()) { finish(); return }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Фокус остаётся у пульта: кликер и педаль листают слайды, а не нажимают в окне зала.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         hideSystemBars()
         val vlc = VlcPlayer(this) { rt.core.reportError(it) }.also { player = it }
         setContent { ReceiverScreen(rt, vlc, showIdleInfo = false) }

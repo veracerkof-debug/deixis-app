@@ -41,6 +41,8 @@ class ReceiverRuntime(
     dataDir: File,
     private val port: Int = ReceiverServer.DEFAULT_PORT,
     private val loopbackOnly: Boolean = false,
+    /** Размер экрана вывода, если это не экран самого устройства (кабель, Миракаст). */
+    screen: Pair<Int, Int>? = null,
 ) {
     private val appContext = context.applicationContext
     val core: ReceiverCore
@@ -62,8 +64,8 @@ class ReceiverRuntime(
 
     private val connectivity: ConnectivityManager? = appContext.getSystemService(ConnectivityManager::class.java)
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    // Свой поток: JmDNS открывается и закрывается долго, поток событий сети занимать нельзя.
     private var wifiLock: WifiManager.WifiLock? = null
+    // Свой поток: JmDNS открывается и закрывается долго, поток событий сети занимать нельзя.
     private val net = Executors.newSingleThreadScheduledExecutor { Thread(it, "deixis-net").apply { isDaemon = true } }
     @Volatile private var stopped = false
 
@@ -73,7 +75,8 @@ class ReceiverRuntime(
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val metrics = appContext.resources.displayMetrics
         // Презентации PPTX экран переводит сам (встроенный перевод), без компьютера.
-        val info = ReceiverInfo(id, name, platform, ApkUpdates.currentVersion(appContext), metrics.widthPixels, metrics.heightPixels, convert = true)
+        val (w, h) = screen ?: (metrics.widthPixels to metrics.heightPixels)
+        val info = ReceiverInfo(id, name, platform, ApkUpdates.currentVersion(appContext), w, h, convert = true)
         val pairing = Pairing(FileTokenStore(File(dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing, loadViewKey(File(dataDir, "view-key")))
         _pin = MutableStateFlow(pairing.pin)

@@ -126,6 +126,8 @@ open_app
 sleep 4
 show_song
 shot phone-cast
+adb shell dumpsys activity activities | grep -E "CastActivity|Display #" | head -12
+adb logcat -d | grep -iE "AndroidRuntime|deixis|CastActivity|BackgroundActivity|Abort background" | tail -30
 # Пульт свёрнут: вывод на втором экране остаётся.
 adb shell input keyevent KEYCODE_HOME
 sleep 8

@@ -101,12 +101,16 @@ object T {
     val icon = 22.dp
     val iconS = 17.dp
     val iconBar = 20.dp
+    /** Значок полосы показа: без подписи, крупнее. */
+    val barIcon = 24.dp
     val kind = 28.dp
     val pill = 36.dp
     val pillPad = 14.dp
     val btn = 50.dp
     val btnHero = 64.dp
     val barBtn = 50.dp
+    /** Кнопка-значок полосы показа. */
+    val barKey = 44.dp
     val dev = 36.dp
     val search = 40.dp
     val segMin = 32.dp
@@ -183,7 +187,8 @@ private val paths: Map<String, List<Part>> = mapOf(
     "plus" to listOf(Part("M12 5v14M5 12h14")),
     "more" to listOf(Part(circle(5f, 12f, 1f)), Part(circle(12f, 12f, 1f)), Part(circle(19f, 12f, 1f))),
     "black" to listOf(Part(rect(4f, 5f, 16f, 14f, 2f), fill = true)),
-    "logo" to listOf(Part(circle(12f, 12f, 8f)), Part("M12 7v10M8 11h8")),
+    // Заставка «Логотип» — знак Deixis, Δ.
+    "logo" to listOf(Part("M12 4.5L20 19H4z")),
     "clear" to listOf(Part("M4 20h16"), Part("M14 4l6 6-8 8H6v-6z")),
     "text" to listOf(Part("M5 6V4h14v2M12 4v16M9 20h6")),
     "brush" to listOf(Part("M14 4l6 6-9 9H5v-6z"), Part("M12 6l6 6")),

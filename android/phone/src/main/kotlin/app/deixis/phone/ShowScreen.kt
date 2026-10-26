@@ -119,7 +119,7 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         // Два окна друг под другом должны поместиться в колонку вместе с панелью кнопок.
                         val col = minOf(w * 0.42f, 440.dp) - T.gutter * 2
-                        val each = (height - T.barBtn - MONITOR_CHROME * 2) / 2
+                        val each = (height - T.barKey - MONITOR_CHROME * 2) / 2
                         val slotMin = if (tall && each > 0.dp) col / each else 1f
                         if (holyricsRemote) HolyricsLiveCard(h) else CompositionLocalProvider(LocalSlotMin provides maxOf(1f, slotMin)) { Monitors(c, ui, stacked = tall) }
                     }
@@ -451,7 +451,7 @@ fun ControlBar(c: Controller, ui: Ui) {
     val slide = live?.slide
     Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
+        Column(Modifier.padding(horizontal = T.gapS, vertical = T.gapXs), verticalArrangement = Arrangement.spacedBy(T.gapXs)) {
             val black: @Composable RowScope.() -> Unit = { BarBtn("black", "Чёрный", mode == Mode.BLACK) { c.mode(Mode.BLACK) } }
             when (slide) {
                 is Slide.Movie -> {
@@ -491,7 +491,9 @@ fun ControlBar(c: Controller, ui: Ui) {
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()
                     BarBtn("logo", "Логотип", mode == Mode.LOGO) { c.mode(Mode.LOGO) }
-                    BarBtn("clear", "Очистить", mode == Mode.CLEAR) { c.mode(Mode.CLEAR) }
+                    // Слои поверх показа: что в эфире — видно акцентом, касание — поправить, добавить, убрать.
+                    val layers by c.overlays.collectAsState()
+                    BarBtn("layers", "Слои", !layers.isEmpty) { ui.sheet("Поверх показа") { OverlaySheet(c, ui) } }
                     BarBtn("prev", "Назад") { c.step(-1) }
                     BarBtn("next", "Дальше") { c.step(1) }
                     BarBtn("brush", "Вид") { openStyle(c, ui) }
@@ -506,21 +508,19 @@ fun openStyle(c: Controller, ui: Ui) {
     ui.sheet("Оформление") { StyleSheet(c, ui) }
 }
 
+/**
+ * Кнопка полосы показа — только значок, без подписи: шесть в ряд легко нажать вслепую. Подпись
+ * остаётся для озвучки и подсказок. Нажатое (чёрный экран, логотип, слой в эфире) — акцентом.
+ */
 @Composable
 private fun RowScope.BarBtn(icon: String, text: String, pressed: Boolean = false, weight: Float = 1f, onClick: () -> Unit) {
     val p = P.current
-    Column(
-        // Нажатое — акцентом, как «В зал»: видно в любой теме пульта, в том числе в «Бумаге».
-        Modifier.weight(weight).heightIn(min = T.barBtn).clip(RoundedCornerShape(T.rBtn)).background(if (pressed) p.tint else p.fill)
-            .press(scaleTo = 0.94f, label = text, onClick = onClick).padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    Box(
+        Modifier.weight(weight).height(T.barKey).clip(RoundedCornerShape(T.rPill)).background(if (pressed) p.tint else Color.Transparent)
+            .press(scaleTo = 0.9f, label = text, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, if (pressed) Color.White else p.ink, T.iconBar)
-        // На узком телефоне шесть кнопок в ряд: подпись уменьшается по ширине кнопки, а не обрезается.
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 2.dp), contentAlignment = Alignment.Center) {
-            val fit = with(LocalDensity.current) { (maxWidth / (text.length * BAR_CHAR_EM)).toSp() }
-            Txt(text, if (fit < T.fBar) fit else T.fBar, if (pressed) Color.White else p.ink, FontWeight.SemiBold, lines = 1)
-        }
+        Icon(icon, if (pressed) Color.White else p.ink, T.barIcon)
     }
 }
 
@@ -558,5 +558,3 @@ private fun VideoSeek(position: Long, duration: Long, onSeek: (Long) -> Unit) {
 /** Подписи, подсказка и отступы вокруг окна «Сейчас» или «Предпросмотр». */
 private val MONITOR_CHROME = 72.dp
 
-/** Средняя ширина буквы подписи кнопки, доля кегля: по ней подпись ужимается до ширины кнопки. */
-private const val BAR_CHAR_EM = 0.68f
