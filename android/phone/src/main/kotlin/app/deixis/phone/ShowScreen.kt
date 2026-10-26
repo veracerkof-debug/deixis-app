@@ -337,6 +337,8 @@ private fun SetlistPane(c: Controller, ui: Ui) {
     val live by c.live.collectAsState()
     val preview by c.preview.collectAsState()
     val mode by c.mode.collectAsState()
+    // Вертикальный экран в зале — плитки узкие: в ряд по три, чтобы песня не растягивалась на всю ленту.
+    val cols = if (LocalScreenRatio.current < 1f) 3 else 2
     val ids = if (ui.listSeg == 0) set?.items.orEmpty() else data.recent
     val items = ids.mapNotNull { id -> data.items.firstOrNull { it.id == id } }
     LazyColumn(Modifier.fillMaxSize()) {
@@ -369,7 +371,7 @@ private fun SetlistPane(c: Controller, ui: Ui) {
             val open = ui.listSeg == 0 && ui.open == it.id
             val last = n == items.lastIndex
             setRow(c, ui, it, n == 0, last && !open, open, live, preview, mode, recent = ui.listSeg == 1)
-            if (open) slideGrid(c, ui, it, live, preview, mode, last)
+            if (open) slideGrid(c, ui, it, live, preview, mode, last, cols)
         }
         item("end") { Spacer(Modifier.height(24.dp)) }
     }
@@ -396,9 +398,9 @@ private fun LazyListScope.setRow(
     }
 }
 
-private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cue?, preview: Cue?, mode: Mode, last: Boolean) {
+private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cue?, preview: Cue?, mode: Mode, last: Boolean, cols: Int) {
     val slides = c.slidesOf(it)
-    val rows = slides.indices.chunked(2)
+    val rows = slides.indices.chunked(cols)
     rows.forEachIndexed { r, pair ->
         item("grid:${it.id}:$r") {
             Row(
@@ -417,7 +419,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                         num = i + 1, frame = if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                     )
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                repeat(cols - pair.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
