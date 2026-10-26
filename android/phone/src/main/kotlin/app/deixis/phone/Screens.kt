@@ -91,7 +91,7 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
                 }
                 item("g:$k") { Spacer(Modifier.height(20.dp)) }
             }
-            item("note") { Note("Удержание элемента — править, удалить, в сетлист.", Modifier.padding(horizontal = T.gutter)) }
+            item("note") { Note("Удержание элемента — править, удалить, в сетлист. Значок экрана со стрелкой — отправить файл на экраны заранее: в зале ничего не меняется.", Modifier.padding(horizontal = T.gutter)) }
         }
     }
 }
@@ -122,15 +122,10 @@ fun FileBadge(c: Controller, ui: Ui, item: LibItem) {
             }.padding(4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon("send", p.l2, T.iconS)
-            Txt(
-                when {
-                    st.done > 0 -> "${st.done} из ${st.screens}"
-                    st.partial -> "дослать"
-                    else -> "отправить"
-                },
-                T.fTag, p.l2, FontWeight.SemiBold, lines = 1,
-            )
+            // Просто значок: название файла важнее. Частично отправленный — с подписью.
+            Icon("send", p.l2, T.icon)
+            if (st.done > 0) Txt("${st.done} из ${st.screens}", T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
+            else if (st.partial) Txt("дослать", T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
         }
     }
 }
