@@ -219,18 +219,23 @@ class SenderClient(
     suspend fun upload(
         source: UploadSource,
         sha256: String? = null,
-        attempts: Int = 5,
+        /** Сколько неудач подряд без продвижения терпится; докачка, которая сдвинулась, сбрасывает счёт. */
+        attempts: Int = 6,
         onProgress: (sent: Long, total: Long) -> Unit = { _, _ -> },
     ): FileRef {
         val t = token ?: error("Нет сопряжения")
         val sha = sha256 ?: withContext(Dispatchers.IO) { source.open().use(::sha256Of) }
         val ref = FileRef(sha, source.name, source.size, source.mime)
         var lastError: Exception? = null
-        repeat(attempts) { attempt ->
+        var failures = 0
+        var reached = -1L
+        // Большой файл по Wi-Fi рвётся: передача продолжается с места обрыва, пока она движется.
+        while (failures < attempts) {
             try {
                 val status = fileStatus(sha, t)
                 onProgress(status.bytes, source.size)
                 if (status.complete) return ref
+                if (status.bytes > reached) { reached = status.bytes; failures = 0 }
                 val response = http.put("http://$host:$port/files/$sha?offset=${status.bytes}") {
                     header("Authorization", "Bearer $t")
                     header(ReceiverServer.HEADER_SIZE, source.size.toString())
@@ -240,17 +245,23 @@ class SenderClient(
                     val after = DeixisJson.decodeFromString(FileStatus.serializer(), response.bodyAsText())
                     if (after.complete) return ref
                 } else if (response.status == HttpStatusCode.BadRequest || response.status == HttpStatusCode.InsufficientStorage) {
-                    throw IOException(response.bodyAsText())
+                    throw UploadRejected(response.bodyAsText())
                 }
+                // 409: экран ещё дописывает прежний кусок или ждёт другого смещения — подождать и спросить снова.
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: UploadRejected) {
+                throw IOException(e.message, e)
             } catch (e: Exception) {
                 lastError = e
             }
-            delay(500L * (attempt + 1))
+            failures++
+            delay(minOf(UPLOAD_RETRY_MS shl failures.coerceAtMost(4), UPLOAD_RETRY_MAX_MS))
         }
-        throw IOException("Не удалось передать «${source.name}»: ${lastError?.message}", lastError)
+        throw IOException(uploadError(source.name, lastError), lastError)
     }
+
+    private class UploadRejected(message: String) : Exception(message)
 
     /**
      * Просит приёмник взять файл из Holyrics на его компьютере (фото, видео, фон темы).
@@ -457,4 +468,19 @@ class ScreenStream internal constructor(
         /** Больше этого в очереди — сеть не успевает (около трети секунды при 30 кадрах). */
         const val LAG_FRAMES = 10
     }
+}
+
+private const val UPLOAD_RETRY_MS = 250L
+private const val UPLOAD_RETRY_MAX_MS = 5_000L
+
+/** Понятная причина, без адресов и названий классов: её читает ведущий во время показа. */
+internal fun uploadError(name: String, e: Exception?): String {
+    val text = generateSequence(e as Throwable?) { it.cause }.mapNotNull { it.message }.joinToString(" ").lowercase()
+    val why = when {
+        "timeout" in text || "timed out" in text || "connect" in text || "refused" in text || "unreachable" in text ->
+            "экран не отвечает. Проверьте, что он включён и в той же сети; уже переданное не пропадёт"
+        "busy" in text -> "экран ещё принимает этот файл"
+        else -> "связь оборвалась; уже переданное не пропадёт"
+    }
+    return "«$name» не передан: $why"
 }

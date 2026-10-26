@@ -183,7 +183,7 @@ jobs:
       - name: VLC для Windows
         if: runner.os == 'Windows'
         run: |
-          curl -fsSL -o vlc.zip "https://get.videolan.org/vlc/$VLC_VERSION/win64/vlc-$VLC_VERSION-win64.zip"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o vlc.zip "https://get.videolan.org/vlc/$VLC_VERSION/win64/vlc-$VLC_VERSION-win64.zip"
           7z x -y vlc.zip > /dev/null
           mkdir -p content/vlc
           cp vlc-$VLC_VERSION/libvlc.dll vlc-$VLC_VERSION/libvlccore.dll content/vlc/
@@ -199,7 +199,7 @@ jobs:
       - name: VLC для macOS
         if: runner.os == 'macOS'
         run: |
-          curl -fsSL -o vlc.dmg "https://get.videolan.org/vlc/$VLC_VERSION/macosx/vlc-$VLC_VERSION-arm64.dmg"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o vlc.dmg "https://get.videolan.org/vlc/$VLC_VERSION/macosx/vlc-$VLC_VERSION-arm64.dmg"
           hdiutil attach -nobrowse -mountpoint /tmp/vlc vlc.dmg
           mkdir -p content/vlc
           cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib content/vlc/lib

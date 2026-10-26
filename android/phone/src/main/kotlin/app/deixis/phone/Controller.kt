@@ -55,10 +55,12 @@ import app.deixis.core.mimeOf
 import app.deixis.core.splitIntoSlides
 import app.deixis.receiver.PptxPdf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -451,7 +453,11 @@ class Controller(private val app: Application) {
         else preview.value = cue
     }
 
-    fun toPreview(cue: Cue) { preview.value = cue }
+    fun toPreview(cue: Cue) {
+        preview.value = cue
+        // Файл из предпросмотра заранее идёт на экраны: «В зал» потом без ожидания.
+        item(cue.source.itemId)?.let(::sendAhead)
+    }
 
     /** «В зал»: предпросмотр (и правка оформления) уходят на экраны. */
     fun previewToLive() {
@@ -849,9 +855,46 @@ class Controller(private val app: Application) {
 
     /** Файл элемента на экране: хэш считается один раз, передача — только если файла там ещё нет. */
     private suspend fun fileOn(o: Output, item: LibItem): FileRef {
-        val uri = Uri.parse(item.uri ?: error("Файл «${item.title}» не найден"))
         val known = data.value.hashes[item.id]
         if (known != null && known.sha256 in o.delivered) return known
+        // Одна передача на файл и экран: листание во время передачи ждёт её, а не начинает вторую
+        // (экран принимает файл один раз и вторую отклонил бы).
+        val key = "${o.target.id}/${item.id}"
+        val job = synchronized(sending) {
+            sending[key]?.takeIf { it.isActive } ?: scope.async {
+                try { sendFile(o, item) } finally { synchronized(sending) { sending.remove(key) } }
+            }.also { sending[key] = it }
+        }
+        return job.await()
+    }
+
+    private val sending = mutableMapOf<String, Deferred<FileRef>>()
+
+    /**
+     * Файлы элемента — на все подключённые экраны заранее, в фоне: в зале остаётся то, что там идёт,
+     * а показ потом начинается сразу. Презентация с телефона, PDF, фото и видео.
+     */
+    fun sendAhead(item: LibItem): Int {
+        if (!canSendAhead(item)) return 0
+        val ready = outs.value.filter { it.client.connection.value is Connection.Connected }
+        ready.forEach { o ->
+            scope.launch {
+                runCatching { fileOn(o, item) }.onFailure { e -> if (e !is kotlinx.coroutines.CancellationException) messages.emit("«${o.target.name}»: ${e.message}") }
+            }
+        }
+        return ready.size
+    }
+
+    /** У элемента есть файл, который экран хранит у себя: фото, видео, PDF. */
+    fun canSendAhead(item: LibItem): Boolean = item.uri != null && when (item.kind) {
+        Kind.PHOTO, Kind.VIDEO -> true
+        Kind.PRESENTATION, Kind.FILE -> item.mime == "application/pdf"
+        else -> false
+    }
+
+    private suspend fun sendFile(o: Output, item: LibItem): FileRef {
+        val uri = Uri.parse(item.uri ?: error("Файл «${item.title}» не найден"))
+        val known = data.value.hashes[item.id]
         val source = sourceFor(uri, item)
         o.syncing.value++
         try {

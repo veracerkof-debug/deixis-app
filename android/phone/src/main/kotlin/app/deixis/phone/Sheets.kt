@@ -388,6 +388,11 @@ fun ItemMenu(c: Controller, ui: Ui, item: LibItem, inSet: Boolean) {
             c.draftScope = Controller.StyleScope.ITEM
             openStyle(c, ui)
         }
+        // Большой файл — на экраны заранее, пока в зале идёт другое: потом показ без ожидания.
+        if (c.canSendAhead(item)) Btn("Отправить на экраны заранее", icon = "tv") {
+            ui.closeAll()
+            ui.toast(if (c.sendAhead(item) > 0) "Передаётся в фоне: в зале ничего не меняется" else "Нет подключённых экранов")
+        }
         if (item.kind == Kind.BIBLE) Btn("Другое место", icon = "bible") { ui.push("Библия") { BiblePicker(c, ui, item) } }
         if (inSet) {
             Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
