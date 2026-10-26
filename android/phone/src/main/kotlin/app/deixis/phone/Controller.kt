@@ -55,6 +55,7 @@ import app.deixis.core.mediaKindOf
 import app.deixis.core.mimeOf
 import app.deixis.core.splitIntoSlides
 import app.deixis.receiver.PptxPdf
+import app.deixis.core.Docx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -268,6 +269,7 @@ class Controller(private val app: Application) {
         // Ежедневная резервная копия при запуске.
         scope.launch(Dispatchers.IO) { runCatching { backups.daily(store.data) } }
         seedDemo()
+        convertOldDocuments()
         // Прежние настройки (до библиотеки) переносятся один раз.
         val old = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (old.contains("caps") || old.contains("church")) {
@@ -1186,21 +1188,8 @@ class Controller(private val app: Application) {
         }
         val id = Store.newId()
         val ext = name.substringAfterLast('.', "").lowercase()
-        // PPTX переводится в PDF прямо на телефоне: превью слайдов и показ на любом экране без компьютера.
-        if (kind == Kind.PRESENTATION && ext in PptxPdf.FORMATS) {
-            progress.value = "«$name»: перевод в PDF…"
-            try {
-                val src = File(app.cacheDir, "pptx-$id.$ext")
-                app.contentResolver.openInputStream(uri)!!.use { input -> src.outputStream().use { input.copyTo(it) } }
-                val out = File(File(app.filesDir, "converted").apply { mkdirs() }, "$id.pdf")
-                val warnings = try { PptxPdf.convert(app, src, out) } finally { src.delete() }
-                val pages = app.contentResolver.openFileDescriptor(Uri.fromFile(out), "r")!!.use { fd -> PdfRenderer(fd).use { it.pageCount } }
-                PptxPdf.warning(warnings)?.let { messages.tryEmit(it) }
-                return LibItem(id, Kind.PRESENTATION, name, uri = Uri.fromFile(out).toString(), mime = "application/pdf", size = out.length(), pages = pages)
-            } finally {
-                progress.value = null
-            }
-        }
+        // PPTX и DOCX переводятся в PDF прямо на телефоне: превью страниц и показ на любом экране без компьютера.
+        if (kind == Kind.PRESENTATION && ext in PptxPdf.FORMATS || ext in Docx.FORMATS) return convertHere(id, name, uri, kind)
         return when (kind) {
             Kind.TEXT -> {
                 val text = app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
@@ -1221,6 +1210,37 @@ class Controller(private val app: Application) {
                 else 0
                 LibItem(id, kind, name, uri = uri.toString(), mime = if (pages > 0) "application/pdf" else mime, size = size, pages = pages)
             }
+        }
+    }
+
+    /** Перевод презентации или документа Word в PDF на самом телефоне; элемент библиотеки — уже PDF. */
+    private fun convertHere(id: String, name: String, uri: Uri, kind: Kind): LibItem {
+        progress.value = "«$name»: перевод в PDF…"
+        try {
+            val ext = name.substringAfterLast('.', "").lowercase()
+            val src = File(app.cacheDir, "convert-$id.$ext")
+            app.contentResolver.openInputStream(uri)!!.use { input -> src.outputStream().use { input.copyTo(it) } }
+            val out = File(File(app.filesDir, "converted").apply { mkdirs() }, "$id.pdf")
+            val warnings = try { PptxPdf.convert(app, src, out) } finally { src.delete() }
+            val pages = app.contentResolver.openFileDescriptor(Uri.fromFile(out), "r")!!.use { fd -> PdfRenderer(fd).use { it.pageCount } }
+            PptxPdf.warning(warnings)?.let { messages.tryEmit(it) }
+            return LibItem(id, kind, name, uri = Uri.fromFile(out).toString(), mime = "application/pdf", size = out.length(), pages = pages)
+        } finally {
+            progress.value = null
+        }
+    }
+
+    /**
+     * Документы Word, добавленные до встроенного перевода, показывались заглушкой «Переведётся при показе»:
+     * переводятся один раз, в фоне, тот же элемент становится PDF со страницами.
+     */
+    private fun convertOldDocuments() = scope.launch {
+        val old = data.value.items.filter { it.uri != null && it.mime != "application/pdf" && it.pages == 0 && it.title.substringAfterLast('.', "").lowercase() in Docx.FORMATS }
+        for (item in old) {
+            val done = withContext(Dispatchers.IO) { runCatching { convertHere(item.id, item.title, Uri.parse(item.uri), item.kind) }.getOrNull() } ?: continue
+            saveItem(done.copy(style = item.style))
+            // Прежний хэш — от файла Word: передаётся теперь PDF.
+            edit { d -> d.copy(hashes = d.hashes - item.id, conversions = d.conversions - item.id) }
         }
     }
 

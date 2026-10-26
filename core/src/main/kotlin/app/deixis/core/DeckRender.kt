@@ -214,6 +214,31 @@ object DeckRender {
         }
     }
 
+    /** Строка абзаца после переноса: её куски текста и высота — для вёрстки документа по страницам. */
+    class TextLine(val runs: List<DeckRun>, val height: Float)
+
+    /** Перенос абзаца по ширине [width] теми же правилами, по которым он потом рисуется. */
+    fun lines(para: DeckPara, width: Float, p: DeckPainter): List<TextLine> {
+        val laid = layout(DeckText(listOf(para), Box(0f, 0f, 0f, 0f)), Box(0f, 0f, width, Float.MAX_VALUE), p, 1f).first()
+        return laid.lines.map { l ->
+            val runs = mutableListOf<DeckRun>()
+            for (pc in l.pieces) {
+                val last = runs.lastOrNull()
+                if (last != null && last.font == pc.run.font && last.argb == pc.run.argb && last.underline == pc.run.underline && last.strike == pc.run.strike) {
+                    runs[runs.lastIndex] = last.copy(text = last.text + pc.text)
+                } else runs += pc.run.copy(text = pc.text)
+            }
+            TextLine(runs, lineHeight(l, para, 1f))
+        }
+    }
+
+    /** Высота текста в рамке шириной [width] (без внутренних полей): для строк таблицы. */
+    fun textHeight(t: DeckText, width: Float, p: DeckPainter): Float {
+        val w = width - t.insets.x - t.insets.w
+        if (w <= 0f) return t.insets.y + t.insets.h
+        return height(layout(t, Box(0f, 0f, w, Float.MAX_VALUE), p, 1f), 1f) + t.insets.y + t.insets.h
+    }
+
     private fun lineHeight(l: Line, para: DeckPara, scale: Float): Float =
         para.lineSpacingPt?.let { it * scale } ?: (l.size * 1.2f * para.lineSpacing)
 

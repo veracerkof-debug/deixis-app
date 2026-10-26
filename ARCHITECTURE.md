@@ -173,7 +173,8 @@ Deixis для компьютера (`desktop`) реализует `OutputsHost` 
 | Фото | JPEG, PNG, WebP, GIF (с анимацией), BMP, HEIC | HEIC телефон перед отправкой переводит в JPEG |
 | PDF | любой | постранично в картинки нужного разрешения |
 | PPTX, PPT, ODP, KEY | в PDF на компьютере-приёмнике: PowerPoint, LibreOffice, Keynote или встроенный перевод | анимации не сохраняются; нужны анимации — трансляция экрана |
-| DOCX, DOC, ODT, RTF, XLSX, XLS, ODS | в PDF на компьютере-приёмнике с Office или LibreOffice | — |
+| DOCX | в PDF прямо на телефоне и экране Android: своё чтение WordprocessingML и вёрстка по страницам (`core/Docx.kt`), на компьютере — Office или LibreOffice | — |
+| DOC, ODT, RTF, XLSX, XLS, ODS | в PDF на компьютере-приёмнике с Office или LibreOffice | — |
 | Текст, DOCX, TXT, OpenLyrics, OpenLP | свои текстовые слайды | общий `core/render` |
 
 Честное ограничение: 4K HEVC и AV1 на слабых приставках могут идти рывками. Приёмник сообщает, какие кодеки декодирует аппаратно, и телефон предупреждает об этом до показа, а не во время.

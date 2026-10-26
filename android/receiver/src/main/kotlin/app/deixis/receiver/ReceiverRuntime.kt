@@ -74,9 +74,9 @@ class ReceiverRuntime(
         val idFile = File(dataDir, "id")
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val metrics = appContext.resources.displayMetrics
-        // Презентации PPTX экран переводит сам (встроенный перевод), без компьютера.
+        // Презентации PPTX и документы DOCX экран переводит сам (встроенный перевод), без компьютера.
         val (w, h) = screen ?: (metrics.widthPixels to metrics.heightPixels)
-        val info = ReceiverInfo(id, name, platform, ApkUpdates.currentVersion(appContext), w, h, convert = true)
+        val info = ReceiverInfo(id, name, platform, ApkUpdates.currentVersion(appContext), w, h, convert = true, documents = true)
         val pairing = Pairing(FileTokenStore(File(dataDir, "tokens.json")))
         core = ReceiverCore(info, FileStore(File(dataDir, "files"), limitBytes = cacheLimit(dataDir)), pairing, loadViewKey(File(dataDir, "view-key")))
         _pin = MutableStateFlow(pairing.pin)
