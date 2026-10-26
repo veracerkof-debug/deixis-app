@@ -244,12 +244,18 @@ class ScreenRelay(
         @Volatile var denied = false
             private set
 
-        val state: String
-            get() = when (val c = client.connection.value) {
-                is Connection.Connected -> if (syncing.value) "sync" else "online"
-                is Connection.Denied -> if (c.reason == DenyReason.UNKNOWN_TOKEN) "pin" else "offline"
-                else -> "offline"
-            }
+        /**
+         * Состояние для списка — из того, что пришло в подписку, а не из текущих значений: иначе быстрая
+         * передача («sync» и обратно), уложившаяся между событиями, оставляла в списке «sync» навсегда.
+         */
+        @Volatile var state: String = "offline"
+            private set
+
+        private fun stateOf(c: Connection, sync: Boolean) = when (c) {
+            is Connection.Connected -> if (sync) "sync" else "online"
+            is Connection.Denied -> if (c.reason == DenyReason.UNKNOWN_TOKEN) "pin" else "offline"
+            else -> "offline"
+        }
 
         // Что уже показано на экране в этой сессии связи; после обрыва — ничего.
         private var sent: Mirror? = null
@@ -257,8 +263,9 @@ class ScreenRelay(
         init {
             client.connect(token)
             linkScope.launch {
-                client.connection.combine(syncing) { c, _ -> c }.collect { c ->
+                client.connection.combine(syncing) { c, sync -> c to sync }.collect { (c, sync) ->
                     denied = c is Connection.Denied && c.reason == DenyReason.UNKNOWN_TOKEN
+                    state = stateOf(c, sync)
                     publish()
                 }
             }
