@@ -122,8 +122,10 @@ fi
 # Документ Word из демо: переведён на телефоне, страницы видны в плитках и в предпросмотре.
 open_app
 if tap_scroll "Конспект. Город 15 минут.docx"; then
-  tap "Слайд 1" && shot phone-docx-1
-  tap "Слайд 2" && shot phone-docx-2
+  tap_scroll "Слайд 1" && shot phone-docx-1
+  tap_scroll "Слайд 2" && shot phone-docx-2
+else
+  adb logcat -d | grep -iE "AndroidRuntime|Docx|PptxPdf|convert" | tail -20
 fi
 # Второй экран (как кабель или Миракаст): эмулятор рисует его окном поверх основного.
 open_app
