@@ -107,9 +107,6 @@ object T {
     val btn = 50.dp
     val btnHero = 64.dp
     val barBtn = 50.dp
-    val tileW = 116.dp
-    val tileH = 84.dp
-    val tilePad = 12.dp
     val dev = 36.dp
     val search = 40.dp
     val segMin = 32.dp

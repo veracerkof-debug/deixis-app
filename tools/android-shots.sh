@@ -98,6 +98,9 @@ tap "Вид" && shot phone-style
 open_app
 hold "Коль славен наш Господь в Сионе" && tap "Править слайды" && shot phone-song-editor
 adb shell input swipe 500 1600 500 600 300; sleep 1; shot phone-song-editor-2
+# «Показать» — «+» рядом с поиском: файлы, текст, отсчёт, слой.
+open_app
+tap "Показать" && shot phone-show-menu
 scene phone-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size 2560x1600
 adb shell wm density 320

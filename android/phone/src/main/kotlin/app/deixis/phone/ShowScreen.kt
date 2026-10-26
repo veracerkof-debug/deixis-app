@@ -122,7 +122,6 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                         val each = (height - T.barBtn - MONITOR_CHROME * 2) / 2
                         val slotMin = if (tall && each > 0.dp) col / each else 1f
                         if (holyricsRemote) HolyricsLiveCard(h) else CompositionLocalProvider(LocalSlotMin provides maxOf(1f, slotMin)) { Monitors(c, ui, stacked = tall) }
-                        Tiles(c, h, ui, wrap = true)
                     }
                     if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
                 }
@@ -130,7 +129,6 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                 Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
             } else Column(Modifier.fillMaxSize()) {
                 if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = false)
-                Tiles(c, h, ui, wrap = false)
                 Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
                 if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
             }
@@ -270,9 +268,12 @@ private fun BoxScope.Loading(text: String) {
 
 private data class TileSpec(val title: String, val icon: String, val action: () -> Unit)
 
+/**
+ * «Показать»: всё, что выводится не из сетлиста, — файл, текст, отсчёт, слой, экран телефона. Открывается
+ * плюсом рядом с поиском: главный экран остаётся за показом, без ряда плиток.
+ */
 @Composable
-private fun Tiles(c: Controller, h: HolyricsSource, ui: Ui, wrap: Boolean) {
-    val p = P.current
+private fun ShowMenu(c: Controller, ui: Ui) {
     val context = LocalContext.current
     val acts = LocalActs.current
     val settings by c.settings.collectAsState()
@@ -285,36 +286,22 @@ private fun Tiles(c: Controller, h: HolyricsSource, ui: Ui, wrap: Boolean) {
         add(TileSpec("Отсчёт", "clock") { ui.sheet("Обратный отсчёт") { CountdownSheet(c, ui) } })
         add(TileSpec("Поверх", "layers") { ui.sheet("Поверх показа") { OverlaySheet(c, ui) } })
         add(TileSpec(if (sharing) "Остановить экран" else "Экран телефона", "phone") {
-            if (sharing) ScreenShareService.stop(context) else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
+            if (sharing) { ui.closeAll(); ScreenShareService.stop(context) } else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
         })
         add(TileSpec("Файл", "file") { ui.sheet("Файл") { PickSheet(c, ui, PickKind.FILE) } })
         // Церковный раздел: Библия и Holyrics. Выключается в настройках.
         if (settings.church) {
-            add(TileSpec("Библия", "bible") { ui.tab = AppTab.BIBLE })
-            add(TileSpec("Holyrics", "song") { acts.holyrics() })
+            add(TileSpec("Библия", "bible") { ui.closeAll(); ui.tab = AppTab.BIBLE })
+            add(TileSpec("Holyrics", "song") { ui.closeAll(); acts.holyrics() })
         }
-        add(TileSpec("Стать экраном", "tv") { context.startActivity(Intent(context, ScreenActivity::class.java)) })
+        add(TileSpec("Стать экраном", "tv") { ui.closeAll(); context.startActivity(Intent(context, ScreenActivity::class.java)) })
     }
-    val tile: @Composable (TileSpec, Modifier) -> Unit = { t, m ->
-        Column(
-            m.height(T.tileH).clip(RoundedCornerShape(T.rCard)).background(p.cell).press(label = t.title, onClick = t.action).padding(T.tilePad),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Icon(t.icon, p.tintText, 24.dp)
-            Txt(t.title, T.fSub, weight = FontWeight.SemiBold, lines = 1)
+    Group {
+        tiles.forEachIndexed { i, t ->
+            if (i > 0) Sep(T.gutter)
+            Cell(t.title, kind = t.icon, onClick = t.action)
         }
     }
-    if (wrap) Column(Modifier.padding(start = T.gutter, end = T.gutter, top = T.gapXs, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        tiles.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                row.forEach { tile(it, Modifier.weight(1f)) }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    } else Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, top = T.gapXs, bottom = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(T.gap),
-    ) { tiles.forEach { tile(it, Modifier.width(T.tileW)) } }
 }
 
 // ——— Сетлист на главном ———
@@ -345,6 +332,7 @@ private fun SetlistPane(c: Controller, ui: Ui) {
         item("head") {
             Row(Modifier.padding(start = T.gutter, end = 8.dp, bottom = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Seg(listOf("Сетлист", "Недавнее"), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
+                IconBtn("plus", "Показать") { ui.sheet("Показать") { ShowMenu(c, ui) } }
                 IconBtn("search", "Найти") { ui.sheet("Найти") { FindSheet(c, ui) } }
             }
         }
