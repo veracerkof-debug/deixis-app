@@ -200,7 +200,13 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     val mode by c.mode.collectAsState()
     val state by c.receiverState.collectAsState()
     val progress by c.busy.collectAsState()
-    @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
+    val data by c.data.collectAsState()
+    val settings by c.settings.collectAsState()
+    // Оформление считается здесь, от прочитанных состояний: лямбды окон ниже Compose может не вызывать
+    // заново, и тема, сменённая из панели или «Вида», иначе не видна в «Сейчас».
+    val liveStyle = remember(live, data, settings) { c.styleFor(live) }
+    val shownPre = preview ?: if (draft != null) live else null
+    val preStyle = remember(shownPre, data, settings, draft) { c.styleFor(shownPre, withDraft = true) }
     val liveName = when (mode) {
         Mode.BLACK -> "Чёрный экран"
         Mode.LOGO -> "Логотип"
@@ -219,7 +225,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
             }
             Box(contentAlignment = Alignment.Center) {
                 CueView(
-                    c, live, c.styleFor(live),
+                    c, live, liveStyle,
                     // Тема на окно «Сейчас» — тому, что в зале.
                     Modifier.themeTarget(ui.themeDrag, "live") { st -> c.applyTheme(st); ui.toast("Тема «${st.name ?: "своя"}» — в зале") }
                         .semantics { contentDescription = "Сейчас в зале: $liveName" }
@@ -245,7 +251,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
             }
             val shown = preview ?: if (draft != null) live else null
             CueView(
-                c, shown, c.styleFor(shown, withDraft = true),
+                c, shown, preStyle,
                 Modifier.semantics { contentDescription = "Предпросмотр: $preName" }
                     .swipes(
                         onTap = { preview?.let { pv -> ui.full = if (pv.slide is Slide.Movie) FullSpec.Video(pv) else FullSpec.Preview } },
