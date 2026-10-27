@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -42,13 +43,13 @@ private fun themeChoices(c: Controller, h: HolyricsSource, ui: Ui): List<ThemeCh
     }
 }
 
-/** Тема сейчас у того, что в зале (или в предпросмотре): сравнение без названия и регистра. */
+/** Тема сейчас у того, что в зале (или в предпросмотре): считается от прочитанных состояний — отметка не отстаёт. */
 @Composable
 private fun currentStyle(c: Controller): TextStyle {
-    @Suppress("UNUSED_VARIABLE") val live by c.live.collectAsState()
-    @Suppress("UNUSED_VARIABLE") val preview by c.preview.collectAsState()
-    @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
-    return c.currentStyle()
+    val live by c.live.collectAsState()
+    val preview by c.preview.collectAsState()
+    val data by c.data.collectAsState()
+    return remember(live, preview, data) { c.currentStyle() }
 }
 
 private fun same(a: TextStyle, b: TextStyle) = a.copy(name = null, caps = false) == b.copy(name = null, caps = false)
@@ -88,7 +89,7 @@ fun ThemeStrip(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.width(T.themeStrip).fillMaxHeight().background(p.cell)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { PanelButtons(c, ThemePanel.STRIP) }
         LazyColumn(Modifier.weight(1f).padding(horizontal = T.gapXs), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-            items(choices.size, key = { choices[it].key }) { i -> ThemeTile(choices[i], same(choices[i].style, cur), ui.themeDrag, Modifier.fillMaxWidth()) }
+            items(choices.size, key = { choices[it].key + if (same(choices[it].style, cur)) ":on" else "" }) { i -> ThemeTile(choices[i], same(choices[i].style, cur), ui.themeDrag, Modifier.fillMaxWidth()) }
             item("end") { Spacer(Modifier.padding(bottom = T.gap)) }
         }
     }
