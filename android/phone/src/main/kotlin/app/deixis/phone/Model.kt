@@ -97,6 +97,8 @@ data class LibItem(
     val videoBackdrop: app.deixis.core.VideoBackdrop = app.deixis.core.VideoBackdrop.BLACK,
     /** Обратный отсчёт. */
     val countdown: CountdownSpec? = null,
+    /** Из демо-набора первого запуска: убирается одной кнопкой в настройках. */
+    val demo: Boolean = false,
 )
 
 /** Сетлист: план показа на дату — пара, лекция, служение. */
@@ -119,7 +121,11 @@ data class AppSettings(
     val church: Boolean = true,
     /** Вид заставки «Логотип»: ΔΕΙΞΙΣ, большая Δ, δεῖξις или Deixis. */
     val logo: LogoStyle = LogoStyle.WORDMARK,
+    /** Панель тем на главном: спрятана в значок, узкая полоса или на всё место под окнами. */
+    val themePanel: ThemePanel = ThemePanel.STRIP,
 )
+
+enum class ThemePanel { HIDDEN, STRIP, FULL }
 
 /** Перевод презентации или документа на компьютере: PDF лежит на том приёмнике, который его сделал. */
 @Serializable

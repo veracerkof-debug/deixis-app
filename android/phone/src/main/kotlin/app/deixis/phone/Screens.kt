@@ -180,9 +180,7 @@ private fun SetMenu(c: Controller, ui: Ui, s: Setlist) {
                 Btn("Сохранить", kind = BtnKind.TINT, enabled = name.isNotBlank()) { c.saveSet(s.copy(title = name.trim())); ui.closeAll() }
             }
         }
-        Btn("Удалить", kind = BtnKind.RED) {
-            if (c.deleteSet(s.id)) { ui.closeAll(); ui.toast("Сетлист удалён") } else { ui.closeAll(); ui.toast("Сетлист на главном удалить нельзя") }
-        }
+        Btn("Удалить", kind = BtnKind.RED) { ui.push("Удалить сетлист") { DeleteSetSheet(c, ui, s) } }
     }
 }
 

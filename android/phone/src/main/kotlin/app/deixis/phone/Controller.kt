@@ -1128,7 +1128,7 @@ class Controller(private val app: Application) {
                 runCatching {
                     val f = File(dir, name)
                     if (!f.isFile) app.assets.open("demo/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
-                    describe(Uri.fromFile(f), preferPresentation = false)?.let { it.copy(title = name) }
+                    describe(Uri.fromFile(f), preferPresentation = false)?.let { it.copy(title = name, demo = true) }
                 }.getOrNull()
             }
         }
@@ -1149,7 +1149,7 @@ class Controller(private val app: Application) {
             )),
             LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
             LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
-        )
+        ).map { it.copy(demo = true) }
         // Тема с фото гор на фоне: пример своей темы.
         val mountains = files.firstOrNull { it.kind == Kind.PHOTO && it.title.startsWith("Горы") }
         val theme = mountains?.uri?.let { u ->
@@ -1158,7 +1158,7 @@ class Controller(private val app: Application) {
             }
         }
         val all = songs + files
-        val demo = Setlist(Store.newId(), "Демо", LocalDate.now().toString(), all.map { it.id })
+        val demo = Setlist(Store.newId(), DEMO_SET, LocalDate.now().toString(), all.map { it.id })
         edit { d ->
             d.copy(
                 items = all + d.items,
@@ -1278,11 +1278,63 @@ class Controller(private val app: Application) {
         d.copy(setlists = listOf(copy) + d.setlists)
     }
 
-    fun deleteSet(id: String): Boolean {
-        if (data.value.active == id) return false
-        edit { d -> d.copy(setlists = d.setlists.filter { it.id != id }) }
-        return true
+    /** Удаляет сетлист; если он был на главном — на главный встаёт ближайший по дате. Элементы библиотеки остаются. */
+    fun deleteSet(id: String) = edit { d ->
+        val rest = d.setlists.filter { it.id != id }
+        val next = if (d.active == id) rest.minByOrNull { kotlin.math.abs(it.day.toEpochDay() - LocalDate.now().toEpochDay()) }?.id else d.active
+        d.copy(setlists = rest, active = next, styles = d.styles - "set:$id")
     }
+
+    /** Есть ли ещё что-то из демо-набора первого запуска. */
+    fun hasDemo(): Boolean = data.value.let { d -> d.items.any(::isDemo) || d.setlists.any { it.title == DEMO_SET } }
+
+    private fun isDemo(it: LibItem) = it.demo || it.uri?.contains("/files/demo/") == true ||
+        it.kind in setOf(Kind.SONG, Kind.TEXT, Kind.BIBLE) && it.title in DEMO_TITLES
+
+    /** Убирает демо-набор: песни, тексты, файлы, сетлист «Демо», тему «Горы». Своё не трогает. */
+    fun removeDemo() {
+        val d0 = data.value
+        val ids = d0.items.filter(::isDemo).map { it.id }.toSet()
+        if (live.value?.source?.itemId in ids) { live.value = null; outs.value.forEach { it.client.mode(Mode.BLACK) } }
+        if (preview.value?.source?.itemId in ids) preview.value = null
+        edit { d ->
+            val sets = d.setlists.filter { it.title != DEMO_SET }.map { s -> s.copy(items = s.items.filter { it !in ids }) }
+            d.copy(
+                items = d.items.filter { it.id !in ids },
+                setlists = sets,
+                active = d.active?.takeIf { a -> sets.any { it.id == a } } ?: sets.firstOrNull()?.id,
+                recent = d.recent.filter { it !in ids },
+                themes = d.themes.filter { t -> !(t.name == "Горы" && t.style.backgroundImage != null) },
+                styles = d.styles.filterKeys { k -> ids.none { id -> k == "item:$id" || k.startsWith("slide:$id:") } },
+                hashes = d.hashes - ids, conversions = d.conversions - ids,
+            )
+        }
+        scope.launch(Dispatchers.IO) {
+            File(app.filesDir, "demo").deleteRecursively()
+            ids.forEach { File(File(app.filesDir, "converted"), "$it.pdf").delete() }
+        }
+    }
+
+    /**
+     * Тема на ходу — из панели тем на главном: сразу в зал, для всего, что сейчас в зале (песня, документ),
+     * и остаётся у него. Нет ничего в зале — у того, что в предпросмотре.
+     */
+    fun applyTheme(st: TextStyle) {
+        val cue = live.value ?: preview.value ?: return
+        val id = cue.source.itemId
+        val style = st.copy(caps = false)
+        if (id != null) edit { d -> d.copy(styles = d.styles.filterKeys { !it.startsWith("slide:$id:") } + ("item:$id" to style)) }
+        else {
+            // Разовый показ (текст, Holyrics) — без элемента библиотеки: тема только у этого показа.
+            if (live.value == cue) live.value = cue.copy(source = cue.source.copy(style = style))
+            else preview.value = cue.copy(source = cue.source.copy(style = style))
+        }
+        draft.value = null
+        live.value?.let(::deliver)
+    }
+
+    /** Тема того, что сейчас в зале (или в предпросмотре): для отметки в панели тем. */
+    fun currentStyle(): TextStyle = styleFor(live.value ?: preview.value).copy(caps = false, name = null)
 
     fun addToSet(itemId: String) = edit { d ->
         val a = d.active ?: return@edit d
@@ -1425,3 +1477,7 @@ class Controller(private val app: Application) {
 
 /** Сколько последних плашек и строк помнит пульт. */
 private const val OVERLAY_DRAFTS = 8
+
+/** Демо-набор первого запуска: сетлист и элементы, которые убираются кнопкой в настройках. */
+private const val DEMO_SET = "Демо"
+private val DEMO_TITLES = setOf("Коль славен наш Господь в Сионе", "Amazing Grace", "Объявления", "Ин 3:16–17", "Пс 22:1–4")

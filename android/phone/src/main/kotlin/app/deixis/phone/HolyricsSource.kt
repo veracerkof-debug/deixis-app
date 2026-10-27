@@ -161,6 +161,20 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         return theme.toTextStyle(bg)
     }
 
+    /**
+     * Тема Holyrics в зал из панели тем на главном: сначала цвет и шрифт сразу, потом — с картинкой фона,
+     * если её удалось взять через Deixis на компьютере с Holyrics.
+     */
+    fun applyTheme(theme: HolyricsTheme) {
+        controller.applyTheme(theme.toTextStyle().copy(name = theme.name))
+        val name = theme.backgroundImageName ?: return
+        val link = link() ?: return
+        scope.launch(Dispatchers.IO) {
+            val bg = runCatching { controller.importFromHolyrics(HolyricsMediaRequest(link.port, link.token, HolyricsMedia.IMAGE, name)) }.getOrNull() ?: return@launch
+            withContext(Dispatchers.Main) { controller.applyTheme(theme.toTextStyle(bg).copy(name = theme.name)) }
+        }
+    }
+
     fun setRemote(on: Boolean) {
         remote.value = on
         poll?.cancel()

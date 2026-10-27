@@ -128,6 +128,10 @@ object T {
     val tabMin = 50.dp
     val topMin = 56.dp
     val numCell = 52.dp
+    /** Колонка номера у строки текстового слайда. */
+    val numCol = 20.dp
+    /** Ширина панели тем на главном (одна плитка темы). */
+    val themeStrip = 72.dp
 
     val rCard = 12.dp
     val rBtn = 14.dp
@@ -223,6 +227,8 @@ private val paths: Map<String, List<Part>> = mapOf(
     "layers" to listOf(Part("M12 3l9 5-9 5-9-5z"), Part("M3 13l9 5 9-5")),
     // Отправить на экран: экран и стрелка вверх в нём; файл на экране — экран с галочкой.
     "send" to listOf(Part(rect(3f, 4f, 18f, 12f, 1.5f)), Part("M8 20h8"), Part("M12 13V7M9 10l3-3 3 3")),
+    // Темы: четыре плитки, одна выбрана.
+    "themes" to listOf(Part(rect(4f, 4f, 7f, 7f, 1.5f)), Part(rect(13f, 4f, 7f, 7f, 1.5f)), Part(rect(4f, 13f, 7f, 7f, 1.5f)), Part(rect(13f, 13f, 7f, 7f, 1.5f), fill = true)),
     "onscreen" to listOf(Part(rect(3f, 4f, 18f, 12f, 1.5f)), Part("M8 20h8"), Part("M8.5 10l2.5 2.5 4.5-4.5")),
 )
 

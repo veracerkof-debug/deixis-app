@@ -218,6 +218,17 @@ fun SettingsSheet(c: Controller) {
     Group {
         SwitchRow("Церковный раздел", st.church, "Библия и Holyrics на главном") { v -> c.setSettings { it.copy(church = v) } }
     }
+    @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
+    if (c.hasDemo()) {
+        Group(Modifier.padding(top = T.gap)) {
+            Cell("Убрать демо-материалы", "Песни, тексты, файлы и сетлист «Демо» первого запуска", kind = "trash", onClick = {
+                ui.push("Убрать демо-материалы") {
+                    Note("Уйдут песни, тексты, места из Библии, фото, видео, презентации и сетлист «Демо», добавленные при первом запуске. Своё остаётся.", Modifier.padding(bottom = T.gap))
+                    Btn("Убрать", kind = BtnKind.RED) { c.removeDemo(); ui.closeAll(); ui.toast("Демо-материалы убраны") }
+                }
+            })
+        }
+    }
     BackupsSection(c, LocalUi.current)
     UpdatesSection()
     FeedbackSection()
@@ -347,10 +358,20 @@ fun SetPickSheet(c: Controller, ui: Ui) {
             Cell("${s.title}, ${s.dateText}", "${s.items.size} элем." + if (s.past) " · прошёл" else "", chevron = null, onClick = {
                 c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.closeAll(); ui.tab = AppTab.SHOW
                 ui.toast("На главном: ${s.title}, ${s.dateText}")
-            }) { if (s.id == data.active) Tag("Выбран", false) }
+            }) {
+                if (s.id == data.active) Tag("Выбран", false)
+                IconBtn("trash", "Удалить сетлист «${s.title}»", P.current.red) { ui.push("Удалить сетлист") { DeleteSetSheet(c, ui, s) } }
+            }
         }
     }
     Btn("Новый сетлист", icon = "plus") { ui.push("Новый сетлист") { NewSetSheet(c, ui) } }
+}
+
+/** Удаление сетлиста — с подтверждением. Песни, файлы и тексты остаются в библиотеке. */
+@Composable
+fun DeleteSetSheet(c: Controller, ui: Ui, s: Setlist) {
+    Note("«${s.title}, ${s.dateText}» удаляется. Песни, тексты и файлы из него остаются в библиотеке.", Modifier.padding(bottom = T.gap))
+    Btn("Удалить", kind = BtnKind.RED) { c.deleteSet(s.id); ui.closeAll(); ui.toast("Сетлист удалён") }
 }
 
 /** Новый сетлист или копия прошлого: название и дата. */

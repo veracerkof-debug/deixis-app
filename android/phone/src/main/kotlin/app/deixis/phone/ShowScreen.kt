@@ -2,6 +2,7 @@ package app.deixis.phone
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -126,13 +127,27 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                     if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
                 }
                 Box(Modifier.width(T.hair).fillMaxHeight().background(p.sep))
-                Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
+                Box(Modifier.weight(1f)) { ShowBody(c, h, ui) }
             } else Column(Modifier.fillMaxSize()) {
                 if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = false)
-                Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
+                Box(Modifier.weight(1f)) { ShowBody(c, h, ui) }
                 if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
             }
         }
+    }
+}
+
+/** Под окнами показа: сетлист и панель тем — узкой полосой справа, на всё место или спрятанная в значок. */
+@Composable
+private fun ShowBody(c: Controller, h: HolyricsSource, ui: Ui) {
+    val st by c.settings.collectAsState()
+    when (st.themePanel) {
+        ThemePanel.FULL -> ThemeGrid(c, h, ui)
+        ThemePanel.STRIP -> Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
+            ThemeStrip(c, h, ui)
+        }
+        ThemePanel.HIDDEN -> SetlistPane(c, ui)
     }
 }
 
@@ -330,6 +345,7 @@ private fun SetlistPane(c: Controller, ui: Ui) {
     val live by c.live.collectAsState()
     val preview by c.preview.collectAsState()
     val mode by c.mode.collectAsState()
+    val st by c.settings.collectAsState()
     // Вертикальный экран в зале — плитки узкие: в ряд по три, чтобы песня не растягивалась на всю ленту.
     val cols = if (LocalScreenRatio.current < 1f) 3 else 2
     val ids = if (ui.listSeg == 0) set?.items.orEmpty() else data.recent
@@ -340,6 +356,8 @@ private fun SetlistPane(c: Controller, ui: Ui) {
                 Seg(listOf("Сетлист", "Недавнее"), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
                 IconBtn("plus", "Показать") { ui.sheet("Показать") { ShowMenu(c, ui) } }
                 IconBtn("search", "Найти") { ui.sheet("Найти") { FindSheet(c, ui) } }
+                // Панель тем спрятана — значок возвращает её.
+                if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", "Темы") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
             }
         }
         if (ui.listSeg == 0) item("pick") {
@@ -394,6 +412,26 @@ private fun LazyListScope.setRow(
 
 private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cue?, preview: Cue?, mode: Mode, last: Boolean, cols: Int) {
     val slides = c.slidesOf(it)
+    // Песня, текст, Писание — строками: номер, подпись и сам текст, без уменьшенного экрана.
+    if (slides.isNotEmpty() && slides.all { s -> s is Slide.Text || s is Slide.Scripture }) {
+        slides.forEachIndexed { i, s ->
+            item("row:${it.id}:$i") {
+                val isLive = live?.source?.itemId == it.id && live?.index == i && mode != Mode.BLACK
+                val isPre = preview?.source?.itemId == it.id && preview.index == i
+                Box(
+                    Modifier.fillMaxWidth().groupCell(false, last && i == slides.lastIndex).background(P.current.fill)
+                        .padding(start = T.gutter, end = T.gutter, top = if (i == 0) 4.dp else 0.dp, bottom = if (i == slides.lastIndex) 14.dp else T.gapS),
+                ) {
+                    TextSlideRow(
+                        i + 1, s, if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
+                        Modifier.semantics { contentDescription = "Слайд ${i + 1}" }
+                            .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
+                    )
+                }
+            }
+        }
+        return
+    }
     val rows = slides.indices.chunked(cols)
     rows.forEachIndexed { r, pair ->
         item("grid:${it.id}:$r") {
@@ -415,6 +453,30 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                 }
                 repeat(cols - pair.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+    }
+}
+
+/** Текстовый слайд строкой: номер, подпись («Припев») и текст; в зале — рамкой «в зале», в предпросмотре — акцентом. */
+@Composable
+private fun TextSlideRow(num: Int, slide: Slide, frame: Frame, modifier: Modifier) {
+    val p = P.current
+    val (label, text) = when (slide) {
+        is Slide.Text -> slide.label to slide.text
+        is Slide.Scripture -> slide.content.ref to slide.content.blocks.joinToString("\n") { it.text }
+        else -> null to ""
+    }
+    val border = when (frame) { Frame.LIVE -> p.live; Frame.PREVIEW_TINT -> p.tint; else -> null }
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(T.rSlide)).background(p.cell)
+            .then(if (border != null) Modifier.border(T.outline, border, RoundedCornerShape(T.rSlide)) else Modifier)
+            .padding(horizontal = T.gapS, vertical = T.gapS),
+        horizontalArrangement = Arrangement.spacedBy(T.gapS),
+    ) {
+        Txt("$num", T.fLabel, if (border != null) border else p.l2, FontWeight.SemiBold, Modifier.width(T.numCol))
+        Column(Modifier.weight(1f)) {
+            label?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fTag, p.tintText, FontWeight.SemiBold, lines = 1) }
+            Txt(text.ifBlank { "Пустой слайд" }, T.fSub, if (text.isBlank()) p.l3 else p.ink, lines = 4)
         }
     }
 }
