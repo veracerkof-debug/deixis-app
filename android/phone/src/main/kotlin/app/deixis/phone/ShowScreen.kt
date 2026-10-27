@@ -143,10 +143,7 @@ private fun ShowBody(c: Controller, h: HolyricsSource, ui: Ui) {
     val st by c.settings.collectAsState()
     when (st.themePanel) {
         ThemePanel.FULL -> ThemeGrid(c, h, ui)
-        ThemePanel.STRIP -> Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f)) { SetlistPane(c, ui) }
-            ThemeStrip(c, h, ui)
-        }
+        ThemePanel.STRIP -> SetlistPane(c, ui) { ThemeStrip(c, h, ui) }
         ThemePanel.HIDDEN -> SetlistPane(c, ui)
     }
 }
@@ -338,7 +335,7 @@ fun Modifier.groupCell(first: Boolean, last: Boolean): Modifier =
     this.padding(horizontal = T.gutter).clip(groupShape(first, last)).background(P.current.cell)
 
 @Composable
-private fun SetlistPane(c: Controller, ui: Ui) {
+private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? = null) {
     val p = P.current
     val data by c.data.collectAsState()
     val set by c.activeSet.collectAsState()
@@ -350,42 +347,46 @@ private fun SetlistPane(c: Controller, ui: Ui) {
     val cols = if (LocalScreenRatio.current < 1f) 3 else 2
     val ids = if (ui.listSeg == 0) set?.items.orEmpty() else data.recent
     val items = ids.mapNotNull { id -> data.items.firstOrNull { it.id == id } }
-    LazyColumn(Modifier.fillMaxSize()) {
-        item("head") {
-            Row(Modifier.padding(start = T.gutter, end = 8.dp, bottom = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Seg(listOf("Сетлист", "Недавнее"), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
-                IconBtn("plus", "Показать") { ui.sheet("Показать") { ShowMenu(c, ui) } }
-                IconBtn("search", "Найти") { ui.sheet("Найти") { FindSheet(c, ui) } }
-                // Панель тем спрятана — значок возвращает её.
-                if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", "Темы") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
+    // Строка «Сетлист / Недавнее» — на всю ширину; панель тем, если есть, — справа под ней, до низа.
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.padding(start = T.gutter, end = 8.dp, bottom = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Seg(listOf("Сетлист", "Недавнее"), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
+            IconBtn("plus", "Показать") { ui.sheet("Показать") { ShowMenu(c, ui) } }
+            IconBtn("search", "Найти") { ui.sheet("Найти") { FindSheet(c, ui) } }
+            // Панель тем спрятана — значок возвращает её.
+            if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", "Темы") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
+        }
+        Row(Modifier.weight(1f)) {
+            LazyColumn(Modifier.weight(1f).fillMaxHeight()) {
+                if (ui.listSeg == 0) item("pick") {
+                    Row(
+                        Modifier.padding(start = T.gutter + 4.dp, end = T.gutter, bottom = T.gapS).heightIn(min = T.rowMin)
+                            .press(label = "Выбрать сетлист") { ui.sheet("Сетлист") { SetPickSheet(c, ui) } },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon("list")
+                        Txt(set?.let { "${it.title}, ${it.dateText}" } ?: "Сетлист", T.fBody, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
+                        Icon("down")
+                    }
+                }
+                if (items.isEmpty()) item("empty") {
+                    Box(Modifier.fillMaxWidth().groupCell(true, true).padding(horizontal = T.gutter, vertical = T.rowPadV)) {
+                        Txt(
+                            if (ui.listSeg == 0) "Пусто. Добавьте элементы через «Найти» или плитки «Показать»." else "Здесь появится то, что показывали.",
+                            T.fSub, p.l2,
+                        )
+                    }
+                }
+                items.forEachIndexed { n, it ->
+                    val open = ui.listSeg == 0 && ui.open == it.id
+                    val last = n == items.lastIndex
+                    setRow(c, ui, it, n == 0, last && !open, open, live, preview, mode, recent = ui.listSeg == 1)
+                    if (open) slideGrid(c, ui, it, live, preview, mode, last, cols)
+                }
+                item("end") { Spacer(Modifier.height(24.dp)) }
             }
+            side?.invoke()
         }
-        if (ui.listSeg == 0) item("pick") {
-            Row(
-                Modifier.padding(start = T.gutter + 4.dp, end = T.gutter, bottom = T.gapS).heightIn(min = T.rowMin)
-                    .press(label = "Выбрать сетлист") { ui.sheet("Сетлист") { SetPickSheet(c, ui) } },
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Icon("list")
-                Txt(set?.let { "${it.title}, ${it.dateText}" } ?: "Сетлист", T.fBody, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
-                Icon("down")
-            }
-        }
-        if (items.isEmpty()) item("empty") {
-            Box(Modifier.fillMaxWidth().groupCell(true, true).padding(horizontal = T.gutter, vertical = T.rowPadV)) {
-                Txt(
-                    if (ui.listSeg == 0) "Пусто. Добавьте элементы через «Найти» или плитки «Показать»." else "Здесь появится то, что показывали.",
-                    T.fSub, p.l2,
-                )
-            }
-        }
-        items.forEachIndexed { n, it ->
-            val open = ui.listSeg == 0 && ui.open == it.id
-            val last = n == items.lastIndex
-            setRow(c, ui, it, n == 0, last && !open, open, live, preview, mode, recent = ui.listSeg == 1)
-            if (open) slideGrid(c, ui, it, live, preview, mode, last, cols)
-        }
-        item("end") { Spacer(Modifier.height(24.dp)) }
     }
 }
 
