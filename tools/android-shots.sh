@@ -124,8 +124,15 @@ scene() {
 
 scene phone-16x9
 # Тему зажать и перенести на слайд, который в зале: «Сейчас» меняет тему.
-from=$(find_xy "Тема «Ночь»"); to=$(find_xy "Слайд 1")
-if [ -n "$from" ] && [ -n "$to" ]; then adb shell input draganddrop $from $to 1500; sleep 3; shot phone-theme-drop; else echo "=== нет на экране: тема или слайд для переноса"; fi
+from=$(find_xy "Тема «Ночь»"); to=$(find_xy "Коль славен наш Господь в Сионе")
+if [ -n "$from" ] && [ -n "$to" ]; then
+  set -- $from $to
+  # Нажать, подержать (длинное касание), провести по шагам, отпустить.
+  adb shell input motionevent DOWN $1 $2; sleep 1.2
+  for k in 1 2 3 4 5 6 7 8; do adb shell input motionevent MOVE $(( $1 + ($3 - $1) * k / 8 )) $(( $2 + ($4 - $2) * k / 8 )); done
+  shot phone-theme-dragging
+  adb shell input motionevent UP $3 $4; sleep 1; shot phone-theme-drop
+else echo "=== нет на экране: тема или песня для переноса"; fi
 # Панель тем на всё место: касание темы — в зал.
 tap "Темы на всё место" && shot phone-themes-full && tap "Темы узкой полосой"
 # Оформление во время показа: «Вид».
