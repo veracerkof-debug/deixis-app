@@ -219,7 +219,10 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
             }
             Box(contentAlignment = Alignment.Center) {
                 CueView(
-                    c, live, c.styleFor(live), Modifier.semantics { contentDescription = "Сейчас в зале: $liveName" }
+                    c, live, c.styleFor(live),
+                    // Тема на окно «Сейчас» — тому, что в зале.
+                    Modifier.themeTarget(ui.themeDrag, "live") { st -> c.applyTheme(st); ui.toast("Тема «${st.name ?: "своя"}» — в зале") }
+                        .semantics { contentDescription = "Сейчас в зале: $liveName" }
                         .swipes(onTap = { ui.full = FullSpec.Live }, onLeft = { c.step(1) }, onRight = { c.step(-1) }),
                     mode = mode, frame = Frame.LIVE,
                 )
@@ -394,7 +397,8 @@ private fun LazyListScope.setRow(
     c: Controller, ui: Ui, it: LibItem, first: Boolean, last: Boolean, open: Boolean,
     live: Cue?, preview: Cue?, mode: Mode, recent: Boolean,
 ) = item("row:${it.id}") {
-    Column(Modifier.fillMaxWidth().groupCell(first, last)) {
+    // Тема, перенесённая из панели, — всей песне или документу.
+    Column(Modifier.fillMaxWidth().groupCell(first, last).themeTarget(ui.themeDrag, "item:${it.id}") { st -> dropped(c, ui, it.id, null, st, it.title) }) {
         if (!first) Sep()
         val isLive = live?.source?.itemId == it.id && mode != Mode.BLACK
         Cell(
@@ -425,7 +429,8 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                 ) {
                     TextSlideRow(
                         i + 1, s, if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
-                        Modifier.semantics { contentDescription = "Слайд ${i + 1}" }
+                        Modifier.themeTarget(ui.themeDrag, "slide:${it.id}:$i") { st -> dropped(c, ui, it.id, i, st, it.title) }
+                            .semantics { contentDescription = "Слайд ${i + 1}" }
                             .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                     )
                 }
@@ -447,7 +452,9 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                     val cue = Cue(c.sourceOf(it), i)
                     SlideView(
                         slides[i], it, c.styleFor(cue),
-                        Modifier.weight(1f).padding(T.gapXs).semantics { contentDescription = "Слайд ${i + 1}" }
+                        Modifier.weight(1f).padding(T.gapXs)
+                            .themeTarget(ui.themeDrag, "slide:${it.id}:$i") { st -> dropped(c, ui, it.id, i, st, it.title) }
+                            .semantics { contentDescription = "Слайд ${i + 1}" }
                             .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                         num = i + 1, frame = if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                     )
@@ -456,6 +463,13 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
             }
         }
     }
+}
+
+/** Тема брошена на песню (index = null) или на слайд: остаётся у них, а если они в зале — сразу там. */
+private fun dropped(c: Controller, ui: Ui, itemId: String, index: Int?, st: app.deixis.core.TextStyle, title: String) {
+    c.applyThemeTo(itemId, index, st)
+    val name = st.name ?: "своя"
+    ui.toast(if (index == null) "Тема «$name» — «$title»" else "Тема «$name» — слайду ${index + 1}")
 }
 
 /** Текстовый слайд строкой: номер, подпись («Припев») и текст; в зале — рамкой «в зале», в предпросмотре — акцентом. */

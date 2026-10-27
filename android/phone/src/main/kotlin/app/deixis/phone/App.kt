@@ -91,6 +91,8 @@ class Ui {
     var libQuery by mutableStateOf("")
     /** Окно Holyrics (церковный раздел). */
     var holyrics by mutableStateOf(false)
+    /** Тема, которую тащат из панели тем на песню или слайд. */
+    val themeDrag = ThemeDrag()
 
     fun sheet(title: String, content: @Composable ColumnScope.() -> Unit) { stack.clear(); stack += SheetSpec(title, content) }
     /** Шторка поверх шторки (например PIN из «Подключить»): закрытие возвращает к прежней. */
@@ -143,6 +145,7 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
         FullHost(c, ui)
         SheetHost(ui)
         Toasts(ui)
+        ThemeGhost(ui.themeDrag)
     }
     if (ui.holyrics) HolyricsDialog(h) { ui.holyrics = false }
     BackHandler(enabled = ui.sheet != null || ui.full != null) {

@@ -35,6 +35,26 @@ PY
   sleep 2
 }
 
+# Середина элемента по тексту или описанию; пусто — нет на экране.
+find_xy() {
+  adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+  adb shell cat /sdcard/ui.xml > shots/ui.xml
+  python3 - "$1" shots/ui.xml <<'PY'
+import re, sys
+import xml.etree.ElementTree as ET
+want, path = sys.argv[1], sys.argv[2]
+try:
+    root = ET.parse(path).getroot()
+except Exception:
+    sys.exit(0)
+for n in root.iter("node"):
+    if want in (n.get("text"), n.get("content-desc")):
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+PY
+}
+
 # Касание элемента ниже края: список листается вверх, пока элемент не появится.
 tap_scroll() {
   size=$(adb shell wm size | tail -1 | grep -o "[0-9]*x[0-9]*")
@@ -103,6 +123,9 @@ scene() {
 }
 
 scene phone-16x9
+# Тему зажать и перенести на слайд, который в зале: «Сейчас» меняет тему.
+from=$(find_xy "Тема «Ночь»"); to=$(find_xy "Слайд 1")
+if [ -n "$from" ] && [ -n "$to" ]; then adb shell input draganddrop $from $to 1500; sleep 3; shot phone-theme-drop; else echo "=== нет на экране: тема или слайд для переноса"; fi
 # Панель тем на всё место: касание темы — в зал.
 tap "Темы на всё место" && shot phone-themes-full && tap "Темы узкой полосой"
 # Оформление во время показа: «Вид».

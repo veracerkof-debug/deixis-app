@@ -1,6 +1,7 @@
 package app.deixis.phone
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,10 +55,12 @@ private fun same(a: TextStyle, b: TextStyle) = a.copy(name = null, caps = false)
 
 /** Плитка темы: превью «Аа» в этой теме и название; касание — тема в зал, удержание — изменить. */
 @Composable
-private fun ThemeTile(t: ThemeChoice, on: Boolean, modifier: Modifier = Modifier) {
+private fun ThemeTile(t: ThemeChoice, on: Boolean, drag: ThemeDrag, modifier: Modifier = Modifier) {
     val p = P.current
     Column(
-        modifier.combinedClick(onClick = t.apply, onLong = t.edit).semantics { contentDescription = "Тема «${t.name}»" },
+        // Касание — тема в зал; зажать и перенести — на песню, слайд или «Сейчас»; зажать и отпустить — изменить.
+        modifier.clickable(onClick = t.apply).themeSource(drag, t.name, t.style.copy(name = t.name), t.edit)
+            .semantics { contentDescription = "Тема «${t.name}»" },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SlideView(Slide.Text("Аа"), null, t.style, frame = if (on) Frame.PREVIEW_TINT else Frame.NONE)
@@ -85,7 +88,7 @@ fun ThemeStrip(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.width(T.themeStrip).fillMaxHeight().background(p.cell)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { PanelButtons(c, ThemePanel.STRIP) }
         LazyColumn(Modifier.weight(1f).padding(horizontal = T.gapXs), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-            items(choices.size, key = { choices[it].key }) { i -> ThemeTile(choices[i], same(choices[i].style, cur), Modifier.fillMaxWidth()) }
+            items(choices.size, key = { choices[it].key }) { i -> ThemeTile(choices[i], same(choices[i].style, cur), ui.themeDrag, Modifier.fillMaxWidth()) }
             item("end") { Spacer(Modifier.padding(bottom = T.gap)) }
         }
     }
@@ -105,11 +108,11 @@ fun ThemeGrid(c: Controller, h: HolyricsSource, ui: Ui) {
             val rows = choices.chunked(GRID_COLS)
             items(rows.size) { r ->
                 Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                    rows[r].forEach { t -> ThemeTile(t, same(t.style, cur), Modifier.weight(1f)) }
+                    rows[r].forEach { t -> ThemeTile(t, same(t.style, cur), ui.themeDrag, Modifier.weight(1f)) }
                     repeat(GRID_COLS - rows[r].size) { Box(Modifier.weight(1f)) }
                 }
             }
-            item("note") { Note("Касание — тема сразу в зал и остаётся у песни или документа. Удержание — изменить.") }
+            item("note") { Note("Касание — тема сразу в зал и остаётся у песни или документа. Зажать и перенести на песню или слайд в сетлисте — тема им. Зажать и отпустить — изменить.") }
         }
     }
 }

@@ -1333,6 +1333,19 @@ class Controller(private val app: Application) {
         live.value?.let(::deliver)
     }
 
+    /**
+     * Тема, перенесённая на песню или документ ([index] = null) или на один слайд: остаётся у него;
+     * если он сейчас в зале — сразу и там.
+     */
+    fun applyThemeTo(itemId: String, index: Int?, st: TextStyle) {
+        val style = st.copy(caps = false)
+        edit { d ->
+            if (index == null) d.copy(styles = d.styles.filterKeys { !it.startsWith("slide:$itemId:") } + ("item:$itemId" to style))
+            else d.copy(styles = d.styles + ("slide:$itemId:$index" to style))
+        }
+        live.value?.takeIf { it.source.itemId == itemId }?.let(::deliver)
+    }
+
     /** Тема того, что сейчас в зале (или в предпросмотре): для отметки в панели тем. */
     fun currentStyle(): TextStyle = styleFor(live.value ?: preview.value).copy(caps = false, name = null)
 
