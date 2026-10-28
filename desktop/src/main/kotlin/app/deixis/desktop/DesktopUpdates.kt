@@ -1,7 +1,6 @@
 package app.deixis.desktop
 
 import app.deixis.core.ChangelogEntry
-import app.deixis.core.UpdateChannel
 import app.deixis.core.UpdateHost
 import app.deixis.core.UpdateMode
 import app.deixis.core.UpdateTarget
@@ -169,7 +168,6 @@ object UpdatesWindow {
         root.add(head, BorderLayout.NORTH)
 
         val mode = JComboBox(arrayOf("По кнопке", "Автоматически"))
-        val channel = JComboBox(arrayOf("Стабильные", "Пробные"))
         val notes = JTextArea()
         notes.isEditable = false
         notes.lineWrap = true
@@ -179,10 +177,9 @@ object UpdatesWindow {
         notes.foreground = t.ink
         val center = JPanel(BorderLayout(0, t.GAP))
         center.isOpaque = false
-        val choices = JPanel(GridLayout(1, 2, t.GAP, 0))
+        val choices = JPanel(GridLayout(1, 1, t.GAP, 0))
         choices.isOpaque = false
         choices.add(mode)
-        choices.add(channel)
         center.add(choices, BorderLayout.NORTH)
         center.add(JScrollPane(notes), BorderLayout.CENTER)
         root.add(center, BorderLayout.CENTER)
@@ -200,7 +197,6 @@ object UpdatesWindow {
             val s = u.state.value
             syncing = true
             mode.selectedIndex = if (s.settings.mode == UpdateMode.AUTO) 1 else 0
-            channel.selectedIndex = if (s.settings.channel == UpdateChannel.TEST) 1 else 0
             syncing = false
             status.text = when (s.phase) {
                 "checking" -> "Проверка…"
@@ -224,7 +220,6 @@ object UpdatesWindow {
             else "По кнопке: Deixis выходит в сеть, только когда нажата «Проверить обновления».") + "</html>"
         }
         mode.addActionListener { if (!syncing) u.setSettings(u.state.value.settings.copy(mode = if (mode.selectedIndex == 1) UpdateMode.AUTO else UpdateMode.MANUAL)) }
-        channel.addActionListener { if (!syncing) u.setSettings(u.state.value.settings.copy(channel = if (channel.selectedIndex == 1) UpdateChannel.TEST else UpdateChannel.STABLE)) }
         action.addActionListener {
             val s = u.state.value
             if (s.phase == "available" || s.phase == "ready") {

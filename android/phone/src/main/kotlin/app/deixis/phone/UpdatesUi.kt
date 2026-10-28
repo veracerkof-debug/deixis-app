@@ -13,7 +13,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.deixis.core.ChangelogEntry
-import app.deixis.core.UpdateChannel
 import app.deixis.core.UpdateMode
 import app.deixis.core.UpdateRequest
 import app.deixis.core.UpdateState
@@ -56,11 +55,8 @@ fun UpdatesSection() {
     Group {
         Cell("Deixis ${s.current}", updateStatus(s), chevron = null)
     }
-    Seg(listOf("По кнопке", "Автоматически"), if (s.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap)) { i ->
+    Seg(listOf("По кнопке", "Автоматически"), if (s.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
         u.setSettings(s.settings.copy(mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
-    }
-    Seg(listOf("Стабильные", "Пробные"), if (s.settings.channel == UpdateChannel.TEST) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
-        u.setSettings(s.settings.copy(channel = if (i == 1) UpdateChannel.TEST else UpdateChannel.STABLE))
     }
     if (s.notes.isNotEmpty() && s.phase in setOf("available", "downloading", "ready")) {
         Group { s.notes.take(MAX_NOTES).forEachIndexed { i, line -> if (i > 0) Sep(T.gutter); Cell(line, chevron = null) } }
@@ -75,7 +71,7 @@ fun UpdatesSection() {
     }
     Note(
         if (s.settings.mode == UpdateMode.AUTO) "Автоматически: проверка на GitHub при запуске и раз в сутки, установка — когда ничего не показывается."
-        else "По кнопке: Deixis выходит в сеть только когда нажата «Проверить обновления». Пробные — сборки для тестеров, раньше стабильных.",
+        else "По кнопке: Deixis выходит в сеть только когда нажата «Проверить обновления».",
     )
 }
 
@@ -135,11 +131,8 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
     }
     GHead("Обновления экрана")
     Group { Cell("Deixis ${st.current}", updateStatus(st), chevron = null) }
-    Seg(listOf("По кнопке", "Автоматически"), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap)) { i ->
+    Seg(listOf("По кнопке", "Автоматически"), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
         send(UpdateRequest("settings", mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
-    }
-    Seg(listOf("Стабильные", "Пробные"), if (st.settings.channel == UpdateChannel.TEST) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
-        send(UpdateRequest("settings", channel = if (i == 1) UpdateChannel.TEST else UpdateChannel.STABLE))
     }
     if (st.notes.isNotEmpty() && st.phase in setOf("available", "downloading", "ready")) {
         Group { st.notes.take(MAX_NOTES).forEachIndexed { i, line -> if (i > 0) Sep(T.gutter); Cell(line, chevron = null) } }

@@ -15,10 +15,6 @@ on:
         description: "Опубликовать релиз"
         type: boolean
         default: false
-      test:
-        description: "Пробная сборка (только для тестеров: канал «Пробные»)"
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -286,9 +282,9 @@ jobs:
           (cd files && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
           # Описание выпуска файлом, в том же виде, что ответ API GitHub: приложения берут его, когда API
           # упёрся в лимит (60 запросов в час на адрес, у мобильных операторов адрес общий).
-          python3 - "$V" "$GITHUB_REPOSITORY" "${{ inputs.test == true }}" <<'PY'
+          python3 - "$V" "$GITHUB_REPOSITORY" <<'PY'
           import json, os, sys
-          v, repo, test = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
+          v, repo = sys.argv[1], sys.argv[2]
           sums = {}
           for line in open("files/SHA256SUMS.txt", encoding="utf-8"):
               h, name = line.split(None, 1)
@@ -298,7 +294,7 @@ jobs:
                      **({"digest": "sha256:" + sums[n]} if n in sums else {})}
                     for n in sorted(os.listdir("files"))]
           body = open("notes.md", encoding="utf-8").read()
-          json.dump([{"tag_name": f"v{v}", "prerelease": test, "draft": False, "body": body, "assets": assets}],
+          json.dump([{"tag_name": f"v{v}", "prerelease": False, "draft": False, "body": body, "assets": assets}],
                     open("files/release.json", "w", encoding="utf-8"), ensure_ascii=False)
           PY
       - uses: softprops/action-gh-release@v2
@@ -306,7 +302,7 @@ jobs:
           tag_name: v${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}
           name: Deixis v${{ steps.ver.outputs.v }}
-          # Пробные сборки видят только тестеры (канал «Пробные»); стабильные — все.
-          prerelease: ${{ inputs.test == true }}
+          # Версия одна для всех: пробных сборок нет.
+          prerelease: false
           files: files/*
           body_path: notes.md

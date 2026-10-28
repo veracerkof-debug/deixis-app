@@ -32,7 +32,7 @@ import java.security.MessageDigest
  * до установки; оборванная загрузка ничего не трогает — работает прежняя версия.
  */
 
-/** Стабильный — для служения и занятий; пробный — сборки для тестеров (пометка «pre-release» на GitHub). */
+/** Канал выпусков. Версия одна для всех — приложения берут только стабильные; поле осталось ради старых настроек и пультов. */
 @Serializable
 enum class UpdateChannel { STABLE, TEST }
 
@@ -346,7 +346,6 @@ class Updater(
         val old = _state.value.settings
         runCatching { dir.mkdirs(); settingsFile.writeText(DeixisJson.encodeToString(UpdateSettings.serializer(), s)) }
         _state.value = _state.value.copy(settings = s)
-        if (old.channel != s.channel) { release = null; file = null; _state.value = _state.value.copy(phase = "idle", available = null, notes = emptyList()) }
         if (old.mode != s.mode) start()
     }
 
@@ -385,7 +384,8 @@ class Updater(
         _state.value = _state.value.copy(phase = "checking", error = null)
         try {
             val all = source.releases()
-            val latest = latestFor(all, _state.value.settings.channel)
+            // Версия одна для всех: пробные сборки не предлагаются (прежняя настройка «Пробные» не действует).
+            val latest = latestFor(all, UpdateChannel.STABLE)
             val now = System.currentTimeMillis()
             if (latest == null || compareVersions(latest.version, current) <= 0 || pickAsset(latest, target, abis) == null) {
                 release = null
