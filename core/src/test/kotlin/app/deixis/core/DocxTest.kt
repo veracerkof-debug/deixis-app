@@ -151,7 +151,10 @@ class DocxTest {
         assertTrue(doc.images(pic.image)!!.isNotEmpty())
     }
 
-    /** Страницы настоящей кистью — в картинки для глаза (-Ddeixis.docxPng=папка). */
+    /**
+     * Страницы настоящей кистью — в картинки для глаза (-Ddeixis.docxPng=папка). С -Ddeixis.docxFile=файл —
+     * страницы этого документа: так собираются страницы демо-документа для симулятора (tools/demo/make_assets.py).
+     */
     @Test
     fun rendersPages() {
         val long = (1..25).joinToString(" ") { "Экспериментальная поэзия ищет новые формы: звук, ритм и графика строки $it." }
@@ -162,7 +165,8 @@ class DocxTest {
               <w:tr><w:tc><w:tcPr><w:shd w:fill="D9E2F3"/></w:tcPr>${p("Автор", rPr = "<w:b/>")}</w:tc><w:tc><w:tcPr><w:shd w:fill="D9E2F3"/></w:tcPr>${p("Приём", rPr = "<w:b/>")}</w:tc></w:tr>
               <w:tr><w:tc>${p("Хлебников")}</w:tc><w:tc>${p("Заумь, словотворчество, игра корнями слов")}</w:tc></w:tr></w:tbl>""" +
             p(long)
-        val deck = DocxLayout.deck(Docx.read(docx(body)), AwtPainterHolder.painter)
+        val file = System.getProperty("deixis.docxFile")?.let(::File)
+        val deck = DocxLayout.deck(if (file != null) Docx.read(file) else Docx.read(docx(body)), AwtPainterHolder.painter)
         assertTrue(deck.slides.size >= 2)
         val dir = System.getProperty("deixis.docxPng")?.let(::File) ?: return
         dir.mkdirs()

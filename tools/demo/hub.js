@@ -8,12 +8,21 @@
 
   const REPORT = { sha256: "demo-report", name: "Отчёт по практике.pdf", size: 109603, mime: "application/pdf" };
   const MORNING = { sha256: "demo-morning", name: "Утро в горах.jpg", size: 63551, mime: "image/jpeg" };
+  // Документ Word с телефона: страницы нарисовал свой перевод DOCX из ядра (make_assets.py).
+  const KONSPEKT = { sha256: "demo-konspekt", name: "Конспект. Город 15 минут.pdf", size: 115408, mime: "application/pdf" };
+  // Логотипы примеров «Поверх показа» — те же картинки, что у приложения (core/.../overlay-samples).
+  const logo = (n, size) => ({ sha256: "demo-logo-" + n, name: n + ".png", size, mime: "image/png" });
+  const LOGO_DEIXIS = logo("deixis", 23406), LOGO_LIVE = logo("live", 20338), LOGO_SPRING = logo("spring", 39160);
   const files = {
     [LECTURE.sha256]: { ref: LECTURE, pages: [0, 1, 2, 3, 4].map((i) => `media/lecture-${i}.jpg`) },
     [REPORT.sha256]: { ref: REPORT, pages: ["media/report-0.jpg"] },
     [PHOTO.sha256]: { ref: PHOTO, url: "media/mountains.jpg" },
     [MORNING.sha256]: { ref: MORNING, url: "media/morning.jpg" },
     [VIDEO.sha256]: { ref: VIDEO, url: "media/clip.mp4", durationMs: 12000 },
+    [KONSPEKT.sha256]: { ref: KONSPEKT, pages: ["media/konspekt-0.jpg", "media/konspekt-1.jpg"] },
+    [LOGO_DEIXIS.sha256]: { ref: LOGO_DEIXIS, url: "media/deixis.png" },
+    [LOGO_LIVE.sha256]: { ref: LOGO_LIVE, url: "media/live.png" },
+    [LOGO_SPRING.sha256]: { ref: LOGO_SPRING, url: "media/spring.png" },
   };
   const json = (x) => JSON.stringify(x);
 
@@ -22,14 +31,14 @@
    * с ним протоколом приёмника, симулятор приложения — напрямую через [api].
    */
   function createReceiver(key, info, opts = {}) {
-    let state = { content: opts.content || null, mode: "NORMAL", video: null, error: null, viewers: opts.viewers || 0 };
+    let state = { content: opts.content || null, mode: "NORMAL", video: null, error: null, viewers: opts.viewers || 0, overlays: {} };
     const remotes = new Set();
     const viewers = new Set();
     const listeners = new Set();
     let clock = 0;
     const r = { key, info, pin: opts.pin || "0000", paired: false, address: opts.address || null };
 
-    function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video }); }
+    function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video, overlays: state.overlays, now: Date.now() }); }
     function broadcast(event) {
       state.viewers = (opts.viewers || 0) + [...viewers].filter((v) => !v.preview && !v.hall).length;
       for (const p of remotes) if (p.ready) p.send(json({ type: "status", state }));
@@ -60,6 +69,8 @@
       return null;
     };
     r.mode = (m) => { state = Object.assign({}, state, { mode: m }); broadcast("mode"); };
+    // Поверх показа: слой не зависит от слайдов, смена слайда его не трогает.
+    r.overlays = (o) => { state = Object.assign({}, state, { overlays: o || {} }); broadcast("overlays"); };
     r.video = (action, positionMs, loop, volume) => {
       if (!state.video) return;
       const v = Object.assign({}, state.video);
@@ -98,6 +109,7 @@
         if (err) peer.send(json({ type: "error", code: "missing", message: err }));
       } else if (m.type === "mode") r.mode(m.mode);
       else if (m.type === "video") r.video(m.action, m.positionMs, m.loop, m.volume);
+      else if (m.type === "overlays") r.overlays(m.overlays);
     };
     r.addRemote = (peer) => { remotes.add(peer); };
     r.dropRemote = (peer) => { remotes.delete(peer); };
@@ -355,7 +367,7 @@
 
   window.DeixisDemo = {
     connect, http, url, files, addReceiver, receivers, finishUpload, bibleSlides, bibleModules: () => BIBLE.modules, bibleBooks,
-    LECTURE, PHOTO, VIDEO, REPORT, MORNING,
+    LECTURE, PHOTO, VIDEO, REPORT, MORNING, KONSPEKT, LOGO_DEIXIS, LOGO_LIVE, LOGO_SPRING,
     // Для витрины веб-пульта: экран «demo».
     onChange(fn) { return receivers.demo.onChange(fn); },
     get state() { return receivers.demo.state; },

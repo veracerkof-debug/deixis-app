@@ -32,7 +32,8 @@
   --h-go: 26px; --h-top: 56px; --h-row: 44px; --h-num: 44px; --h-bar: 50px; --h-step: 32px; --w-step: 44px;
   --w-tile: 116px; --h-tile: 84px; --w-kind: 28px; --w-sw: 30px; --w-switch: 51px; --h-switch: 31px; --w-knob: 27px; --knob-move: 20px;
   --w-qr: 148px; --w-qr-big: 220px; --w-dot: 8px; --w-grab: 36px; --h-grab: 5px; --w-badge: 14px;
-  --i-m: 22px; --i-s: 17px; --i-bar: 20px; --i-tile: 24px; --i-search: 18px;
+  --i-m: 22px; --i-s: 17px; --i-bar: 20px; --i-tile: 24px; --i-search: 18px; --h-key: 44px; --i-key: 24px;
+  --w-strip: 72px; --w-num: 22px; --w-ghost: 72px; --w-wide: 700px; --w-left: 440px; --hold: 380ms; --ghost-alpha: .85;
   --line: .5px; --ring: 2px;
   --fs-xs: 10px; --fs-tab: 11px; --fs-s: 12px; --fs-sm: 13px; --fs-sub: 14px; --fs-m: 15px; --fs-body: 17px; --fs-big: 18px; --fs-h2: 20px;
   --fs-mark: 22px; --fs-h1: 28px; --fs-code: 28px; --fs-room: 30px; --fs-screen-mark: 40px; --fs-pin: 34px;
@@ -103,7 +104,7 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .group { background: var(--cell); border-radius: var(--r-card); overflow: hidden; margin: 0 0 var(--g10); }
 .ghead { font-size: var(--fs-sm); color: var(--l2); text-transform: uppercase; letter-spacing: .02em; margin: 0 0 var(--g3) var(--gutter); }
 .row { display: flex; align-items: center; gap: var(--g6); padding: var(--g5) var(--gutter); min-height: var(--h-row); width: 100%; text-align: left; position: relative; }
-.row + .row::before, .row + .slides + .row::before { content: ""; position: absolute; top: 0; left: calc(var(--gutter) + var(--w-kind) + var(--g6)); right: 0; border-top: var(--line) solid var(--sep); }
+.iwrap + .iwrap > .row::before, .row + .row::before, .row + .slides + .row::before { content: ""; position: absolute; top: 0; left: calc(var(--gutter) + var(--w-kind) + var(--g6)); right: 0; border-top: var(--line) solid var(--sep); }
 .row .main { flex: 1; min-width: 0; text-align: left; }
 .row .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .s, .s { font-size: var(--fs-sub); color: var(--l2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -190,16 +191,80 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .setpick span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .show { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-.tiles { display: flex; gap: var(--g5); overflow-x: auto; padding: var(--g1) var(--gutter) var(--g7); scrollbar-width: none; flex: none; }
-.tiles::-webkit-scrollbar { display: none; }
-.tile { flex: none; width: var(--w-tile); height: var(--h-tile); border-radius: var(--r-card); background: var(--cell); display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; padding: var(--g6); font-size: var(--fs-sub); font-weight: 600; text-align: left; line-height: 1.15; transition: transform var(--t-fast) var(--e-spring); }
-.tile:active { transform: scale(var(--press)); }
-.tile .ico { color: var(--tint-text); width: var(--i-tile); height: var(--i-tile); }
-.lhead { display: flex; align-items: center; gap: var(--g4); padding: 0 var(--gutter) var(--g5); }
+/* Главный экран: окна показа сверху, под ними сетлист и панель тем, внизу кнопки. Планшет и окно шире —
+   окна и кнопки слева колонкой, сетлист справа (ShowScreen.kt). */
+.showgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "mons" "body" "bar"; }
+.showgrid > .monsbox { grid-area: mons; min-height: 0; }
+.showgrid > .body { grid-area: body; min-height: 0; display: flex; flex-direction: column; }
+.showgrid > .bar, .showgrid > .vbar { grid-area: bar; }
+@media (min-width: 700px) {
+  .showgrid { grid-template-columns: minmax(0, min(42%, var(--w-left))) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "mons body" "bar body"; }
+  .showgrid > .monsbox { overflow: auto; border-right: var(--line) solid var(--sep); }
+  .showgrid > .body { border-left: 0; }
+  .showgrid .mons { grid-template-columns: minmax(0, 1fr); gap: var(--g6); padding-top: var(--g2); }
+  .showgrid > .bar, .showgrid > .vbar { border-right: var(--line) solid var(--sep); }
+}
+.lhead { display: flex; align-items: center; gap: var(--g2); padding: 0 var(--g4) var(--g5) var(--gutter); flex: none; }
 .lhead .seg { flex: 1; }
+.setrow { flex: 1; min-height: 0; display: flex; }
+.setrow > .scroll { flex: 1; }
+
+/* Панель тем: узкая полоса справа от сетлиста, сетка на всё место или значок в строке сетлиста */
+.tstrip { width: var(--w-strip); flex: none; background: var(--cell); display: flex; flex-direction: column; align-items: stretch; min-height: 0; }
+.tstrip .tbtns { display: flex; flex-direction: column; align-items: center; flex: none; }
+.tstrip .scroll { padding: 0 var(--g2) var(--gutter); display: flex; flex-direction: column; gap: var(--g3); }
+.tgrid { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tgrid .gh { display: flex; align-items: center; padding: 0 var(--g4) var(--g3) var(--gutter); font-weight: 700; }
+.tgrid .gh span { flex: 1; }
+.tgrid .cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--g5); padding: 0 var(--gutter); }
+.ttile { display: flex; flex-direction: column; align-items: center; gap: var(--g1); cursor: pointer; touch-action: pan-y; -webkit-touch-callout: none; transition: transform var(--t-fast) var(--e-spring); }
+.ttile:active { transform: scale(var(--press)); }
+.ttile .slide { border-radius: var(--r-kind); }
+.ttile .slide .txt { padding: 0; }
+.ttile .nm { font-size: var(--fs-tab); color: var(--l2); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ttile.on .slide { outline: var(--ring) dashed var(--tint); outline-offset: var(--ring); }
+.ttile.on .nm { color: var(--tint-text); font-weight: 600; }
+.ttile.lifted { opacity: .4; }
+.ghost { position: fixed; width: var(--w-ghost); z-index: 45; pointer-events: none; opacity: var(--ghost-alpha); transform: translate(-50%, -70%); }
+[data-drop].drop-on { outline: var(--ring) solid var(--tint) !important; outline-offset: calc(-1 * var(--ring)); border-radius: var(--r-slide); }
+body.dragging, body.dragging * { cursor: grabbing !important; }
+
+/* Песня, текст, Писание в сетлисте — строками: номер, подпись, текст */
+.trows { display: grid; gap: var(--g3); padding: var(--g2) var(--gutter) var(--g7); background: var(--fill); }
+.trow { display: flex; gap: var(--g4); padding: var(--g4); border-radius: var(--r-slide); background: var(--cell); cursor: pointer; text-align: left; width: 100%; transition: transform var(--t-fast) var(--e-spring); }
+.trow:active { transform: scale(var(--press-soft)); }
+.trow .n { width: var(--w-num); flex: none; font-size: var(--fs-sm); font-weight: 600; color: var(--l2); font-variant-numeric: tabular-nums; }
+.trow .tx { flex: 1; min-width: 0; font-size: var(--fs-sub); white-space: pre-line; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+.trow .lb { display: block; font-size: var(--fs-tab); font-weight: 600; color: var(--tint-text); }
+.trow.is-live { outline: var(--ring) solid var(--live); outline-offset: calc(-1 * var(--ring)); }
+.trow.is-live .n { color: var(--live); }
+.trow.is-pre { outline: var(--ring) solid var(--tint); outline-offset: calc(-1 * var(--ring)); }
+.trow.is-pre .n { color: var(--tint); }
+.slides.c3 { grid-template-columns: repeat(3, 1fr); }
+/* Файл на экранах: значок в строке библиотеки и сетлиста */
+.fbadge { display: inline-flex; align-items: center; gap: var(--g2); font-size: var(--fs-s); font-weight: 600; color: var(--tint-text); flex: none; white-space: nowrap; }
+.fbadge.todo { color: var(--l2); padding: var(--g2); border-radius: var(--r-pill); }
+.fbadge.todo:active { background: var(--fill); }
+.fbadge .ico { width: var(--i-s); height: var(--i-s); }
+.lthumb { width: var(--w-kind); height: var(--w-kind); border-radius: var(--r-kind); overflow: hidden; flex: none; background: var(--fill); }
+.lthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--g2); background: var(--scrim-strong); color: var(--on-tint); font-size: var(--fs-sm); font-weight: 600; border-radius: var(--r-slide); }
+.loading::before { content: ""; width: var(--g12); height: var(--g12); border-radius: var(--r-pill); border: var(--ring) solid var(--tint); border-right-color: transparent; animation: spin var(--t-spin) linear infinite; }
+.mon .wrapnow { position: relative; }
+.preview-sheet { margin-bottom: var(--g6); }
+.edslide { background: var(--cell); border-radius: var(--r-card); padding: var(--g5); display: grid; gap: var(--g4); }
+.edslide .hd { display: flex; align-items: center; gap: var(--g3); }
+.edslide .hd b { font-size: var(--fs-sm); color: var(--l2); min-width: var(--w-num); }
+.edslide .hd input { flex: 1; min-width: 0; border: 0; background: var(--fill); border-radius: var(--r-field); padding: var(--g3) var(--g5); outline: none; font-size: var(--fs-sub); }
+.edslide textarea { width: 100%; min-height: 84px; border: 0; background: var(--fill); border-radius: var(--r-field); padding: var(--g4) var(--g5); outline: none; resize: vertical; font-size: var(--fs-m); }
+.edslide .acts { display: flex; gap: var(--g2); flex-wrap: wrap; }
+.edslide .acts .pill { height: var(--h-seg); font-size: var(--fs-sm); padding: 0 var(--g5); }
+.trow .tx.empty { color: var(--l3); }
 
 .bar { display: flex; gap: var(--g3); padding: var(--g4) var(--g6); background: var(--cell); border-top: var(--line) solid var(--sep); flex: none; }
-.bar button { flex: 1; min-width: 0; min-height: var(--h-bar); border-radius: var(--r-btn); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--g1); font-size: var(--fs-s); font-weight: 600; background: var(--fill); transition: transform var(--t-fast) var(--e-spring), background var(--t-fast); white-space: nowrap; }
+.bar button { flex: 1; min-width: 0; height: var(--h-key); border-radius: var(--r-btn); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--g1); font-size: var(--fs-s); font-weight: 600; background: var(--fill); transition: transform var(--t-fast) var(--e-spring), background var(--t-fast); white-space: nowrap; }
+.bar.keys button .ico { width: var(--i-key); height: var(--i-key); }
+.bar button.on-layers { color: var(--tint-text); }
 .bar button:active { transform: scale(var(--press-bar)); }
 .bar button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .bar button.wide { flex: 2; }
@@ -348,7 +413,7 @@ const I = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   black: '<rect x="4" y="5" width="16" height="14" rx="2" fill="currentColor"/>',
-  logo: '<circle cx="12" cy="12" r="8"/><path d="M12 7v10M8 11h8"/>',
+  logo: '<path d="M12 4.5L4.5 19h15z"/>',
   clear: '<path d="M4 20h16"/><path d="M14 4l6 6-8 8H6v-6z"/>',
   text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
   brush: '<path d="M14 4l6 6-9 9H5v-6z"/><path d="M12 6l6 6"/>',
@@ -372,6 +437,14 @@ const I = {
   vol: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>',
   mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  themes: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
+  send: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/>',
+  onscreen: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8.5 10l2.5 2.5 4.5-4.5"/><path d="M8 20h8"/>',
+  clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  split: '<path d="M4 12h16M12 4v4M12 16v4"/>',
 };
 const ico = (n, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n] || ""}</svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -392,13 +465,15 @@ function toast(t) {
 // ——— Библиотека: примеры симулятора. Песни — общественное достояние, Писание — из демо-модулей hub.js ———
 const TYPES = {
   pres: ["Презентация", "pres", "Презентации"], video: ["Видео", "media", "Видео"], photo: ["Фото", "photo", "Фото"], file: ["Файл", "file", "Файлы"],
-  song: ["Песня", "song", "Песни"], text: ["Текст", "text", "Тексты"], bible: ["Библия", "bible", "Библия"],
+  song: ["Песня", "song", "Песни"], text: ["Текст", "text", "Тексты"], countdown: ["Отсчёт", "clock", "Отсчёты"], bible: ["Библия", "bible", "Библия"],
 };
 const BIBLE_DEFAULT = { versesPerSlide: 1, refMode: "ONE_LINE", refPosition: "BOTTOM", fullBookName: false, verseNumbers: true, sideBySide: false };
+// Презентации и документы Word телефон переводит в PDF сам, при добавлении: в библиотеке они уже со страницами.
 const LIB = [
-  { id: "lec", type: "pres", title: "Лекция 3. Город 15 минут.pptx", ref: () => hub.LECTURE, pages: 5, conv: "PRESENTATION", size: 4.1 * MB },
+  { id: "lec", type: "pres", title: "Лекция 3. Город 15 минут.pptx", ref: () => hub.LECTURE, pages: 5, size: 4.1 * MB },
   { id: "lecpdf", type: "file", title: "Город пятнадцати минут.pdf", ref: () => hub.LECTURE, pages: 5, size: 1.2 * MB },
-  { id: "rep", type: "file", title: "Отчёт по практике.docx", ref: () => hub.REPORT, pages: 1, conv: "DOCUMENT", size: 0.3 * MB },
+  { id: "kon", type: "file", title: "Конспект. Город 15 минут.docx", ref: () => hub.KONSPEKT, pages: 2, size: 0.2 * MB },
+  { id: "rep", type: "file", title: "Отчёт по практике.docx", ref: () => hub.REPORT, pages: 1, size: 0.3 * MB },
   { id: "ph1", type: "photo", title: "Горы на закате.jpg", ref: () => hub.PHOTO, size: 2.4 * MB },
   { id: "ph2", type: "photo", title: "Утро в горах.jpg", ref: () => hub.MORNING, size: 1.9 * MB },
   { id: "vid", type: "video", title: "Демо-видео.mp4", ref: () => hub.VIDEO, size: 14 * MB, durationMs: 12000 },
@@ -406,22 +481,25 @@ const LIB = [
   { id: "s1", type: "song", title: "Коль славен наш Господь в Сионе", texts: [
     "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.",
     "Велик Он в небесах на троне,\nВ былинках на земле велик.",
-    "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен."] },
+    "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен."], labels: ["Куплет 1", null, "Куплет 2"] },
   { id: "s2", type: "song", title: "Amazing Grace", texts: [
     "Amazing grace! How sweet the sound\nThat saved a wretch like me!",
     "I once was lost, but now am found;\nWas blind, but now I see.",
-    "’Twas grace that taught my heart to fear,\nAnd grace my fears relieved;"] },
+    "’Twas grace that taught my heart to fear,\nAnd grace my fears relieved;"], labels: ["Verse 1", null, "Verse 2"] },
   { id: "t1", type: "text", title: "Объявления", texts: ["Семинар переносится\nна четверг, 15:00", "Аудитория 214\nВзять ноутбуки"] },
   { id: "t2", type: "text", title: "Перерыв", texts: ["Перерыв 10 минут", "Продолжим в 11:40"] },
+  { id: "cd1", type: "countdown", title: "До начала · 5 мин", countdown: { minutes: 5, label: "До начала", afterZero: "HOLD", format: "AUTO" } },
   { id: "b1", type: "bible", title: "Ин 3:16–17", pick: { ref: "Ин 3:16-17", modules: ["RST.SQLite3"], options: BIBLE_DEFAULT } },
   { id: "b2", type: "bible", title: "Пс 22:1–4", pick: { ref: "Пс 22:1-4", modules: ["RST.SQLite3"], options: BIBLE_DEFAULT } },
 ];
+LIB.forEach((x) => (x.demo = true));
 const lib = (id) => LIB.find((x) => x.id === id);
 const fileItem = (it) => !!(it && (it.ref || it.big));
 
 // Слайды элемента: текст, место Писания, страница PDF, фото, видео, экран телефона.
 function buildSlides(it) {
-  if (it.texts) it.slides = it.texts.map((text) => ({ text }));
+  if (it.texts) it.slides = it.texts.map((text, i) => ({ text, label: (it.labels && it.labels[i]) || null }));
+  else if (it.countdown) it.slides = [{ countdown: it.countdown }];
   else if (it.pages) it.slides = Array.from({ length: it.pages }, (_, page) => ({ page }));
   else if (it.type === "photo") it.slides = [{ image: true }];
   else if (it.type === "video") it.slides = [{ video: true }];
@@ -468,13 +546,14 @@ const S = {
     { id: "last", title: "Лекция 2", date: "16 октября", items: ["lecpdf", "ph2", "b2"], past: true },
   ],
   active: "today", recent: ["ph2", "lecpdf", "s2"],
-  settings: { theme: "auto", alwaysPre: false, darkLive: false, clicker: true, caps: false, church: true },
+  settings: { theme: "auto", alwaysPre: false, darkLive: false, clicker: true, caps: false, church: true, themePanel: "STRIP" },
   libSeg: "all", libQ: "",
-  sharing: false, screenMode: false, converted: {},
+  sharing: false, screenMode: false,
+  themes: [], overlays: {}, drafts: { lowerThirds: [], tickers: [] }, timer: null, transfers: {}, demoRemoved: false,
   bible: { selected: ["RST.SQLite3"], options: { ...BIBLE_DEFAULT } },
   holy: { status: "off", tab: "PLAYLIST", query: "", theme: null, remote: false, live: null },
 };
-const activeSet = () => S.setlists.find((s) => s.id === S.active) || S.setlists[0];
+const activeSet = () => S.setlists.find((s) => s.id === S.active) || S.setlists[0] || null;
 const slideOf = (cue) => cue && cue.src.slides[cue.idx];
 const sameCue = (a, b) => a && b && a.src === b.src && a.idx === b.idx;
 const isLiveItem = (id) => S.live && S.live.src.id === id && S.mode !== "BLACK";
@@ -512,7 +591,8 @@ function connected(d) {
   if (sim) sim.focus(d.key);
   toast(d.r.info.name + ": подключено");
   render();
-  // Новый экран сразу показывает то же, что остальные.
+  // Новый экран сразу показывает то же, что остальные, и тот же слой поверх.
+  if (Object.keys(S.overlays).length) d.r.overlays(S.overlays);
   if (S.live && !S.sharing) sendLive([d]);
   else if (S.sharing && sim) sim.share(d.key, true);
 }
@@ -564,7 +644,8 @@ function styleFor(cue) {
 }
 function fileRef(it) {
   const ref = it.ref();
-  return it.conv ? Object.assign({}, ref, { name: it.title.replace(/\.[^.]+$/, "") + ".pdf" }) : ref;
+  // Презентация и документ Word уже переведены телефоном: на экран уходит PDF.
+  return /\.(pptx?|odp|key|docx?|dot[xm]|docm)$/i.test(it.title) ? Object.assign({}, ref, { name: it.title.replace(/\.[^.]+$/, "") + ".pdf" }) : ref;
 }
 const hubFile = (it) => (it.ref ? hub.files[it.ref().sha256] : null);
 // Содержимое слайда в формате протокола — то же, что уходило на экран раньше (Controller.show).
@@ -573,6 +654,7 @@ function contentOf(cue, st) {
   const style = Object.assign({}, st || styleFor(cue));
   if (S.settings.caps) style.caps = true;
   if (sl.text != null) return { type: "text", text: sl.text, style };
+  if (sl.countdown) return countdownContent(it, sl.countdown, style);
   if (sl.scripture) return Object.assign({}, sl.scripture, { type: "scripture", style: Object.assign({}, sl.scripture.style || {}, style) });
   if (sl.page != null) return { type: "pdf", file: fileRef(it), page: sl.page };
   if (sl.image) return { type: "image", file: fileRef(it) };
@@ -600,23 +682,9 @@ function transfer(name, size, devs) {
 // Подготовка элемента для экранов: перевод PPTX и DOCX в PDF на экране, который это умеет, и передача файла.
 async function prepare(it, devs) {
   if (!fileItem(it)) return true;
-  if (it.conv && !S.converted[it.id]) {
-    const doc = it.conv === "DOCUMENT";
-    const conv = devs.find((d) => doc ? d.r.info.documents : d.r.info.convert);
-    if (!conv) {
-      toast(doc ? "Документы переводит компьютер с Microsoft Office или LibreOffice: сохраните файл как PDF или подключите ноутбук"
-        : "Этот экран не переводит презентации: сохраните файл как PDF или подключите компьютер с Deixis");
-      return false;
-    }
-    await transfer(it.title, it.size, [conv]);
-    S.progress = `«${it.title}»: перевод в PDF…`;
-    render();
-    await new Promise((r) => setTimeout(r, 1600));
-    S.progress = null;
-    S.converted[it.id] = true;
-    conv.sent.add(it.ref().sha256);
-  }
   const sha = it.ref().sha256;
+  // Файл уже идёт в фоне («на экраны заранее»): показ ждёт его, а не начинает заново.
+  if (S.transfers[sha]) await S.transfers[sha].done;
   const need = devs.filter((d) => !d.sent.has(sha));
   if (need.length) {
     await transfer(it.title, it.size, need);
@@ -648,6 +716,8 @@ async function goLive(cue, quiet) {
   if (!ready().length) { toast("Сначала подключите экран"); return false; }
   if (S.sharing) stopShare(true);
   const seq = ++sendSeq;
+  // Отсчёт, снова отправленный в зал, начинается сначала.
+  if (slideOf(cue).countdown && !(S.live && S.live.src === it)) S.timer = null;
   const ok = await prepare(it, ready());
   if (!ok || seq !== sendSeq) return false;
   S.live = cue;
@@ -744,12 +814,21 @@ function slideHTML(cue, st, o = {}) {
     return `<div class="slide ${cls}">${f && m !== "CLEAR" ? `<video src="${esc(f.url)}#t=0.5" muted playsinline preload="metadata"></video>` : ""}
       ${it.big ? `<span class="empty">${esc(sizeText(it.size))}</span>` : ""}<span class="vid">${v ? fmt(v.positionMs) : fmt(it.durationMs)}</span>${num}</div>`;
   }
+  if (sl.countdown) {
+    const run = S.timer && S.timer.itemKey === cdKey(it) ? S.timer : null;
+    const face = m === "CLEAR" ? "" : cdFace(sl.countdown, run);
+    const lbl = sl.countdown.label && m !== "CLEAR" ? `<div class="r">${esc(sl.countdown.label)}</div>` : "";
+    return `<div class="slide ${cls}" style="--sl-bg:${argbCss(st.background ?? 0xFF000000)};--sl-ink:${argbCss(sl.countdown.color ?? st.color ?? 0xFFFFFFFF)}">
+      <div class="sc" style="font-size:9cqw;gap:0">${sl.countdown.labelPosition === "BELOW" ? "" : lbl}<div data-cd="${esc(cdKey(it))}" style="font-variant-numeric:tabular-nums;font-size:${(sl.countdown.sizePercent || 34) / 2.6}cqw">${esc(face)}</div>${sl.countdown.labelPosition === "BELOW" ? lbl : ""}</div>${num}</div>`;
+  }
   const bgImg = st.backgroundImage && hub.files[st.backgroundImage.sha256];
   const vars = `--fs:${(st.sizePercent || 20) / 2.5};--sl-bg:${argbCss(st.background ?? 0xFF000000)};--sl-ink:${argbCss(st.color ?? 0xFFFFFFFF)};${bgImg ? `background-image:url('${esc(bgImg.url)}');` : ""}`;
   const c = ["slide", st.shadow !== false ? "shadow" : "", st.outline ? "outline" : "", S.settings.caps ? "caps" : "", cls].join(" ");
   let inner = "";
   const sp = st.sizePercent || 20;
-  if (m !== "CLEAR" && sl.text != null) inner = `<div class="txt" data-sp="${sp}">${esc(sl.text)}</div>`;
+  // Плашка под текстом, выравнивание и положение — как в теме (Holyrics, «Нижняя треть»).
+  const place = `${st.box ? `background:${argbCss(st.box)};border-radius:1cqw;` : ""}${st.align === "LEFT" ? "text-align:left;justify-self:start;" : st.align === "RIGHT" ? "text-align:right;justify-self:end;" : ""}${st.valign === "BOTTOM" ? "align-self:end;" : st.valign === "TOP" ? "align-self:start;" : ""}`;
+  if (m !== "CLEAR" && sl.text != null) inner = `<div class="txt" data-sp="${sp}" style="${place}">${esc(sl.text)}</div>`;
   if (m !== "CLEAR" && sl.scripture) {
     const sc = sl.scripture, top = sc.refPosition === "TOP";
     const blocks = sc.blocks.map((b) => `<div>${esc(b.text)}${b.ref ? `<div class="r">${esc(b.ref)}</div>` : ""}</div>`).join("");
@@ -804,26 +883,39 @@ function monitorsHTML() {
   } else nowSlide = slideHTML(live, styleFor(live), { mode: S.mode, live: true });
   return `<div class="mons">
     <div class="mon now"><div class="lbl"><span class="dot"></span>Сейчас</div>
-      <div data-g="now" role="button" aria-label="Сейчас в зале: ${esc(liveName())}">${nowSlide}</div>
-      <div class="hint">${esc(liveName())}${isVid && v ? ` · <span id="vt2">${fmt(v.positionMs)}</span>${v.playing ? "" : " · пауза"}` : ""}</div></div>
+      <div class="wrapnow" data-drop="live"><div data-g="now" role="button" aria-label="Сейчас в зале: ${esc(liveName())}">${nowSlide}</div>
+        ${S.progress ? `<div class="loading">${esc((S.progress.match(/\d+%/) || ["Подготовка…"])[0])}</div>` : ""}</div>
+      <div class="hint">${S.progress ? esc(S.progress) : esc(liveName()) + (isVid && v ? ` · <span id="vt2">${fmt(v.positionMs)}</span>${v.playing ? "" : " · пауза"}` : "")}</div></div>
     <div class="mon pre"><div class="lbl">Предпросмотр<button class="go" data-act="preLive" ${pre || S.draft ? "" : "disabled"}>В зал</button></div>
       <div data-g="pre" role="button" aria-label="Предпросмотр: ${esc(preName)}">${slideHTML(pre || (S.draft ? live : null), S.draft || styleFor(pre))}</div>
       <div class="hint ${S.draft ? "changed" : ""}">${esc(preName)}${S.draft && pre ? " · новое оформление" : ""}</div></div>
-  </div>${S.progress ? `<div class="progress">${esc(S.progress)}</div>` : ""}`;
+  </div>`;
 }
+const textOnly = (it) => it.slides.length > 0 && it.slides.every((s) => s.text != null || s.scripture);
 function slidesHTML(it) {
   if (!it.slides.length) return `<div class="slides"><p class="note">Слайдов нет</p></div>`;
-  return `<div class="slides">${it.slides.map((sl, i) => {
-    const cue = { src: it, idx: i };
+  const state = (i) => {
     const live = S.live && S.live.src === it && S.live.idx === i && S.mode !== "BLACK";
     const pre = S.pre && S.pre.src === it && S.pre.idx === i;
-    return `<div data-act="slide" data-id="${it.id}" data-i="${i}" role="button" aria-label="Слайд ${i + 1}">${slideHTML(cue, styleFor(cue), { num: i + 1, cls: live ? "is-live" : pre ? "is-pre" : "" })}</div>`;
+    return live ? "is-live" : pre ? "is-pre" : "";
+  };
+  // Песня, текст, Писание — строками: номер, подпись и сам текст, без уменьшенного экрана.
+  if (textOnly(it)) return `<div class="trows">${it.slides.map((sl, i) => {
+    const label = sl.scripture ? sl.scripture.ref : sl.label;
+    const text = sl.scripture ? sl.scripture.blocks.map((b) => b.text).join("\n") : sl.text;
+    return `<button class="trow ${state(i)}" data-act="slide" data-id="${it.id}" data-i="${i}" data-drop="slide:${it.id}:${i}" aria-label="Слайд ${i + 1}"><span class="n">${i + 1}</span>
+      <span class="tx ${text.trim() ? "" : "empty"}">${label ? `<span class="lb">${esc(label)}</span>` : ""}${esc(text.trim() ? text : "Пустой слайд")}</span></button>`;
+  }).join("")}</div>`;
+  return `<div class="slides">${it.slides.map((sl, i) => {
+    const cue = { src: it, idx: i };
+    return `<div data-act="slide" data-id="${it.id}" data-i="${i}" data-drop="slide:${it.id}:${i}" role="button" aria-label="Слайд ${i + 1}">${slideHTML(cue, styleFor(cue), { num: i + 1, cls: state(i) })}</div>`;
   }).join("")}</div>`;
 }
 function subOf(it) {
   if (it.big) return `${sizeText(it.size)} · показ через экран телефона`;
-  if (it.type === "pres") return `${it.pages} ${plural(it.pages, "слайд", "слайда", "слайдов")} · ${S.converted[it.id] ? "переведено в PDF" : "переведёт компьютер при показе"}`;
-  if (it.type === "file") return it.conv ? `${it.pages} стр. · переведёт компьютер при показе` : `${it.slides.length} стр.`;
+  if (it.type === "pres") return `${it.pages} ${plural(it.pages, "слайд", "слайда", "слайдов")}`;
+  if (it.type === "file") return `${it.slides.length} стр.`;
+  if (it.type === "countdown") return [it.countdown.label, cdTitle(it.countdown)].filter(Boolean).join(" · ");
   if (it.type === "video") return it.durationMs ? fmt(it.durationMs) : "Видео";
   if (it.type === "photo") return sizeText(it.size || 0);
   const s = it.slides[0];
@@ -831,32 +923,59 @@ function subOf(it) {
   if (s && s.scripture) return s.scripture.blocks[0].text;
   return TYPES[it.type][0];
 }
+function kindIcon(it) {
+  // Фото и страницы PDF — миниатюрой: файл узнаётся с первого взгляда.
+  const f = hubFile(it);
+  const u = f && (f.pages ? f.pages[0] : it.type === "photo" ? f.url : null);
+  return u ? `<span class="lthumb"><img src="${esc(u)}" alt=""></span>` : `<span class="kind">${ico(TYPES[it.type][1])}</span>`;
+}
 function itemRow(it, act = "open") {
   const open = act === "open" && S.open === it.id;
-  return `<button class="row ${open ? "open" : ""}" data-act="${act}" data-id="${it.id}">
-    <span class="kind">${ico(TYPES[it.type][1])}</span>
+  return `<div class="iwrap" data-drop="item:${it.id}"><button class="row ${open ? "open" : ""}" data-act="${act}" data-id="${it.id}" data-hold="itemmenu" data-set="${act === "open" ? 1 : 0}">
+    ${kindIcon(it)}
     <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(subOf(it))}</div></span>
-    ${isLiveItem(it.id) ? '<span class="tag live">В зале</span>' : ""}${S.pre && S.pre.src.id === it.id ? '<span class="tag pre">Предпросмотр</span>' : ""}
+    ${isLiveItem(it.id) ? '<span class="tag live">В зале</span>' : ""}${S.pre && S.pre.src.id === it.id ? '<span class="tag pre">Предпросмотр</span>' : ""}${fileBadge(it)}
     <span class="chev">${ico(open ? "down" : "chev")}</span></button>
-    ${open ? slidesHTML(it) : ""}`;
+    ${open ? slidesHTML(it) : ""}</div>`;
+}
+// Файл на экранах: «на экране», ход передачи, или значок «отправить заранее».
+function fileBadge(it) {
+  if (!it.ref || it.big) return "";
+  const devs = ready();
+  if (!devs.length) return "";
+  const sha = it.ref().sha256, t = S.transfers[sha];
+  if (t) return `<span class="fbadge">${t.queued ? "в очереди" : t.percent + " %"}</span>`;
+  const done = devs.filter((d) => d.sent.has(sha)).length;
+  if (done === devs.length) return `<span class="fbadge">${ico("onscreen")}${devs.length === 1 ? "на экране" : "на всех"}</span>`;
+  return `<span class="fbadge todo" role="button" data-act="ahead" data-id="${it.id}" aria-label="Отправить «${esc(it.title)}» на экраны заранее">${ico("send")}${done ? `${done} из ${devs.length}` : ""}</span>`;
+}
+// Строка «Сетлист / Недавнее» на всю ширину, «Показать» (плюс), «Найти», значок спрятанной панели тем.
+function setHead() {
+  return `<div class="lhead"><div class="seg"><button data-act="lseg" data-v="set" aria-pressed="${S.listSeg === "set"}">Сетлист</button><button data-act="lseg" data-v="recent" aria-pressed="${S.listSeg === "recent"}">Недавнее</button></div>
+    <button class="iconbtn" data-act="showmenu" aria-label="Показать">${ico("plus")}</button>
+    <button class="iconbtn" data-act="find" aria-label="Найти">${ico("search")}</button>
+    ${S.settings.themePanel === "HIDDEN" ? `<button class="iconbtn" data-act="tpanel" data-v="STRIP" aria-label="Темы">${ico("themes")}</button>` : ""}</div>`;
 }
 function setlistHTML() {
+  if (S.listSeg === "recent") {
+    const items = S.recent.map(lib).filter(Boolean);
+    return `<div class="pad"><div class="group">${items.length ? items.map((it) => itemRow(it, "recentpre")).join("") : '<div class="row"><span class="main s">Здесь появится то, что показывали.</span></div>'}</div></div>`;
+  }
   const set = activeSet();
-  const head = `<div class="lhead"><div class="seg"><button data-act="lseg" data-v="set" aria-pressed="${S.listSeg === "set"}">Сетлист</button><button data-act="lseg" data-v="recent" aria-pressed="${S.listSeg === "recent"}">Недавнее</button></div>
-    <button class="iconbtn" data-act="find" aria-label="Найти">${ico("search")}</button></div>`;
-  if (S.listSeg === "recent") return head + `<div class="pad"><div class="group">${S.recent.length ? S.recent.map((id) => itemRow(lib(id), "recentpre")).join("") : '<div class="row"><span class="main s">Здесь появится то, что показывали.</span></div>'}</div></div>`;
+  if (!set) return `<div class="pad"><div class="group"><button class="row" data-act="newset"><span class="kind">${ico("plus")}</span><span class="main t">Новый сетлист</span></button></div></div>`;
   const items = set.items.map(lib).filter(Boolean);
-  return head + `<div class="pad"><button class="setpick" data-act="setpick" aria-label="Выбрать сетлист">${ico("list")}<span>${esc(set.title)}, ${esc(set.date)}</span>${ico("down")}</button>
-    <div class="group">${items.length ? items.map((it) => itemRow(it)).join("") : '<div class="row"><span class="main s wrap">Пусто. Добавьте элементы через «Найти» или плитки «Показать».</span></div>'}</div></div>`;
+  return `<div class="pad"><button class="setpick" data-act="setpick" aria-label="Выбрать сетлист">${ico("list")}<span>${esc(set.title)}, ${esc(set.date)}</span>${ico("down")}</button>
+    <div class="group">${items.length ? items.map((it) => itemRow(it)).join("") : '<div class="row"><span class="main s wrap">Пусто. Добавьте элементы через «Найти» или плюс «Показать».</span></div>'}</div></div>`;
 }
-function tiles() {
-  const t = [["pres", "Презентация", "pres"], ["video", "Видео", "media"], ["photo", "Фото", "photo"], ["text", "Текст", "text"],
-    ["mirror", S.sharing ? "Остановить экран" : "Экран телефона", "phone"], ["file", "Файл", "file"]];
-  if (S.settings.church) t.push(["bible", "Библия", "bible"], ["holyrics", "Holyrics", "song"]);
-  return `<div class="tiles" role="group" aria-label="Показать" data-key="tiles">${t.map(([k, l, i]) => `<button class="tile" data-act="tile" data-k="${k}">${ico(i)}<span>${l}</span></button>`).join("")}</div>`;
+// Под окнами показа: сетлист и панель тем — узкой полосой справа, на всё место или спрятанная в значок.
+function showBody() {
+  const tp = S.settings.themePanel;
+  if (tp === "FULL") return themeGridHTML();
+  return `${setHead()}<div class="setrow"><div class="scroll" data-key="show">${setlistHTML()}</div>${tp === "STRIP" ? themeStripHTML() : ""}</div>`;
 }
 function controlBar() {
-  const black = `<button data-act="mode" data-m="BLACK" aria-pressed="${S.mode === "BLACK"}">${ico("black")}Чёрный</button>`;
+  const key = (act, icon, label, extra = "") => `<button data-act="${act}" ${extra} aria-label="${esc(label)}" title="${esc(label)}">${ico(icon)}</button>`;
+  const black = key("mode", "black", "Чёрный", `data-m="BLACK" aria-pressed="${S.mode === "BLACK"}"`);
   if (S.holy.remote && S.holy.status === "on") return `<div class="bar"><button data-act="step" data-d="-1">${ico("prev")}Назад</button><button data-act="step" data-d="1">${ico("next")}Дальше</button><button class="wide" data-act="hremote">${ico("close")}Выйти из пульта Holyrics</button></div>`;
   const sl = slideOf(S.live);
   if (sl && sl.video) {
@@ -869,12 +988,20 @@ function controlBar() {
       <button data-act="vvol" aria-label="Громкость">${ico(v.volume ? "vol" : "mute")}${v.volume ?? 100}%</button></div></div>`;
   }
   if (sl && sl.mirror) return `<div class="bar">${black}<button class="wide" data-act="mirrorstop">${ico("stop")}Остановить трансляцию</button></div>`;
-  return `<div class="bar">${black}
-    <button data-act="mode" data-m="LOGO" aria-pressed="${S.mode === "LOGO"}">${ico("logo")}Логотип</button>
-    <button data-act="mode" data-m="CLEAR" aria-pressed="${S.mode === "CLEAR"}">${ico("clear")}Очистить</button>
-    <button data-act="step" data-d="-1" aria-label="Назад">${ico("prev")}Назад</button>
-    <button data-act="step" data-d="1" aria-label="Дальше">${ico("next")}Дальше</button>
-    <button data-act="style">${ico("brush")}Вид</button></div>`;
+  if (sl && sl.countdown && S.timer && S.mode !== "BLACK") {
+    const run = S.timer.running;
+    return `<div class="bar">${black}<button data-act="tpause">${ico(run ? "pause" : "play")}${run ? "Пауза" : "Пуск"}</button>
+      <button data-act="tadd" data-d="-60000">${ico("back10")}−1 мин</button><button data-act="tadd" data-d="60000">${ico("fwd10")}+1 мин</button>
+      <button data-act="trestart">${ico("loop")}Заново</button><button data-act="tstop">${ico("stop")}Убрать</button></div>`;
+  }
+  const layers = Object.values(S.overlays).some(Boolean);
+  // Маленькие кнопки-значки: подписи — в подсказке и для чтения с экрана.
+  return `<div class="bar keys">${black}
+    ${key("mode", "logo", "Логотип", `data-m="LOGO" aria-pressed="${S.mode === "LOGO"}"`)}
+    ${key("layers", "layers", "Слои", `aria-pressed="${layers}"`)}
+    ${key("step", "prev", "Назад", 'data-d="-1"')}
+    ${key("step", "next", "Дальше", 'data-d="1"')}
+    ${key("style", "brush", "Вид")}</div>`;
 }
 function renderShow() {
   const label = S.devices.length ? "" : `<span>Подключить</span>`;
@@ -885,8 +1012,7 @@ function renderShow() {
       <button class="pill tint ${label ? "" : "icon"}" data-act="connect" aria-label="Подключить">${ico("wifi")}${label}</button>
       <button class="iconbtn" data-act="settings" aria-label="Настройки">${ico("gear")}</button>
     </header>
-    <div class="scroll" data-key="show">${monitorsHTML()}${tiles()}${setlistHTML()}</div>
-    ${controlBar()}
+    <div class="showgrid"><div class="monsbox">${monitorsHTML()}</div><div class="body">${showBody()}</div>${controlBar()}</div>
   </div>`;
 }
 
@@ -899,8 +1025,8 @@ function renderLibrary() {
   const groups = {};
   items.forEach((x) => (groups[x.type] = groups[x.type] || []).push(x));
   const body = Object.keys(groups).length ? Object.entries(groups).map(([t, xs]) => `<div class="ghead">${TYPES[t][2]}</div><div class="group">${xs.map((x) => `
-    <button class="row" data-act="libopen" data-id="${x.id}"><span class="kind">${ico(TYPES[x.type][1])}</span>
-    <span class="main"><div class="t">${esc(x.title)}</div><div class="s">${esc(subOf(x))}</div></span>${isLiveItem(x.id) ? '<span class="tag live">В зале</span>' : ""}<span class="chev">${ico("chev")}</span></button>`).join("")}</div>`).join("")
+    <button class="row" data-act="libopen" data-id="${x.id}" data-hold="itemmenu" data-set="0">${kindIcon(x)}
+    <span class="main"><div class="t">${esc(x.title)}</div><div class="s">${esc(subOf(x))}</div></span>${isLiveItem(x.id) ? '<span class="tag live">В зале</span>' : ""}${fileBadge(x)}<span class="chev">${ico("chev")}</span></button>`).join("")}</div>`).join("")
     : '<p class="note">Ничего не найдено.</p>';
   return `<header class="top"><h1>Библиотека</h1><button class="iconbtn" data-act="import" aria-label="Добавить">${ico("plus")}</button><button class="iconbtn" data-act="settings" aria-label="Настройки">${ico("gear")}</button></header>
   <div class="scroll" data-key="lib"><div class="pad">
@@ -966,6 +1092,8 @@ function renderDevices() {
 
 // Общий рендер с сохранением прокрутки
 function render() {
+  // Пока тема в пальце, экран не перерисовывается: иначе пропадёт то, на что её несут.
+  if (DRAG) { renderLater = true; return; }
   const keep = {};
   document.querySelectorAll("#main [data-key]").forEach((el) => (keep[el.dataset.key] = [el.scrollTop, el.scrollLeft]));
   const th = S.settings.theme;
@@ -1032,7 +1160,8 @@ function openSheet(title, body, opts = {}) {
   const html = () => (typeof body === "function" ? body() : body);
   sh.innerHTML = `<div class="grab"><i></i></div><div class="sh"><h2>${esc(title)}</h2><button class="iconbtn" data-act="closesheet" aria-label="Закрыть">${ico("close")}</button></div><div class="sb">${html()}</div>`;
   document.body.append(bd, sh);
-  bd.addEventListener("click", () => closeSheet());
+  // Отпущенный после удержания палец не закрывает только что открытое меню.
+  bd.addEventListener("click", () => { if (!swallowClick) closeSheet(); });
   gest(sh.querySelector(".grab"), { down: () => closeSheet() });
   requestAnimationFrame(() => { bd.classList.add("on"); sh.classList.add("on"); });
   SHEET = {
@@ -1086,11 +1215,14 @@ function sheetSettings() {
       ${sw("clicker", "Bluetooth-кликер и педаль", "Стрелки и пробел листают, B — чёрный экран")}
       ${sw("caps", "Текст заглавными буквами", "Песни, тексты и Писание в зале")}</div>
     <div class="ghead">Разделы</div><div class="group">${sw("church", "Церковный раздел", "Библия и Holyrics на главном")}</div>
+    <div class="ghead">Панель тем</div><div style="margin-bottom:var(--g10)">${seg("tpanel", [["HIDDEN", "Значок"], ["STRIP", "Полоса"], ["FULL", "На всё место"]], st.themePanel)}</div>
+    <div class="group">${LIB.some((x) => x.demo) ? `<button class="row" data-act="rmdemo"><span class="kind">${ico("trash")}</span><span class="main"><div class="t">Убрать демо-материалы</div><div class="s">Лекция, примеры песен, фото и видео</div></span></button>`
+      : `<button class="row" data-act="backdemo"><span class="kind">${ico("loop")}</span><span class="main"><div class="t">Вернуть демо-материалы</div><div class="s">Симулятор начнётся заново</div></span></button>`}</div>
     <p class="note"><span class="mark" style="font-size:var(--fs-m)">ΔΕΙΞΙΣ</span> · GPL-3.0 · без рекламы, аналитики и трекеров. В симуляторе данные примерные, сеть не используется.</p>`;
   }, { auto: true });
 }
 function sheetSetpick() {
-  openSheet("Сетлист", () => `<div class="group">${S.setlists.map((s) => `<button class="row" data-act="pickset" data-id="${s.id}"><span class="main"><div class="t">${esc(s.title)}, ${esc(s.date)}</div><div class="s">${s.items.length} элем.${s.past ? " · прошёл" : ""}</div></span>${s.id === S.active ? '<span class="tag pre">Выбран</span>' : ""}</button>`).join("")}</div>
+  openSheet("Сетлист", () => `<div class="group">${S.setlists.map((s) => `<div class="row"><button class="main" data-act="pickset" data-id="${s.id}"><div class="t">${esc(s.title)}, ${esc(s.date)}</div><div class="s">${s.items.length} элем.${s.past ? " · прошёл" : ""}</div></button>${s.id === S.active ? '<span class="tag pre">Выбран</span>' : ""}<button class="iconbtn" data-act="delset" data-id="${s.id}" aria-label="Удалить «${esc(s.title)}»">${ico("trash")}</button></div>`).join("")}</div>
     <button class="btn" data-act="newset">${ico("plus")}Новый сетлист</button>`);
 }
 function sheetFind() {
@@ -1105,19 +1237,8 @@ function sheetFind() {
     <p class="note">Найденное открывается в предпросмотре — его можно показать, даже если в сетлисте этого нет.</p>`,
   { focus: "#fq", mount: (sh) => { const i = sh.querySelector("#fq"); i.addEventListener("input", () => { q = i.value; sh.querySelector("#fres").innerHTML = rows(q); }); } });
 }
-function sheetText() {
-  openSheet("Текст", `<div class="stack"><textarea class="big" id="ftext" placeholder="Любой текст: объявление, стих, номер машины">Машина с номером А 123 ВС,\nподойдите к входу</textarea>
-    <p class="note tight">Пустая строка начинает новый слайд. Длинный текст разбивается сам, до 4 строк на слайд.</p>
-    <div class="group"><div class="row"><span class="main">Сохранить в библиотеку</span>${toggle(false, "flip", "Сохранить в библиотеку", 'id="tsave"')}</div></div>
-    <div class="two"><button class="btn" data-act="textgo" data-live="0">В предпросмотр</button><button class="btn tint" data-act="textgo" data-live="1">В зал</button></div></div>`);
-}
-function sheetEdit(type) {
-  openSheet(type === "song" ? "Новая песня" : "Новый текст", `<div class="stack"><input class="field" id="etitle" placeholder="${type === "song" ? "Название песни" : "Название"}" autocomplete="off">
-    <textarea class="big" id="etext" style="min-height:220px" placeholder="${type === "song" ? "Куплеты и припев. Пустая строка — новый слайд" : "Текст. Пустая строка — новый слайд"}"></textarea>
-    <button class="btn tint" data-act="editsave" data-type="${type}">Сохранить</button></div>`, { focus: "#etitle" });
-}
 const PICKS = {
-  pres: ["Презентация", (x) => x.type === "pres" || (x.type === "file" && !x.conv && x.pages), "PDF, PPTX, PPT, ODP", ".pdf,.pptx,.ppt,.odp,.key"],
+  pres: ["Презентация", (x) => x.type === "pres" || (x.type === "file" && x.pages), "PDF, PPTX, PPT, ODP", ".pdf,.pptx,.ppt,.odp,.key"],
   video: ["Видео", (x) => x.type === "video", "Любой формат: MP4, MKV, MOV, AVI, WMV, WebM…", "video/*,audio/*"],
   photo: ["Фото", (x) => x.type === "photo", "JPEG, PNG, WebP, GIF, HEIC", "image/*"],
   file: ["Файл", (x) => x.type === "file", "PDF, DOCX, TXT, OpenLyrics", ".pdf,.docx,.doc,.txt,.odt,.rtf"],
@@ -1141,6 +1262,7 @@ function sheetAdd() {
   openSheet("Добавить", `<div class="group">
     <button class="row" data-act="newsong"><span class="kind">${ico("song")}</span><span class="main t">Новая песня</span><span class="chev">${ico("chev")}</span></button>
     <button class="row" data-act="newtext"><span class="kind">${ico("text")}</span><span class="main t">Новый текст</span><span class="chev">${ico("chev")}</span></button>
+    <button class="row" data-act="tile" data-k="countdown"><span class="kind">${ico("clock")}</span><span class="main t">Обратный отсчёт</span><span class="chev">${ico("chev")}</span></button>
     ${S.settings.church ? `<button class="row" data-act="tile" data-k="bible"><span class="kind">${ico("bible")}</span><span class="main t">Место из Библии</span><span class="chev">${ico("chev")}</span></button>` : ""}
     <button class="row" data-act="device" data-accept="*/*" data-lib="1"><span class="kind">${ico("file")}</span><span class="main"><div class="t">Файлы телефона</div><div class="s">PDF, видео, фото, TXT — с этого устройства</div></span><span class="chev">${ico("chev")}</span></button>
     ${S.settings.church ? `<button class="row" data-act="biblemods"><span class="kind">${ico("bible")}</span><span class="main"><div class="t">Переводы Библии</div><div class="s">Модули MyBible: .SQLite3</div></span><span class="chev">${ico("chev")}</span></button>` : ""}
@@ -1170,7 +1292,10 @@ function sheetStyle() {
     const d = S.draft;
     if (!d) return "";
     const fs = Math.round((d.sizePercent || 20) / 2.5);
-    return `<div class="group">
+    const cur = styleKey(d);
+    return `<div class="ghead">Темы</div><div class="chips" style="gap:var(--g5)">${themeChoices().map((t) => `<div style="width:96px;flex:none">${themeTile(t, styleKey(t.style) === cur).replace('data-act="tapply"', 'data-act="stheme"')}</div>`).join("")}</div>
+    <p class="note tight" style="margin-bottom:var(--g6)">Касание — тема в предпросмотр. Удержание темы — изменить её или сделать свою на её основе.</p>
+    <div class="ghead">Быстрая правка</div><div class="group">
       <div class="row"><span class="main">Фон</span><span class="swatches">${BGS.map(([c, v, n]) => `<button class="sw ${c}" data-act="st" data-k="background" data-v="${v}" aria-pressed="${(d.background >>> 0) === v}" aria-label="Фон: ${n}"></button>`).join("")}</span></div>
       <div class="row"><span class="main">Цвет текста</span><span class="swatches">${INKS.map(([c, v, n]) => `<button class="sw ${c}" data-act="st" data-k="color" data-v="${v}" aria-pressed="${(d.color >>> 0) === v}" aria-label="Цвет: ${n}"></button>`).join("")}</span></div>
       <div class="row"><span class="main">Размер текста</span><span class="stepper"><button data-act="fs" data-d="-1" aria-label="Меньше">−</button><span>${fs}</span><button data-act="fs" data-d="1" aria-label="Больше">+</button></span></div>
@@ -1463,15 +1588,28 @@ function mirrorSoon() {
 setInterval(mirrorSoon, 1000);
 
 // ——— Свой файл с этого устройства: остаётся в браузере (hub.finishUpload) ———
-let pickToLib = false;
+let pickToLib = false, pickMode = null;
+function moveInSet(id, delta) {
+  const set = activeSet(), i = set.items.indexOf(id), j = Math.max(0, Math.min(set.items.length - 1, i + delta));
+  if (i < 0 || i === j) return;
+  set.items.splice(j, 0, set.items.splice(i, 1)[0]);
+  render();
+}
 $("#pickDevice").onchange = async (e) => {
   const file = e.target.files[0];
   e.target.value = "";
   if (!file) return;
   const n = file.name.toLowerCase();
+  // Свой логотип для слоя «Поверх показа»: картинка остаётся в браузере.
+  if (pickMode === "logo") {
+    pickMode = null;
+    if (!file.type.startsWith("image/")) return toast("Нужна картинка: PNG с прозрачным фоном");
+    const ref = await hub.finishUpload({ name: file.name, chunks: [file] });
+    return setOverlays(Object.assign({}, S.overlays, { logo: Object.assign({ corner: "TOP_RIGHT", sizePercent: 10, opacity: 1 }, S.overlays.logo || {}, { file: ref }) }));
+  }
   closeSheet();
   if (file.size > GB) return sheetLarge({ title: file.name, size: file.size, own: file, big: true });
-  if (/\.(pptx?|odp|key|docx?|odt|rtf|xlsx?|ods)$/.test(n)) return toast("В симуляторе свои презентации и документы не переводятся: на ноутбуке это делает Deixis для компьютера");
+  if (/\.(pptx?|odp|key|docx?|odt|rtf|xlsx?|ods)$/.test(n)) return toast("В симуляторе свои презентации и документы не переводятся: на телефоне Deixis сам переводит PPTX и DOCX в PDF. Здесь можно открыть PDF, фото или видео");
   let it;
   if (/\.txt$/.test(n) || file.type.startsWith("text/")) {
     it = { id: "u" + Date.now(), type: "text", title: file.name, texts: splitText(await file.text()) };
@@ -1494,12 +1632,443 @@ $("#pickDevice").onchange = async (e) => {
   toPreview({ src: it, idx: 0 });
 };
 
+// ——— Обратный отсчёт: заготовки, своё время или «до 18:30»; экраны считают сами от своих часов ———
+const cdKey = (it) => it.id || it.title;
+function cdStartMs(spec) {
+  if (!spec.until) return (spec.minutes || 5) * 60000;
+  const [h, m] = spec.until.split(":").map(Number), now = new Date(), at = new Date(now);
+  at.setHours(h || 0, m || 0, 0, 0);
+  if (at <= now) at.setDate(at.getDate() + 1);
+  return at - now;
+}
+const cdTitle = (spec) => spec.until ? `до ${spec.until}` : `${spec.minutes} мин`;
+function cdFormat(ms, format, decimals, up) {
+  const total = Math.max(0, ms), unit = [1000, 100, 10, 1][decimals || 0];
+  const ts = decimals ? Math.floor(total / 1000) : up ? Math.ceil(total / 1000) : Math.floor(total / 1000);
+  const frac = decimals ? "," + String(Math.floor((total % 1000) / unit)).padStart(decimals, "0") : "";
+  const h = Math.floor(ts / 3600), m = Math.floor(ts / 60) % 60, sec = String(ts % 60).padStart(2, "0"), mm = String(m).padStart(2, "0");
+  const f = format || "AUTO";
+  return (f === "S" ? String(ts) : f === "MS" ? `${Math.floor(ts / 60)}:${sec}` : f === "HMS" || h > 0 ? `${h}:${mm}:${sec}` : `${m}:${sec}`) + frac;
+}
+const timerLeft = (run) => run.running ? run.endsAt - Date.now() : run.remaining;
+function cdFace(spec, run) {
+  const left = run ? timerLeft(run) : cdStartMs(spec);
+  if (left > 0) return cdFormat(left, spec.format, spec.decimals, true);
+  if (spec.afterZero === "OVERTIME") return "+" + cdFormat(-left, spec.format, spec.decimals, false);
+  if (spec.afterZero === "HIDE") return "";
+  return cdFormat(0, spec.format, spec.decimals, false);
+}
+function countdownContent(it, spec, style) {
+  const key = cdKey(it);
+  if (!S.timer || S.timer.itemKey !== key) S.timer = { itemKey: key, spec, id: "cd" + Date.now(), running: true, endsAt: Date.now() + cdStartMs(spec), remaining: 0 };
+  const run = S.timer;
+  return {
+    type: "countdown", id: run.id, remainingMs: Math.round(timerLeft(run)), running: run.running, endsAt: run.running ? run.endsAt : 0,
+    label: spec.label || null, labelPosition: spec.labelPosition || "ABOVE", format: spec.format || "AUTO", decimals: spec.decimals || 0,
+    afterZero: spec.afterZero === "NEXT" ? "HOLD" : spec.afterZero || "HOLD", font: spec.font || "sans",
+    style: Object.assign({}, style, { sizePercent: spec.sizePercent || 34 }, spec.color ? { color: spec.color } : {}), overtimeColor: 0xFFE5484D,
+  };
+}
+function timerChanged() { if (S.live && slideOf(S.live).countdown) sendLive(); render(); }
+// Цифры на пульте идут сами; после нуля «Следующий» — в зал уходит следующий элемент сетлиста.
+setInterval(() => {
+  document.querySelectorAll("[data-cd]").forEach((el) => {
+    const it = LIB.find((x) => cdKey(x) === el.dataset.cd) || (S.live && cdKey(S.live.src) === el.dataset.cd ? S.live.src : null);
+    if (!it) return;
+    const run = S.timer && S.timer.itemKey === el.dataset.cd ? S.timer : null;
+    el.textContent = cdFace(it.slides[0].countdown, run);
+  });
+  const run = S.timer;
+  if (run && run.running && !run.nexted && run.spec.afterZero === "NEXT" && timerLeft(run) <= 0 && S.live && cdKey(S.live.src) === run.itemKey) {
+    run.nexted = true;
+    const ids = activeSet() ? activeSet().items : [], i = ids.indexOf(S.live.src.id), next = i >= 0 ? lib(ids[i + 1]) : null;
+    if (next) { S.open = next.id; goLive({ src: next, idx: 0 }); toast(`В зале: ${next.title}`); }
+  }
+}, 250);
+let CD = null;
+function sheetCountdown() {
+  CD = { minutes: 10, until: null, label: "До начала", labelPosition: "ABOVE", afterZero: "HOLD", format: "AUTO", decimals: 0, sizePercent: 34 };
+  openSheet("Обратный отсчёт", () => {
+    const pv = { src: { title: "", type: "countdown", slides: [{ countdown: CD }] }, idx: 0 };
+    return `<div class="preview-sheet">${slideHTML(pv, styleFor(null))}</div><div class="stack">
+      ${seg("cdmode", [["dur", "Длительность"], ["until", "До времени"]], CD.until ? "until" : "dur")}
+      ${CD.until ? `<input class="field" id="cduntil" value="${esc(CD.until)}" inputmode="numeric" aria-label="До времени"><p class="note tight">Отсчёт до ближайшего такого времени: сегодня, а если оно прошло, — завтра.</p>`
+        : `${seg("cdpreset", [[30, "30 мин"], [15, "15 мин"], [10, "10 мин"], [5, "5 мин"]], CD.minutes)}
+        <div class="group"><div class="row"><span class="main">Минут</span><span class="stepper"><button data-act="cdmin" data-d="-1" aria-label="Меньше">−</button><span>${CD.minutes}</span><button data-act="cdmin" data-d="1" aria-label="Больше">+</button></span></div></div>`}
+      <input class="field" id="cdlabel" value="${esc(CD.label || "")}" placeholder="Подпись: «До начала», «Перерыв»" aria-label="Подпись">
+      ${seg("cdlpos", [["ABOVE", "Подпись сверху"], ["BELOW", "Снизу"]], CD.labelPosition)}
+      <div class="ghead" style="margin:0">После нуля</div>
+      ${seg("cdafter", [["HOLD", "00:00"], ["OVERTIME", "Дальше красным"], ["HIDE", "Убрать"], ["NEXT", "Следующий"]], CD.afterZero)}
+      ${CD.afterZero === "NEXT" ? '<p class="note tight">В ноль в зал сам уйдёт следующий элемент сетлиста.</p>' : ""}
+      <div class="ghead" style="margin:0">Вид</div>
+      ${seg("cdfmt", [["AUTO", "Авто"], ["HMS", "Ч:ММ:СС"], ["MS", "ММ:СС"], ["S", "Секунды"]], CD.format)}
+      ${seg("cddec", [[0, "Без долей"], [1, "0,1 с"], [2, "0,01 с"]], CD.decimals)}
+      <p class="note tight">Фон, тень и обводка — от темы оформления. Время на всех экранах идёт вместе: каждый экран считает от своих часов.</p>
+      <div class="two"><button class="btn" data-act="cdgo" data-live="0">В предпросмотр</button><button class="btn tint" data-act="cdgo" data-live="1">В зал</button></div></div>`;
+  }, { mount: (sh) => {
+    const l = sh.querySelector("#cdlabel"), u = sh.querySelector("#cduntil");
+    l.addEventListener("input", () => { CD.label = l.value.trim() || null; });
+    if (u) u.addEventListener("change", () => { if (/^\d{1,2}:\d{2}$/.test(u.value.trim())) { CD.until = u.value.trim(); refreshSheet(); } });
+  } });
+}
+
+// ——— Темы: встроенные и свои Deixis, затем темы Holyrics, если он подключён ———
+const BUILT_IN = [
+  { id: "classic", name: "Классика", style: {} },
+  { id: "night", name: "Ночь", style: { background: 0xFF18233A } },
+  { id: "warm", name: "Тёплая", style: { background: 0xFF4A3420, color: 0xFFF4EFE6 } },
+  { id: "forest", name: "Лес", style: { background: 0xFF20443A } },
+  { id: "gold", name: "Золото", style: { color: 0xFFFFD43B, outline: true } },
+  { id: "paper", name: "Бумага", style: { background: 0xFFF4EFE6, color: 0xFF2B2620, shadow: false } },
+  { id: "lower", name: "Нижняя треть", style: { sizePercent: 12, valign: "BOTTOM", box: 0xB4000000 } },
+].map((t) => Object.assign(t, { builtIn: true, style: Object.assign({}, DEFAULT_STYLE, t.style, { name: t.name }) }));
+function themeChoices() {
+  const own = [...BUILT_IN, ...S.themes].map((t) => ({ key: "d:" + t.id, name: t.name, style: t.style, theme: t }));
+  const holy = S.holy.status === "on" ? HOLY.themes.map((t) => ({ key: "h:" + t.id, name: t.name, style: holyStyle(t), holy: true })) : [];
+  return own.concat(holy);
+}
+function holyStyle(t) {
+  const st = Object.assign({}, DEFAULT_STYLE, t.style);
+  if (t.bg) st.backgroundImage = hub.MORNING;
+  return st;
+}
+const themeOf = (key) => themeChoices().find((t) => t.key === key);
+const styleKey = (st) => JSON.stringify([st.background >>> 0, st.color >>> 0, st.shadow !== false, !!st.outline, st.sizePercent || 20, st.box || 0, st.valign || "", st.align || "", st.backgroundImage ? st.backgroundImage.sha256 : ""]);
+const currentStyle = () => styleFor(S.live || S.pre);
+const plainStyle = (st) => { const x = Object.assign({}, st); delete x.caps; return x; };
+// Касание темы — в зал тому, что там идёт (или в предпросмотре), и остаётся у песни или документа.
+function applyTheme(st, name) {
+  const cue = S.live || S.pre;
+  if (!cue) return toast("Сначала выберите, что показать");
+  const style = plainStyle(st), id = cue.src.id;
+  if (id) {
+    for (const k of Object.keys(S.styles.slide)) if (k.startsWith(id + ":")) delete S.styles.slide[k];
+    S.styles.item[id] = style;
+  } else cue.src.style = style;
+  S.draft = null;
+  if (S.live) sendLive();
+  render();
+  toast(`Тема «${name}» — в зале`);
+}
+// Тема, перенесённая на песню или документ (idx = null) или на один слайд: остаётся у него; если он в зале — сразу и там.
+function applyThemeTo(itemId, idx, st, name) {
+  const style = plainStyle(st), it = lib(itemId);
+  if (idx == null) {
+    for (const k of Object.keys(S.styles.slide)) if (k.startsWith(itemId + ":")) delete S.styles.slide[k];
+    S.styles.item[itemId] = style;
+  } else S.styles.slide[itemId + ":" + idx] = style;
+  if (S.live && S.live.src.id === itemId) sendLive();
+  render();
+  toast(idx == null ? `Тема «${name}» — «${it ? it.title : ""}»` : `Тема «${name}» — слайду ${idx + 1}`);
+}
+const SAMPLE = { src: { title: "", slides: [{ text: "Аа" }] }, idx: 0 }, SAMPLE_SIZE = 46;
+function themeTile(t, on) {
+  // «Аа» крупно, во всю плитку: виден цвет и начертание темы.
+  const look = Object.assign({}, t.style, { sizePercent: SAMPLE_SIZE });
+  return `<div class="ttile ${on ? "on" : ""}" data-act="tapply" data-tkey="${esc(t.key)}" data-theme="${esc(t.key)}" role="button" tabindex="0" aria-label="Тема «${esc(t.name)}»">${slideHTML(SAMPLE, look)}<span class="nm">${esc(t.name)}</span></div>`;
+}
+const panelBtns = (mode) => (mode !== "HIDDEN" ? `<button class="iconbtn" data-act="tpanel" data-v="HIDDEN" aria-label="Спрятать темы">${ico("close")}</button>` : "")
+  + (mode === "FULL" ? `<button class="iconbtn" data-act="tpanel" data-v="STRIP" aria-label="Темы узкой полосой">${ico("next")}</button>` : "")
+  + (mode === "STRIP" ? `<button class="iconbtn" data-act="tpanel" data-v="FULL" aria-label="Темы на всё место">${ico("prev")}</button>` : "");
+function themeStripHTML() {
+  const cur = styleKey(currentStyle());
+  return `<div class="tstrip" role="group" aria-label="Темы"><div class="tbtns">${panelBtns("STRIP")}</div>
+    <div class="scroll" data-key="tstrip">${themeChoices().map((t) => themeTile(t, styleKey(t.style) === cur)).join("")}</div></div>`;
+}
+function themeGridHTML() {
+  const cur = styleKey(currentStyle());
+  return `<div class="tgrid"><div class="gh"><span>Темы</span>${panelBtns("FULL")}</div><div class="scroll" data-key="tgrid">
+    <div class="cells">${themeChoices().map((t) => themeTile(t, styleKey(t.style) === cur)).join("")}</div>
+    <p class="note" style="margin:var(--g6) var(--gutter)">Касание — тема сразу в зал и остаётся у песни или документа. Зажать и перенести на песню или слайд в сетлисте — тема им. Зажать и отпустить — изменить.</p></div></div>`;
+}
+
+// Тему зажимают в панели и переносят, как в Holyrics и EasyWorship: на песню или документ — всему элементу,
+// на слайд — только ему, на окно «Сейчас» — тому, что в зале. Отпустили, почти не сдвинув, — изменить тему.
+let DRAG = null, HOLD = null, renderLater = false, swallowClick = false, lastTap = null;
+const DOUBLE_MS = 350;
+const HOLD_MS = 380, SLOP = 10;
+function dropAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const t = el && el.closest("[data-drop]");
+  return t && S.tab === "show" ? t : null;
+}
+function startDrag(h) {
+  const t = themeOf(h.theme);
+  if (!t) return;
+  const ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.innerHTML = slideHTML(SAMPLE, Object.assign({}, t.style, { sizePercent: SAMPLE_SIZE }), { cls: "is-pre" });
+  document.body.append(ghost);
+  fitSlides(ghost);
+  DRAG = { t, ghost, x0: h.x0, y0: h.y0, moved: 0, over: null };
+  document.body.classList.add("dragging");
+  h.el.classList.add("lifted");
+  if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
+  moveDrag(h.x0, h.y0);
+}
+function moveDrag(x, y) {
+  DRAG.ghost.style.left = x + "px"; DRAG.ghost.style.top = y + "px";
+  DRAG.moved = Math.max(DRAG.moved, Math.hypot(x - DRAG.x0, y - DRAG.y0));
+  const over = dropAt(x, y);
+  if (over !== DRAG.over) {
+    if (DRAG.over) DRAG.over.classList.remove("drop-on");
+    DRAG.over = over;
+    if (over) over.classList.add("drop-on");
+  }
+}
+function endDrag(x, y, cancel) {
+  const d = DRAG;
+  DRAG = null;
+  d.ghost.remove();
+  document.body.classList.remove("dragging");
+  if (d.over) d.over.classList.remove("drop-on");
+  swallowClick = true;
+  setTimeout(() => (swallowClick = false), 0);
+  const target = cancel ? null : dropAt(x, y);
+  if (target) {
+    const [kind, id, i] = target.dataset.drop.split(":");
+    if (kind === "live") applyTheme(d.t.style, d.t.name);
+    else applyThemeTo(id, kind === "slide" ? Number(i) : null, d.t.style, d.t.name);
+  } else if (!cancel && d.moved < SLOP * 2) { render(); editTheme(d.t); }
+  if (renderLater || !target) render();
+  renderLater = false;
+}
+// Удержание: тема — перенос, строка сетлиста или библиотеки — меню элемента.
+document.addEventListener("pointerdown", (e) => {
+  if (e.button > 0 || DRAG) return;
+  const tile = e.target.closest("[data-theme]"), row = !tile && e.target.closest("[data-hold]");
+  if (!tile && !row) return;
+  const h = { el: tile || row, theme: tile && tile.dataset.theme, x0: e.clientX, y0: e.clientY, id: e.pointerId };
+  h.timer = setTimeout(() => {
+    HOLD = null;
+    if (tile) startDrag(h);
+    else { swallowClick = true; setTimeout(() => (swallowClick = false), 400); itemMenu(row.dataset.id, row.dataset.set === "1"); }
+  }, HOLD_MS);
+  HOLD = h;
+});
+document.addEventListener("pointermove", (e) => {
+  if (DRAG) { e.preventDefault(); return moveDrag(e.clientX, e.clientY); }
+  if (HOLD && Math.hypot(e.clientX - HOLD.x0, e.clientY - HOLD.y0) > SLOP) { clearTimeout(HOLD.timer); HOLD = null; }
+}, { passive: false });
+document.addEventListener("pointerup", (e) => {
+  if (HOLD) { clearTimeout(HOLD.timer); HOLD = null; }
+  if (DRAG) endDrag(e.clientX, e.clientY, false);
+});
+document.addEventListener("pointercancel", () => {
+  if (HOLD) { clearTimeout(HOLD.timer); HOLD = null; }
+  if (DRAG) endDrag(0, 0, true);
+});
+// Пока тема в пальце, страница не прокручивается; долгое касание не открывает системное меню.
+document.addEventListener("touchmove", (e) => { if (DRAG) e.preventDefault(); }, { passive: false });
+document.addEventListener("contextmenu", (e) => { if (e.target.closest("[data-theme], [data-hold]")) e.preventDefault(); });
+
+// Своя тема на основе выбранной: имя, фон, цвет и размер текста, тень, обводка, плашка, положение.
+let TE = null;
+function editTheme(t) {
+  if (t.holy) return toast("Тема Holyrics меняется в самом Holyrics");
+  const own = t.theme && !t.theme.builtIn ? t.theme : null;
+  TE = { own, name: own ? own.name : `${t.name} — своя`, style: Object.assign({}, t.style) };
+  openSheet(own ? `Тема «${own.name}»` : "Новая тема", () => {
+    const d = TE.style, fs = Math.round((d.sizePercent || 20) / 2.5);
+    return `<div class="preview-sheet">${slideHTML({ src: { title: "", slides: [{ text: "Господь — Пастырь мой;\nя ни в чём не буду нуждаться" }] }, idx: 0 }, d)}</div>
+      <div class="stack"><input class="field" id="tename" value="${esc(TE.name)}" aria-label="Название темы">
+      <div class="group">
+        <div class="row"><span class="main">Фон</span><span class="swatches">${BGS.map(([c, v, n]) => `<button class="sw ${c}" data-act="test" data-k="background" data-v="${v}" aria-pressed="${(d.background >>> 0) === v}" aria-label="Фон: ${n}"></button>`).join("")}</span></div>
+        <div class="row"><span class="main">Цвет текста</span><span class="swatches">${INKS.map(([c, v, n]) => `<button class="sw ${c}" data-act="test" data-k="color" data-v="${v}" aria-pressed="${(d.color >>> 0) === v}" aria-label="Цвет: ${n}"></button>`).join("")}</span></div>
+        <div class="row"><span class="main">Размер текста</span><span class="stepper"><button data-act="tefs" data-d="-1" aria-label="Меньше">−</button><span>${fs}</span><button data-act="tefs" data-d="1" aria-label="Больше">+</button></span></div>
+        <div class="row"><span class="main">Тень</span>${toggle(d.shadow !== false, "teflag", "Тень", 'data-k="shadow"')}</div>
+        <div class="row"><span class="main">Обводка</span>${toggle(!!d.outline, "teflag", "Обводка", 'data-k="outline"')}</div>
+        <div class="row"><span class="main">Плашка под текстом</span>${toggle(!!d.box, "teflag", "Плашка", 'data-k="box"')}</div>
+        <div class="row"><span class="main">Внизу экрана</span>${toggle(d.valign === "BOTTOM", "teflag", "Внизу экрана", 'data-k="valign"')}</div>
+      </div>
+      <div class="two">${own ? '<button class="btn red" data-act="tedel">Удалить</button>' : '<button class="btn" data-act="closesheet">Отмена</button>'}<button class="btn tint" data-act="tesave">Сохранить</button></div>
+      <p class="note tight">Встроенная тема не меняется — сохраняется своя копия. Она появится в панели тем.</p></div>`;
+  }, { mount: (sh) => { const n = sh.querySelector("#tename"); n.addEventListener("input", () => { TE.name = n.value; }); } });
+}
+
+// ——— Поверх показа: плашка с именем, бегущая строка, часы, логотип; каждый слой сразу на все экраны ———
+const OV_SAMPLES = () => [
+  ["Ведущий", { lowerThird: { title: "Анна Иванова", subtitle: "Ведущая вечера" } }],
+  ["Гость", { lowerThird: { title: "Пётр Смирнов", subtitle: "Архитектор, автор проекта парка", background: 0xE6182338, accent: 0xFFFFD43B } }],
+  ["Объявление", { ticker: { text: "Сбор в субботу в 18:00 у главного входа  ·  После встречи — чай и выпечка  ·  Wi-Fi: Deixis-Guest", speedPercent: 10 } }],
+  ["Эфир", { logo: { file: hub.LOGO_LIVE, corner: "TOP_RIGHT", sizePercent: 7, opacity: 1 }, clock: { corner: "TOP_LEFT", seconds: true } }],
+  ["Всё сразу", { logo: { file: hub.LOGO_DEIXIS, corner: "TOP_RIGHT", sizePercent: 8, opacity: 0.9 }, lowerThird: { title: "Весенний вечер", subtitle: "Начало в 19:00" },
+    ticker: { text: "Добро пожаловать!  ·  Программа вечера — у входа  ·  Фото и видео можно", speedPercent: 10 }, clock: { corner: "TOP_LEFT", seconds: false } }],
+  ["Афиша", { logo: { file: hub.LOGO_SPRING, corner: "BOTTOM_RIGHT", sizePercent: 22, opacity: 1 } }],
+];
+const CORNERS = [["TOP_LEFT", "Слева вверху"], ["TOP_RIGHT", "Справа вверху"], ["BOTTOM_LEFT", "Слева внизу"], ["BOTTOM_RIGHT", "Справа внизу"]];
+function setOverlays(o) {
+  const clean = {};
+  for (const k of ["logo", "lowerThird", "ticker", "clock"]) if (o[k]) clean[k] = o[k];
+  S.overlays = clean;
+  if (clean.lowerThird && !S.drafts.lowerThirds.some((x) => x.title === clean.lowerThird.title)) S.drafts.lowerThirds.unshift(clean.lowerThird);
+  if (clean.ticker && !S.drafts.tickers.includes(clean.ticker.text)) S.drafts.tickers.unshift(clean.ticker.text);
+  for (const d of ready()) d.r.overlays(clean);
+  render(); refreshSheet();
+}
+const samePart = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
+let OVF = { title: "", subtitle: "", ticker: "" };
+function sheetLayers() {
+  if (!ready().length) toast("Слой появится в зале, когда подключён экран");
+  const o0 = S.overlays;
+  OVF = { title: o0.lowerThird ? o0.lowerThird.title : "", subtitle: o0.lowerThird ? o0.lowerThird.subtitle || "" : "", ticker: o0.ticker ? o0.ticker.text : "" };
+  openSheet("Поверх показа", () => {
+    const o = S.overlays;
+    const parts = (x) => [x.lowerThird && "плашка: " + x.lowerThird.title, x.ticker && "строка", x.clock && "часы", x.logo && "логотип"].filter(Boolean).join(" · ");
+    return `<div class="ghead">Примеры</div><p class="note tight" style="margin-bottom:var(--g4)">Готовые слои, чтобы посмотреть, как они появляются и уходят. Касание — сразу в зал.</p>
+      <div class="group">${OV_SAMPLES().map(([n, x], i) => `<button class="row ${samePart(o, x) ? "open" : ""}" data-act="ovsample" data-i="${i}"><span class="main"><div class="t">${esc(n)}</div><div class="s">${esc(parts(x))}</div></span></button>`).join("")}</div>
+      <div class="ghead">Плашка с именем</div><div class="stack">
+        <input class="field" id="ovtitle" value="${esc(OVF.title)}" placeholder="Имя: «Анна Иванова»" aria-label="Имя">
+        <input class="field" id="ovsub" value="${esc(OVF.subtitle)}" placeholder="Подпись: «Тема: весна»" aria-label="Подпись">
+        <div class="chips">${o.lowerThird ? '<button class="pill tint" data-act="ovlt" data-v="update">Обновить</button><button class="pill" data-act="ovlt" data-v="off">Убрать</button>' : '<button class="pill tint" data-act="ovlt" data-v="on">Показать</button>'}</div></div>
+      ${S.drafts.lowerThirds.length ? `<div class="group">${S.drafts.lowerThirds.map((x, i) => `<button class="row" data-act="ovltd" data-i="${i}"><span class="main"><div class="t">${esc(x.title)}</div>${x.subtitle ? `<div class="s">${esc(x.subtitle)}</div>` : ""}</span></button>`).join("")}</div>` : ""}
+      <div class="ghead">Бегущая строка</div><div class="stack">
+        <textarea class="big" id="ovtick" style="min-height:70px" placeholder="Объявление: «Сбор в 18:00 у входа»" aria-label="Бегущая строка">${esc(OVF.ticker)}</textarea>
+        ${seg("ovspeed", [[6, "Медленно"], [10, "Обычно"], [16, "Быстро"]], o.ticker ? o.ticker.speedPercent || 10 : 10)}
+        <div class="chips">${o.ticker ? '<button class="pill tint" data-act="ovtk" data-v="update">Обновить</button><button class="pill" data-act="ovtk" data-v="off">Убрать</button>' : '<button class="pill tint" data-act="ovtk" data-v="on">Запустить</button>'}</div></div>
+      <div class="ghead">Часы</div><div class="group">
+        <div class="row"><span class="main">Часы в углу</span>${toggle(!!o.clock, "ovclock", "Часы в углу")}</div>
+        ${o.clock ? `<div class="row"><span class="main">С секундами</span>${toggle(!!o.clock.seconds, "ovsec", "С секундами")}</div>` : ""}</div>
+      ${o.clock ? `<div style="margin:calc(-1 * var(--g6)) 0 var(--g10)">${seg("ovccorner", CORNERS, o.clock.corner || "TOP_LEFT")}</div>` : ""}
+      <div class="ghead">Логотип</div><div class="group">
+        <div class="row"><span class="main"><div>Логотип в углу</div><div class="s">${o.logo ? esc(o.logo.file.name) : "Картинка PNG с прозрачным фоном"}</div></span>${toggle(!!o.logo, "ovlogo", "Логотип в углу")}</div>
+        <button class="row" data-act="ovlogopick"><span class="main t">Выбрать картинку</span><span class="chev">${ico("chev")}</span></button></div>
+      ${o.logo ? `<div style="margin:calc(-1 * var(--g6)) 0 var(--g6)">${seg("ovlcorner", CORNERS, o.logo.corner || "TOP_RIGHT")}</div>
+        <div class="group"><div class="row"><span class="main">Размер</span><span class="stepper"><button data-act="ovlsize" data-d="-2" aria-label="Меньше">−</button><span>${Math.round(o.logo.sizePercent || 10)}</span><button data-act="ovlsize" data-d="2" aria-label="Больше">+</button></span></div></div>` : ""}
+      ${Object.keys(o).length ? '<button class="btn" data-act="ovclear">Убрать всё</button>' : ""}
+      <p class="note">Слой виден поверх слайдов, фото и видео; «Чёрный» и «Логотип» убирают и его. Зрители в браузере видят его тоже.</p>`;
+  }, { mount: (sh) => {
+    const bind = (id, k) => { const el = sh.querySelector(id); if (el) el.addEventListener("input", () => { OVF[k] = el.value; }); };
+    bind("#ovtitle", "title"); bind("#ovsub", "subtitle"); bind("#ovtick", "ticker");
+  } });
+}
+
+// ——— «Показать»: всё, что выводится не из сетлиста. Открывается плюсом рядом с поиском ———
+function sheetShowMenu() {
+  const rows = [["pres", "Презентация", "pres"], ["video", "Видео", "media"], ["photo", "Фото", "photo"], ["text", "Текст", "text"],
+    ["countdown", "Отсчёт", "clock"], ["layers", "Поверх", "layers"], ["mirror", S.sharing ? "Остановить экран" : "Экран телефона", "phone"], ["file", "Файл", "file"],
+    ["ahead", "Файлы сетлиста — на экраны заранее", "send"]];
+  if (S.settings.church) rows.push(["bible", "Библия", "bible"], ["holyrics", "Holyrics", "song"]);
+  rows.push(["screen", "Стать экраном", "tv"]);
+  openSheet("Показать", `<div class="group">${rows.map(([k, t, i]) => `<button class="row" data-act="tile" data-k="${k}"><span class="kind">${ico(i)}</span><span class="main t">${esc(t)}</span><span class="chev">${ico("chev")}</span></button>`).join("")}</div>`);
+}
+
+// ——— Меню элемента: удержание строки в сетлисте или библиотеке ———
+function itemMenu(id, inSet) {
+  const it = lib(id);
+  if (!it) return;
+  const set = activeSet(), inActive = set && set.items.includes(id);
+  const btn = (act, icon, t, cls = "") => `<button class="btn ${cls}" data-act="${act}" data-id="${id}">${icon ? ico(icon) : ""}${esc(t)}</button>`;
+  openSheet(it.title, `<div class="stack">
+    ${btn("imfull", "show", "Во весь экран")}${btn("impre", "up", "В предпросмотр")}
+    ${it.type === "song" || it.type === "text" ? btn("imedit", "edit", "Править слайды") : ""}
+    ${textOnly(it) || it.type === "countdown" ? btn("imstyle", "brush", "Оформление") : ""}
+    ${it.ref && !it.big ? btn("imahead", "tv", "Отправить на экраны заранее") : ""}
+    ${inSet ? `<div class="two">${btn("imup", "", "Выше")}${btn("imdown", "", "Ниже")}</div>${btn("imremove", "", "Убрать из сетлиста", "red")}`
+      : `${inActive ? "" : btn("addset", "plus", "В сетлист")}${btn("imdelete", "trash", "Удалить из библиотеки", "red")}`}</div>`);
+}
+
+// ——— Файлы на экраны заранее: в фоне, по очереди, в зале ничего не меняется ———
+let aheadQueue = Promise.resolve();
+function sendAhead(it, devs) {
+  devs = devs || ready();
+  if (!devs.length || !it.ref || it.big) return 0;
+  const sha = it.ref().sha256;
+  const need = devs.filter((d) => !d.sent.has(sha));
+  if (!need.length || S.transfers[sha]) return 0;
+  const t = { percent: 0, queued: true };
+  t.done = aheadQueue = aheadQueue.then(() => new Promise((done) => {
+    t.queued = false;
+    const steps = Math.max(4, Math.min(24, Math.round(it.size / (18 * MB) * 4)));
+    const tick = setInterval(() => {
+      t.percent = Math.min(100, t.percent + Math.ceil(100 / steps));
+      if (t.percent >= 100) { clearInterval(tick); need.forEach((d) => d.sent.add(sha)); delete S.transfers[sha]; done(); }
+      render();
+    }, 300);
+  }));
+  S.transfers[sha] = t;
+  render();
+  return 1;
+}
+function sendSetAhead() {
+  if (!ready().length) return -1;
+  const set = activeSet();
+  return (set ? set.items : []).map(lib).filter(Boolean).reduce((n, it) => n + sendAhead(it), 0);
+}
+
+// ——— Песня или текст, как в Holyrics: слайды делит ведущий; можно и одним текстом ———
+let ED = null;
+function parseWhole(text) {
+  const out = [];
+  for (const block of text.replace(/\r\n/g, "\n").split(/\n\s*\n/)) {
+    const lines = block.split("\n");
+    let label = null;
+    const m = lines[0] && lines[0].trim().match(/^\[(.+)\]$/);
+    if (m) { label = m[1]; lines.shift(); }
+    const body = lines.map((l) => l.trim()).filter(Boolean).join("\n");
+    if (body || label) out.push({ label, text: body });
+  }
+  return out;
+}
+const wholeOf = (slides) => slides.map((s) => (s.label ? `[${s.label}]\n` : "") + s.text).join("\n\n");
+function sheetSong(type, item, quick) {
+  ED = { type, item, quick, title: item ? item.title : "", asText: false, save: !quick, whole: "",
+    slides: item ? item.slides.map((s) => ({ label: s.label || "", text: s.text })) : [{ label: "", text: quick ? "Машина с номером А 123 ВС,\nподойдите к входу" : "" }] };
+  const title = quick ? "Текст" : item ? "Править" : type === "song" ? "Новая песня" : "Новый текст";
+  openSheet(title, () => {
+    const cards = ED.slides.map((s, i) => `<div class="edslide"><div class="hd"><b>${i + 1}</b><input data-ed="label" data-i="${i}" value="${esc(s.label)}" placeholder="Подпись: «Куплет 1», «Припев»" aria-label="Подпись слайда ${i + 1}"></div>
+      <textarea data-ed="text" data-i="${i}" aria-label="Текст слайда ${i + 1}" placeholder="Текст слайда">${esc(s.text)}</textarea>
+      <div class="acts"><button class="pill" data-act="edsplit" data-i="${i}">${ico("split")}Разделить по курсору</button>${i > 0 ? `<button class="pill" data-act="edmerge" data-i="${i}">С предыдущим</button><button class="pill" data-act="edmove" data-i="${i}">Выше</button>` : ""}
+      ${ED.slides.length > 1 ? `<button class="pill" data-act="eddel" data-i="${i}" aria-label="Удалить слайд ${i + 1}">${ico("trash")}</button>` : ""}</div></div>`).join("");
+    return `<div class="stack">${!quick || ED.save ? `<input class="field" id="edtitle" value="${esc(ED.title)}" placeholder="${type === "song" ? "Название песни" : "Название"}" aria-label="Название">` : ""}
+      ${seg("edmode", [["cards", "Слайды"], ["text", "Одним текстом"]], ED.asText ? "text" : "cards")}
+      ${ED.asText ? `<textarea class="big" id="edwhole" style="min-height:240px" aria-label="Весь текст">${esc(ED.whole)}</textarea><p class="note tight">Пустая строка — новый слайд. [Припев] в начале — подпись слайда.</p>`
+        : `${cards}<button class="btn" data-act="edadd">${ico("plus")}Слайд</button>`}
+      ${quick ? `<div class="group"><div class="row"><span class="main">Сохранить в библиотеку</span>${toggle(ED.save, "edsave", "Сохранить в библиотеку")}</div></div>
+        <div class="two"><button class="btn" data-act="edgo" data-live="0">В предпросмотр</button><button class="btn tint" data-act="edgo" data-live="1">В зал</button></div>`
+        : `<button class="btn tint" data-act="edgo" data-live="">Сохранить</button>`}</div>`;
+  }, { mount: (sh) => {
+    sh.querySelectorAll("[data-ed]").forEach((el) => el.addEventListener("input", () => { ED.slides[+el.dataset.i][el.dataset.ed] = el.value; }));
+    const t = sh.querySelector("#edtitle"), w = sh.querySelector("#edwhole");
+    if (t) t.addEventListener("input", () => { ED.title = t.value; });
+    if (w) w.addEventListener("input", () => { ED.whole = w.value; });
+  } });
+}
+const edSlides = () => (ED.asText ? parseWhole(ED.whole) : ED.slides).map((s) => ({ label: (s.label || "").trim() || null, text: s.text.trim() })).filter((s) => s.text || s.label);
+
+// ——— Удалить сетлист (и тот, что на главном: на главный встаёт ближайший по дате) ———
+function sheetDeleteSet(id) {
+  const s = S.setlists.find((x) => x.id === id);
+  openSheet(`Удалить «${s.title}»?`, `<p class="note" style="margin-top:0">Сетлист уберётся. Песни, файлы и тексты останутся в библиотеке.</p>
+    <div class="two"><button class="btn" data-act="closesheet">Отмена</button><button class="btn danger" data-act="delsetgo" data-id="${id}">Удалить</button></div>`);
+}
+function removeDemo() {
+  const demo = new Set(LIB.filter((x) => x.demo).map((x) => x.id));
+  for (let i = LIB.length - 1; i >= 0; i--) if (demo.has(LIB[i].id)) LIB.splice(i, 1);
+  S.setlists = S.setlists.filter((s) => !["today", "sem", "last"].includes(s.id)).map((s) => ({ ...s, items: s.items.filter((x) => !demo.has(x)) }));
+  if (!S.setlists.length) S.setlists.push({ id: "n" + Date.now(), title: "Новый сетлист", date: "24 октября", items: [], past: false });
+  S.active = S.setlists[0].id;
+  S.recent = S.recent.filter((x) => !demo.has(x));
+  if (S.pre && demo.has(S.pre.src.id)) S.pre = null;
+  S.open = null;
+  S.demoRemoved = true;
+}
+
 // ——— Действия ———
 const A = {
   tab: (d) => { S.tab = d.id; closeFull(true); render(); },
   lseg: (d) => { S.listSeg = d.v; render(); },
   open: (d) => { S.open = S.open === d.id ? null : d.id; render(); },
-  slide: (d) => { const it = lib(d.id); if (it) tapSlide(it, +d.i); },
+  // Касание — в предпросмотр; второе касание того же слайда сразу после первого — сразу в зал.
+  slide: (d) => {
+    const it = lib(d.id);
+    if (!it) return;
+    const now = Date.now(), again = lastTap && lastTap.id === d.id && lastTap.i === d.i && now - lastTap.at < DOUBLE_MS;
+    lastTap = again ? null : { id: d.id, i: d.i, at: now };
+    if (!again) return tapSlide(it, +d.i);
+    if (it.big) return sheetLarge(it);
+    goLive({ src: it, idx: +d.i }).then((ok) => ok && toast("В зале"));
+  },
   recentpre: (d) => { const it = lib(d.id); if (it) toPreview({ src: it, idx: 0 }); },
   pickpre: (d) => { const it = lib(d.id); closeSheet(); if (it.big) return sheetLarge(it); S.open = it.id; toPreview({ src: it, idx: 0 }); },
   findpre: (d) => { const it = lib(d.id); closeSheet(); S.tab = "show"; toPreview({ src: it, idx: 0 }); },
@@ -1509,7 +2078,15 @@ const A = {
   style: () => sheetStyle(),
   tile: (d) => {
     const k = d.k;
-    if (k === "text") return sheetText();
+    if (k === "text") return sheetSong("text", null, true);
+    if (k === "countdown") return sheetCountdown();
+    if (k === "layers") return sheetLayers();
+    if (k === "screen") { closeSheet(); return A.screen(); }
+    if (k === "ahead") {
+      closeSheet();
+      const n = sendSetAhead();
+      return toast(n < 0 ? "Нет подключённых экранов" : n === 0 ? "В сетлисте нет фото, видео и PDF, которых нет на экранах" : `Передаются в фоне: ${n}, в зале ничего не меняется`);
+    }
     if (k === "mirror") return S.sharing ? stopShare() : sheetMirror();
     if (k === "bible") return sheetBible();
     if (k === "holyrics") return sheetHolyrics();
@@ -1556,7 +2133,7 @@ const A = {
   capno: () => { $("#syscap").classList.remove("on"); pendingPlayer = null; },
   capyes: () => shareYes(),
   pclose: () => closePlayer(),
-  device: (d) => { pickToLib = !!d.lib; const i = $("#pickDevice"); i.accept = d.accept || ""; i.click(); },
+  device: (d) => { pickToLib = !!d.lib; pickMode = null; const i = $("#pickDevice"); i.accept = d.accept || ""; i.click(); },
   // Сетлисты
   pickset: (d) => { S.active = d.id; S.open = (activeSet().items[0]) || null; S.listSeg = "set"; closeSheet(); S.tab = "show"; render(); toast(`На главном: ${activeSet().title}, ${activeSet().date}`); },
   newset: () => sheetNewSet(),
@@ -1568,7 +2145,7 @@ const A = {
   },
   setmore: (d) => sheetSetMenu(S.setlists.find((x) => x.id === d.id)),
   dup: (d) => { const s = S.setlists.find((x) => x.id === d.id); S.setlists.unshift({ ...s, id: "d" + Date.now(), date: "24 октября", past: false, items: [...s.items] }); closeSheet(); render(); toast("Копия создана на 24 октября"); },
-  delset: (d) => { closeSheet(); if (d.id === S.active) return toast("Сетлист на главном удалить нельзя"); S.setlists = S.setlists.filter((x) => x.id !== d.id); render(); toast("Сетлист удалён"); },
+  delset: (d) => sheetDeleteSet(d.id),
   addset: (d) => {
     const s = activeSet();
     if (!s.items.includes(d.id)) s.items.push(d.id);
@@ -1579,17 +2156,152 @@ const A = {
   libseg: (d) => { S.libSeg = d.id; render(); },
   libopen: (d) => { const it = lib(d.id); if (it.big) return sheetLarge(it); openFull("lib", { src: it, idx: 0 }); },
   import: () => sheetAdd(),
-  newsong: () => sheetEdit("song"), newtext: () => sheetEdit("text"),
-  editsave: (d) => {
-    const title = $("#etitle").value.trim(), text = $("#etext").value.trim();
-    if (!text) return toast("Пока пусто");
-    const it = buildSlides({ id: "e" + Date.now(), type: d.type, title: title || text.split("\n")[0].slice(0, 40), texts: splitText(text) });
-    LIB.push(it); closeSheet(); render(); toast("Сохранено");
+  newsong: () => sheetSong("song"), newtext: () => sheetSong("text"),
+  // Редактор песни и текста
+  edmode: (d) => {
+    if (d.v === "text" && !ED.asText) { ED.whole = wholeOf(ED.slides); ED.asText = true; }
+    else if (d.v === "cards" && ED.asText) { ED.slides = parseWhole(ED.whole).map((x) => ({ label: x.label || "", text: x.text })); if (!ED.slides.length) ED.slides = [{ label: "", text: "" }]; ED.asText = false; }
+    refreshSheet();
   },
+  edsplit: (d) => {
+    const i = +d.i, ta = document.querySelector(`textarea[data-ed="text"][data-i="${i}"]`), sl = ED.slides[i];
+    const at = ta ? ta.selectionStart : sl.text.length;
+    const before = sl.text.slice(0, at).replace(/\s+$/, ""), after = sl.text.slice(at).replace(/^\s+/, "");
+    if (!before || !after) return toast("Поставьте курсор туда, где начнётся новый слайд");
+    ED.slides.splice(i, 1, { label: sl.label, text: before }, { label: "", text: after });
+    refreshSheet();
+  },
+  edmerge: (d) => { const i = +d.i, a = ED.slides[i - 1], b = ED.slides[i]; a.text = [a.text, b.text].filter(Boolean).join("\n"); ED.slides.splice(i, 1); refreshSheet(); },
+  edmove: (d) => { const i = +d.i; [ED.slides[i - 1], ED.slides[i]] = [ED.slides[i], ED.slides[i - 1]]; refreshSheet(); },
+  eddel: (d) => { ED.slides.splice(+d.i, 1); refreshSheet(); },
+  edadd: () => { ED.slides.push({ label: "", text: "" }); refreshSheet(); setTimeout(() => { const all = document.querySelectorAll('textarea[data-ed="text"]'); if (all.length) all[all.length - 1].focus(); }, 30); },
+  edsave: (d, el) => { ED.save = !ED.save; refreshSheet(); },
+  edgo: async (d) => {
+    const slides = edSlides();
+    if (!slides.length) return toast("Пока пусто");
+    const title = ED.title.trim() || slides[0].text.split("\n")[0].slice(0, 40) || (ED.type === "song" ? "Песня" : "Текст");
+    let it;
+    if (ED.item) { it = ED.item; it.title = title; it.slides = slides; for (const k of Object.keys(S.styles.slide)) if (k.startsWith(it.id + ":")) delete S.styles.slide[k]; }
+    else if (!ED.quick || ED.save) { it = { id: "e" + Date.now(), type: ED.type, title, slides }; LIB.push(it); }
+    else it = { title: "Текст", type: "text", slides };
+    const quick = ED.quick, live = d.live === "1";
+    closeSheet();
+    if (!quick) { render(); if (S.live && S.live.src === it) sendLive(); return toast("Сохранено"); }
+    S.tab = "show";
+    if (live) { if (await goLive({ src: it, idx: 0 })) toast("В зале"); } else toPreview({ src: it, idx: 0 });
+  },
+  // Отсчёт
+  cdmode: (d) => { CD.until = d.v === "until" ? CD.until || "18:30" : null; refreshSheet(); },
+  cdpreset: (d) => { CD.minutes = +d.v; refreshSheet(); },
+  cdmin: (d) => { CD.minutes = Math.max(1, Math.min(600, CD.minutes + Number(d.d))); refreshSheet(); },
+  cdlpos: (d) => { CD.labelPosition = d.v; refreshSheet(); },
+  cdafter: (d) => { CD.afterZero = d.v; refreshSheet(); },
+  cdfmt: (d) => { CD.format = d.v; refreshSheet(); },
+  cddec: (d) => { CD.decimals = +d.v; refreshSheet(); },
+  cdgo: async (d) => {
+    const spec = Object.assign({}, CD);
+    const it = buildSlides({ id: "c" + Date.now(), type: "countdown", title: [spec.label, cdTitle(spec)].filter(Boolean).join(" · "), countdown: spec });
+    LIB.push(it);
+    if (activeSet() && !activeSet().items.includes(it.id)) activeSet().items.push(it.id);
+    closeSheet(); S.tab = "show";
+    if (d.live === "1") { if (await goLive({ src: it, idx: 0 })) toast("Отсчёт в зале"); } else toPreview({ src: it, idx: 0 });
+  },
+  tpause: () => { const r = S.timer; if (!r) return; if (r.running) { r.remaining = r.endsAt - Date.now(); r.running = false; } else { r.endsAt = Date.now() + r.remaining; r.running = true; } timerChanged(); },
+  tadd: (d) => { const r = S.timer; if (!r) return; if (r.running) r.endsAt += Number(d.d); else r.remaining += Number(d.d); r.nexted = false; timerChanged(); },
+  trestart: () => { const r = S.timer; if (!r) return; r.endsAt = Date.now() + cdStartMs(r.spec); r.running = true; r.nexted = false; timerChanged(); },
+  tstop: () => { const r = S.timer; S.timer = null; if (S.live && r && cdKey(S.live.src) === r.itemKey) { S.live = null; S.mode = "BLACK"; for (const d of ready()) d.r.mode("BLACK"); } render(); },
+  // Темы
+  tapply: (d) => { const t = themeOf(d.tkey); if (t) applyTheme(t.style, t.name); },
+  tpanel: (d) => { S.settings.themePanel = d.v; render(); refreshSheet(); },
+  test: (d) => { TE.style[d.k] = Number(d.v); refreshSheet(); },
+  tefs: (d) => { const fs = Math.min(14, Math.max(4, Math.round((TE.style.sizePercent || 20) / 2.5) + Number(d.d))); TE.style.sizePercent = fs * 2.5; refreshSheet(); },
+  teflag: (d) => {
+    const st = TE.style;
+    if (d.k === "shadow") st.shadow = st.shadow === false;
+    else if (d.k === "outline") st.outline = !st.outline;
+    else if (d.k === "box") st.box = st.box ? 0 : 0xB4000000;
+    else if (d.k === "valign") st.valign = st.valign === "BOTTOM" ? null : "BOTTOM";
+    refreshSheet();
+  },
+  tesave: () => {
+    const name = TE.name.trim() || "Своя тема", style = Object.assign({}, TE.style, { name });
+    if (TE.own) { TE.own.name = name; TE.own.style = style; } else S.themes.push({ id: "u" + Date.now(), name, style });
+    closeSheet(); render(); toast(`Тема «${name}» сохранена`);
+  },
+  tedel: () => { S.themes = S.themes.filter((t) => t !== TE.own); closeSheet(); render(); toast("Тема удалена"); },
+  // Поверх показа
+  layers: () => sheetLayers(),
+  ovsample: (d) => {
+    const x = OV_SAMPLES()[+d.i][1];
+    if (x.lowerThird) { OVF.title = x.lowerThird.title; OVF.subtitle = x.lowerThird.subtitle || ""; }
+    if (x.ticker) OVF.ticker = x.ticker.text;
+    setOverlays(JSON.parse(JSON.stringify(x)));
+  },
+  ovlt: (d) => {
+    const o = Object.assign({}, S.overlays);
+    if (d.v === "off") delete o.lowerThird;
+    else { if (!OVF.title.trim()) return toast("Нужно имя"); o.lowerThird = Object.assign({}, o.lowerThird || {}, { title: OVF.title.trim(), subtitle: OVF.subtitle.trim() || null }); }
+    setOverlays(o);
+  },
+  ovltd: (d) => { const lt = S.drafts.lowerThirds[+d.i]; OVF.title = lt.title; OVF.subtitle = lt.subtitle || ""; setOverlays(Object.assign({}, S.overlays, { lowerThird: lt })); },
+  ovtk: (d) => {
+    const o = Object.assign({}, S.overlays);
+    if (d.v === "off") delete o.ticker;
+    else { if (!OVF.ticker.trim()) return toast("Нужен текст"); o.ticker = Object.assign({ speedPercent: 10 }, o.ticker || {}, { text: OVF.ticker.trim() }); }
+    setOverlays(o);
+  },
+  ovspeed: (d) => { if (S.overlays.ticker) setOverlays(Object.assign({}, S.overlays, { ticker: Object.assign({}, S.overlays.ticker, { speedPercent: +d.v }) })); },
+  ovclock: () => setOverlays(Object.assign({}, S.overlays, { clock: S.overlays.clock ? null : { corner: "TOP_LEFT", seconds: false } })),
+  ovsec: () => setOverlays(Object.assign({}, S.overlays, { clock: Object.assign({}, S.overlays.clock, { seconds: !S.overlays.clock.seconds }) })),
+  ovccorner: (d) => setOverlays(Object.assign({}, S.overlays, { clock: Object.assign({}, S.overlays.clock, { corner: d.v }) })),
+  ovlogo: () => setOverlays(Object.assign({}, S.overlays, { logo: S.overlays.logo ? null : { file: hub.LOGO_DEIXIS, corner: "TOP_RIGHT", sizePercent: 10, opacity: 1 } })),
+  ovlogopick: () => { pickMode = "logo"; const i = $("#pickDevice"); i.accept = "image/*"; i.click(); },
+  ovlcorner: (d) => setOverlays(Object.assign({}, S.overlays, { logo: Object.assign({}, S.overlays.logo, { corner: d.v }) })),
+  ovlsize: (d) => { const l = S.overlays.logo; setOverlays(Object.assign({}, S.overlays, { logo: Object.assign({}, l, { sizePercent: Math.max(4, Math.min(30, (l.sizePercent || 10) + Number(d.d))) }) })); },
+  ovclear: () => setOverlays({}),
+  // «Показать», меню элемента, на экраны заранее
+  showmenu: () => sheetShowMenu(),
+  ahead: (d) => { const it = lib(d.id); if (it) toast(sendAhead(it) ? "Передаётся в фоне: в зале ничего не меняется" : "Нет подключённых экранов"); },
+  imfull: (d) => { closeSheet(); openFull("lib", { src: lib(d.id), idx: 0 }); },
+  impre: (d) => { const it = lib(d.id); closeSheet(); S.tab = "show"; if (it.big) return sheetLarge(it); S.open = it.id; toPreview({ src: it, idx: 0 }); },
+  imedit: (d) => { const it = lib(d.id); sheetSong(it.type, it); },
+  imstyle: (d) => { const it = lib(d.id); closeSheet(); S.tab = "show"; S.pre = { src: it, idx: 0 }; S.draftScope = "item"; S.draft = null; sheetStyle(); },
+  imahead: (d) => { closeSheet(); A.ahead(d); },
+  imup: (d) => { moveInSet(d.id, -1); },
+  imdown: (d) => { moveInSet(d.id, 1); },
+  imremove: (d) => { const s0 = activeSet(); s0.items = s0.items.filter((x) => x !== d.id); closeSheet(); render(); toast("Убрано из сетлиста"); },
+  imdelete: (d) => {
+    const it = lib(d.id);
+    openSheet(`Удалить «${it.title}»?`, `<p class="note" style="margin-top:0">Элемент уберётся из библиотеки и всех сетлистов. Файл на телефоне останется.</p>
+      <div class="two"><button class="btn" data-act="closesheet">Отмена</button><button class="btn danger" data-act="imdeletego" data-id="${d.id}">Удалить</button></div>`);
+  },
+  imdeletego: (d) => {
+    const i = LIB.findIndex((x) => x.id === d.id);
+    if (i >= 0) LIB.splice(i, 1);
+    S.setlists.forEach((s0) => (s0.items = s0.items.filter((x) => x !== d.id)));
+    S.recent = S.recent.filter((x) => x !== d.id);
+    if (S.pre && S.pre.src.id === d.id) S.pre = null;
+    closeSheet(); render(); toast("Удалено");
+  },
+  delsetgo: (d) => {
+    closeSheet();
+    const was = S.active === d.id;
+    S.setlists = S.setlists.filter((x) => x.id !== d.id);
+    if (was) { const next = S.setlists.find((x) => !x.past) || S.setlists[0]; S.active = next ? next.id : null; S.open = null; }
+    render();
+    toast(was && activeSet() ? `Сетлист удалён. На главном: ${activeSet().title}` : "Сетлист удалён");
+  },
+  rmdemo: () => {
+    openSheet("Убрать демо-материалы?", `<p class="note" style="margin-top:0">Уберутся примеры: лекция, документы, фото, видео, песни, тексты и их сетлисты. Своё останется.</p>
+      <div class="two"><button class="btn" data-act="closesheet">Отмена</button><button class="btn danger" data-act="rmdemogo">Убрать</button></div>`);
+  },
+  rmdemogo: () => { removeDemo(); closeSheet(); render(); toast("Демо-материалы убраны"); },
+  backdemo: () => location.reload(),
   biblemods: () => sheetBibleMods(),
   addmod: () => toast("В симуляторе модули не добавляются: на телефоне это файл MyBible .SQLite3"),
   // Оформление
   st: (d) => { S.draft[d.k] = Number(d.v); render(); refreshSheet(); },
+  stheme: (d) => { const t = themeOf(d.tkey); if (!t) return; S.draft = Object.assign({}, t.style); render(); refreshSheet(); },
   fs: (d) => { const fs = Math.min(14, Math.max(4, Math.round((S.draft.sizePercent || 20) / 2.5) + Number(d.d))); S.draft.sizePercent = fs * 2.5; render(); refreshSheet(); },
   stflag: (d) => { S.draft[d.k] = d.k === "shadow" ? S.draft.shadow === false : !S.draft.outline; render(); refreshSheet(); },
   stscope: (d) => { S.draftScope = d.v; refreshSheet(); },
@@ -1661,6 +2373,7 @@ const A = {
 
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
+  if (swallowClick) { e.preventDefault(); return; }
   if (!el || el.disabled) return;
   const fn = A[el.dataset.act];
   if (fn) { e.preventDefault(); fn(el.dataset, el); }

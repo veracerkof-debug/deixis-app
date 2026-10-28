@@ -1,4 +1,5 @@
-"""Демо-материалы для веб-демо Deixis: лекция (PPTX → PDF через LibreOffice → страницы JPEG), фото и видео.
+"""Демо-материалы для веб-демо Deixis: лекция (PPTX → PDF через LibreOffice → страницы JPEG), конспект Word
+(страницы — свой перевод DOCX из ядра), фото и видео.
 
 Всё рисуется здесь же, без чужих картинок: python-pptx, Pillow, numpy, LibreOffice, pdftoppm, ffmpeg.
 Запуск: python3 tools/demo/make_assets.py  (результат — tools/demo/media/)
@@ -198,6 +199,19 @@ def video(path, font):
                     "-movflags", "+faststart", path], check=True)
 
 
+def konspekt(tmp):
+    """Демо-документ Word с телефона (make_docx.py): страницы рисует свой перевод DOCX из ядра, как на телефоне."""
+    root = os.path.abspath(os.path.join(HERE, "..", ".."))
+    src = os.path.join(root, "android", "phone", "src", "main", "assets", "demo", "Конспект. Город 15 минут.docx")
+    out = os.path.join(tmp, "konspekt")
+    env = dict(os.environ, LC_ALL="C.UTF-8", DEIXIS_SKIP_ANDROID="1")
+    subprocess.run([os.path.join(root, "gradlew"), "-q", ":core:test", "--tests", "*DocxTest.rendersPages", "--rerun",
+                    f"-Ddeixis.docxPng={out}", f"-Ddeixis.docxFile={src}"], cwd=root, env=env, check=True)
+    pages = sorted(f for f in os.listdir(out) if f.startswith("docx-page-"))
+    for i, f in enumerate(pages):
+        Image.open(os.path.join(out, f)).convert("RGB").save(os.path.join(OUT, f"konspekt-{i}.jpg"), quality=85)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -224,6 +238,7 @@ def main():
         subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=86", "-scale-to-x", "1240", "-scale-to-y", "-1", "-f", "1", "-l", "1",
                         os.path.join(tmp, "report.pdf"), os.path.join(tmp, "r")], check=True)
         shutil.copy(os.path.join(tmp, sorted(f for f in os.listdir(tmp) if f.startswith("r-"))[0]), os.path.join(OUT, "report-0.jpg"))
+        konspekt(tmp)
     photo(os.path.join(OUT, "mountains.jpg"))
     photo(os.path.join(OUT, "morning.jpg"), MORNING)
     video(os.path.join(OUT, "clip.mp4"), os.path.abspath(FONT))

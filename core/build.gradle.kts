@@ -41,6 +41,7 @@ tasks.test {
     System.getProperty("deixis.renderFile")?.let { systemProperty("deixis.renderFile", it) }
     System.getProperty("deixis.pptDump")?.let { systemProperty("deixis.pptDump", it) }
     System.getProperty("deixis.docxPng")?.let { systemProperty("deixis.docxPng", it) }
+    System.getProperty("deixis.docxFile")?.let { systemProperty("deixis.docxFile", it) }
     testLogging {
         showStandardStreams = System.getProperty("deixis.renderFile") != null
         // Полный след падения прямо в журнале CI: отчёты тестов оттуда не всегда достать.

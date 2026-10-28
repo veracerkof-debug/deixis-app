@@ -77,6 +77,22 @@ footer { font-size: 13px; color: var(--l2); border-top: 1px solid var(--sep); pa
   .hallBox { order: -1; }
   .phone { width: 100%; max-width: 420px; height: 760px; }
 }
+/* На телефоне приложение — во всю ширину и почти во весь экран, без рамки корпуса: им удобно пользоваться
+   пальцем, а зал сверху видно, прокрутив страницу. */
+@media (max-width: 600px) {
+  body { padding-block: 12px 24px; }
+  .wrap { gap: 16px; }
+  .phone { max-width: none; height: calc(100svh - 24px); min-height: 560px; padding: 0; border-radius: var(--r-card); background: none; }
+  .phone iframe { border-radius: var(--r-card); box-shadow: 0 0 0 1px var(--sep); }
+}
+/* Широкий экран: можно открыть приложение в виде планшета — окна показа слева, сетлист справа. */
+.phone.tablet { width: min(1024px, 100%); height: 720px; border-radius: 28px; }
+.phone.tablet iframe { border-radius: 18px; }
+.view { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.view button { font: 600 13px/1 var(--f-body); color: var(--ink); background: var(--fill); border: 0; border-radius: var(--r-pill); padding: 8px 12px; cursor: pointer; }
+.view button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.stage.tablet { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) { .view { display: none; } }
 </style>
 
 <div class="wrap">
@@ -89,7 +105,8 @@ footer { font-size: 13px; color: var(--l2); border-top: 1px solid var(--sep); pa
   <div class="stage">
     <section class="phoneBox" aria-labelledby="phoneLabel">
       <p class="label" id="phoneLabel" data-t="phone"></p>
-      <div class="phone"><iframe id="app" title="Deixis" src="app.html"></iframe></div>
+      <div class="phone" id="phoneFrame"><iframe id="app" title="Deixis" src="app.html"></iframe></div>
+      <div class="view" role="group" aria-label="Вид"><button data-v="phone" aria-pressed="true" data-t="vphone"></button><button data-v="tablet" aria-pressed="false" data-t="vtablet"></button></div>
     </section>
 
     <section class="hallBox" aria-labelledby="hallLabel">
@@ -117,37 +134,37 @@ const STRINGS = {
     tag: "Симулятор", phone: "Приложение Deixis на телефоне", hall: "Экраны в сети", web: "Веб-пульт для iPhone →",
     lead: "Приложение Deixis в браузере: всё нажимается, как на телефоне, а экраны рядом показывают то, что увидят в зале. Данные примерные, сеть не используется.",
     s1: "«Подключить» → «Проектор, ауд. 214» и PIN с экрана проектора.",
-    s2: "В сетлисте «Сегодня» раскрыть элемент, коснуться слайда и нажать «В зал»; дальше — «Назад», «Дальше» или смахивание по окну «Сейчас».",
-    s3: "Подключить и «Ноутбук преподавателя»: показ идёт на все экраны сразу, PPTX и DOCX переводятся в PDF на ноутбуке.",
-    s4: "«Видео» → «Запись концерта.mp4» (2,4 ГБ): файл больше 1 ГБ показывается демонстрацией экрана телефона.",
-    s5: "«Библия» — книга, глава и стихи; «Устройства» → «Стать экраном» превращает сам телефон в экран.",
+    s2: "В сетлисте «Сегодня» раскрыть элемент, коснуться слайда и нажать «В зал» (двойное касание — сразу в зал); дальше — кнопки ‹ › или смахивание по окну «Сейчас».",
+    s3: "Темы справа: касание — тема в зал; зажать и перенести на песню, слайд или окно «Сейчас» — тема им. Кнопка «Слои» внизу — плашка с именем, бегущая строка, часы, логотип.",
+    s4: "Плюс «Показать» — презентация, видео, фото, текст, обратный отсчёт; «Запись концерта.mp4» (2,4 ГБ) идёт демонстрацией экрана телефона. Удержание строки — меню: правка, оформление, на экраны заранее.",
+    s5: "«Библия» — книга, глава и стихи; «Стать экраном» превращает сам телефон в экран. Подключите и «Ноутбук преподавателя»: показ идёт на все экраны сразу.",
     footer: "Симулятор повторяет экраны приложения Deixis для Android. Приложение пока на русском; страница — на русском, узбекском и английском. Deixis — открытое приложение, лицензия GPL-3.0.",
-    now: "Сейчас", idle: "ожидание подключения", black: "чёрный экран", logo: "логотип", clear: "текст убран", sharing: "демонстрация экрана телефона",
-    page: "страница",
+    vphone: "Телефон", vtablet: "Планшет", now: "Сейчас", idle: "ожидание подключения", black: "чёрный экран", logo: "логотип", clear: "текст убран", sharing: "демонстрация экрана телефона",
+    page: "страница", countdown: "обратный отсчёт",
   },
   uz: {
     tag: "Simulyator", phone: "Telefondagi Deixis ilovasi", hall: "Tarmoqdagi ekranlar", web: "iPhone uchun veb-pult →",
     lead: "Brauzerdagi Deixis ilovasi: hammasi telefondagidek bosiladi, yonidagi ekranlar esa zalda ko‘rinadigan narsani ko‘rsatadi. Ma’lumotlar namunaviy, tarmoq ishlatilmaydi.",
     s1: "«Подключить» → «Проектор, ауд. 214» va proyektor ekranidagi PIN.",
-    s2: "«Сегодня» setlistida elementni ochish, slaydga tegish va «В зал» ni bosish; keyin «Назад», «Дальше» yoki «Сейчас» oynasini surish.",
-    s3: "«Ноутбук преподавателя» ni ham ulash: ko‘rsatuv barcha ekranlarga birdan boradi, PPTX va DOCX noutbukda PDF ga o‘giriladi.",
-    s4: "«Видео» → «Запись концерта.mp4» (2,4 GB): 1 GB dan katta fayl telefon ekranini namoyish qilish orqali ko‘rsatiladi.",
-    s5: "«Библия» — kitob, bob va oyatlar; «Устройства» → «Стать экраном» telefonning o‘zini ekranga aylantiradi.",
+    s2: "«Сегодня» setlistida elementni ochish, slaydga tegish va «В зал» ni bosish (ikki marta tegish — darhol zalga); keyin ‹ › tugmalari yoki «Сейчас» oynasini surish.",
+    s3: "O‘ngdagi mavzular: tegish — mavzu zalga; bosib turib qo‘shiq, slayd yoki «Сейчас» oynasiga olib borish — mavzu ularga. Pastdagi «Слои» tugmasi — ism plashkasi, yuguruvchi satr, soat, logotip.",
+    s4: "«+» tugmasi — taqdimot, video, foto, matn, teskari sanoq; «Запись концерта.mp4» (2,4 GB) telefon ekrani namoyishi orqali boradi. Qatorni bosib turish — menyu: tahrirlash, bezak, ekranlarga oldindan.",
+    s5: "«Библия» — kitob, bob va oyatlar; «Стать экраном» telefonning o‘zini ekranga aylantiradi. «Ноутбук преподавателя» ni ham ulang: ko‘rsatuv barcha ekranlarga birdan boradi.",
     footer: "Simulyator Android uchun Deixis ilovasi ekranlarini takrorlaydi. Ilova hozircha rus tilida; sahifa — rus, o‘zbek va ingliz tillarida. Deixis — ochiq ilova, GPL-3.0 litsenziyasi.",
-    now: "Hozir", idle: "ulanish kutilmoqda", black: "qora ekran", logo: "logotip", clear: "matn olindi", sharing: "telefon ekrani namoyishi",
-    page: "sahifa",
+    vphone: "Telefon", vtablet: "Planshet", now: "Hozir", idle: "ulanish kutilmoqda", black: "qora ekran", logo: "logotip", clear: "matn olindi", sharing: "telefon ekrani namoyishi",
+    page: "sahifa", countdown: "teskari sanoq",
   },
   en: {
     tag: "Simulator", phone: "Deixis app on the phone", hall: "Screens on the network", web: "Web remote for iPhone →",
     lead: "The Deixis app in a browser: everything taps as on a phone, and the screens next to it show what the hall will see. Sample data, no network is used.",
     s1: "«Подключить» → «Проектор, ауд. 214» and the PIN shown on the projector.",
-    s2: "In the «Сегодня» setlist, open an item, tap a slide and press «В зал»; then «Назад», «Дальше» or swipe the «Сейчас» window.",
-    s3: "Connect «Ноутбук преподавателя» too: the show goes to every screen at once, and the laptop converts PPTX and DOCX to PDF.",
-    s4: "«Видео» → «Запись концерта.mp4» (2.4 GB): a file over 1 GB is shown by sharing the phone screen.",
-    s5: "«Библия» picks book, chapter and verses; «Устройства» → «Стать экраном» turns the phone itself into a screen.",
+    s2: "In the «Сегодня» setlist, open an item, tap a slide and press «В зал» (double tap sends it straight to the hall); then the ‹ › keys or a swipe on the «Сейчас» window.",
+    s3: "Themes on the right: tap sends a theme to the hall; hold and drag it onto a song, a slide or the «Сейчас» window to give it that theme. The «Слои» key adds a name strap, a ticker, a clock, a logo.",
+    s4: "The plus «Показать» opens a presentation, video, photo, text or countdown; «Запись концерта.mp4» (2.4 GB) goes by sharing the phone screen. Hold a row for its menu: edit, style, send to screens ahead.",
+    s5: "«Библия» picks book, chapter and verses; «Стать экраном» turns the phone itself into a screen. Connect «Ноутбук преподавателя» too: the show goes to every screen at once.",
     footer: "The simulator repeats the screens of the Deixis app for Android. The app is in Russian for now; this page is in Russian, Uzbek and English. Deixis is an open app under GPL-3.0.",
-    now: "Now", idle: "waiting for a remote", black: "black screen", logo: "logo", clear: "text cleared", sharing: "sharing the phone screen",
-    page: "page",
+    vphone: "Phone", vtablet: "Tablet", now: "Now", idle: "waiting for a remote", black: "black screen", logo: "logo", clear: "text cleared", sharing: "sharing the phone screen",
+    page: "page", countdown: "countdown",
   },
 };
 const lang = (navigator.language || "ru").toLowerCase();
@@ -225,9 +242,19 @@ function update() {
   else if (c && (c.type === "image" || c.type === "video")) text = c.file.name + (st.video ? ` · ${Math.floor(st.video.positionMs / 1000)} / ${Math.floor(st.video.durationMs / 1000)} с` : "");
   else if (c && c.type === "text") text = c.text.split("\n")[0] + (st.mode === "CLEAR" ? ` · ${t.clear}` : "");
   else if (c && c.type === "scripture") text = c.ref || (c.blocks[0] && c.blocks[0].ref) || "";
+  else if (c && c.type === "countdown") text = [c.label, t.countdown].filter(Boolean).join(" · ");
   document.getElementById("caption").textContent = `${s.info.name} · ${t.now}: ${text}`;
 }
 tabs.addEventListener("click", (e) => { const b = e.target.closest("[data-k]"); if (b) { focus = b.dataset.k; update(); } });
+// Телефон или планшет: то же приложение в окне другой ширины.
+document.querySelector(".view").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-v]");
+  if (!b) return;
+  const tablet = b.dataset.v === "tablet";
+  document.getElementById("phoneFrame").classList.toggle("tablet", tablet);
+  document.querySelector(".stage").classList.toggle("tablet", tablet);
+  document.querySelectorAll(".view button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+});
 // QR-коды рисуются, когда загрузилась библиотека.
 addEventListener("load", update);
 

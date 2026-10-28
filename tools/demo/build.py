@@ -67,6 +67,10 @@ window.bibleSheet = () => A.tab({ id: "bible" });
         shutil.copy(os.path.join(HERE, f), os.path.join(OUT, f))
     shutil.copytree(os.path.join(HERE, "media"), os.path.join(OUT, "media"),
                     ignore=shutil.ignore_patterns("*.pptx", "*.pdf"))
+    # Логотипы примеров «Поверх показа» — картинки приложения, без копии в демо.
+    samples = os.path.join(ROOT, "core", "src", "main", "resources", "overlay-samples")
+    for f in os.listdir(samples):
+        shutil.copy(os.path.join(samples, f), os.path.join(OUT, "media", f))
     # Обычные страницы с <!doctype> (claude.ai добавляет его к главной странице сам):
     # index.html — симулятор приложения, webremote.html — веб-пульт для iPhone.
     for src, dst in (("sim.html", "index.html"), ("shell.html", "webremote.html")):
