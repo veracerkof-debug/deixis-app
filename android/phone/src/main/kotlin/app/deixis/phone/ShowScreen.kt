@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
@@ -219,7 +220,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
 
     val now: @Composable (Modifier) -> Unit = { m ->
         Column(m, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-            Row(Modifier.heightIn(min = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
+            Row(Modifier.heightIn(min = 26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(T.rPill)).background(p.live))
                 Txt("Сейчас", T.fLabel, p.l2, FontWeight.SemiBold)
             }
@@ -240,10 +241,11 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     }
     val pre: @Composable (Modifier) -> Unit = { m ->
         Column(m, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-            Row(Modifier.heightIn(min = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.heightIn(min = 26.dp), verticalAlignment = Alignment.CenterVertically) {
                 Txt("Предпросмотр", T.fLabel, p.l2, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
                 val can = preview != null || draft != null
-                Box(
+                // Пустому предпросмотру нечего отправлять в зал: кнопка появляется вместе со слайдом.
+                if (can) Box(
                     Modifier.height(26.dp).clip(RoundedCornerShape(T.rPill)).background(if (can) p.tint else p.fill)
                         .press(enabled = can, label = "В зал") { c.previewToLive() }.padding(horizontal = T.gap),
                     contentAlignment = Alignment.Center,
@@ -265,7 +267,11 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     if (stacked) Column(Modifier.padding(start = T.gutter, end = T.gutter, top = 4.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         now(Modifier.fillMaxWidth()); pre(Modifier.fillMaxWidth())
     } else Row(Modifier.padding(start = T.gutter, end = T.gutter, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-        now(Modifier.weight(1f)); pre(Modifier.weight(1f))
+        // Пока предпросмотр пуст, он уже: окно «Сейчас» крупнее и читается.
+        val preWeight by androidx.compose.animation.core.animateFloatAsState(
+            if (preview == null && draft == null) T.emptyPreview else 1f, tween(T.slow, easing = T.eOut), label = "preWeight",
+        )
+        now(Modifier.weight(1f)); pre(Modifier.weight(preWeight))
     }
 }
 
@@ -366,7 +372,9 @@ private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? =
             if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", "Темы") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
         }
         Row(Modifier.weight(1f)) {
-            LazyColumn(Modifier.weight(1f).fillMaxHeight()) {
+            // На широком экране сетлист не растягивается: строки читаются, справа нет пустоты внутри строки.
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(Modifier.widthIn(max = T.listMax).fillMaxHeight()) {
                 if (ui.listSeg == 0) item("pick") {
                     Row(
                         Modifier.padding(start = T.gutter + 4.dp, end = T.gutter, bottom = T.gapS).heightIn(min = T.rowMin)
@@ -394,6 +402,7 @@ private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? =
                 }
                 item("end") { Spacer(Modifier.height(24.dp)) }
             }
+            }
             side?.invoke()
         }
     }
@@ -408,17 +417,24 @@ private fun LazyListScope.setRow(
     Column(Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn)).fillMaxWidth().groupCell(first, last).themeTarget(ui.themeDrag, "item:${it.id}") { st -> dropped(c, ui, it.id, null, st, it.title) }) {
         if (!first) Sep()
         val isLive = live?.source?.itemId == it.id && mode != Mode.BLACK
+        val isPre = preview?.source?.itemId == it.id
+        // Состояние — полоской слева и подписью, а не плашками: название песни остаётся целиком.
+        val count = c.slidesOf(it).size
+        val sub = when {
+            isLive -> "В зале" + if (count > 1) " · ${live!!.index + 1} из $count" else ""
+            isPre -> "Предпросмотр" + if (count > 1) " · ${preview!!.index + 1} из $count" else ""
+            else -> subOf(c, it)
+        }
+        val p = P.current
         Cell(
-            it.title, subOf(c, it), it.kind.icon, open = open, item = it, chevron = if (open) "down" else "chev",
+            it.title, sub, it.kind.icon, open = open, item = it, chevron = if (open) "down" else "chev",
+            mark = if (isLive) p.live else if (isPre) p.tint else null,
             onLong = if (recent) null else ({ ui.sheet(it.title) { ItemMenu(c, ui, it, inSet = true) } }),
             onClick = {
                 if (recent) c.toPreview(Cue(c.sourceOf(it), 0))
                 else ui.open = if (ui.open == it.id) null else it.id
             },
-        ) {
-            if (isLive) Tag("В зале", true)
-            if (preview?.source?.itemId == it.id) Tag("Предпросмотр", false)
-        }
+        )
     }
 }
 
@@ -601,9 +617,11 @@ fun openStyle(c: Controller, ui: Ui) {
 @Composable
 private fun RowScope.BarBtn(icon: String, text: String, pressed: Boolean = false, weight: Float = 1f, onClick: () -> Unit) {
     val p = P.current
+    val ui = LocalUi.current
     Box(
         Modifier.weight(weight).height(T.barKey).clip(RoundedCornerShape(T.rPill)).background(if (pressed) p.tint else Color.Transparent)
-            .press(scaleTo = 0.9f, label = text, onClick = onClick),
+            // Удержание — подсказка с названием кнопки: значки учатся без подписей.
+            .press(scaleTo = 0.9f, label = text, onLong = { ui.toast(text) }, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, if (pressed) Color.White else p.ink, T.barIcon)

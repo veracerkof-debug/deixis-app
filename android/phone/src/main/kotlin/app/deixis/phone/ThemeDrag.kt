@@ -110,7 +110,7 @@ fun ThemeGhost(drag: ThemeDrag) {
         Modifier.offset { IntOffset((d.at.x - half).roundToInt(), (d.at.y - half * 1.4f).roundToInt()) }
             .width(size).alpha(GHOST_ALPHA),
     ) {
-        SlideView(Slide.Text("Аа"), null, d.style, frame = Frame.PREVIEW_TINT)
+        SlideView(Slide.Text("Аа"), null, d.style.copy(sizePercent = T.sampleSize), frame = Frame.PREVIEW_TINT)
     }
 }
 

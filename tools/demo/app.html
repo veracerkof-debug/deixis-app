@@ -20,7 +20,7 @@
 @font-face { font-family: "Deixis Slide"; src: url("assets/NotoSans-SemiBold.ttf") format("truetype"); font-display: swap; }
 :root {
   /* Цвета интерфейса */
-  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #87847E; --l3: #C6C3BC;
+  --bg: #F3F2EE; --cell: #FFFFFF; --ink: #161514; --l2: #6E6B65; --l3: #C6C3BC;
   --tint: #9C7242; --tint-text: #765A38; --red: #A75750; --live: #A75750; --on-tint: #FFFFFF;
   --sep: rgba(60,55,45,.15); --fill: rgba(120,115,105,.12); --fill2: rgba(120,115,105,.2);
   --scrim: rgba(0,0,0,.35); --scrim-strong: rgba(0,0,0,.45); --shadow-seg: 0 1px 3px rgba(0,0,0,.12); --shadow-toast: 0 6px 20px rgba(0,0,0,.18);
@@ -41,10 +41,11 @@
   --w-tile: 116px; --h-tile: 84px; --w-kind: 28px; --w-sw: 30px; --w-switch: 51px; --h-switch: 31px; --w-knob: 27px; --knob-move: 20px;
   --w-qr: 148px; --w-qr-big: 220px; --w-dot: 8px; --w-grab: 36px; --h-grab: 5px; --w-badge: 14px;
   --i-m: 22px; --i-s: 17px; --i-bar: 20px; --i-tile: 24px; --i-search: 18px; --h-key: 44px; --i-key: 24px;
+  --w-mark: 3px; --w-list: 760px; --empty-pre: .62fr;
   --page-shift: 18%; --swap-from: .35; --swap-scale: .985; --tab-lift: 1.14; --pop-from: .92; --sheet-close: 110px; --swipe-tab: 70px;
   --w-strip: 72px; --w-num: 22px; --w-ghost: 72px; --w-wide: 700px; --w-left: 440px; --hold: 380ms; --ghost-alpha: .85;
   --line: .5px; --ring: 2px;
-  --fs-xs: 10px; --fs-tab: 11px; --fs-s: 12px; --fs-sm: 13px; --fs-sub: 14px; --fs-m: 15px; --fs-body: 17px; --fs-big: 18px; --fs-h2: 20px;
+  --fs-xs: 10px; --fs-tab: 12px; --fs-s: 12px; --fs-sm: 13px; --fs-sub: 14px; --fs-m: 15px; --fs-body: 17px; --fs-big: 18px; --fs-h2: 20px;
   --fs-mark: 22px; --fs-h1: 28px; --fs-code: 28px; --fs-room: 30px; --fs-screen-mark: 40px; --fs-pin: 34px;
   --r-card: 12px; --r-btn: 14px; --r-seg: 9px; --r-seg-in: 7px; --r-pill: 999px; --r-sheet: 14px; --r-slide: 8px; --r-kind: 8px;
   --r-field: 10px; --r-full: 4px; --r-dialog: 14px; --r-qr: 10px;
@@ -177,7 +178,17 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; t
 
 .mons { display: grid; grid-template-columns: 1fr 1fr; gap: var(--g5); padding: 0 var(--gutter) var(--g6); }
 .mon { display: flex; flex-direction: column; gap: var(--g3); min-width: 0; }
-.mon .lbl { display: flex; align-items: center; gap: var(--g3); font-size: var(--fs-sm); color: var(--l2); font-weight: 600; min-height: var(--g10); }
+.mons { transition: grid-template-columns var(--t-slow) var(--e-out); }
+.mons.pre-empty { grid-template-columns: 1fr var(--empty-pre); }
+.mons.pre-empty .go { display: none; } /* пустому предпросмотру нечего отправлять в зал */
+/* Строка сетлиста: в зале — красная полоска слева и подпись, в предпросмотре — акцентом. */
+.row.m-live { box-shadow: inset var(--w-mark) 0 0 var(--live); }
+.row.m-live .s { color: var(--live); font-weight: 500; }
+.row.m-pre { box-shadow: inset var(--w-mark) 0 0 var(--tint); }
+.row.m-pre .s { color: var(--tint-text); font-weight: 500; }
+/* На широком экране сетлист и библиотека не растягиваются шире удобного для чтения. */
+#main .pad { max-width: var(--w-list); margin-inline: auto; width: 100%; box-sizing: border-box; }
+.mon .lbl { display: flex; align-items: center; gap: var(--g3); font-size: var(--fs-sm); color: var(--l2); font-weight: 600; min-height: var(--h-go); }
 .mon .lbl .dot { width: var(--w-dot); height: var(--w-dot); border-radius: var(--r-pill); background: var(--live); }
 .mon .slide { touch-action: none; cursor: pointer; transition: transform var(--t-fast) var(--e-spring); }
 .mon .slide:active { transform: scale(.98); }
@@ -216,7 +227,7 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; t
   .showgrid { grid-template-columns: minmax(0, min(42%, var(--w-left))) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "mons body" "bar body"; }
   .showgrid > .monsbox { overflow: auto; border-right: var(--line) solid var(--sep); }
   .showgrid > .body { border-left: 0; }
-  .showgrid .mons { grid-template-columns: minmax(0, 1fr); gap: var(--g6); padding-top: var(--g2); }
+  .showgrid .mons, .showgrid .mons.pre-empty { grid-template-columns: minmax(0, 1fr); gap: var(--g6); padding-top: var(--g2); }
   .showgrid > .bar, .showgrid > .vbar { border-right: var(--line) solid var(--sep); }
 }
 .lhead { display: flex; align-items: center; gap: var(--g2); padding: 0 var(--g4) var(--g5) var(--gutter); flex: none; }
@@ -925,7 +936,8 @@ function monitorsHTML() {
     const l = S.holy.live;
     nowSlide = slideHTML(l ? { src: { title: l.title, slides: l.slides.map((text) => ({ text })) }, idx: l.index } : null, S.style, { empty: "Holyrics" });
   } else nowSlide = slideHTML(live, styleFor(live), { mode: S.mode, live: true });
-  return `<div class="mons">
+  // Пока предпросмотр пуст, он уже: окно «Сейчас» крупнее и читается.
+  return `<div class="mons ${pre || S.draft ? "" : "pre-empty"}">
     <div class="mon now"><div class="lbl"><span class="dot"></span>Сейчас</div>
       <div class="wrapnow" data-drop="live"><div data-g="now" role="button" aria-label="Сейчас в зале: ${esc(liveName())}">${nowSlide}</div>
         ${S.progress ? `<div class="loading">${esc((S.progress.match(/\d+%/) || ["Подготовка…"])[0])}</div>` : ""}</div>
@@ -975,22 +987,25 @@ function kindIcon(it) {
 }
 function itemRow(it, act = "open") {
   const open = act === "open" && S.open === it.id;
-  return `<div class="iwrap" data-drop="item:${it.id}"><button class="row ${open ? "open" : ""}" data-act="${act}" data-id="${it.id}" data-hold="itemmenu" data-set="${act === "open" ? 1 : 0}">
+  // Состояние — полоской слева и подписью, а не плашками: название остаётся целиком.
+  const n = it.slides.length, live = isLiveItem(it.id), pre = S.pre && S.pre.src.id === it.id;
+  const sub = live ? "В зале" + (n > 1 ? ` · ${S.live.idx + 1} из ${n}` : "") : pre ? "Предпросмотр" + (n > 1 ? ` · ${S.pre.idx + 1} из ${n}` : "") : subOf(it);
+  return `<div class="iwrap" data-drop="item:${it.id}"><button class="row ${open ? "open" : ""} ${live ? "m-live" : pre ? "m-pre" : ""}" data-act="${act}" data-id="${it.id}" data-hold="itemmenu" data-set="${act === "open" ? 1 : 0}">
     ${kindIcon(it)}
-    <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(subOf(it))}</div></span>
-    ${isLiveItem(it.id) ? '<span class="tag live">В зале</span>' : ""}${S.pre && S.pre.src.id === it.id ? '<span class="tag pre">Предпросмотр</span>' : ""}${fileBadge(it)}
+    <span class="main"><div class="t">${esc(it.title)}</div><div class="s">${esc(sub)}</div></span>
+    ${fileBadge(it, true)}
     <span class="chev">${ico(open ? "down" : "chev")}</span></button>
     ${open ? slidesHTML(it) : ""}</div>`;
 }
 // Файл на экранах: «на экране», ход передачи, или значок «отправить заранее».
-function fileBadge(it) {
+function fileBadge(it, compact) {
   if (!it.ref || it.big) return "";
   const devs = ready();
   if (!devs.length) return "";
   const sha = it.ref().sha256, t = S.transfers[sha];
   if (t) return `<span class="fbadge">${t.queued ? "в очереди" : t.percent + " %"}</span>`;
   const done = devs.filter((d) => d.sent.has(sha)).length;
-  if (done === devs.length) return `<span class="fbadge">${ico("onscreen")}${devs.length === 1 ? "на экране" : "на всех"}</span>`;
+  if (done === devs.length) return `<span class="fbadge" aria-label="${devs.length === 1 ? "На экране" : "На всех экранах"}">${ico("onscreen")}${compact ? "" : devs.length === 1 ? "на экране" : "на всех"}</span>`;
   return `<span class="fbadge todo" role="button" data-act="ahead" data-id="${it.id}" aria-label="Отправить «${esc(it.title)}» на экраны заранее">${ico("send")}${done ? `${done} из ${devs.length}` : ""}</span>`;
 }
 // Строка «Сетлист / Недавнее» на всю ширину, «Показать» (плюс), «Найти», значок спрятанной панели тем.
@@ -1882,16 +1897,18 @@ function endDrag(x, y, cancel) {
   if (renderLater || !target) render();
   renderLater = false;
 }
-// Удержание: тема — перенос, строка сетлиста или библиотеки — меню элемента.
+// Удержание: тема — перенос, строка сетлиста или библиотеки — меню элемента, кнопка-значок — её название.
 document.addEventListener("pointerdown", (e) => {
   if (e.button > 0 || DRAG) return;
-  const tile = e.target.closest("[data-theme]"), row = !tile && e.target.closest("[data-hold]");
-  if (!tile && !row) return;
-  const h = { el: tile || row, theme: tile && tile.dataset.theme, x0: e.clientX, y0: e.clientY, id: e.pointerId };
+  const tile = e.target.closest("[data-theme]"), row = !tile && e.target.closest("[data-hold]"), tip = !tile && !row && e.target.closest(".bar.keys [aria-label]");
+  if (!tile && !row && !tip) return;
+  const h = { el: tile || row || tip, theme: tile && tile.dataset.theme, x0: e.clientX, y0: e.clientY, id: e.pointerId };
   h.timer = setTimeout(() => {
     HOLD = null;
-    if (tile) startDrag(h);
-    else { swallowClick = true; setTimeout(() => (swallowClick = false), 400); itemMenu(row.dataset.id, row.dataset.set === "1"); }
+    if (tile) return startDrag(h);
+    swallowClick = true; setTimeout(() => (swallowClick = false), 400);
+    if (tip) toast(tip.getAttribute("aria-label"));
+    else itemMenu(row.dataset.id, row.dataset.set === "1");
   }, HOLD_MS);
   HOLD = h;
 });

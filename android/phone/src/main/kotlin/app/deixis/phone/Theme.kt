@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -69,7 +70,8 @@ data class Palette(
 )
 
 private val Light = Palette(
-    Color(0xFFF3F2EE), Color(0xFFFFFFFF), Color(0xFF161514), Color(0xFF87847E), Color(0xFFC6C3BC),
+    // Второстепенный текст темнее прежнего: подписи читаются и на слабом экране, и при свете в зале (контраст 5:1).
+    Color(0xFFF3F2EE), Color(0xFFFFFFFF), Color(0xFF161514), Color(0xFF6E6B65), Color(0xFFC6C3BC),
     Color(0xFF9C7242), Color(0xFF765A38), Color(0xFFA75750), Color(0x1F78736A),
 )
 private val Dark = Palette(
@@ -132,6 +134,14 @@ object T {
     val numCol = 20.dp
     /** Ширина панели тем на главном (одна плитка темы). */
     val themeStrip = 72.dp
+    /** Полоска состояния у строки сетлиста: в зале, в предпросмотре. */
+    val markW = 3.dp
+    /** Сетлист и библиотека на широком экране не растягиваются шире этого. */
+    val listMax = 760.dp
+    /** «Аа» на плитке темы — во всю плитку. */
+    const val sampleSize = 46f
+    /** Пустой «Предпросмотр» уже окна «Сейчас»: место отдаётся тому, что в зале. */
+    const val emptyPreview = 0.62f
 
     val rCard = 12.dp
     val rBtn = 14.dp
@@ -141,7 +151,7 @@ object T {
     val rField = 10.dp
     val rPill = 999.dp
 
-    val fTab = 11.sp
+    val fTab = 12.sp
     val fNum = 11.sp
     val fTag = 12.sp
     val fBar = 12.sp
@@ -264,12 +274,12 @@ fun Icon(name: String, color: Color = P.current.ink, size: Dp = T.icon, modifier
 
 /** Нажатие с лёгким отскоком (--e-spring). */
 @Composable
-fun Modifier.press(enabled: Boolean = true, label: String? = null, scaleTo: Float = T.pressScale, onClick: () -> Unit): Modifier {
+fun Modifier.press(enabled: Boolean = true, label: String? = null, scaleTo: Float = T.pressScale, onLong: (() -> Unit)? = null, onClick: () -> Unit): Modifier {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) scaleTo else 1f, tween(T.fast, easing = T.eSpring), label = "press")
     return this.scale(s)
-        .clickable(source, null, enabled = enabled, role = Role.Button, onClick = onClick)
+        .combinedClickable(source, null, enabled = enabled, role = Role.Button, onLongClick = onLong, onClick = onClick)
         .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier)
 }
 
@@ -364,6 +374,8 @@ fun Cell(
     onLong: (() -> Unit)? = null, onClick: (() -> Unit)? = null,
     /** Элемент библиотеки: у фото, видео и PDF вместо значка — миниатюра самого файла. */
     item: LibItem? = null,
+    /** Состояние строки цветом: полоска слева и подпись этим цветом (в зале, в предпросмотре). */
+    mark: Color? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val p = P.current
@@ -373,13 +385,14 @@ fun Cell(
             .then(
                 if (click != null || onLong != null) Modifier.combinedClick(onClick = click ?: {}, onLong = onLong) else Modifier,
             )
+            .then(if (mark != null) Modifier.drawBehind { drawRect(mark, size = androidx.compose.ui.geometry.Size(T.markW.toPx(), size.height)) } else Modifier)
             .padding(horizontal = T.gutter, vertical = T.rowPadV),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (item != null && hasThumb(item)) ItemThumb(item, T.kind) { kind?.let { Kind(it) } } else kind?.let { Kind(it) }
         Column(Modifier.weight(1f)) {
             Txt(title, lines = 1)
-            sub?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fSub, p.l2, lines = 1) }
+            sub?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fSub, mark ?: p.l2, if (mark != null) FontWeight.Medium else FontWeight.Normal, lines = 1) }
         }
         trailing()
         if (chevron != null && click != null) Icon(chevron, p.l3)
