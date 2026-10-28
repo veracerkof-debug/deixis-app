@@ -132,9 +132,9 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     val settings by controller.settings.collectAsState()
     val live by controller.live.collectAsState()
     val outputs by controller.outputs.collectAsState()
-    // Пока идёт показ, светлая тема переходит в тёмную: яркий телефон не мешает в зале.
+    // Тема пульта своя и сама не меняется; тёмная на время показа — только если её включили в настройках.
     val showing = live != null && outputs.isNotEmpty()
-    val theme = if (settings.darkLive && showing && (settings.theme == "light" || settings.theme == "paper")) "dark" else settings.theme
+    val theme = if (settings.darkDuringShow && showing && (settings.theme == "light" || settings.theme == "paper")) "dark" else settings.theme
     LaunchedEffect(controller) { controller.messages.collect { ui.toast(it) } }
     val info by controller.receiverInfo.collectAsState()
     val testRatio by controller.testRatio.collectAsState()

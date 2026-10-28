@@ -162,7 +162,10 @@ private fun TopBar(c: Controller, ui: Ui) {
     ) {
         Mark()
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(T.gapXs, Alignment.End)) {
-            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}") { ui.tab = AppTab.DEVICES } }
+            val live by c.live.collectAsState()
+            val mode by c.mode.collectAsState()
+            val onAir = live != null && mode == Mode.NORMAL
+            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}" + if (onAir && o.state == OutState.ONLINE) ", идёт показ" else "", onAir = onAir) { ui.tab = AppTab.DEVICES } }
             if (viewUrl != null) Dev("people", OutState.ONLINE, "Зрители: ${state?.viewers ?: 0}", count = state?.viewers ?: 0) { ui.tab = AppTab.DEVICES }
         }
         Pill(if (outputs.isEmpty()) "Подключить" else "", "wifi", tint = true, label = "Подключить") { ui.sheet("Подключить") { ConnectSheet(c, ui) } }
@@ -172,9 +175,12 @@ private fun TopBar(c: Controller, ui: Ui) {
 
 /** Значок экрана в полосе: на связи, доставляются файлы (кольцо), нет связи (бледный), нужен PIN (точка). */
 @Composable
-private fun Dev(icon: String, state: OutState, label: String, count: Int = -1, onClick: () -> Unit) {
+private fun Dev(icon: String, state: OutState, label: String, count: Int = -1, onAir: Boolean = false, onClick: () -> Unit) {
     val p = P.current
-    Box(Modifier.size(T.dev).clip(RoundedCornerShape(T.rPill)).press(label = label, onClick = onClick), contentAlignment = Alignment.Center) {
+    // Экран на связи — значок акцентом в мягком круге; пока идёт показ, у значка красная точка «в эфире».
+    val connected = count < 0 && (state == OutState.ONLINE || state == OutState.SYNC)
+    val ring by androidx.compose.animation.animateColorAsState(if (connected) p.tint.copy(alpha = T.devFill) else p.tint.copy(alpha = 0f), tween(T.mid, easing = T.eOut), label = "dev")
+    Box(Modifier.size(T.dev).clip(RoundedCornerShape(T.rPill)).background(ring).press(label = label, onClick = onClick), contentAlignment = Alignment.Center) {
         if (state == OutState.SYNC || state == OutState.CONNECTING) {
             val spin = rememberInfiniteTransition(label = "sync")
             val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart), label = "spin")
@@ -182,7 +188,8 @@ private fun Dev(icon: String, state: OutState, label: String, count: Int = -1, o
                 drawArc(p.tint, 0f, 270f, false, style = Stroke(2.dp.toPx()))
             }
         }
-        Icon(icon, if (state == OutState.OFFLINE) p.l3 else p.ink)
+        Icon(icon, when { state == OutState.OFFLINE -> p.l3; connected -> p.tintText; else -> p.ink })
+        if (connected && onAir) Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(8.dp).clip(RoundedCornerShape(T.rPill)).background(p.live))
         if (state == OutState.PIN) Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(8.dp).clip(RoundedCornerShape(T.rPill)).background(p.red))
         if (count >= 0) Box(Modifier.align(Alignment.BottomEnd).clip(RoundedCornerShape(T.rPill)).background(p.ink).padding(horizontal = 4.dp)) {
             Txt("$count", T.fNum, p.bg, FontWeight.Bold)

@@ -209,6 +209,10 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; t
 .devs { display: flex; align-items: center; gap: var(--g1); margin-left: auto; min-width: 0; overflow: hidden; }
 .dev { position: relative; width: var(--h-dev); height: var(--h-dev); display: grid; place-items: center; border-radius: var(--r-pill); color: var(--ink); flex: none; }
 .dev.offline, .dev.pin { color: var(--l3); }
+/* Экран на связи — значок акцентом в мягком круге; пока идёт показ — красная точка «в эфире». Тема пульта не меняется. */
+.dev { transition: background var(--t-mid) var(--e-out), color var(--t-mid) var(--e-out); }
+.dev.online, .dev.sync { background: color-mix(in srgb, var(--tint) 16%, transparent); color: var(--tint-text); }
+.dev.onair::after { content: ""; position: absolute; top: 5px; right: 5px; width: var(--w-dot); height: var(--w-dot); border-radius: var(--r-pill); background: var(--live); border: var(--ring) solid var(--bg); }
 .dev.sync::before, .dev.connecting::before { content: ""; position: absolute; inset: 3px; border-radius: var(--r-pill); border: var(--ring) solid var(--tint); border-right-color: transparent; animation: spin var(--t-spin) linear infinite; }
 .dev.error::after { content: ""; position: absolute; top: 5px; right: 5px; width: var(--w-dot); height: var(--w-dot); border-radius: var(--r-pill); background: var(--red); border: var(--ring) solid var(--bg); }
 .dev .n { position: absolute; bottom: var(--g1); right: 0; font-size: var(--fs-xs); font-weight: 700; background: var(--ink); color: var(--bg); border-radius: var(--r-pill); padding: 0 var(--g2); line-height: var(--w-badge); }
@@ -912,7 +916,8 @@ function renderTabs() {
 
 // Главный экран
 function devStrip() {
-  const d = S.devices.map((x) => `<button class="dev ${x.state}" data-act="dev" aria-label="${esc(x.r.info.name)}: ${stateText(x.state)}">${ico(devIcon(x.r))}</button>`).join("");
+  const onAir = S.live && S.mode === "NORMAL";
+  const d = S.devices.map((x) => `<button class="dev ${x.state} ${onAir && x.state === "online" ? "onair" : ""}" data-act="dev" aria-label="${esc(x.r.info.name)}: ${stateText(x.state)}${onAir && x.state === "online" ? ", идёт показ" : ""}">${ico(devIcon(x.r))}</button>`).join("");
   const n = viewerCount();
   const v = ready().length ? `<button class="dev" data-act="dev" aria-label="Зрители: ${n}">${ico("people")}<span class="n" id="vcount">${n}</span></button>` : "";
   return `<div class="devs">${d}${v}</div>`;
@@ -1272,7 +1277,7 @@ function sheetSettings() {
     return `<div class="ghead">Тема</div><div style="margin-bottom:var(--g10)">${seg("theme", [["auto", "Авто"], ["light", "Светлая"], ["dark", "Тёмная"], ["paper", "Бумага"], ["oled", "OLED"]], st.theme)}</div>
     <div class="ghead">Показ</div><div class="group">
       ${sw("alwaysPre", "Всегда через предпросмотр", "Любой слайд сначала идёт в предпросмотр")}
-      ${sw("darkLive", "Тёмная тема во время показа", "Яркий экран не мешает в зале")}
+      ${sw("darkLive", "Тёмная тема во время показа", "Включается сама, пока идёт показ")}
       ${sw("clicker", "Bluetooth-кликер и педаль", "Стрелки и пробел листают, B — чёрный экран")}
       ${sw("caps", "Текст заглавными буквами", "Песни, тексты и Писание в зале")}</div>
     <div class="ghead">Разделы</div><div class="group">${sw("church", "Церковный раздел", "Библия и Holyrics на главном")}</div>

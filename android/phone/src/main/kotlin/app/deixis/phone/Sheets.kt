@@ -193,7 +193,7 @@ fun SettingsSheet(c: Controller) {
     Group {
         SwitchRow("Всегда через предпросмотр", st.alwaysPreview, "Любой слайд сначала идёт в предпросмотр") { v -> c.setSettings { it.copy(alwaysPreview = v) } }
         Sep(T.gutter)
-        SwitchRow("Тёмная тема во время показа", st.darkLive, "Яркий экран не мешает в зале") { v -> c.setSettings { it.copy(darkLive = v) } }
+        SwitchRow("Тёмная тема во время показа", st.darkDuringShow, "Включается сама, пока идёт показ") { v -> c.setSettings { it.copy(darkDuringShow = v) } }
         Sep(T.gutter)
         SwitchRow("Bluetooth-кликер и педаль", st.clicker) { v -> c.setSettings { it.copy(clicker = v) } }
         Sep(T.gutter)

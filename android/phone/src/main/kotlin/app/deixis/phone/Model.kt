@@ -114,7 +114,11 @@ data class Setlist(val id: String, val title: String, val date: String, val item
 data class AppSettings(
     val theme: String = "light",
     val alwaysPreview: Boolean = false,
-    val darkLive: Boolean = true,
+    /**
+     * Тёмная тема пульта, пока идёт показ. По умолчанию выключено: тема не меняется сама при подключении.
+     * Прежнее поле `darkLive` (включено по умолчанию) больше не читается — у всех тема остаётся своей.
+     */
+    val darkDuringShow: Boolean = false,
     val clicker: Boolean = true,
     val volumeKeys: Boolean = false,
     val caps: Boolean = false,
