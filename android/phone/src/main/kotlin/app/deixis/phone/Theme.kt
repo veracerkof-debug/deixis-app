@@ -151,7 +151,7 @@ object T {
     val rField = 10.dp
     val rPill = 999.dp
 
-    val fTab = 12.sp
+    val fTab = 11.sp
     val fNum = 11.sp
     val fTag = 12.sp
     val fBar = 12.sp
