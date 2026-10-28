@@ -41,6 +41,7 @@
   --w-tile: 116px; --h-tile: 84px; --w-kind: 28px; --w-sw: 30px; --w-switch: 51px; --h-switch: 31px; --w-knob: 27px; --knob-move: 20px;
   --w-qr: 148px; --w-qr-big: 220px; --w-dot: 8px; --w-grab: 36px; --h-grab: 5px; --w-badge: 14px;
   --i-m: 22px; --i-s: 17px; --i-bar: 20px; --i-tile: 24px; --i-search: 18px; --h-key: 44px; --i-key: 24px;
+  --page-shift: 18%; --swap-from: .35; --swap-scale: .985; --tab-lift: 1.14; --pop-from: .92; --sheet-close: 110px; --swipe-tab: 70px;
   --w-strip: 72px; --w-num: 22px; --w-ghost: 72px; --w-wide: 700px; --w-left: 440px; --hold: 380ms; --ghost-alpha: .85;
   --line: .5px; --ring: 2px;
   --fs-xs: 10px; --fs-tab: 11px; --fs-s: 12px; --fs-sm: 13px; --fs-sub: 14px; --fs-m: 15px; --fs-body: 17px; --fs-big: 18px; --fs-h2: 20px;
@@ -91,7 +92,7 @@ svg { display: block; }
 .app { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
 /* Плашка трансляции бывает скрыта: строки сетки заданы явно, иначе вкладки растягиваются на свободное место. */
 #notify { grid-row: 1; } .app > main { grid-row: 2; } .app > .tabs { grid-row: 3; }
-main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; touch-action: pan-y; will-change: transform; }
 .tabs { display: flex; background: var(--cell); border-top: var(--line) solid var(--sep); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--g1); padding: var(--g3) 0; font-size: var(--fs-tab); color: var(--l2); min-height: var(--h-tab); }
 .tab[aria-current="page"] { color: var(--tint); }
@@ -345,8 +346,37 @@ textarea.big { width: 100%; min-height: 150px; border: 0; border-radius: var(--r
 
 .toasts { position: fixed; top: var(--g5); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: var(--g3); z-index: 40; pointer-events: none; }
 .toast { background: var(--ink); color: var(--bg); padding: var(--g5) var(--gutter); border-radius: var(--r-pill); font-size: var(--fs-m); font-weight: 500; box-shadow: var(--shadow-toast);
-         animation: tin var(--t-mid) var(--e-out); max-width: calc(100% - 2 * var(--gutter)); text-align: center; }
-@keyframes tin { from { opacity: 0; transform: translateY(calc(-1 * var(--g6))); } }
+         max-width: calc(100% - 2 * var(--gutter)); text-align: center; }
+@keyframes tin { from { opacity: 0; transform: translateY(calc(-1 * var(--g6))) scale(var(--pop-from)); } }
+.toast { animation: tin var(--t-slow) var(--e-spring); }
+.toast.out { opacity: 0; transform: scale(var(--pop-from)); transition: opacity var(--t-mid) var(--e-in), transform var(--t-mid) var(--e-in); }
+
+/* Движение (DESIGN.md → «Движение интерфейса»): страницы вкладок въезжают со стороны листания, слайд в окнах
+   показа перетекает, раскрытый элемент разворачивается, выбранная вкладка чуть подпрыгивает. */
+@keyframes pageR { from { opacity: 0; transform: translateX(var(--page-shift)); } }
+@keyframes pageL { from { opacity: 0; transform: translateX(calc(-1 * var(--page-shift))); } }
+@keyframes swap { from { opacity: var(--swap-from); transform: scale(var(--swap-scale)); } }
+@keyframes grow { from { opacity: 0; transform: translateY(calc(-1 * var(--g4))); } }
+@keyframes lift { 50% { transform: scale(var(--tab-lift)); } }
+@keyframes slideR { from { opacity: var(--swap-from); transform: translateX(var(--g12)); } }
+@keyframes slideL { from { opacity: var(--swap-from); transform: translateX(calc(-1 * var(--g12))); } }
+#main.in-r { animation: pageR var(--t-slow) var(--e-out); }
+#main.in-l { animation: pageL var(--t-slow) var(--e-out); }
+#main.dragging { transition: none; }
+/* Списки прокручиваются только вверх-вниз: смахивание вбок остаётся странице (листание вкладок). */
+#main .scroll { touch-action: pan-y; }
+#main.settle { transition: transform var(--t-mid) var(--e-spring), opacity var(--t-mid) var(--e-out); }
+.swap { animation: swap var(--t-mid) var(--e-out); }
+.grow { animation: grow var(--t-mid) var(--e-out); transform-origin: top; }
+.tab.lift .ico { animation: lift var(--t-mid) var(--e-spring); }
+.tab .ico, .tab span { transition: color var(--t-mid) var(--e-out); }
+.full .stage .in-r { animation: slideR var(--t-mid) var(--e-out); }
+.full .stage .in-l { animation: slideL var(--t-mid) var(--e-out); }
+.row, .trow, .gcell, .ttile { transition: background var(--t-fast) var(--e-out), transform var(--t-fast) var(--e-spring); }
+button.row:active, .row:has(> button.main:active) { background: var(--fill); }
+.sheet.drag { transition: none; }
+.sheet.back { transition: transform var(--t-mid) var(--e-spring); }
+.chev .ico { transition: transform var(--t-mid) var(--e-out); }
 
 .hero { display: grid; gap: var(--g5); margin: var(--g2) 0 var(--g10); }
 .hero .btn { height: var(--h-hero); font-size: var(--fs-big); }
@@ -473,7 +503,7 @@ function toast(t) {
   const el = document.createElement("div");
   el.className = "toast"; el.textContent = t;
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), t.length > 80 ? 3500 : 2000);
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 260); }, t.length > 80 ? 3500 : 2000);
 }
 
 // ——— Библиотека: демо-данные. Песни — общественное достояние, Писание — из демо-модулей hub.js ———
@@ -1119,6 +1149,7 @@ function render() {
   renderTabs();
   $("#main").innerHTML = { show: renderShow, library: renderLibrary, setlists: renderSetlists, devices: renderDevices }[S.tab]();
   document.querySelectorAll("#main [data-key]").forEach((el) => { const k = keep[el.dataset.key]; if (k) { el.scrollTop = k[0]; el.scrollLeft = k[1]; } });
+  motion();
   const now = $('[data-g="now"]'), pre = $('[data-g="pre"]');
   if (now) gest(now, { tap: () => openFull("live"), left: () => step(1), right: () => step(-1) });
   if (pre) gest(pre, { tap: () => S.pre && openFull("pre"), up: preToLive });
@@ -1177,7 +1208,7 @@ function openSheet(title, body, opts = {}) {
   document.body.append(bd, sh);
   // Отпущенный после удержания палец не закрывает только что открытое меню.
   bd.addEventListener("click", () => { if (!swallowClick) closeSheet(); });
-  gest(sh.querySelector(".grab"), { down: () => closeSheet() });
+  pullSheet(sh);
   requestAnimationFrame(() => { bd.classList.add("on"); sh.classList.add("on"); });
   SHEET = {
     bd, sh, title, auto: !!opts.auto, onClose: opts.onClose,
@@ -1496,9 +1527,10 @@ function openFull(kind, cue) {
     const inSet = r && src.id && activeSet().items.includes(src.id);
     el.innerHTML = `<div class="ft"><button class="iconbtn" data-act="closefull" aria-label="Закрыть">${ico("down")}</button>
       <span class="ttl">${esc(src ? src.title : "Сейчас")}</span>${kind === "live" ? '<span class="tag live">В зале</span>' : ""}<span class="cnt">${count}</span></div>
-      <div class="stage">${slideHTML(r, st, { mode, live: kind === "live", empty: "Пусто" })}</div>
+      <div class="stage">${slideHTML(r, st, { mode, live: kind === "live", empty: "Пусто", cls: fullDir > 0 ? "in-r" : fullDir < 0 ? "in-l" : "" })}</div>
       <div class="fb">${kind === "live" ? `<button class="btn" data-act="fstep" data-d="-1">${ico("prev")}Назад</button><button class="btn" data-act="fstep" data-d="1">Дальше${ico("next")}</button>`
         : `<button class="btn tint" data-act="fgo">${ico("up")}В зал</button><button class="btn" data-act="fstyle">${ico("brush")}Вид</button>${r && src.id && !inSet ? `<button class="btn" data-act="addset" data-id="${src.id}">В сетлист</button>` : ""}`}</div>`;
+    fullDir = 0;
     fitSlides(el);
     gest(el.querySelector(".stage"), { left: () => move(1), right: () => move(-1), down: () => closeFull(), up: () => kind !== "live" && FULL && FULL.go() });
   };
@@ -1507,6 +1539,7 @@ function openFull(kind, cue) {
     if (!r) return;
     const n = r.idx + d;
     if (n < 0 || n >= r.src.slides.length) return;
+    fullDir = d;
     if (kind === "live") step(d);
     else if (kind === "pre") { S.pre = { ...r, idx: n }; render(); }
     else { local.idx = n; update(); }
@@ -2070,11 +2103,131 @@ function removeDemo() {
   S.demoRemoved = true;
 }
 
+// ——— Движение: вкладки листаются пальцем, шторка идёт за пальцем, слайды перетекают ———
+const TABS_ORDER = () => TABS.map((t) => t[0]);
+let justOpened = null, fullDir = 0, tabLift = false, shownKeys = {};
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+function goTab(id, fromSwipe) {
+  if (id === S.tab) return;
+  const order = TABS_ORDER(), dir = order.indexOf(id) > order.indexOf(S.tab) ? "in-r" : "in-l";
+  S.tab = id;
+  closeFull(true);
+  tabLift = true;
+  render();
+  const m = $("#main");
+  m.classList.remove("in-r", "in-l", "settle", "dragging");
+  m.style.transform = ""; m.style.opacity = "";
+  void m.offsetWidth;
+  if (!reduced()) m.classList.add(dir);
+  setTimeout(() => m.classList.remove(dir), 400);
+}
+// После каждой отрисовки: что сменилось — то и движется; остальное стоит на месте.
+function motion() {
+  if (tabLift) { const t = document.querySelector('.tab[aria-current="page"]'); if (t) t.classList.add("lift"); tabLift = false; }
+  if (justOpened) {
+    const w = document.querySelector(`[data-drop="item:${justOpened}"] .slides, [data-drop="item:${justOpened}"] .trows`);
+    if (w) w.classList.add("grow");
+    justOpened = null;
+  }
+  for (const g of ["now", "pre"]) {
+    const el = document.querySelector(`[data-g="${g}"]`);
+    if (!el) continue;
+    const key = el.innerHTML.replace(/<span id="vt2?">[^<]*<\/span>/g, "").replace(/data-cd="[^"]*">[^<]*</g, "");
+    if (shownKeys[g] != null && shownKeys[g] !== key && el.firstElementChild) el.firstElementChild.classList.add("swap");
+    shownKeys[g] = key;
+  }
+}
+// Смахивание по странице вкладки — соседняя вкладка; страница идёт за пальцем. Окна показа, темы, поля ввода
+// и полосы прокрутки со своими жестами не участвуют.
+(() => {
+  let sw = null;
+  const skip = (t) => t.closest('[data-g], [data-theme], input, textarea, select, .seg, .chips, .vrow, .bar, .vbar, .tabs');
+  document.addEventListener("pointerdown", (e) => {
+    const m = $("#main");
+    if (e.button > 0 || !m.contains(e.target) || skip(e.target) || SHEET || FULL || S.screenMode) return;
+    sw = { x0: e.clientX, y0: e.clientY, t0: performance.now(), on: false };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!sw || DRAG) return;
+    const dx = e.clientX - sw.x0, dy = e.clientY - sw.y0;
+    if (!sw.on) {
+      if (Math.abs(dy) > SLOP && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
+      if (Math.abs(dx) < SLOP * 1.5 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      sw.on = true;
+      if (HOLD) { clearTimeout(HOLD.timer); HOLD = null; }
+    }
+    const order = TABS_ORDER(), i = order.indexOf(S.tab), edge = (dx > 0 && i === 0) || (dx < 0 && i === order.length - 1);
+    const m = $("#main");
+    m.classList.add("dragging"); m.classList.remove("settle");
+    // У края списка вкладок — с сопротивлением, как у резинки.
+    m.style.transform = `translateX(${edge ? dx * 0.25 : dx * 0.6}px)`;
+    m.style.opacity = String(1 - Math.min(0.35, Math.abs(dx) / innerWidth));
+  });
+  const end = (e, cancel) => {
+    if (!sw) return;
+    const s0 = sw; sw = null;
+    if (!s0.on) return;
+    swallowClick = true; setTimeout(() => (swallowClick = false), 0);
+    const dx = e.clientX - s0.x0, v = Math.abs(dx) / Math.max(1, performance.now() - s0.t0);
+    const order = TABS_ORDER(), i = order.indexOf(S.tab), m = $("#main");
+    const far = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--swipe-tab")) || 70;
+    const next = !cancel && (Math.abs(dx) > far || v > 0.6) ? order[i + (dx < 0 ? 1 : -1)] : null;
+    m.classList.remove("dragging");
+    if (next) return goTab(next, true);
+    m.classList.add("settle"); m.style.transform = ""; m.style.opacity = "";
+    setTimeout(() => m.classList.remove("settle"), 300);
+  };
+  document.addEventListener("pointerup", (e) => end(e, false));
+  document.addEventListener("pointercancel", (e) => end(e, true));
+})();
+// Трекпад компьютера: смахивание двумя пальцами вбок тоже листает вкладки.
+(() => {
+  let acc = 0, lock = 0;
+  document.addEventListener("wheel", (e) => {
+    if (SHEET || FULL || !$("#main").contains(e.target) || e.target.closest(".seg, .chips, .vrow")) return;
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.5) { acc = 0; return; }
+    if (performance.now() < lock) return;
+    acc += e.deltaX;
+    if (Math.abs(acc) < 120) return;
+    const order = TABS_ORDER(), next = order[order.indexOf(S.tab) + (acc > 0 ? 1 : -1)];
+    acc = 0; lock = performance.now() + 500;
+    if (next) goTab(next, true);
+  }, { passive: true });
+})();
+// Шторку тянут вниз за ручку или заголовок: она идёт за пальцем; далеко или резко — закрывается, иначе пружинит назад.
+function pullSheet(sh) {
+  const grip = [sh.querySelector(".grab"), sh.querySelector(".sh")];
+  let p = null;
+  grip.forEach((g) => g.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button") || e.button > 0) return;
+    p = { y0: e.clientY, t0: performance.now(), dy: 0 };
+    sh.classList.add("drag"); sh.classList.remove("back");
+    try { g.setPointerCapture(e.pointerId); } catch (err) {}
+  }));
+  grip.forEach((g) => g.addEventListener("pointermove", (e) => {
+    if (!p) return;
+    p.dy = Math.max(0, e.clientY - p.y0);
+    sh.style.transform = `translateY(${p.dy}px)`;
+  }));
+  const done = () => {
+    if (!p) return;
+    const v = p.dy / Math.max(1, performance.now() - p.t0), far = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-close")) || 110;
+    sh.classList.remove("drag");
+    const close = p.dy > far || (v > 0.8 && p.dy > SLOP);
+    p = null;
+    if (close) { sh.style.transform = ""; return closeSheet(); }
+    sh.classList.add("back"); sh.style.transform = "";
+    setTimeout(() => sh.classList.remove("back"), 300);
+  };
+  grip.forEach((g) => { g.addEventListener("pointerup", done); g.addEventListener("pointercancel", done); });
+  grip.forEach((g) => (g.style.touchAction = "none"));
+}
+
 // ——— Действия ———
 const A = {
-  tab: (d) => { S.tab = d.id; closeFull(true); render(); },
+  tab: (d) => goTab(d.id),
   lseg: (d) => { S.listSeg = d.v; render(); },
-  open: (d) => { S.open = S.open === d.id ? null : d.id; render(); },
+  open: (d) => { S.open = S.open === d.id ? null : d.id; if (S.open) justOpened = S.open; render(); },
   // Касание — в предпросмотр; второе касание того же слайда сразу после первого — сразу в зал.
   slide: (d) => {
     const it = lib(d.id);

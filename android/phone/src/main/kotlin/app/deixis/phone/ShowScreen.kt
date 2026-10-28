@@ -404,7 +404,8 @@ private fun LazyListScope.setRow(
     live: Cue?, preview: Cue?, mode: Mode, recent: Boolean,
 ) = item("row:${it.id}") {
     // Тема, перенесённая из панели, — всей песне или документу.
-    Column(Modifier.fillMaxWidth().groupCell(first, last).themeTarget(ui.themeDrag, "item:${it.id}") { st -> dropped(c, ui, it.id, null, st, it.title) }) {
+    // Строки сетлиста появляются, уходят и меняются местами плавно.
+    Column(Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn)).fillMaxWidth().groupCell(first, last).themeTarget(ui.themeDrag, "item:${it.id}") { st -> dropped(c, ui, it.id, null, st, it.title) }) {
         if (!first) Sep()
         val isLive = live?.source?.itemId == it.id && mode != Mode.BLACK
         Cell(
@@ -430,7 +431,8 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                 val isLive = live?.source?.itemId == it.id && live?.index == i && mode != Mode.BLACK
                 val isPre = preview?.source?.itemId == it.id && preview.index == i
                 Box(
-                    Modifier.fillMaxWidth().groupCell(false, last && i == slides.lastIndex).background(P.current.fill)
+                    Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn))
+                        .fillMaxWidth().groupCell(false, last && i == slides.lastIndex).background(P.current.fill)
                         .padding(start = T.gutter, end = T.gutter, top = if (i == 0) 4.dp else 0.dp, bottom = if (i == slides.lastIndex) 14.dp else T.gapS),
                 ) {
                     TextSlideRow(
@@ -448,7 +450,8 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
     rows.forEachIndexed { r, pair ->
         item("grid:${it.id}:$r") {
             Row(
-                Modifier.fillMaxWidth().groupCell(false, last && r == rows.lastIndex).background(P.current.fill)
+                Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn))
+                    .fillMaxWidth().groupCell(false, last && r == rows.lastIndex).background(P.current.fill)
                     .padding(start = T.gutter, end = T.gutter, top = if (r == 0) 4.dp else 0.dp, bottom = if (r == rows.lastIndex) 14.dp else T.gap),
                 horizontalArrangement = Arrangement.spacedBy(T.gap),
             ) {

@@ -1,13 +1,35 @@
 package app.deixis.phone
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -130,16 +152,19 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
     UpdatesEffects(c, ui)
 
+    // «Библия» — церковный раздел: без него вкладки нет.
+    val tabs = remember(settings.church) { AppTab.entries.filter { settings.church || it != AppTab.BIBLE } }
+    val pager = rememberPagerState(initialPage = tabs.indexOf(ui.tab).coerceAtLeast(0)) { tabs.size }
     Box(Modifier.fillMaxSize().background(p.bg)) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val rail = maxWidth >= 1024.dp
             if (rail) Row(Modifier.fillMaxSize()) {
-                Tabs(ui, vertical = true, church = settings.church)
+                Tabs(ui, tabs, pager, vertical = true)
                 Box(Modifier.width(T.hair).fillMaxHeight().background(p.sep))
-                Box(Modifier.weight(1f)) { Screen(c, h, ui) }
+                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager) }
             } else Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { Screen(c, h, ui) }
-                Tabs(ui, vertical = false, church = settings.church)
+                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager) }
+                Tabs(ui, tabs, pager, vertical = false)
             }
         }
         FullHost(c, ui)
@@ -153,9 +178,27 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     }
 }
 
+/**
+ * Вкладки листаются смахиванием, как страницы: соседняя выезжает за пальцем. Касание вкладки или переход
+ * из кода (ui.tab) доводит страницу плавно. Пока тему несут из панели, страницы не листаются.
+ */
 @Composable
-private fun Screen(c: Controller, h: HolyricsSource, ui: Ui) {
-    when (ui.tab) {
+private fun Pages(c: Controller, h: HolyricsSource, ui: Ui, tabs: List<AppTab>, pager: PagerState) {
+    LaunchedEffect(ui.tab, tabs) {
+        val i = tabs.indexOf(ui.tab)
+        if (i >= 0 && i != pager.targetPage) pager.animateScrollToPage(i, animationSpec = tween(T.slow, easing = T.eOut))
+    }
+    LaunchedEffect(pager, tabs) {
+        snapshotFlow { pager.settledPage }.collect { i -> tabs.getOrNull(i)?.let { if (ui.tab != it) ui.tab = it } }
+    }
+    HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs[it] }, userScrollEnabled = ui.themeDrag.dragged == null) { i ->
+        Screen(c, h, ui, tabs[i])
+    }
+}
+
+@Composable
+private fun Screen(c: Controller, h: HolyricsSource, ui: Ui, tab: AppTab) {
+    when (tab) {
         AppTab.SHOW -> ShowScreen(c, h, ui)
         AppTab.BIBLE -> BibleScreen(c, ui)
         AppTab.LIBRARY -> LibraryScreen(c, h, ui)
@@ -165,18 +208,19 @@ private fun Screen(c: Controller, h: HolyricsSource, ui: Ui) {
 }
 
 @Composable
-private fun Tabs(ui: Ui, vertical: Boolean, church: Boolean) {
+private fun Tabs(ui: Ui, tabs: List<AppTab>, pager: PagerState, vertical: Boolean) {
     val p = P.current
-    // «Библия» — церковный раздел: без него вкладки нет.
-    val tabs = AppTab.entries.filter { church || it != AppTab.BIBLE }
     val content: @Composable (AppTab, Modifier) -> Unit = { t, m ->
-        val on = ui.tab == t
+        // Отметка идёт за страницей, пока её листают пальцем, а не ждёт остановки.
+        val on = tabs.getOrNull(pager.targetPage) == t
+        val color by animateColorAsState(if (on) p.tint else p.l2, tween(T.mid, easing = T.eOut), label = "tab")
+        val lift by animateFloatAsState(if (on) T.tabLift else 1f, tween(T.mid, easing = T.eSpring), label = "tabLift")
         Column(
             m.heightIn(min = if (vertical) 64.dp else T.tabMin).clickable(role = Role.Tab) { ui.tab = t; ui.closeAll() }.padding(top = 7.dp, bottom = T.gapS),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(T.gapXs),
         ) {
-            Icon(t.icon, if (on) p.tint else p.l2)
-            Txt(t.title, T.fTab, if (on) p.tint else p.l2, lines = 1)
+            Box(Modifier.scale(lift)) { Icon(t.icon, color) }
+            Txt(t.title, T.fTab, color, lines = 1)
         }
     }
     if (vertical) Column(Modifier.width(92.dp).fillMaxHeight().background(p.cell).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
@@ -202,6 +246,20 @@ private fun SheetHost(ui: Ui) {
                 .clickable(remember { MutableInteractionSource() }, null) { ui.close() },
         )
     }
+    // Шторку тянут вниз за ручку или заголовок: она идёт за пальцем; отпустили далеко или резко — закрывается.
+    val pull = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(spec) { if (spec != null) pull.snapTo(0f) }
+    val density = LocalDensity.current
+    val far = with(density) { T.sheetDismiss.toPx() }
+    val drag = Modifier.draggable(
+        rememberDraggableState { d -> scope.launch { pull.snapTo((pull.value + d).coerceAtLeast(0f)) } },
+        Orientation.Vertical,
+        onDragStopped = { v ->
+            if (pull.value > far || v > T.flingClose) ui.close()
+            else pull.animateTo(0f, tween(T.mid, easing = T.eSpring))
+        },
+    )
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 1024.dp
         val maxH = maxHeight * 0.88f
@@ -216,19 +274,31 @@ private fun SheetHost(ui: Ui) {
             val shape = if (wide) RoundedCornerShape(T.rBtn) else RoundedCornerShape(topStart = T.rBtn, topEnd = T.rBtn)
             Column(
                 Modifier.then(if (wide) Modifier.widthIn(max = 720.dp).padding(24.dp) else Modifier.fillMaxWidth())
+                    .offset { IntOffset(0, if (wide) 0 else pull.value.roundToInt()) }
                     .heightIn(max = maxH).clip(shape).background(p.bg)
                     .clickable(remember { MutableInteractionSource() }, null) {}
                     .safeDrawingPadding().imePadding(),
             ) {
                 if (!wide) Box(
-                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp).swipes(onDown = { ui.close() }),
+                    Modifier.fillMaxWidth().then(drag).padding(top = 8.dp, bottom = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(T.grabW, T.grabH).clip(RoundedCornerShape(T.rPill)).background(p.l3)) }
-                Row(Modifier.fillMaxWidth().padding(start = T.gutter, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Txt(s.title, T.fSheet, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
-                    IconBtn("close", "Закрыть") { ui.close() }
+                // Шторка поверх шторки (PIN из «Подключить») въезжает сбоку; возврат — так же мягко.
+                AnimatedContent(
+                    s, label = "sheet",
+                    transitionSpec = {
+                        (fadeIn(tween(T.mid, easing = T.eOut)) + slideInHorizontally(tween(T.mid, easing = T.eOut)) { it / 8 }) togetherWith
+                            fadeOut(tween(T.fast, easing = T.eIn)) using SizeTransform(clip = false) { _, _ -> tween(T.mid, easing = T.eOut) }
+                    },
+                ) { cur ->
+                    Column {
+                        Row(Modifier.fillMaxWidth().then(if (wide) Modifier else drag).padding(start = T.gutter, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Txt(cur.title, T.fSheet, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
+                            IconBtn("close", "Закрыть") { ui.close() }
+                        }
+                        Column(Modifier.verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) { cur.content(this) }
+                    }
                 }
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) { s.content(this) }
             }
             }
         }
@@ -246,12 +316,22 @@ private fun Toasts(ui: Ui) {
     ) {
         ui.toasts.takeLast(3).forEach { t ->
             androidx.compose.runtime.key(t.id) {
+                // Тост спускается сверху с лёгким отскоком и уходит, тая.
+                val shown = remember { MutableTransitionState(false).apply { targetState = true } }
                 LaunchedEffect(t.id) {
                     delay(maxOf(1900L, t.text.length * 60L))
+                    shown.targetState = false
+                    delay(T.mid.toLong())
                     ui.toasts.remove(t)
                 }
-                Box(Modifier.clip(RoundedCornerShape(T.rPill)).background(p.ink).padding(horizontal = T.gutter, vertical = T.gap)) {
-                    Txt(t.text, T.fPill, p.bg, FontWeight.Medium)
+                AnimatedVisibility(
+                    shown,
+                    enter = fadeIn(tween(T.mid, easing = T.eOut)) + slideInVertically(tween(T.slow, easing = T.eSpring)) { -it } + scaleIn(tween(T.slow, easing = T.eSpring), T.popFrom),
+                    exit = fadeOut(tween(T.mid, easing = T.eIn)) + scaleOut(tween(T.mid, easing = T.eIn), T.popFrom),
+                ) {
+                    Box(Modifier.clip(RoundedCornerShape(T.rPill)).background(p.ink).padding(horizontal = T.gutter, vertical = T.gap)) {
+                        Txt(t.text, T.fPill, p.bg, FontWeight.Medium)
+                    }
                 }
             }
         }
@@ -283,8 +363,9 @@ fun Modifier.swipes(
                 val ch = e.changes.firstOrNull() ?: break
                 end = ch.position
                 if (!ch.pressed) break
-                // Свой жест: прокрутка списка вокруг не перехватывает горизонтальное смахивание.
-                if (abs(end.x - start.x) > near) ch.consume()
+                // Свой жест: прокрутка списка и листание вкладок вокруг не перехватывают горизонтальное смахивание.
+                val hx = abs(end.x - start.x)
+                if (hx > near || ((left != null || right != null) && hx > 0f && hx >= abs(end.y - start.y))) ch.consume()
             }
             val dx = end.x - start.x
             val dy = end.y - start.y

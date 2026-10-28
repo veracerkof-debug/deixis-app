@@ -161,6 +161,12 @@ object T {
     val eIn = CubicBezierEasing(0.4f, 0f, 1f, 1f)
     val eSpring = CubicBezierEasing(0.3f, 1.35f, 0.55f, 1f)
     const val pressScale = 0.95f
+    /** Значок выбранной вкладки чуть крупнее; тост и всплывающее появляются с этого масштаба. */
+    const val tabLift = 1.12f
+    const val popFrom = 0.92f
+    /** Шторку закрывает протяжка вниз на это расстояние или бросок быстрее этого (пикс./с). */
+    val sheetDismiss = 120.dp
+    const val flingClose = 1800f
     const val disabled = 0.4f
     const val scrim = 0.35f
 }
@@ -395,7 +401,9 @@ fun Seg(options: List<String>, selected: Int, modifier: Modifier = Modifier, scr
         options.forEachIndexed { i, t ->
             Box(
                 Modifier.then(if (scroll) Modifier else Modifier.weight(1f)).heightIn(min = T.segMin).clip(RoundedCornerShape(T.rSegIn))
-                    .background(if (i == selected) p.cell else Color.Transparent).clickable(role = Role.Tab) { onSelect(i) }.padding(horizontal = T.gap),
+                    // Выбранный сегмент проявляется, прежний гаснет: глаз видит, куда перешёл выбор.
+                    .background(androidx.compose.animation.animateColorAsState(if (i == selected) p.cell else p.cell.copy(alpha = 0f), androidx.compose.animation.core.tween(T.mid, easing = T.eOut), label = "seg").value)
+                    .clickable(role = Role.Tab) { onSelect(i) }.padding(horizontal = T.gap),
                 contentAlignment = Alignment.Center,
             ) { Txt(t, T.fSub, p.ink, FontWeight.Medium, lines = 1) }
         }

@@ -79,7 +79,7 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
                 item("h:$k") { Column(Modifier.padding(top = 4.dp)) { GHead(k.plural) } }
                 list.forEachIndexed { i, it ->
                     item(it.id) {
-                        Column(Modifier.fillMaxWidth().groupCell(i == 0, i == list.lastIndex)) {
+                        Column(Modifier.animateItem(fadeInSpec = androidx.compose.animation.core.tween(T.mid, easing = T.eOut), fadeOutSpec = androidx.compose.animation.core.tween(T.fast, easing = T.eIn)).fillMaxWidth().groupCell(i == 0, i == list.lastIndex)) {
                             if (i > 0) Sep()
                             Cell(
                                 it.title, subOf(c, it), it.kind.icon, item = it,

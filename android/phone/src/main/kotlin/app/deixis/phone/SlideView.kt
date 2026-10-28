@@ -310,5 +310,10 @@ object Thumbs {
 /** Слайд и элемент, к которому он относится: для превью «Сейчас» и «Предпросмотр». */
 @Composable
 fun CueView(c: Controller, cue: Cue?, style: SlideStyle, modifier: Modifier = Modifier, mode: Mode = Mode.NORMAL, frame: Frame = Frame.NONE, round: Dp = T.rSlide) {
-    SlideView(cue?.slide, c.item(cue?.source?.itemId), style, modifier, mode, frame = frame, round = round)
+    // Смена слайда, темы или режима — мягкое перетекание: прежний кадр тает под новым. Жесты — на внешней рамке.
+    Box(modifier) {
+        androidx.compose.animation.Crossfade(Triple(cue, style, mode), animationSpec = androidx.compose.animation.core.tween(T.mid, easing = T.eOut), label = "cue") { (cu, st, m) ->
+            SlideView(cu?.slide, c.item(cu?.source?.itemId), st, Modifier, m, frame = frame, round = round)
+        }
+    }
 }
