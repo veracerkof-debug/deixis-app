@@ -8,7 +8,7 @@
 - **Deixis TV** — облегчённая версия «только экран» для ТВ, приставок, проекторов и досок.
 - **Deixis для компьютера** — Windows, macOS, Linux.
 
-Симулятор приложения и веб-демо по ссылке: https://veracerkof-debug.github.io/deixis-app/ (собирает `tools/demo/build.py`, материалы — `tools/demo/make_assets.py`, публикует workflow Demo).
+Приложение в браузере на демо-данных — по ссылке, с компьютера и телефона: https://veracerkof-debug.github.io/deixis-app/ (собирает `tools/demo/build.py`, материалы — `tools/demo/make_assets.py`, публикует workflow Demo).
 
 Без рекламы, аналитики и трекеров. Код открытый, лицензия GPL-3.0-or-later (см. `LICENSE` и `NOTICE`).
 

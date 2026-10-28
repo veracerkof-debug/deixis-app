@@ -3,11 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#F3F2EE">
 <title>Deixis</title>
+<link rel="icon" href="assets/remote-icon.png">
+<link rel="apple-touch-icon" href="assets/remote-icon.png">
+<!-- Демо-экраны в этом же окне (hub.js); PDF.js — только для своего PDF, QR — для экрана зрителей. -->
+<script src="hub.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-/* Приложение Deixis для телефона в симуляторе: вид и устройство экранов — prototype/index.html и
-   android/phone/.../ShowScreen.kt, Screens.kt, Sheets.kt, BiblePicker.kt, FullView.kt. Показ идёт на демо-экраны
-   симулятора (hub.js) тем же протоколом, что у настоящего приёмника. Токены — DESIGN.md. */
+/* Приложение Deixis в браузере — копия пульта для Android на демо-данных: вид и устройство экранов —
+   android/phone/.../ShowScreen.kt, Screens.kt, Sheets.kt, ThemePanel.kt, OverlayUi.kt. Показ идёт на демо-экраны
+   (hub.js) тем же протоколом, что у настоящего приёмника. Токены — DESIGN.md. */
 @font-face { font-family: "Deixis Mark"; src: url("assets/GFSDidot-Regular.ttf") format("truetype"); font-display: swap; }
 @font-face { font-family: "Deixis Slide"; src: url("assets/NotoSans-SemiBold.ttf") format("truetype"); font-display: swap; }
 :root {
@@ -66,7 +74,11 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
+/* Во весь экран телефона: под чёлкой и над полосой «домой» — отступы безопасной зоны; двойное касание не масштабирует. */
+html { height: 100dvh; }
 body { background: var(--bg); color: var(--ink); font: var(--fs-body)/1.35 var(--f-ui); letter-spacing: -.01em; overflow: hidden; user-select: none;
+       -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; overscroll-behavior: none;
+       padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px); box-sizing: border-box;
        transition: background var(--t-mid) var(--e-out), color var(--t-mid) var(--e-out); }
 button { font: inherit; color: inherit; letter-spacing: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
 input, textarea { font: inherit; color: var(--ink); letter-spacing: inherit; user-select: text; }
@@ -76,9 +88,11 @@ svg { display: block; }
 .hidden { display: none !important; }
 
 /* Каркас */
-.app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+.app { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+/* Плашка трансляции бывает скрыта: строки сетки заданы явно, иначе вкладки растягиваются на свободное место. */
+#notify { grid-row: 1; } .app > main { grid-row: 2; } .app > .tabs { grid-row: 3; }
 main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-.tabs { display: flex; background: var(--cell); border-top: var(--line) solid var(--sep); }
+.tabs { display: flex; background: var(--cell); border-top: var(--line) solid var(--sep); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--g1); padding: var(--g3) 0; font-size: var(--fs-tab); color: var(--l2); min-height: var(--h-tab); }
 .tab[aria-current="page"] { color: var(--tint); }
 .top { display: flex; align-items: center; gap: var(--g4); padding: var(--g5) var(--gutter) var(--g4); min-height: var(--h-top); flex: none; }
@@ -388,7 +402,7 @@ textarea.big { width: 100%; min-height: 150px; border: 0; border-radius: var(--r
 <input type="file" id="pickDevice" class="hidden">
 
 <script>
-// ——— Связь с симулятором: демо-экраны живут в окне симулятора (hub.js) ———
+// ——— Демо-экраны (hub.js): в этом окне или, если страница вложена, в окне выше ———
 function findHub() {
   let w = window;
   for (let i = 0; i < 4; i++) {
@@ -400,8 +414,8 @@ function findHub() {
 }
 const hub = findHub();
 const sim = (() => { try { return parent.DeixisSim || null; } catch (e) { return null; } })();
-// QR-коды рисует библиотека, которую уже загрузил симулятор: сама страница в сеть не ходит.
 const qrLib = () => { try { return window.qrcode || parent.qrcode || null; } catch (e) { return null; } };
+addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; });
 
 const I = {
   show: '<path d="M3 5h18v11H3z"/><path d="M8 20h8M12 16v4"/>',
@@ -462,7 +476,7 @@ function toast(t) {
   setTimeout(() => el.remove(), t.length > 80 ? 3500 : 2000);
 }
 
-// ——— Библиотека: примеры симулятора. Песни — общественное достояние, Писание — из демо-модулей hub.js ———
+// ——— Библиотека: демо-данные. Песни — общественное достояние, Писание — из демо-модулей hub.js ———
 const TYPES = {
   pres: ["Презентация", "pres", "Презентации"], video: ["Видео", "media", "Видео"], photo: ["Фото", "photo", "Фото"], file: ["Файл", "file", "Файлы"],
   song: ["Песня", "song", "Песни"], text: ["Текст", "text", "Тексты"], countdown: ["Отсчёт", "clock", "Отсчёты"], bible: ["Библия", "bible", "Библия"],
@@ -535,7 +549,7 @@ HOLY.playlist = [HOLY.songs[0], HOLY.texts[0], HOLY.songs[1]];
 // ——— Состояние ———
 const DEFAULT_STYLE = { background: 0xFF000000, color: 0xFFFFFFFF, shadow: true, outline: false, sizePercent: 20 };
 const S = {
-  tab: "show", listSeg: "set", open: "lec",
+  tab: "show", listSeg: "set", open: "s1",
   live: null, pre: null, mode: "NORMAL",     // показ: {src, idx}; src — элемент библиотеки или разовый {title, type, slides}
   style: { ...DEFAULT_STYLE }, draft: null, draftScope: "set",
   styles: { slide: {}, item: {}, set: {} },
@@ -558,7 +572,7 @@ const slideOf = (cue) => cue && cue.src.slides[cue.idx];
 const sameCue = (a, b) => a && b && a.src === b.src && a.idx === b.idx;
 const isLiveItem = (id) => S.live && S.live.src.id === id && S.mode !== "BLACK";
 
-// ——— Экраны в сети: демо-приёмники симулятора ———
+// ——— Экраны в сети: демо-приёмники (hub.js) ———
 const devIcon = (r) => /desktop/.test(r.info.platform) ? "laptop" : /Проектор/i.test(r.info.name) ? "proj" : "tv";
 const devVia = (r) => (/desktop/.test(r.info.platform) ? "Deixis для компьютера" : "Deixis TV") + (r.address ? " · " + r.address.split(":")[0] : "");
 const stateText = (s) => ({ online: "на связи", sync: "доставляются файлы", offline: "нет связи", error: "ошибка показа", connecting: "подключение…", pin: "нужен PIN" }[s] || "");
@@ -585,11 +599,11 @@ function connectDev(key) {
     connected(d);
   }, 500);
 }
-function connected(d) {
+function connected(d, quiet) {
   d.state = "online";
   if (!d.unsub) d.unsub = d.r.onChange((st, ev) => onRxChange(d, ev));
   if (sim) sim.focus(d.key);
-  toast(d.r.info.name + ": подключено");
+  if (!quiet) toast(d.r.info.name + ": подключено");
   render();
   // Новый экран сразу показывает то же, что остальные, и тот же слой поверх.
   if (Object.keys(S.overlays).length) d.r.overlays(S.overlays);
@@ -1073,6 +1087,7 @@ function renderDevices() {
       <div style="min-width:0"><div class="s">Смотрят сейчас · ${esc(d.r.info.name)}</div><div class="big" data-viewers="${d.key}">${d.r.state.viewers || 0}</div>
       <div class="s wrap" style="white-space:normal">Камерой телефона по QR-коду. Приложение не нужно, телефон зрителя — в этой же сети Wi-Fi.</div></div></div>
       <div class="row"><span class="main"><div class="t mono">${esc(viewUrl(d))}</div><div class="s">Адрес в сети</div></span></div>
+      <button class="row" data-act="hall" data-id="${d.key}"><span class="kind">${ico(devIcon(d.r))}</span><span class="main"><div class="t">Экран «${esc(d.r.info.name)}»</div><div class="s">Что сейчас видит зал, со слоями поверх показа</div></span><span class="chev">${ico("chev")}</span></button>
       <button class="row" data-act="watch" data-id="${d.key}"><span class="kind">${ico("people")}</span><span class="main t">Открыть как зритель</span><span class="chev">${ico("chev")}</span></button></div>`).join("")
     : `<div class="group"><div class="row"><span class="kind">${ico("people")}</span><span class="main"><div class="t">Зрители смотрят показ в браузере</div><div class="s wrap">Подключите экран Deixis по Wi-Fi: здесь появится QR-код</div></span></div></div>`;
   const free = freeKeys();
@@ -1217,8 +1232,8 @@ function sheetSettings() {
     <div class="ghead">Разделы</div><div class="group">${sw("church", "Церковный раздел", "Библия и Holyrics на главном")}</div>
     <div class="ghead">Панель тем</div><div style="margin-bottom:var(--g10)">${seg("tpanel", [["HIDDEN", "Значок"], ["STRIP", "Полоса"], ["FULL", "На всё место"]], st.themePanel)}</div>
     <div class="group">${LIB.some((x) => x.demo) ? `<button class="row" data-act="rmdemo"><span class="kind">${ico("trash")}</span><span class="main"><div class="t">Убрать демо-материалы</div><div class="s">Лекция, примеры песен, фото и видео</div></span></button>`
-      : `<button class="row" data-act="backdemo"><span class="kind">${ico("loop")}</span><span class="main"><div class="t">Вернуть демо-материалы</div><div class="s">Симулятор начнётся заново</div></span></button>`}</div>
-    <p class="note"><span class="mark" style="font-size:var(--fs-m)">ΔΕΙΞΙΣ</span> · GPL-3.0 · без рекламы, аналитики и трекеров. В симуляторе данные примерные, сеть не используется.</p>`;
+      : `<button class="row" data-act="backdemo"><span class="kind">${ico("loop")}</span><span class="main"><div class="t">Вернуть демо-материалы</div><div class="s">Демо начнётся заново</div></span></button>`}</div>
+    <p class="note"><span class="mark" style="font-size:var(--fs-m)">ΔΕΙΞΙΣ</span> · GPL-3.0 · без рекламы, аналитики и трекеров. Демо: данные примерные, сеть не используется, всё остаётся в этом браузере.</p>`;
   }, { auto: true });
 }
 function sheetSetpick() {
@@ -1271,7 +1286,7 @@ function sheetAdd() {
 function sheetBibleMods() {
   openSheet("Переводы Библии", `<div class="group">${hub.bibleModules().map((m) => `<div class="row"><span class="kind">${ico("bible")}</span><span class="main"><div class="t">${esc(m.title)}</div><div class="s">${esc(m.abbreviation)} · ${esc(m.file)}</div></span></div>`).join("")}</div>
     <button class="btn" data-act="addmod">${ico("plus")}Добавить модуль…</button>
-    <p class="note">Синодальный и King James встроены. Другие переводы — файлы MyBible (.SQLite3). В симуляторе есть Ин 3:16–17, Пс 22:1–4 и 1 Кор 13:4–7.</p>`);
+    <p class="note">Синодальный и King James встроены. Другие переводы — файлы MyBible (.SQLite3). В демо есть Ин 3:16–17, Пс 22:1–4 и 1 Кор 13:4–7.</p>`);
 }
 function sheetSetMenu(s) {
   openSheet(`${s.title}, ${s.date}`, `<div class="stack"><button class="btn" data-act="pickset" data-id="${s.id}">На главный</button><button class="btn" data-act="dup" data-id="${s.id}">Дублировать</button><button class="btn red" data-act="delset" data-id="${s.id}">Удалить</button></div>`);
@@ -1325,7 +1340,7 @@ function parseQuick(q) {
 function quickHTML() {
   if (!BP.query.trim()) return "";
   const p = parseQuick(BP.query);
-  if (!p) return `<div class="group"><div class="row"><span class="main s wrap">Пример: Ин 3:16 или Пс 22. В симуляторе есть Ин 3:16–17, Пс 22:1–4 и 1 Кор 13:4–7.</span></div></div>`;
+  if (!p) return `<div class="group"><div class="row"><span class="main s wrap">Пример: Ин 3:16 или Пс 22. В демо есть Ин 3:16–17, Пс 22:1–4 и 1 Кор 13:4–7.</span></div></div>`;
   const ok = p.chapter === p.book.chapter;
   const range = p.from ? `:${p.from}${p.to && p.to !== p.from ? "–" + p.to : ""}` : "";
   return `<div class="group"><button class="row" data-act="bquick" ${ok ? "" : "disabled"}><span class="kind">${ico("bible")}</span><span class="main"><div class="t">Открыть: ${esc(p.book.long)} ${p.chapter}${range}</div>${ok ? "" : `<div class="s">В демо есть глава ${p.book.chapter}</div>`}</span><span class="chev">${ico("chev")}</span></button></div>`;
@@ -1346,7 +1361,7 @@ function bibleHTML() {
     const books = bibleBooks().filter((b) => (BP.testament === 0 ? b.number < NEW_TESTAMENT : b.number >= NEW_TESTAMENT));
     h += `<div style="margin-bottom:var(--g5)">${seg("btest", [[0, "Ветхий Завет"], [1, "Новый Завет"]], BP.testament)}</div>
       <div class="grid c3">${books.map((b) => `<button class="gcell ${b.number === BP.book ? "on" : ""}" data-act="bbook" data-id="${b.number}" aria-label="${esc(b.long)}"><b>${esc(b.short)}</b><span>${esc(b.long)}</span></button>`).join("")}</div>
-      <p class="note">В симуляторе по одной главе из трёх книг: Псалтирь, От Иоанна, 1-е Коринфянам.</p>`;
+      <p class="note">В демо по одной главе из трёх книг: Псалтирь, От Иоанна, 1-е Коринфянам.</p>`;
   } else if (BP.step === "chapter") {
     h += `<div class="grid c6">${Array.from({ length: bk.chapters }, (_, i) => i + 1).map((c) => `<button class="gcell num ${c === BP.chapter ? "on" : ""}" data-act="bchap" data-id="${c}" ${c === bk.chapter ? "" : "disabled"} aria-label="Глава ${c}">${c}</button>`).join("")}</div>
       <p class="note">В демо есть глава ${bk.chapter}.</p>`;
@@ -1433,7 +1448,7 @@ function sheetHolyrics() {
     const hs = S.holy;
     if (hs.status !== "on") return `<p class="note" style="margin-top:0">В Holyrics на компьютере: Файл → Настройки → API Server. Включите доступ по локальной сети, создайте токен и дайте ему права. Адрес и порт показаны там же.</p>
       <div class="stack"><input class="field" value="192.168.1.10" aria-label="Адрес компьютера"><div class="two"><input class="field" value="8091" aria-label="Порт"><input class="field" type="password" value="demo-token" aria-label="Токен"></div>
-      <p class="note tight">В симуляторе Holyrics — пример: поля уже заполнены.</p>
+      <p class="note tight">В демо Holyrics — пример: поля уже заполнены.</p>
       <button class="btn tint" data-act="hconnect">${hs.status === "connecting" ? "Подключение…" : "Подключить"}</button></div>`;
     const tabs = [["PLAYLIST", "Плейлист"], ["SONGS", "Песни"], ["TEXTS", "Тексты"], ["IMAGES", "Фото"], ["VIDEOS", "Видео"], ["THEMES", "Темы"]];
     return `<p class="note" style="margin-top:0">Подключено · Holyrics ${HOLY.version}</p>
@@ -1510,17 +1525,18 @@ function openFull(kind, cue) {
   update();
   requestAnimationFrame(() => el.classList.add("on"));
 }
-function openViewer(key) {
+function openViewer(key, hall) {
   closeFull(true);
   const d = devOf(key);
   const el = document.createElement("div");
   el.className = "full"; el.setAttribute("role", "dialog");
-  // Страница зрителя из симулятора: та же, что откроется по QR-коду, и она тоже считается зрителем.
-  el.innerHTML = `<div class="ft"><button class="iconbtn" data-act="closefull" aria-label="Закрыть">${ico("down")}</button><span class="ttl">Зритель · ${esc(d.r.info.name)}</span></div>
-    <div class="stage"><iframe title="Показ для зрителя" src="view.html?k=${encodeURIComponent(key)}"></iframe></div>
-    <p class="note">Так показ видят зрители в браузере по QR-коду.</p>`;
+  // Страница экрана: та же, что у приёмника в зале (hall) или у зрителя по QR-коду.
+  el.innerHTML = `<div class="ft"><button class="iconbtn" data-act="closefull" aria-label="Закрыть">${ico("down")}</button><span class="ttl">${hall ? "Экран" : "Зритель"} · ${esc(d.r.info.name)}</span></div>
+    <div class="stage"><iframe title="${hall ? "Экран зала" : "Показ для зрителя"}" src="view.html?k=${encodeURIComponent(key)}${hall ? "&hall=1" : ""}"></iframe></div>
+    ${hall ? `<div class="fb"><button class="btn" data-act="fstep" data-d="-1">${ico("prev")}Назад</button><button class="btn" data-act="fstep" data-d="1">Дальше${ico("next")}</button></div>`
+      : '<p class="note">Так показ видят зрители в браузере по QR-коду.</p>'}`;
   document.body.append(el);
-  FULL = { el, kind: "viewer", update() {}, move() {}, go() {} };
+  FULL = { el, kind: "viewer", update() {}, move: (n) => step(n), go() {} };
   requestAnimationFrame(() => el.classList.add("on"));
 }
 function closeFull(now) {
@@ -1609,7 +1625,7 @@ $("#pickDevice").onchange = async (e) => {
   }
   closeSheet();
   if (file.size > GB) return sheetLarge({ title: file.name, size: file.size, own: file, big: true });
-  if (/\.(pptx?|odp|key|docx?|odt|rtf|xlsx?|ods)$/.test(n)) return toast("В симуляторе свои презентации и документы не переводятся: на телефоне Deixis сам переводит PPTX и DOCX в PDF. Здесь можно открыть PDF, фото или видео");
+  if (/\.(pptx?|odp|key|docx?|odt|rtf|xlsx?|ods)$/.test(n)) return toast("В демо свои презентации и документы не переводятся: на телефоне Deixis сам переводит PPTX и DOCX в PDF. Здесь можно открыть PDF, фото или видео");
   let it;
   if (/\.txt$/.test(n) || file.type.startsWith("text/")) {
     it = { id: "u" + Date.now(), type: "text", title: file.name, texts: splitText(await file.text()) };
@@ -2108,6 +2124,7 @@ const A = {
     toast(bad.length ? "Требует внимания: " + bad.map((d) => d.r.info.name).join(", ") : `Все экраны готовы: ${S.devices.length}`);
   },
   watch: (d) => openViewer(d.id),
+  hall: (d) => openViewer(d.id, true),
   screen: () => { S.screenMode = true; if (sim) sim.phoneScreen(true); render(); },
   screenback: () => { S.screenMode = false; if (sim) sim.phoneScreen(false); render(); },
   // Видео
@@ -2298,7 +2315,7 @@ const A = {
   rmdemogo: () => { removeDemo(); closeSheet(); render(); toast("Демо-материалы убраны"); },
   backdemo: () => location.reload(),
   biblemods: () => sheetBibleMods(),
-  addmod: () => toast("В симуляторе модули не добавляются: на телефоне это файл MyBible .SQLite3"),
+  addmod: () => toast("В демо модули не добавляются: на телефоне это файл MyBible .SQLite3"),
   // Оформление
   st: (d) => { S.draft[d.k] = Number(d.v); render(); refreshSheet(); },
   stheme: (d) => { const t = themeOf(d.tkey); if (!t) return; S.draft = Object.assign({}, t.style); render(); refreshSheet(); },
@@ -2396,11 +2413,19 @@ async function init() {
     const res = await scriptureSlides(it.pick);
     it.slides = res.slides || [];
   }
+  // Как в приложении, которое помнит свой экран: проектор уже на связи, в зале — первый слайд лекции.
+  const rx = hub.receivers.projector;
+  rx.paired = true;
+  const d = { key: "projector", r: rx, state: "online", sent: new Set([hub.LECTURE.sha256]), unsub: null };
+  S.devices.push(d);
+  connected(d, true);
+  S.live = { src: lib("lec"), idx: 0 };
+  S.recent = ["lec", ...S.recent.filter((x) => x !== "lec")];
+  rx.show(contentOf(S.live));
   render();
   discover();
 }
-if (!hub) document.body.innerHTML = '<p class="note">Эта страница работает внутри симулятора Deixis.</p>';
-else init();
+init();
 </script>
 </body>
 </html>

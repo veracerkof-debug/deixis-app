@@ -63,7 +63,7 @@ window.bibleSheet = () => A.tab({ id: "bible" });
     open(os.path.join(OUT, "view.html"), "w", encoding="utf-8").write(inject(view))
     for f in ("GFSDidot-Regular.ttf", "NotoSans-SemiBold.ttf", "GFSDidot-OFL.txt", "NotoSans-OFL.txt", "remote-icon.png", "keepawake.mp4"):
         shutil.copy(os.path.join(WEB, f), os.path.join(OUT, "assets", f))
-    for f in ("shell.html", "sim.html", "app.html", "hub.js", "shim.js"):
+    for f in ("shell.html", "app.html", "hub.js", "shim.js"):
         shutil.copy(os.path.join(HERE, f), os.path.join(OUT, f))
     shutil.copytree(os.path.join(HERE, "media"), os.path.join(OUT, "media"),
                     ignore=shutil.ignore_patterns("*.pptx", "*.pdf"))
@@ -71,9 +71,10 @@ window.bibleSheet = () => A.tab({ id: "bible" });
     samples = os.path.join(ROOT, "core", "src", "main", "resources", "overlay-samples")
     for f in os.listdir(samples):
         shutil.copy(os.path.join(samples, f), os.path.join(OUT, "media", f))
-    # Обычные страницы с <!doctype> (claude.ai добавляет его к главной странице сам):
-    # index.html — симулятор приложения, webremote.html — веб-пульт для iPhone.
-    for src, dst in (("sim.html", "index.html"), ("shell.html", "webremote.html")):
+    # index.html — само приложение Deixis на демо-данных, во весь экран: открывается по ссылке на компьютере и телефоне.
+    shutil.copy(os.path.join(HERE, "app.html"), os.path.join(OUT, "index.html"))
+    # webremote.html — веб-пульт для iPhone (страница с <!doctype>; claude.ai добавляет его к главной сам).
+    for src, dst in (("shell.html", "webremote.html"),):
         body = open(os.path.join(HERE, src), encoding="utf-8").read()
         open(os.path.join(OUT, dst), "w", encoding="utf-8").write(
             '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'

@@ -126,6 +126,13 @@
     holyrics: false, convert: false, documents: false,
   }, { content: { type: "pdf", file: LECTURE, page: 0 } });
 
+  // Экраны в сети для приложения: проектор и ноутбук рядом, и сам телефон в режиме «Стать экраном».
+  addReceiver("projector", { id: "projector", name: "Проектор, ауд. 214", platform: "android-tv", appVersion: "0.10.9", screenWidth: 1920, screenHeight: 1080,
+    holyrics: false, convert: false, documents: true }, { pin: "4827", address: "192.168.1.24:47820", viewers: 6 });
+  addReceiver("laptop", { id: "laptop", name: "Ноутбук преподавателя", platform: "desktop-windows", appVersion: "0.10.9", screenWidth: 1920, screenHeight: 1080,
+    holyrics: true, convert: true, documents: true }, { pin: "1593", address: "192.168.1.31:47820" });
+  addReceiver("phone", { id: "phone", name: "Телефон · Pixel 8", platform: "android-screen", appVersion: "0.10.9" }, { pin: "3071", address: "192.168.1.37:47820" });
+
   function connect(path, send) {
     const q = new URLSearchParams(path.split("?")[1] || "");
     const rx = receivers[q.get("k") || "demo"] || receivers.demo;
