@@ -217,9 +217,16 @@ interface ReleaseSource {
     suspend fun download(url: String, dest: File, onProgress: (Long) -> Unit)
 }
 
-/** Выпуски проекта на GitHub. Без входа в учётную запись: 60 запросов в час с одного адреса — с запасом. */
+/**
+ * Выпуски проекта на GitHub. Без входа в учётную запись API даёт 60 запросов в час на адрес, а у мобильного
+ * оператора один адрес на многих абонентов — лимит бывает исчерпан чужими запросами. Тогда описание берётся
+ * из файла `release.json` последнего выпуска: это обычная загрузка файла, лимита API у неё нет.
+ */
 class GitHubReleases(private val repo: String = REPO) : ReleaseSource {
-    override suspend fun releases(): List<Release> = parseReleases(text("https://api.github.com/repos/$repo/releases?per_page=30"))
+    override suspend fun releases(): List<Release> = releasesWithFallback(
+        { parseReleases(text("https://api.github.com/repos/$repo/releases?per_page=30")) },
+        { parseReleases(text("https://github.com/$repo/releases/latest/download/$RELEASE_FILE")) },
+    )
 
     override suspend fun text(url: String): String = withContext(Dispatchers.IO) {
         open(url).let { c -> try { c.inputStream.use { it.readBytes().decodeToString() } } finally { c.disconnect() } }
@@ -251,7 +258,7 @@ class GitHubReleases(private val repo: String = REPO) : ReleaseSource {
         c.connectTimeout = TIMEOUT_MS
         c.readTimeout = TIMEOUT_MS
         c.instanceFollowRedirects = true
-        c.setRequestProperty("Accept", "application/vnd.github+json")
+        c.setRequestProperty("Accept", if (url.contains("api.github.com")) "application/vnd.github+json" else "*/*")
         c.setRequestProperty("User-Agent", "Deixis")
         if (c.responseCode !in 200..299) {
             val code = c.responseCode
@@ -263,9 +270,22 @@ class GitHubReleases(private val repo: String = REPO) : ReleaseSource {
 
     companion object {
         const val REPO = "veracerkof-debug/deixis-app"
+        /** Описание выпуска в том же виде, что ответ API (release.yml кладёт его в каждый выпуск). */
+        const val RELEASE_FILE = "release.json"
         private const val TIMEOUT_MS = 20_000
     }
 }
+
+/**
+ * Список выпусков: сначала [primary] (API GitHub со всеми выпусками, и пробными), при ошибке — [fallback]
+ * (последний стабильный выпуск). Не вышло и так — видна ошибка основного пути: она понятнее.
+ */
+suspend fun releasesWithFallback(primary: suspend () -> List<Release>, fallback: suspend () -> List<Release>): List<Release> =
+    try {
+        primary()
+    } catch (e: java.io.IOException) {
+        try { fallback() } catch (_: Exception) { throw e }
+    }
 
 fun sha256File(f: File): String {
     val md = MessageDigest.getInstance("SHA-256")

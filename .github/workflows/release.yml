@@ -284,6 +284,23 @@ jobs:
           } > notes.md
           # Контрольные суммы: приложения не ставят файл, сумма которого не совпала.
           (cd files && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          # Описание выпуска файлом, в том же виде, что ответ API GitHub: приложения берут его, когда API
+          # упёрся в лимит (60 запросов в час на адрес, у мобильных операторов адрес общий).
+          python3 - "$V" "$GITHUB_REPOSITORY" "${{ inputs.test == true }}" <<'PY'
+          import json, os, sys
+          v, repo, test = sys.argv[1], sys.argv[2], sys.argv[3] == "true"
+          sums = {}
+          for line in open("files/SHA256SUMS.txt", encoding="utf-8"):
+              h, name = line.split(None, 1)
+              sums[name.strip().lstrip("*")] = h
+          assets = [{"name": n, "size": os.path.getsize(f"files/{n}"),
+                     "browser_download_url": f"https://github.com/{repo}/releases/download/v{v}/{n}",
+                     **({"digest": "sha256:" + sums[n]} if n in sums else {})}
+                    for n in sorted(os.listdir("files"))]
+          body = open("notes.md", encoding="utf-8").read()
+          json.dump([{"tag_name": f"v{v}", "prerelease": test, "draft": False, "body": body, "assets": assets}],
+                    open("files/release.json", "w", encoding="utf-8"), ensure_ascii=False)
+          PY
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}

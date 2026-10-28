@@ -81,6 +81,16 @@ class UpdatesTest {
         assertTrue(bundledChangelog().contains("## 0.9.2"), "журнал вшит в ядро")
     }
 
+    /** API упёрся в лимит — список берётся из release.json последнего выпуска; не вышло и так — ошибка API. */
+    @Test
+    fun rateLimitFallsBackToReleaseFile() = runBlocking {
+        val limited = java.io.IOException("GitHub временно ограничил проверки, попробуйте позже")
+        val got = releasesWithFallback({ throw limited }, { parseReleases(json()) })
+        assertEquals("0.10.0", latestFor(got, UpdateChannel.STABLE)?.version)
+        val err = runCatching { releasesWithFallback({ throw limited }, { throw java.io.IOException("нет файла") }) }.exceptionOrNull()
+        assertEquals(limited.message, err?.message)
+    }
+
     @Test
     fun sumsFile() {
         val m = parseSha256Sums("${"a".repeat(64)}  Deixis-0.10.0.msi\n${"B".repeat(64)} *Deixis-1.0.dmg\nмусор")
