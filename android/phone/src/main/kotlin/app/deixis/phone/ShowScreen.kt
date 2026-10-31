@@ -219,6 +219,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
         Mode.BLACK -> "Чёрный экран"
         Mode.LOGO -> "Логотип"
         Mode.CLEAR -> "Очищено"
+        Mode.AWAY -> "Deixis ушёл с экранов"
         Mode.NORMAL -> live?.let { l -> if (l.source.slides.size > 1) "${l.source.title} · ${l.index + 1}/${l.source.slides.size}" else l.source.title } ?: "Пусто"
     }
     val video = state?.video?.takeIf { live?.slide is Slide.Movie }
@@ -423,7 +424,7 @@ private fun LazyListScope.setRow(
     // Строки сетлиста появляются, уходят и меняются местами плавно.
     Column(Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn)).fillMaxWidth().groupCell(first, last).themeTarget(ui.themeDrag, "item:${it.id}") { st -> dropped(c, ui, it.id, null, st, it.title) }) {
         if (!first) Sep()
-        val isLive = live?.source?.itemId == it.id && mode != Mode.BLACK
+        val isLive = live?.source?.itemId == it.id && mode.inHall()
         val isPre = preview?.source?.itemId == it.id
         // Состояние — полоской слева и подписью, а не плашками: название песни остаётся целиком.
         val count = c.slidesOf(it).size
@@ -451,7 +452,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
     if (slides.isNotEmpty() && slides.all { s -> s is Slide.Text || s is Slide.Scripture }) {
         slides.forEachIndexed { i, s ->
             item("row:${it.id}:$i") {
-                val isLive = live?.source?.itemId == it.id && live?.index == i && mode != Mode.BLACK
+                val isLive = live?.source?.itemId == it.id && live?.index == i && mode.inHall()
                 val isPre = preview?.source?.itemId == it.id && preview.index == i
                 Box(
                     Modifier.animateItem(fadeInSpec = tween(T.mid, easing = T.eOut), fadeOutSpec = tween(T.fast, easing = T.eIn))
@@ -479,7 +480,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                 horizontalArrangement = Arrangement.spacedBy(T.gap),
             ) {
                 pair.forEach { i ->
-                    val isLive = live?.source?.itemId == it.id && live?.index == i && mode != Mode.BLACK
+                    val isLive = live?.source?.itemId == it.id && live?.index == i && mode.inHall()
                     val isPre = preview?.source?.itemId == it.id && preview.index == i
                     val cue = Cue(c.sourceOf(it), i)
                     SlideView(
@@ -606,6 +607,12 @@ fun ControlBar(c: Controller, ui: Ui) {
                     BarBtn("prev", "Назад") { c.step(-1) }
                     BarBtn("next", "Дальше") { c.step(1) }
                     BarBtn("brush", "Вид") { openStyle(c, ui) }
+                    // Уйти с экранов: окна Deixis прячутся, на экранах то, что было до него; ещё раз — вернуться.
+                    BarBtn("away", "Уйти с экранов", mode == Mode.AWAY) {
+                        val back = mode == Mode.AWAY
+                        c.mode(Mode.AWAY)
+                        ui.toast(if (back) "Deixis снова на экранах" else "Deixis ушёл с экранов: любой показ вернёт его")
+                    }
                 }
             }
         }
@@ -669,3 +676,5 @@ private fun VideoSeek(position: Long, duration: Long, onSeek: (Long) -> Unit) {
 /** Подписи, подсказка и отступы вокруг окна «Сейчас» или «Предпросмотр». */
 private val MONITOR_CHROME = 72.dp
 
+/** Показ виден в зале: не «Чёрный» и не «Ушёл с экранов» — по этому отмечается слайд «в зале». */
+fun Mode.inHall(): Boolean = this != Mode.BLACK && this != Mode.AWAY

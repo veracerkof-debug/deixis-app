@@ -138,7 +138,7 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     LaunchedEffect(controller) { controller.messages.collect { ui.toast(it) } }
     val info by controller.receiverInfo.collectAsState()
     val testRatio by controller.testRatio.collectAsState()
-    CompositionLocalProvider(P provides paletteOf(theme), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo) {
+    CompositionLocalProvider(P provides paletteOf(theme), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
         Root(controller, holyrics, ui)
     }
 }

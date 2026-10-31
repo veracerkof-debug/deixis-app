@@ -266,16 +266,28 @@ class OutputWindow(
         state?.let(::update)
     }
 
+    /** Окно зала спрятано: Deixis ушёл с экрана, на мониторе то, что под ним (рабочий стол, другая программа). */
+    private var away = false
+
     /** Новое состояние показа. Зал и титры перерисовываются, только если изменилось то, что они показывают. */
     fun update(s: FrameState) {
         state = s
+        // «Уйти с экранов» прячет окно зала целиком; любой показ или другой режим — окно на месте, как было.
+        val leave = layout == OutputLayout.HALL && s.mode == Mode.AWAY
+        if (leave != away) {
+            away = leave
+            if (leave) {
+                device?.takeIf { it.fullScreenWindow === frame }?.fullScreenWindow = null
+                frame.isVisible = false
+            } else place()
+        }
         if (layout == OutputLayout.HALL) {
             val vk = s.content to s.mode
             if (vk != videoKey) { videoKey = vk; applyVideo(s) }
         }
         // Отсчёт перерисовывается, когда меняется его строка; остальное — когда меняется показ.
         val key: Any = when (layout) {
-            OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText, s.logo)
+            OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText, s.logo, s.logoImage)
             OutputLayout.STAGE -> listOf(s.copy(now = s.now / 1000), s.countdownText)
             else -> s.content to s.mode
         }

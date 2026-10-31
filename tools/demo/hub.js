@@ -38,7 +38,7 @@
     let clock = 0;
     const r = { key, info, pin: opts.pin || "0000", paired: false, address: opts.address || null };
 
-    function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video, overlays: state.overlays, now: Date.now() }); }
+    function viewerState() { return json({ content: state.content, mode: state.mode, video: state.video, overlays: state.overlays, logoImage: state.logoImage || null, now: Date.now() }); }
     function broadcast(event) {
       state.viewers = (opts.viewers || 0) + [...viewers].filter((v) => !v.preview && !v.hall).length;
       for (const p of remotes) if (p.ready) p.send(json({ type: "status", state }));
@@ -68,7 +68,8 @@
       setTimeout(() => broadcast("show"), 80);
       return null;
     };
-    r.mode = (m) => { state = Object.assign({}, state, { mode: m }); broadcast("mode"); };
+    // [logoImage] — своя картинка «Логотипа»; undefined — оставить прежнюю.
+    r.mode = (m, logoImage) => { state = Object.assign({}, state, { mode: m }, logoImage !== undefined ? { logoImage } : {}); broadcast("mode"); };
     // Поверх показа: слой не зависит от слайдов, смена слайда его не трогает.
     r.overlays = (o) => { state = Object.assign({}, state, { overlays: o || {} }); broadcast("overlays"); };
     r.video = (action, positionMs, loop, volume) => {
@@ -107,7 +108,7 @@
       if (m.type === "show") {
         const err = r.show(m.content);
         if (err) peer.send(json({ type: "error", code: "missing", message: err }));
-      } else if (m.type === "mode") r.mode(m.mode);
+      } else if (m.type === "mode") r.mode(m.mode, m.logo ? m.logoImage || null : undefined);
       else if (m.type === "video") r.video(m.action, m.positionMs, m.loop, m.volume);
       else if (m.type === "overlays") r.overlays(m.overlays);
     };

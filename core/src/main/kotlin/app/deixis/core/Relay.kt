@@ -235,6 +235,7 @@ class ScreenRelay(
         val timer: CountdownContent? = null,
         val overlays: Overlays = Overlays(),
         val logo: LogoStyle = LogoStyle.WORDMARK,
+        val logoImage: FileRef? = null,
     )
 
     private inner class Link(val id: String, val host: String, val port: Int, token: String) {
@@ -271,7 +272,7 @@ class ScreenRelay(
             }
             linkScope.launch {
                 client.connection.map { it is Connection.Connected }.distinctUntilChanged()
-                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer, it.overlays, it.logo) }.distinctUntilChanged()) { online, m -> online to m }
+                    .combine(core.state.map { Mirror(it.content, it.next, it.mode, it.timer, it.overlays, it.logo, it.logoImage) }.distinctUntilChanged()) { online, m -> online to m }
                     .collectLatest { (online, m) ->
                         if (!online) { sent = null; syncing.value = false; return@collectLatest }
                         mirror(m)
@@ -295,15 +296,20 @@ class ScreenRelay(
                     client.send(SetOverlays(m.overlays))
                 } catch (e: CancellationException) { throw e } catch (_: Exception) {}
             }
+            // Своя картинка логотипа — на экран до команды «Логотип». Не вышло — экран покажет знак.
+            if (m.logoImage != null && prev?.logoImage != m.logoImage) {
+                try { upload(m.logoImage) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+            }
+            val modeChanged = prev?.mode != m.mode || prev.logo != m.logo || prev.logoImage != m.logoImage
             val content = m.content
             if (content == null) {
                 // Показа ещё не было: экран остаётся в ожидании, но режим повторяется.
-                if ((prev?.mode != m.mode || prev.logo != m.logo) && m.mode != Mode.NORMAL) client.mode(m.mode, m.logo)
+                if (modeChanged && m.mode != Mode.NORMAL) client.mode(m.mode, m.logo, m.logoImage)
                 sent = m
                 return
             }
             if (prev != null && prev.content == content && prev.next == m.next) {
-                if (prev.mode != m.mode || prev.logo != m.logo) client.mode(m.mode, m.logo)
+                if (modeChanged) client.mode(m.mode, m.logo, m.logoImage)
                 sent = m
                 if (content is ScreenContent) forwardStream()
                 return
@@ -331,7 +337,7 @@ class ScreenRelay(
                 else -> content
             }
             if (!client.show(shown, m.next)) return
-            if (m.mode != Mode.NORMAL) client.mode(m.mode, m.logo)
+            if (m.mode != Mode.NORMAL) client.mode(m.mode, m.logo, m.logoImage)
             if (content is VideoContent && live.video?.playing == false) client.video(VideoCommand(VideoAction.PAUSE))
             sent = m
             // Файлы следующего слайда — заранее, чтобы переход был мгновенным. Не вышло — не страшно.

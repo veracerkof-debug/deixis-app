@@ -82,6 +82,8 @@ data class FrameState(
     val overlays: app.deixis.core.Overlays = app.deixis.core.Overlays(),
     /** Вид заставки «Логотип». */
     val logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
+    /** Своя картинка на «Логотипе» вместо знака. */
+    val logoImage: app.deixis.core.FileRef? = null,
 ) {
     /** Что сейчас написано на отсчётах (в зале и в «Сцене»): кадр перерисовывается, только когда это меняется. */
     val countdownText: String?
@@ -144,7 +146,7 @@ class OutputFrames(files: FileStore) {
         OutputLayout.HALL -> slides.render(
             width, height,
             s.content.takeUnless { (it is VideoContent || it is ScreenContent) && s.mode == Mode.NORMAL },
-            s.mode, s.idle, s.now, s.logo,
+            s.mode, s.idle, s.now, s.logo, s.logoImage,
         )
         OutputLayout.LOWER_THIRD -> caption(width, height, s, chroma = false)
         OutputLayout.CHROMA -> caption(width, height, s, chroma = true)
@@ -244,6 +246,7 @@ class OutputFrames(files: FileStore) {
         Mode.BLACK -> "В зале чёрный экран"
         Mode.LOGO -> "В зале логотип"
         Mode.CLEAR -> "В зале текст скрыт"
+        Mode.AWAY -> "Deixis ушёл с экранов"
     }
 
     private var now = System.currentTimeMillis()

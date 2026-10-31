@@ -128,7 +128,10 @@ fun ReceiverScreen(
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
         when {
-            mode == Mode.BLACK -> Box(Modifier.fillMaxSize().background(Color.Black))
+            // «Уйти с экранов»: окно уходит само (AwayFollower); пока оно ещё видно — чёрное.
+            mode == Mode.BLACK || mode == Mode.AWAY -> Box(Modifier.fillMaxSize().background(Color.Black))
+            // Своя картинка вместо знака: вписана целиком на чёрном.
+            mode == Mode.LOGO && state.logoImage != null -> ImageSlide(runtime, ImageContent(state.logoImage!!))
             mode == Mode.LOGO -> Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) { LogoFull(state.logo) }
             content == null -> if (showIdleInfo) IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri()) else Unit
             content is TextContent -> TextSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)

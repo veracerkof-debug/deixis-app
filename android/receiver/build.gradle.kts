@@ -24,4 +24,6 @@ dependencies {
     api(libs.compose.ui)
     api(libs.compose.foundation)
     api(libs.coroutines.android)
+    // Окно экрана уходит назад и возвращается по команде пульта (Away.kt).
+    implementation(libs.activity.compose)
 }

@@ -112,6 +112,39 @@ class LogoStyleTest {
         assertEquals(LogoStyle.DELTA, core.state.value.logo, "смена слайда вид не сбрасывает")
     }
 
+    /** Своя картинка на «Логотипе»: нужен файл на экране; приходит и уходит вместе с видом знака; слайды её не трогают. */
+    @Test
+    fun logoPictureNeedsItsFileAndTravelsWithTheStyle() {
+        val core = ReceiverCore(ReceiverInfo("tv", "ТВ", "test", "0"), FileStore(File(createTempDirectory("logo").toFile(), "files")), Pairing(MemoryTokenStore()))
+        val bytes = ByteArray(500) { (it * 7).toByte() }
+        val sha = sha256Of(bytes.inputStream())
+        val ref = FileRef(sha, "церковь.png", bytes.size.toLong(), "image/png")
+        assertEquals("missing_file", core.apply(SetMode(Mode.LOGO, LogoStyle.WORDMARK, ref))?.code)
+        assertEquals(Mode.NORMAL, core.state.value.mode, "без файла режим не меняется")
+        core.files.append(sha, bytes.size.toLong(), 0, bytes.inputStream())
+        assertNull(core.apply(SetMode(Mode.LOGO, LogoStyle.WORDMARK, ref)))
+        assertEquals(ref, core.state.value.logoImage)
+        core.apply(Show(TextContent("Слайд")))
+        assertEquals(ref, core.state.value.logoImage, "смена слайда картинку не сбрасывает")
+        core.apply(decodeMsg("""{"type":"mode","mode":"LOGO"}""") as SetMode)
+        assertEquals(ref, core.state.value.logoImage, "старый пульт картинку не трогает")
+        core.apply(SetMode(Mode.LOGO, LogoStyle.DELTA))
+        assertNull(core.state.value.logoImage, "вид без картинки — картинка убрана")
+    }
+
+    /** «Уйти с экранов»: режим AWAY, слой поверх не виден; любой показ возвращает Deixis. */
+    @Test
+    fun awayLeavesTheScreenAndAnyShowComesBack() {
+        val core = ReceiverCore(ReceiverInfo("tv", "ТВ", "test", "0"), FileStore(File(createTempDirectory("away").toFile(), "files")), Pairing(MemoryTokenStore()))
+        core.apply(Show(TextContent("Слайд")))
+        core.apply(SetMode(Mode.AWAY))
+        assertEquals(Mode.AWAY, core.state.value.mode)
+        assertTrue(!overlaysVisible(Mode.AWAY))
+        assertEquals(Mode.AWAY, (decodeMsg(Status(core.state.value).encode()) as Status).state.mode)
+        core.apply(Show(TextContent("Следующий")))
+        assertEquals(Mode.NORMAL, core.state.value.mode)
+    }
+
     @Test
     fun bigDeltaFitsEveryScreenAndKeepsItsShape() {
         for ((w, h) in listOf(1920f to 1080f, 1024f to 768f, 1080f to 1920f, 3840f to 1080f, 400f to 1200f)) {

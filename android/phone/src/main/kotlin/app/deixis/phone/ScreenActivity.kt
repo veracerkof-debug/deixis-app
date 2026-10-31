@@ -19,6 +19,7 @@ import app.deixis.receiver.ScreenUpdateHost
 import app.deixis.receiver.ReceiverRuntime
 import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.VlcPlayer
+import app.deixis.receiver.followAway
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +44,8 @@ class ScreenActivity : ComponentActivity() {
         ScreenRole.mark(this, true)
         player = VlcPlayer(this) { runtime.core.reportError(it) }
         setContent { ReceiverScreen(runtime, player, overscan = isTelevision(this)) }
+        // «Уйти с экранов»: Deixis уходит назад, на экране — то, что под ним.
+        followAway(runtime)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

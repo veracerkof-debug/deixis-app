@@ -22,7 +22,11 @@ import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.VlcPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import app.deixis.core.Mode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -53,6 +57,10 @@ class CastOutput(private val app: Application, private val controller: () -> Con
 
     /** Второй экран, на который сейчас идёт вывод. */
     private var shown: Display? = null
+
+    /** «Уйти с экранов»: окна на втором экране нет, там то, что Android выводит без Deixis. */
+    private var away = false
+    private var awayJob: Job? = null
 
     /** Окно на втором экране; null — его нет или Android не дал его открыть. */
     var activity: CastActivity? = null
@@ -95,6 +103,17 @@ class CastOutput(private val app: Application, private val controller: () -> Con
             wireless = isWireless
             runtimeSize = size
             runtime = ReceiverRuntime(app, if (isWireless) "Беспроводной дисплей" else "Кабель HDMI", "android-hdmi", File(app.filesDir, "hdmi"), port = 0, loopbackOnly = true, screen = size)
+            away = false
+            awayJob?.cancel()
+            // Пульт сказал «Уйти» — окно на втором экране закрывается; показал что-то снова — открывается.
+            awayJob = scope.launch {
+                runtime!!.core.state.map { it.mode == Mode.AWAY }.distinctUntilChanged().collect { a ->
+                    if (a == away) return@collect
+                    away = a
+                    val d = shown ?: return@collect
+                    if (a) { _fallback.value = null; activity?.finish(); activity = null } else if (activity == null) open(d)
+                }
+            }
         }
         val rt = runtime!!
         scope.launch {
@@ -114,6 +133,7 @@ class CastOutput(private val app: Application, private val controller: () -> Con
     /** Своё окно на втором экране; не открылось за пару секунд — вывод через пульт. */
     private fun open(display: Display) {
         _fallback.value = null
+        if (away) return
         val opened = runCatching {
             val options = ActivityOptions.makeBasic().setLaunchDisplayId(display.displayId)
             app.startActivity(

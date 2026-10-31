@@ -1,5 +1,6 @@
 package app.deixis.phone
 
+import kotlinx.coroutines.launch
 import app.deixis.core.LogoStyle
 import app.deixis.core.Mode
 
@@ -212,8 +213,27 @@ fun SettingsSheet(c: Controller) {
     Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
         c.setSettings { it.copy(logo = LogoStyle.entries[i]) }
     }
+    // Своя картинка вместо знака: логотип церкви, школы, афиша.
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { c.backgroundFrom(uri) }
+                .onSuccess { ref -> c.setSettings { it.copy(logoImage = ref) } }
+                .onFailure { e -> ui.toast(e.message ?: "Картинка не открылась") }
+        }
+    }
+    Group(Modifier.padding(top = T.gapS)) {
+        Cell(
+            "Своя картинка", st.logoImage?.name ?: "Логотип церкви, школы или афиша вместо знака", kind = "photo",
+            onClick = { pick.launch(arrayOf("image/*")) },
+        ) {
+            if (st.logoImage != null) Pill("Убрать") { c.setSettings { it.copy(logoImage = null) } }
+        }
+    }
     SlideView(null, null, c.styleFor(null), Modifier.padding(top = T.gapS), mode = Mode.LOGO, logo = st.logo)
-    Note("Так выглядит экран в зале по кнопке «Логотип».")
+    Note(if (st.logoImage != null) "Так выглядит экран в зале по кнопке «Логотип»: картинка целиком на чёрном."
+        else "Так выглядит экран в зале по кнопке «Логотип».")
     GHead("Разделы")
     Group {
         SwitchRow("Церковный раздел", st.church, "Библия и Holyrics на главном") { v -> c.setSettings { it.copy(church = v) } }

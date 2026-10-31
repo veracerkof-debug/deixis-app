@@ -154,7 +154,7 @@ fun BibleScreen(c: Controller, ui: Ui) {
                     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp)) {
                         items(ch.primary, key = { "v${ch.book}:${ch.chapter}:${it.number}" }) { v ->
                             val second = ch.second?.firstOrNull { it.number == v.number }
-                            val isLive = liveRange?.contains(v.number) == true && mode != Mode.BLACK
+                            val isLive = liveRange?.contains(v.number) == true && mode.inHall()
                             val isMark = mark?.contains(v.number) == true
                             VerseRow(v.number, v.text, second?.text, isLive, isMark,
                                 onTap = { d.select(v.number) },
@@ -220,6 +220,7 @@ private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange
             Txt(
                 when {
                     mode == Mode.BLACK -> "В зале чёрный экран"
+                    mode == Mode.AWAY -> "Deixis ушёл с экранов"
                     liveRange != null -> "В зале: ${d.label(liveRange)}"
                     mark != null -> "Выбрано: ${d.label(mark)}"
                     else -> "Касание — предпросмотр, двойное — в зал, удержание — до этого стиха"

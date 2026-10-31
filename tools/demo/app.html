@@ -497,6 +497,7 @@ const I = {
   mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
   layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  away: '<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4"/><path d="M18 12H9"/>',
   themes: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
   send: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/>',
   onscreen: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8.5 10l2.5 2.5 4.5-4.5"/><path d="M8 20h8"/>',
@@ -615,7 +616,7 @@ const S = {
 const activeSet = () => S.setlists.find((s) => s.id === S.active) || S.setlists[0] || null;
 const slideOf = (cue) => cue && cue.src.slides[cue.idx];
 const sameCue = (a, b) => a && b && a.src === b.src && a.idx === b.idx;
-const isLiveItem = (id) => S.live && S.live.src.id === id && S.mode !== "BLACK";
+const isLiveItem = (id) => S.live && S.live.src.id === id && S.mode !== "BLACK" && S.mode !== "AWAY";
 
 // ——— Экраны в сети: демо-приёмники (hub.js) ———
 const devIcon = (r) => /desktop/.test(r.info.platform) ? "laptop" : /Проектор/i.test(r.info.name) ? "proj" : "tv";
@@ -822,10 +823,13 @@ function step(d) {
   if (i < 0 || i >= cue.src.slides.length) return;
   goLive({ src: cue.src, idx: i });
 }
+// «Чёрный», «Логотип», «Уйти с экранов»; повторное нажатие возвращает показ. Своя картинка «Логотипа» — вместе с режимом.
 function setMode(m) {
   if (!ready().length) return toast("Сначала подключите экран");
-  S.mode = S.mode === m ? "NORMAL" : m;
-  for (const d of ready()) d.r.mode(S.mode);
+  const back = S.mode === m;
+  S.mode = back ? "NORMAL" : m;
+  for (const d of ready()) d.r.mode(S.mode, S.settings.logoImage || null);
+  if (m === "AWAY") toast(back ? "Deixis снова на экранах" : "Deixis ушёл с экранов: любой показ вернёт его");
   render();
 }
 function video(action, arg) {
@@ -854,6 +858,10 @@ function slideHTML(cue, st, o = {}) {
   const num = o.num ? `<span class="num">${o.num}</span>` : "";
   const cls = o.cls || "", m = o.mode || "NORMAL";
   if (m === "BLACK") return `<div class="slide ${cls}">${num}</div>`;
+  // Deixis ушёл с экранов: в окне — чёрное и знак выхода, в зале — то, что под Deixis.
+  if (m === "AWAY") return `<div class="slide ${cls}"><span class="empty">${ico("away")}</span>${num}</div>`;
+  const pic = S.settings.logoImage && hub.files[S.settings.logoImage.sha256];
+  if (m === "LOGO" && pic) return `<div class="slide ${cls}"><img src="${esc(pic.url)}" alt="">${num}</div>`;
   if (m === "LOGO") return `<div class="slide ${cls}"><div class="mk">ΔΕΙΞΙΣ</div>${num}</div>`;
   const sl = slideOf(cue);
   if (!sl) return `<div class="slide ${cls}">${o.empty ? `<span class="empty">${esc(o.empty)}</span>` : ""}${num}</div>`;
@@ -926,6 +934,7 @@ function liveName() {
   if (S.holy.remote && S.holy.status === "on") return S.holy.live ? `Holyrics · ${S.holy.live.title}` : "В Holyrics ничего не показано";
   if (S.mode === "BLACK") return "Чёрный экран";
   if (S.mode === "LOGO") return "Логотип";
+  if (S.mode === "AWAY") return "Deixis ушёл с экранов";
   if (S.mode === "CLEAR") return "Очищено";
   if (!S.live) return ready().length ? "Пусто" : "Экран не подключён";
   const s = S.live.src;
@@ -1065,7 +1074,8 @@ function controlBar() {
     ${key("layers", "layers", "Слои", `aria-pressed="${layers}"`)}
     ${key("step", "prev", "Назад", 'data-d="-1"')}
     ${key("step", "next", "Дальше", 'data-d="1"')}
-    ${key("style", "brush", "Вид")}</div>`;
+    ${key("style", "brush", "Вид")}
+    ${key("mode", "away", "Уйти с экранов", `data-m="AWAY" aria-pressed="${S.mode === "AWAY"}"`)}</div>`;
 }
 function renderShow() {
   const label = S.devices.length ? "" : `<span>Подключить</span>`;
@@ -1280,6 +1290,8 @@ function sheetSettings() {
       ${sw("darkLive", "Тёмная тема во время показа", "Включается сама, пока идёт показ")}
       ${sw("clicker", "Bluetooth-кликер и педаль", "Стрелки и пробел листают, B — чёрный экран")}
       ${sw("caps", "Текст заглавными буквами", "Песни, тексты и Писание в зале")}</div>
+    <div class="ghead">Заставка «Логотип»</div><div class="group">
+      <button class="row" data-act="logopic"><span class="kind">${ico("photo")}</span><span class="main"><div class="t">Своя картинка</div><div class="s">${esc(st.logoImage ? st.logoImage.name : "Логотип церкви, школы или афиша вместо знака")}</div></span>${st.logoImage ? '<span class="pill" data-act="logopicoff" role="button">Убрать</span>' : ""}</button></div>
     <div class="ghead">Разделы</div><div class="group">${sw("church", "Церковный раздел", "Библия и Holyrics на главном")}</div>
     <div class="ghead">Панель тем</div><div style="margin-bottom:var(--g10)">${seg("tpanel", [["HIDDEN", "Значок"], ["STRIP", "Полоса"], ["FULL", "На всё место"]], st.themePanel)}</div>
     <div class="group">${LIB.some((x) => x.demo) ? `<button class="row" data-act="rmdemo"><span class="kind">${ico("trash")}</span><span class="main"><div class="t">Убрать демо-материалы</div><div class="s">Лекция, примеры песен, фото и видео</div></span></button>`
@@ -1669,6 +1681,15 @@ $("#pickDevice").onchange = async (e) => {
   e.target.value = "";
   if (!file) return;
   const n = file.name.toLowerCase();
+  // Своя картинка «Логотипа»: остаётся в браузере, на экраны — вместе с режимом.
+  if (pickMode === "logopic") {
+    pickMode = null;
+    if (!file.type.startsWith("image/")) return toast("Нужна картинка: PNG или JPG");
+    S.settings.logoImage = await hub.finishUpload({ name: file.name, chunks: [file] });
+    if (S.mode === "LOGO") for (const d of ready()) d.r.mode("LOGO", S.settings.logoImage);
+    render(); refreshSheet();
+    return toast("Картинка для «Логотипа» выбрана");
+  }
   // Свой логотип для слоя «Поверх показа»: картинка остаётся в браузере.
   if (pickMode === "logo") {
     pickMode = null;
@@ -2451,6 +2472,8 @@ const A = {
   ovlcorner: (d) => setOverlays(Object.assign({}, S.overlays, { logo: Object.assign({}, S.overlays.logo, { corner: d.v }) })),
   ovlsize: (d) => { const l = S.overlays.logo; setOverlays(Object.assign({}, S.overlays, { logo: Object.assign({}, l, { sizePercent: Math.max(4, Math.min(30, (l.sizePercent || 10) + Number(d.d))) }) })); },
   ovclear: () => setOverlays({}),
+  logopic: () => { pickMode = "logopic"; const i = $("#pickDevice"); i.accept = "image/*"; i.click(); },
+  logopicoff: () => { S.settings.logoImage = null; if (S.mode === "LOGO") for (const d of ready()) d.r.mode("LOGO", null); render(); refreshSheet(); },
   // «Показать», меню элемента, на экраны заранее
   showmenu: () => sheetShowMenu(),
   ahead: (d) => { const it = lib(d.id); if (it) toast(sendAhead(it) ? "Передаётся в фоне: в зале ничего не меняется" : "Нет подключённых экранов"); },

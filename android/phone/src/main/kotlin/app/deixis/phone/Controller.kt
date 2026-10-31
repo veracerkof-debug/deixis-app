@@ -168,11 +168,10 @@ class Controller(private val app: Application) {
 
     val settings: StateFlow<AppSettings> = data.map { it.settings }.stateIn(scope, SharingStarted.Eagerly, store.data.settings)
     fun setSettings(change: (AppSettings) -> AppSettings) {
-        val before = settings.value.logo
+        val before = settings.value.logo to settings.value.logoImage
         edit { it.copy(settings = change(it.settings)) }
-        // Другой вид «Логотипа» виден сразу, если логотип сейчас в зале.
-        val logo = settings.value.logo
-        if (logo != before && mode.value == Mode.LOGO) outs.value.forEach { it.client.mode(Mode.LOGO, logo) }
+        // Другой вид «Логотипа» или своя картинка видны сразу, если логотип сейчас в зале.
+        if (settings.value.logo to settings.value.logoImage != before && mode.value == Mode.LOGO) outs.value.forEach { sendMode(it, Mode.LOGO) }
         // Регистр меняется сразу и в зале.
         live.value?.let { c -> if (c.slide is Slide.Text || c.slide is Slide.Scripture) deliver(c) }
     }
@@ -619,13 +618,31 @@ class Controller(private val app: Application) {
         preview.value = c.copy(index = i)
     }
 
+    /**
+     * «Чёрный», «Логотип», «Очистить», «Уйти с экранов»; повторное нажатие возвращает показ.
+     * «Уйти» прячет Deixis на всех экранах: на них снова то, что было до Deixis.
+     */
     fun mode(m: Mode) {
         val next = if (mode.value == m) Mode.NORMAL else m
         localMode.value = next
-        val logo = settings.value.logo
-        outs.value.forEach { it.client.mode(next, logo) }
-        dlna.logo = logo
+        outs.value.forEach { sendMode(it, next) }
+        dlna.logo = settings.value.logo
+        dlna.logoPicture = settings.value.logoImage?.let { localFile(it.sha256) }
         if (dlnaTarget.value != null) scope.launch { runCatching { dlna.toggle(m) } }
+    }
+
+    /**
+     * Режим одному экрану. Своя картинка «Логотипа» сначала передаётся на экран; не передалась — экран
+     * покажет знак. Пока файл шёл, режим могли сменить: устаревшая команда не отправляется.
+     */
+    private fun sendMode(o: Output, m: Mode) {
+        val logo = settings.value.logo
+        val img = settings.value.logoImage
+        if (m != Mode.LOGO || img == null) { o.client.mode(m, logo, null); return }
+        scope.launch {
+            val ok = deliverLocal(o, img)
+            if (mode.value == Mode.LOGO || localMode.value == Mode.LOGO) o.client.mode(Mode.LOGO, logo, img.takeIf { ok })
+        }
     }
 
     fun video(action: VideoAction, deltaMs: Long = 0, volume: Int? = null, positionMs: Long? = null) {

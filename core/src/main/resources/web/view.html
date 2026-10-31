@@ -112,17 +112,17 @@ const STRINGS = {
         full: "Во весь экран", videoHere: "Это видео идёт на основном экране", badKey: "Ссылка устарела. Отсканируйте QR-код заново.",
         screenHere: "Трансляция экрана идёт на основном экране",
         tap: "Нажмите, чтобы показывать на весь экран", now: "Сейчас", next: "Далее", noNext: "Нет следующего слайда",
-        since: "С начала показа", black: "В зале чёрный экран", logo: "В зале логотип", clear: "В зале текст скрыт", screenShare: "Трансляция экрана" },
+        since: "С начала показа", black: "В зале чёрный экран", logo: "В зале логотип", clear: "В зале текст скрыт", away: "Deixis ушёл с экранов", screenShare: "Трансляция экрана" },
   uz: { wait: "Namoyish kutilmoqda", lost: "Aloqa yo‘q, qayta ulanmoqda…", sound: "Ovozni yoqish", mute: "Ovozni o‘chirish",
         full: "To‘liq ekran", videoHere: "Bu video asosiy ekranda ko‘rsatilmoqda", badKey: "Havola eskirgan. QR-kodni qayta skanerlang.",
         screenHere: "Ekran namoyishi asosiy ekranda ko‘rsatilmoqda",
         tap: "To‘liq ekranda ko‘rsatish uchun bosing", now: "Hozir", next: "Keyingi", noNext: "Keyingi slayd yo‘q",
-        since: "Namoyish boshidan", black: "Zalda qora ekran", logo: "Zalda logotip", clear: "Zalda matn yashirilgan", screenShare: "Ekran namoyishi" },
+        since: "Namoyish boshidan", black: "Zalda qora ekran", logo: "Zalda logotip", clear: "Zalda matn yashirilgan", away: "Deixis ekranlardan chiqdi", screenShare: "Ekran namoyishi" },
   en: { wait: "Waiting for the show", lost: "Connection lost, reconnecting…", sound: "Turn sound on", mute: "Turn sound off",
         full: "Full screen", videoHere: "This video is playing on the main screen", badKey: "This link has expired. Scan the QR code again.",
         screenHere: "The screen is being shown on the main display",
         tap: "Tap to show full screen", now: "Now", next: "Next", noNext: "No next slide",
-        since: "Since start", black: "Black screen in the hall", logo: "Logo in the hall", clear: "Text hidden in the hall", screenShare: "Screen sharing" },
+        since: "Since start", black: "Black screen in the hall", logo: "Logo in the hall", clear: "Text hidden in the hall", away: "Deixis left the screens", screenShare: "Screen sharing" },
 };
 const lang = (navigator.language || "ru").toLowerCase();
 const t = STRINGS[lang.startsWith("uz") ? "uz" : lang.startsWith("ru") ? "ru" : (lang.startsWith("en") ? "en" : "ru")];
@@ -146,7 +146,7 @@ const fullBtn = document.getElementById("full");
 let lastKey = null, video = null, muted = true, current = null;
 
 // Сцена 16:9 по центру экрана, как в зале. Текст занимает весь экран: так его удобно читать и с вертикального телефона.
-function isText() { return current && current.content && (current.content.type === "text" || current.content.type === "scripture") && current.mode !== "BLACK" && current.mode !== "LOGO"; }
+function isText() { return current && current.content && (current.content.type === "text" || current.content.type === "scripture") && current.mode !== "BLACK" && current.mode !== "LOGO" && current.mode !== "AWAY"; }
 function layout() {
   const w = innerWidth, h = innerHeight;
   const full = isText() || captions || outLayout === "stage";
@@ -227,7 +227,7 @@ const backdrop = document.getElementById("backdrop");
 let backdropSha = null;
 /** Видеофон слайда: тот же файл продолжает играть, другой — плавно сменяется, без фона — гаснет. */
 function setBackdrop(ref) {
-  const sha = ref && current && current.mode !== "BLACK" && current.mode !== "LOGO" && !preview ? ref.sha256 : null;
+  const sha = ref && current && current.mode !== "BLACK" && current.mode !== "LOGO" && current.mode !== "AWAY" && !preview ? ref.sha256 : null;
   stage.classList.toggle("over-video", !!sha);
   if (sha === backdropSha) return;
   backdropSha = sha;
@@ -421,7 +421,7 @@ function render(s) {
   const c = s.content;
   setBackdrop(c && c.style && c.style.backgroundVideo);
   setOverlays(s.overlays, s.mode);
-  const k = JSON.stringify([c, s.mode, s.mode === "LOGO" ? s.logo : null]);
+  const k = JSON.stringify([c, s.mode, s.mode === "LOGO" ? [s.logo, s.logoImage && s.logoImage.sha256] : null]);
   if (k !== lastKey) {
     lastKey = k;
     // Фото и страницы PDF сначала загружаются, потом подменяют прежний кадр: без чёрной вспышки между слайдами.
@@ -443,8 +443,15 @@ function render(s) {
     stage.style.backgroundImage = "";
     if (captions && !c) {
       // титров нет: чистый фон
-    } else if (s.mode === "BLACK") {
-      // чёрный экран
+    } else if (s.mode === "BLACK" || s.mode === "AWAY") {
+      // чёрный экран; «Уйти с экранов» браузер спрятать не может — у него тоже чёрный
+    } else if (s.mode === "LOGO" && s.logoImage) {
+      // Своя картинка вместо знака — целиком на чёрном.
+      const img = new Image();
+      img.alt = "";
+      img.className = "logo-picture";
+      img.src = url("/view/file/" + s.logoImage.sha256);
+      stage.append(img);
     } else if (s.mode === "LOGO") {
       stage.append(logoMark(s.logo));
     } else if (!c) {
@@ -706,7 +713,7 @@ function renderStage(s) {
       d.append(l);
       return d;
     };
-    const pill = { BLACK: t.black, LOGO: t.logo, CLEAR: t.clear }[s.mode];
+    const pill = { BLACK: t.black, LOGO: t.logo, CLEAR: t.clear, AWAY: t.away }[s.mode];
     const cur = col("cur", t.now, pill);
     cur.append(stagePanel(s.content, false));
     const side = col("side", t.next);

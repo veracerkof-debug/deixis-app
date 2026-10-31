@@ -97,6 +97,12 @@ fun Modifier.frame(frame: Frame, live: Color, pre: Color, width: Dp, radius: Dp)
 /** Вид заставки «Логотип» для превью: задаётся один раз наверху по настройке. */
 val LocalLogoStyle = androidx.compose.runtime.staticCompositionLocalOf { LogoStyle.WORDMARK }
 
+/** Своя картинка «Логотипа» вместо знака; null — знак. */
+val LocalLogoImage = androidx.compose.runtime.staticCompositionLocalOf<app.deixis.core.FileRef?> { null }
+
+/** Зал без картинки слайда: «Чёрный», «Логотип» на чёрном, «Ушёл с экранов». */
+private fun Mode.blackStage() = this == Mode.BLACK || this == Mode.LOGO || this == Mode.AWAY
+
 /**
  * Превью слайда в пропорциях вывода. Показывает то же, что увидит зал: оформление, режим,
  * страницу PDF, кадр фото или видео.
@@ -120,12 +126,14 @@ fun SlideView(
             Box(
                 (if (ratio < slot) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).aspectRatio(ratio)
                     .frame(frame, p.live, if (frame == Frame.PREVIEW_TINT) p.tint else p.l3, T.outline, round)
-                    .clip(RoundedCornerShape(round)).background(if (mode == Mode.BLACK) Color.Black else Color(style.background)),
+                    .clip(RoundedCornerShape(round)).background(if (mode.blackStage()) Color.Black else Color(style.background)),
                 contentAlignment = Alignment.Center,
             ) {
                 when {
                     mode == Mode.BLACK -> {}
-                    mode == Mode.LOGO -> app.deixis.receiver.LogoFull(logo)
+                    // Deixis ушёл с экранов: в окне — чёрное и знак выхода, в зале — то, что под Deixis.
+                    mode == Mode.AWAY -> Icon("away", Color.White.copy(alpha = AWAY_ALPHA), T.icon)
+                    mode == Mode.LOGO -> LogoPreview(logo)
                     mode == Mode.CLEAR || slide == null -> BackgroundImage(style)
                     else -> { BackgroundImage(style); SlideBody(slide, item, style) }
                 }
@@ -150,6 +158,17 @@ val LocalSlotMin = androidx.compose.runtime.compositionLocalOf { SLOT_MIN }
 /** Место под превью: не уже квадрата и не шире 21:9, что бы ни стояло в зале. */
 private const val SLOT_MIN = 1f
 private const val SLOT_MAX = 21f / 9f
+
+/** «Логотип» в превью: своя картинка вписана целиком, иначе знак. */
+@Composable
+private fun LogoPreview(logo: LogoStyle) {
+    val img = LocalLogoImage.current
+    val uri = img?.let { LocalBackgrounds.current(it.sha256) }
+    if (img != null && uri != null) Thumb(LibItem("logo", Kind.PHOTO, img.name, uri = uri), ThumbKind.PHOTO, 0, ContentScale.Fit) {}
+    else app.deixis.receiver.LogoFull(logo)
+}
+
+private const val AWAY_ALPHA = 0.5f
 
 /** Фото фона темы (только у слайдов с текстом), обрезка по экрану, как на выводе. */
 @Composable

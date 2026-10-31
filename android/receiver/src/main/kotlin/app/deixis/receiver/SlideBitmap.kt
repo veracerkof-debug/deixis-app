@@ -20,13 +20,16 @@ import app.deixis.core.TextStyle as SlideStyle
 fun renderSlideBitmap(
     context: Context, content: Content?, mode: Mode, width: Int = 1920, height: Int = 1080, background: Bitmap? = null,
     logo: app.deixis.core.LogoStyle = app.deixis.core.LogoStyle.WORDMARK,
+    /** Своя картинка на «Логотипе» вместо знака. */
+    logoPicture: Bitmap? = null,
 ): Bitmap {
     val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     c.drawColor(android.graphics.Color.BLACK)
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = context.resources.getFont(R.font.noto_sans_semibold) }
     when {
-        mode == Mode.BLACK -> Unit
+        mode == Mode.BLACK || mode == Mode.AWAY -> Unit
+        mode == Mode.LOGO && logoPicture != null -> drawFit(c, logoPicture, width, height)
         mode == Mode.LOGO -> drawLogoMark(c, width.toFloat(), height.toFloat(), logo, context.resources.getFont(R.font.gfs_didot), android.graphics.Color.WHITE)
         content is TextContent -> {
             background(c, content.style, background, width, height)
@@ -75,4 +78,12 @@ private fun background(c: Canvas, style: SlideStyle, bg: Bitmap?, w: Int, h: Int
     val dw = bg.width * scale
     val dh = bg.height * scale
     c.drawBitmap(bg, null, RectF((w - dw) / 2, (h - dh) / 2, (w + dw) / 2, (h + dh) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
+}
+
+/** Картинка целиком посреди кадра, с чёрными полями: своя картинка «Логотипа». */
+private fun drawFit(c: Canvas, img: Bitmap, w: Int, h: Int) {
+    val scale = minOf(w.toFloat() / img.width, h.toFloat() / img.height)
+    val dw = img.width * scale
+    val dh = img.height * scale
+    c.drawBitmap(img, null, RectF((w - dw) / 2, (h - dh) / 2, (w + dw) / 2, (h + dh) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
 }

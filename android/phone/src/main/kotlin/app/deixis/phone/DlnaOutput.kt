@@ -109,9 +109,12 @@ class DlnaOutput(private val app: Application) {
         render()
     }
 
-    /** «Чёрный», «Логотип», «Очистить»: повторное нажатие возвращает показ. */
     /** Вид заставки «Логотип» на телевизоре. */
     var logo = LogoStyle.WORDMARK
+    /** Своя картинка «Логотипа» вместо знака: адрес файла на телефоне. */
+    var logoPicture: String? = null
+
+    /** «Чёрный», «Логотип», «Очистить», «Уйти»: повторное нажатие возвращает показ. */
 
     suspend fun toggle(m: Mode) {
         mode = if (mode == m) Mode.NORMAL else m
@@ -134,8 +137,13 @@ class DlnaOutput(private val app: Application) {
         val s = server ?: throw IOException("Телевизор не выбран")
         val address = Discovery.localAddress()?.hostAddress ?: throw IOException("Телефон не в сети Wi-Fi")
         val c = shown
+        // «Уйти с экранов»: телевизор перестаёт играть то, что дал Deixis, и возвращается к своему.
+        if (mode == Mode.AWAY) { t.stop(); return@withContext }
+        val picture = logoPicture?.takeIf { mode == Mode.LOGO }?.let { u ->
+            runCatching { app.contentResolver.openInputStream(android.net.Uri.parse(u))?.use { android.graphics.BitmapFactory.decodeStream(it) } }.getOrNull()
+        }
         when {
-            mode != Mode.NORMAL || c == null -> picture(t, s, address, renderSlideBitmap(app, c, if (c == null) Mode.BLACK else mode, logo = logo))
+            mode != Mode.NORMAL || c == null -> picture(t, s, address, renderSlideBitmap(app, c, if (c == null) Mode.BLACK else mode, logo = logo, logoPicture = picture))
             c is ImageContent || c is VideoContent -> {
                 val ref = if (c is ImageContent) c.file else (c as VideoContent).file
                 val src = sources[ref.sha256] ?: throw IOException("Файл «${ref.name}» не найден на телефоне")

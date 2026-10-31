@@ -103,7 +103,16 @@ class ReceiverCore(
     /** Применяет команду источника. Возвращает ошибку, если команду выполнить нельзя; показ при этом не меняется. */
     fun apply(msg: Msg): ErrorMsg? = when (msg) {
         is Show -> show(msg.content, msg.next)
-        is SetMode -> { _state.update { it.copy(mode = msg.mode, logo = msg.logo ?: it.logo) }; null }
+        is SetMode -> {
+            val missing = msg.logoImage?.takeIf { files.file(it.sha256) == null }
+            if (missing != null) ErrorMsg("missing_file", "На приёмнике нет файла «${missing.name}»")
+            else {
+                msg.logoImage?.let { files.touch(it.sha256) }
+                // Картинка логотипа меняется вместе с его видом: старый пульт вид не шлёт — картинка остаётся.
+                _state.update { if (msg.logo != null) it.copy(mode = msg.mode, logo = msg.logo, logoImage = msg.logoImage) else it.copy(mode = msg.mode) }
+                null
+            }
+        }
         is SetTimer -> {
             val t = msg.timer?.anchored(System.currentTimeMillis())
             _state.update { s ->
@@ -132,7 +141,7 @@ class ReceiverCore(
         if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
         // Отсчёт привязывается к часам этого экрана; уйдя из зала, он остаётся в «Сцене».
         val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
-        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays, logo = it.logo) }
+        _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays, logo = it.logo, logoImage = it.logoImage) }
         return null
     }
 

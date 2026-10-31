@@ -52,6 +52,8 @@ class SlideRenderer(
     fun render(
         width: Int, height: Int, content: Content?, mode: Mode, idle: IdleInfo?, now: Long = System.currentTimeMillis(),
         logo: LogoStyle = LogoStyle.WORDMARK,
+        /** Своя картинка на «Логотипе»: вписана целиком на чёрном вместо знака. */
+        logoImage: app.deixis.core.FileRef? = null,
     ): BufferedImage {
         // Слайд поверх видеофона — прозрачный: фон рисует окно из кадров видео, здесь только текст.
         val overVideo = content?.style?.backgroundVideo != null && (mode == Mode.NORMAL || mode == Mode.CLEAR)
@@ -68,7 +70,8 @@ class SlideRenderer(
                 g.fillRect(0, 0, width, height)
             }
             when {
-                mode == Mode.BLACK -> Unit
+                mode == Mode.BLACK || mode == Mode.AWAY -> Unit
+                mode == Mode.LOGO && logoImage != null -> drawFitted(g, width, height, loadCached(logoImage.sha256, logoImage.name))
                 mode == Mode.LOGO -> drawLogo(g, width, height, logo)
                 content == null -> if (idle != null) drawIdle(g, width, height, idle)
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)

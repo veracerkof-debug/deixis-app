@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.ScreenRole
 import app.deixis.receiver.VlcPlayer
+import app.deixis.receiver.followAway
 
 class MainActivity : ComponentActivity() {
 
@@ -49,6 +50,8 @@ class MainActivity : ComponentActivity() {
         // После обновления экран откроется сам (PackageReplacedReceiver).
         ScreenRole.mark(this, true)
         setContent { ReceiverScreen(runtime, vlc, overscan = true) }
+        // «Уйти с экранов»: Deixis уходит назад, на ТВ — главный экран или другой вход.
+        followAway(runtime)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

@@ -213,7 +213,7 @@ class SenderClient(
     }
 
     fun show(content: Content, next: Content? = null) = send(Show(content, next))
-    fun mode(mode: Mode, logo: LogoStyle? = null) = send(SetMode(mode, logo))
+    fun mode(mode: Mode, logo: LogoStyle? = null, logoImage: FileRef? = null) = send(SetMode(mode, logo, logoImage))
     fun video(command: VideoCommand) = send(command)
 
     /**

@@ -457,6 +457,9 @@ const TR = {
   nothing: ["Ничего не показано", "Hech narsa ko‘rsatilmagan", "Nothing on screen"],
   empty: ["Пусто", "Bo‘sh", "Empty"],
   blackNow: ["Чёрный экран", "Qora ekran", "Black screen"],
+  awayNow: ["Deixis ушёл с экранов", "Deixis ekranlardan chiqdi", "Deixis left the screens"],
+  away: ["Уйти", "Chiqish", "Leave"],
+  awayLong: ["Уйти с экранов: на них снова то, что было до Deixis", "Ekranlardan chiqish: ularda Deixisdan oldingi narsa", "Leave the screens: they show what was there before Deixis"],
   logoNow: ["Логотип", "Logotip", "Logo"],
   clearNow: ["Очищено", "Tozalandi", "Cleared"],
   paused: ["пауза", "pauza", "paused"],
@@ -1073,7 +1076,7 @@ const srcOf = (it) => ({ id: it.id, title: it.title, type: it.type, slides: slid
 const fresh = (cue) => (cue && cue.src.id && item(cue.src.id) ? Object.assign({}, cue, { src: srcOf(item(cue.src.id)) }) : cue);
 const slideOf = (cue) => cue && cue.src.slides[cue.idx];
 const sameCue = (a, b) => !!(a && b && a.idx === b.idx && (a.src === b.src || (a.src.id && a.src.id === b.src.id) || (a.src.pick && b.src.pick && pickKey(a.src.pick) === pickKey(b.src.pick))));
-const liveVisible = () => S.live && mode() !== "BLACK";
+const liveVisible = () => S.live && mode() !== "BLACK" && mode() !== "AWAY";
 const isLiveItem = (id) => liveVisible() && S.live.src.id === id;
 
 // Писание: слайды строит экран (одни правила для всех платформ), пульт их кэширует.
@@ -1180,7 +1183,8 @@ function step(d) {
 }
 function setMode(m) {
   if (!online) { toast(t.lost); return; }
-  send({ type: "mode", mode: mode() === m ? "NORMAL" : m, logo: settings.logo || "WORDMARK" });
+  // Своя картинка «Логотипа», выбранная на телефоне, остаётся: веб-пульт шлёт её обратно как есть.
+  send({ type: "mode", mode: mode() === m ? "NORMAL" : m, logo: settings.logo || "WORDMARK", logoImage: (state && state.logoImage) || null });
 }
 function video(action, arg) {
   const v = state && state.video;
@@ -1606,6 +1610,7 @@ const I = {
   plus: '<path d="M12 5v14M5 12h14"/>', more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   black: '<rect x="4" y="5" width="16" height="14" rx="2" fill="currentColor"/>',
   logo: '<circle cx="12" cy="12" r="8"/><path d="M12 7v10M8 11h8"/>',
+  away: '<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4"/><path d="M18 12H9"/>',
   clear: '<path d="M4 20h16"/><path d="M14 4l6 6-8 8H6v-6z"/>',
   text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
   brush: '<path d="M14 4l6 6-9 9H5v-6z"/><path d="M12 6l6 6"/>',
@@ -1654,7 +1659,7 @@ function slideHTML(c, o = {}) {
   const extra = (o.num ? `<span class="num">${o.num}</span>` : "") + (o.label ? `<span class="lbl">${esc(o.label)}</span>` : "")
     + (o.time ? `<span class="vid" ${o.timeId ? `id="${o.timeId}"` : ""}>${esc(o.time)}</span>` : "")
     + (o.load ? `<div class="load" id="loadNow">${loadInner()}</div>` : "");
-  if (m === "BLACK") return `<div class="slide ${cls}">${extra}</div>`;
+  if (m === "BLACK" || m === "AWAY") return `<div class="slide ${cls}">${extra}</div>`;
   if (m === "LOGO") return `<div class="slide ${cls}">${logoMarkHTML((state && state.logo) || settings.logo)}${extra}</div>`;
   if (!c) return `<div class="slide ${cls}">${o.empty ? `<span class="empty">${esc(o.empty)}</span>` : ""}${extra}</div>`;
   const clear = m === "CLEAR";
@@ -1705,6 +1710,7 @@ function liveName() {
   if (!online) return netText || t.lost;
   const m = mode();
   if (m === "BLACK") return t.blackNow;
+  if (m === "AWAY") return t.awayNow;
   if (m === "LOGO") return t.logoNow;
   if (m === "CLEAR") return t.clearNow;
   if (S.live) { const n = S.live.src.slides.length; return n > 1 ? `${S.live.src.title} · ${S.live.idx + 1}/${n}` : S.live.src.title; }
@@ -1796,7 +1802,7 @@ function monitorsHTML() {
   const pre = S.pre ? fresh(S.pre) : null;
   const preContent = pre ? contentOf(pre, S.draft || styleFor(pre)) : S.draft && S.live ? contentOf(S.live, S.draft) : null;
   const preName = pre ? (pre.src.slides.length > 1 ? `${pre.src.title} · ${pre.idx + 1}/${pre.src.slides.length}` : pre.src.title) : S.draft ? t.newStyle : t.pickSlide;
-  const on = online && !!live && m !== "BLACK";
+  const on = online && !!live && m !== "BLACK" && m !== "AWAY";
   return `<div class="mons">
     <div class="mon now ${on ? "" : "off"}"><div class="lbl"><span class="dot ${on ? "" : "off"}"></span>${esc(t.now)}</div>
       <div data-g="now" role="button" tabindex="0" aria-label="${esc(t.now + ": " + liveName())}">${slideHTML(online ? live : null, { mode: online ? m : "NORMAL", load: !!S.progress, empty: online ? t.empty : t.lost, time: isVid && v ? fmt(v.positionMs) : null, timeId: "vt2", w: 640 })}</div>
@@ -1873,7 +1879,8 @@ function controlBar() {
     <button data-act="mode" data-m="CLEAR" aria-pressed="${m === "CLEAR"}">${ico("clear")}${esc(t.clear)}</button>
     <button data-act="step" data-d="-1" aria-label="${esc(t.prev)}">${ico("prev")}${esc(t.prev)}</button>
     <button data-act="step" data-d="1" aria-label="${esc(t.next)}">${ico("next")}${esc(t.next)}</button>
-    <button data-act="style">${ico("brush")}${esc(t.look)}</button></div>`;
+    <button data-act="style">${ico("brush")}${esc(t.look)}</button>
+    <button data-act="mode" data-m="AWAY" aria-pressed="${m === "AWAY"}" aria-label="${esc(t.awayLong)}" title="${esc(t.awayLong)}">${ico("away")}${esc(t.away)}</button></div>`;
 }
 function renderShow() {
   const wide = isWide(), bar = controlBar();
@@ -2693,7 +2700,7 @@ const A = {
   // Настройки
   theme: (d) => { settings.theme = d.v; save(); render(); refreshSheet(); },
   // Другой вид «Логотипа» сразу виден в зале, если логотип сейчас там.
-  logostyle: (d) => { settings.logo = d.v; save(); if (mode() === "LOGO") send({ type: "mode", mode: "LOGO", logo: d.v }); render(); refreshSheet(); },
+  logostyle: (d) => { settings.logo = d.v; save(); if (mode() === "LOGO") send({ type: "mode", mode: "LOGO", logo: d.v, logoImage: (state && state.logoImage) || null }); render(); refreshSheet(); },
   lang: (d) => { settings.lang = d.v; save(); setLang(d.v); render(); sheetSettings(); },
   setting: (d) => {
     settings[d.k] = !settings[d.k]; save();

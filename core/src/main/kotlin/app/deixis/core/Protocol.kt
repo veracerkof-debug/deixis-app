@@ -43,9 +43,13 @@ data class SetTimer(val timer: CountdownContent?) : Msg
 @Serializable @SerialName("overlays")
 data class SetOverlays(val overlays: Overlays) : Msg
 
-/** [logo] — вид заставки «Логотип»; null — оставить, какой был (старый пульт его не шлёт). */
+/**
+ * [logo] — вид заставки «Логотип»; null — оставить, какой был (старый пульт его не шлёт).
+ * [logoImage] — своя картинка вместо знака на «Логотипе»; меняется вместе с [logo]: пришёл [logo] без
+ * картинки — картинка убрана. Файл передаётся на экран до команды.
+ */
 @Serializable @SerialName("mode")
-data class SetMode(val mode: Mode, val logo: LogoStyle? = null) : Msg
+data class SetMode(val mode: Mode, val logo: LogoStyle? = null, val logoImage: FileRef? = null) : Msg
 
 @Serializable @SerialName("video")
 data class VideoCommand(
@@ -176,8 +180,12 @@ enum class VAlign { TOP, MIDDLE, BOTTOM }
 @Serializable
 data class Margins(val left: Float, val top: Float, val right: Float, val bottom: Float)
 
+/**
+ * Режим вывода поверх слайда. [AWAY] — Deixis ушёл с экрана: окно зала спрятано, и на экране то, что было
+ * до Deixis (рабочий стол, другой вход ТВ, экран телефона); любой показ или другой режим возвращает Deixis.
+ */
 @Serializable
-enum class Mode { NORMAL, BLACK, LOGO, CLEAR }
+enum class Mode { NORMAL, BLACK, LOGO, CLEAR, AWAY }
 
 @Serializable
 enum class VideoAction { PLAY, PAUSE, SEEK, VOLUME, LOOP }
@@ -224,6 +232,8 @@ data class ReceiverState(
     val overlays: Overlays = Overlays(),
     /** Вид заставки «Логотип». */
     val logo: LogoStyle = LogoStyle.WORDMARK,
+    /** Своя картинка на «Логотипе» вместо знака; null — знак [logo]. */
+    val logoImage: FileRef? = null,
 )
 
 /** Состояние файла на приёмнике: сколько байт уже есть и проверен ли он целиком. */

@@ -125,6 +125,8 @@ data class AppSettings(
     val church: Boolean = true,
     /** Вид заставки «Логотип»: ΔΕΙΞΙΣ, большая Δ, δεῖξις или Deixis. */
     val logo: LogoStyle = LogoStyle.WORDMARK,
+    /** Своя картинка на «Логотипе» вместо знака (логотип церкви, школы); файл — в localFiles. */
+    val logoImage: app.deixis.core.FileRef? = null,
     /** Панель тем на главном: спрятана в значок, узкая полоса или на всё место под окнами. */
     val themePanel: ThemePanel = ThemePanel.STRIP,
 )

@@ -38,6 +38,8 @@ data class ViewerState(
     val overlays: Overlays = Overlays(),
     /** Вид заставки «Логотип». */
     val logo: LogoStyle = LogoStyle.WORDMARK,
+    /** Своя картинка на «Логотипе»: страница берёт её как /view/file/хэш. */
+    val logoImage: FileRef? = null,
 )
 
 /** Код закрытия WebSocket, если ключ в ссылке неверный или устарел. */
@@ -93,7 +95,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         if (!preview) core.viewerJoined()
         val updates = launch {
             core.state
-                .map { ViewerState(it.content, it.mode, it.video, next = if (screen) it.next else null, startedAt = core.showStartedAt, overlays = it.overlays, logo = it.logo) }
+                .map { ViewerState(it.content, it.mode, it.video, next = if (screen) it.next else null, startedAt = core.showStartedAt, overlays = it.overlays, logo = it.logo, logoImage = it.logoImage) }
                 .distinctUntilChanged()
                 .collect { send(Frame.Text(DeixisJson.encodeToString(ViewerState.serializer(), it.copy(now = System.currentTimeMillis())))) }
         }
@@ -214,9 +216,11 @@ private suspend fun ApplicationCall.currentFile(core: ReceiverCore): FileRef? {
         respondText("", status = HttpStatusCode.Forbidden)
         return null
     }
-    // Файл показа или картинка фона его оформления; для вида «Сцена» — и следующего слайда; логотип слоя.
+    // Файл показа или картинка фона его оформления; для вида «Сцена» — и следующего слайда; логотип слоя;
+    // своя картинка «Логотипа».
     val state = core.state.value
-    val ref = (state.content?.files.orEmpty() + state.next?.files.orEmpty() + state.overlays.files).firstOrNull { it.sha256 == parameters["sha"] }
+    val ref = (state.content?.files.orEmpty() + state.next?.files.orEmpty() + state.overlays.files + listOfNotNull(state.logoImage))
+        .firstOrNull { it.sha256 == parameters["sha"] }
     if (ref == null) {
         respondText("", status = HttpStatusCode.NotFound)
         return null
