@@ -36,6 +36,9 @@ sealed interface HolyricsStatus {
 }
 
 /** Что сейчас идёт в Holyrics, для пульта: номер слайда и превью. */
+/** Holyrics в сети: адрес и имя компьютера, если на нём же стоит Deixis для компьютера. */
+data class HolyricsFound(val host: String, val name: String?)
+
 data class HolyricsLive(val p: HolyricsPresentation, val previews: Map<Int, Bitmap>)
 
 /**
@@ -93,6 +96,23 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         client = null
         prefs.edit().clear().apply()
         status.value = HolyricsStatus.Off
+    }
+
+    /** Найденные в сети Holyrics; null — ещё не искали. */
+    val found = MutableStateFlow<List<HolyricsFound>?>(null)
+    val searching = MutableStateFlow(false)
+
+    /** «Найти»: опрос своей сети Wi-Fi на порту API Server Holyrics — только по нажатию. */
+    fun find() = scope.launch {
+        val local = app.deixis.core.Discovery.localAddress() as? java.net.Inet4Address
+        if (local == null) { controller.messages.emit("Телефон не в сети Wi-Fi: Holyrics ищется в той же сети"); return@launch }
+        searching.value = true
+        try {
+            val hosts = app.deixis.core.HolyricsDiscovery.scan(app.deixis.core.HolyricsDiscovery.neighbours(local))
+            found.value = hosts.map { HolyricsFound(it, controller.screenName(it)) }
+        } finally {
+            searching.value = false
+        }
     }
 
     /** Ссылка для второго телефона (его камера откроет её в Deixis). */

@@ -112,6 +112,22 @@ class HolyricsTest {
     @AfterTest
     fun stop() { fake.stop() }
 
+    /** Holyrics находится по ответу «Auth» без токена; чужой сервер и пустой адрес — нет. */
+    @Test
+    fun discoveryFindsHolyricsByItsAuthAnswer() = runBlocking<Unit> {
+        assertTrue(HolyricsDiscovery.probe("127.0.0.1", port))
+        val other = embeddedServer(CIO, port = 0, host = "127.0.0.1") { routing { post("/api/{a}") { call.respondText("{}") } } }.start()
+        val otherPort = other.engine.resolvedConnectors().first().port
+        try {
+            assertTrue(!HolyricsDiscovery.probe("127.0.0.1", otherPort), "сервер без sid и nonce — не Holyrics")
+        } finally { other.stop(0, 0) }
+        assertTrue(!HolyricsDiscovery.probe("127.0.0.1", 1, timeoutMs = 200), "никто не слушает")
+        assertEquals(listOf("127.0.0.1"), HolyricsDiscovery.scan(listOf("127.0.0.1", "127.0.0.2"), port))
+        val n = HolyricsDiscovery.neighbours(java.net.InetAddress.getByName("192.168.1.37") as java.net.Inet4Address)
+        assertEquals(253, n.size, "254 адреса сети без своего")
+        assertTrue("192.168.1.37" !in n && "192.168.1.1" in n && "192.168.1.254" in n)
+    }
+
     @Test
     fun readsLibraryWithHashLogin() = runBlocking<Unit> {
         HolyricsClient("127.0.0.1", port, "secret").use { h ->

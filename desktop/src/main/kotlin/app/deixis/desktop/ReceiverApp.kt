@@ -402,6 +402,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             m.add(if (inWindow) item("Во весь экран", "F11") { setWindowed(windowId, false) } else item("В окно", "Esc") { setWindowed(windowId, true) })
         }
         m.add(item("Как работает компьютер…") { chooseRole() })
+        m.add(item("Holyrics — телефон по QR…") { showHolyricsQr() })
         m.add(item("Обновления…") { showUpdates() })
         m.addSeparator()
         m.add(item("Выйти", "${cmd}Q") { quit() })
@@ -411,6 +412,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun dockMenu() = java.awt.PopupMenu().apply {
         add(java.awt.MenuItem("Открыть пульт").apply { addActionListener { openOperator() } })
         add(java.awt.MenuItem("Как работает компьютер…").apply { addActionListener { SwingUtilities.invokeLater { chooseRole() } } })
+        add(java.awt.MenuItem("Holyrics — телефон по QR…").apply { addActionListener { showHolyricsQr() } })
         add(java.awt.MenuItem("Обновления…").apply { addActionListener { showUpdates() } })
     }
 
@@ -422,6 +424,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun quit() = this@ReceiverApp.quit()
         override fun chooseRole() = SwingUtilities.invokeLater { this@ReceiverApp.chooseRole() }
         override fun updates() = showUpdates()
+        override fun holyrics() = showHolyricsQr()
     }
 
     private inner class DesktopOutputs : OutputsHost {
@@ -461,6 +464,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         shutdown()
         opts.exit(0)
     }
+
+    /** Пульт Holyrics на телефоне: QR-код с адресом этого компьютера и токеном Holyrics. */
+    fun showHolyricsQr() = SwingUtilities.invokeLater { HolyricsQrWindow.show(address?.hostAddress, opts.dataDir) }
 
     fun showUpdates() = SwingUtilities.invokeLater { UpdatesWindow.show(updates, object : UpdateApp {
         override fun showing() = core.state.value.content != null

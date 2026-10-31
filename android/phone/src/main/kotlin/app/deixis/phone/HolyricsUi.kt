@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -98,10 +100,26 @@ private fun ConnectForm(h: HolyricsSource, error: String?) {
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf(HolyricsClient.DEFAULT_PORT.toString()) }
     var token by remember { mutableStateOf("") }
+    val found by h.found.collectAsState()
+    val searching by h.searching.collectAsState()
     BasicText(
-        "В Holyrics на компьютере: Файл → Настройки → API Server. Включите доступ по локальной сети, создайте токен и дайте ему права. Адрес и порт показаны там же.",
+        "Проще всего — QR-код: в Deixis для компьютера рядом с Holyrics откройте «Holyrics → Телефон по QR» и наведите камеру телефона. " +
+            "Или вручную: в Holyrics «Файл → Настройки → API Server» включите доступ по локальной сети, создайте токен и дайте ему права.",
         style = TextStyle(fontSize = 14.sp, color = p.l2),
     )
+    Spacer(Modifier.height(10.dp))
+    // Holyrics в своей сети: опрос по нажатию, адрес подставляется касанием.
+    PlainButton(if (searching) "Ищем Holyrics в сети…" else "Найти Holyrics в сети") { if (!searching) h.find() }
+    found?.let { list ->
+        Spacer(Modifier.height(8.dp))
+        if (list.isEmpty()) BasicText(
+            "Holyrics не найден. В Holyrics включите API Server и доступ по локальной сети; телефон и компьютер — в одной сети Wi-Fi.",
+            style = TextStyle(fontSize = 13.sp, color = p.l2),
+        )
+        else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            list.forEach { f -> SmallChip(listOfNotNull(f.name, f.host).joinToString(" · "), selected = host == f.host) { host = f.host } }
+        }
+    }
     Spacer(Modifier.height(10.dp))
     Field("Адрес компьютера или ссылка deixis-holyrics://", host, KeyboardType.Uri) { host = it }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -186,6 +186,9 @@ class Controller(private val app: Application) {
 
     // ——— Экраны ———
     private val found = MutableStateFlow<List<Target>>(emptyList())
+
+    /** Имя экрана Deixis по адресу (Deixis для компьютера рядом с Holyrics): подпись найденного Holyrics. */
+    fun screenName(host: String): String? = found.value.firstOrNull { it.host == host }?.name
     private val cable = MutableStateFlow<Target?>(null)
     private val manual = MutableStateFlow<List<Target>>(emptyList())
     val dlna = DlnaOutput(app)

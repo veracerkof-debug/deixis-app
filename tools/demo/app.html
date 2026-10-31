@@ -1509,8 +1509,10 @@ function holyListHTML() {
 function sheetHolyrics() {
   openSheet("Holyrics", () => {
     const hs = S.holy;
-    if (hs.status !== "on") return `<p class="note" style="margin-top:0">В Holyrics на компьютере: Файл → Настройки → API Server. Включите доступ по локальной сети, создайте токен и дайте ему права. Адрес и порт показаны там же.</p>
-      <div class="stack"><input class="field" value="192.168.1.10" aria-label="Адрес компьютера"><div class="two"><input class="field" value="8091" aria-label="Порт"><input class="field" type="password" value="demo-token" aria-label="Токен"></div>
+    if (hs.status !== "on") return `<p class="note" style="margin-top:0">Проще всего — QR-код: в Deixis для компьютера рядом с Holyrics откройте «Holyrics — телефон по QR» и наведите камеру телефона. Или вручную: в Holyrics «Файл → Настройки → API Server» включите доступ по локальной сети, создайте токен и дайте ему права.</p>
+      <div class="stack"><button class="btn" data-act="hfind">${hs.finding ? "Ищем Holyrics в сети…" : "Найти Holyrics в сети"}</button>
+      ${hs.found ? `<div class="chips"><button class="pill tint" data-act="hpick">Ноутбук преподавателя · 192.168.1.31</button></div>` : ""}
+      <input class="field" value="${hs.found ? "192.168.1.31" : "192.168.1.10"}" aria-label="Адрес компьютера"><div class="two"><input class="field" value="8091" aria-label="Порт"><input class="field" type="password" value="demo-token" aria-label="Токен"></div>
       <p class="note tight">В демо Holyrics — пример: поля уже заполнены.</p>
       <button class="btn tint" data-act="hconnect">${hs.status === "connecting" ? "Подключение…" : "Подключить"}</button></div>`;
     const tabs = [["PLAYLIST", "Плейлист"], ["SONGS", "Песни"], ["TEXTS", "Тексты"], ["IMAGES", "Фото"], ["VIDEOS", "Видео"], ["THEMES", "Темы"]];
@@ -2572,6 +2574,9 @@ const A = {
   bgo: (d) => bibleGo(d.v),
   // Holyrics
   holyrics: () => sheetHolyrics(),
+  // Поиск Holyrics в сети: в демо он «находится» на ноутбуке преподавателя.
+  hfind: () => { S.holy.finding = true; refreshSheet(); setTimeout(() => { S.holy.finding = false; S.holy.found = true; refreshSheet(); }, 1200); },
+  hpick: () => toast("Адрес подставлен: 192.168.1.31"),
   hconnect: () => { S.holy.status = "connecting"; refreshSheet(); setTimeout(() => { S.holy.status = "on"; refreshSheet(); render(); }, 700); },
   hoff: () => { Object.assign(S.holy, { status: "off", remote: false, live: null }); refreshSheet(); render(); },
   hremote: () => { S.holy.remote = !S.holy.remote; if (SHEET && SHEET.title === "Holyrics") refreshSheet(); render(); },

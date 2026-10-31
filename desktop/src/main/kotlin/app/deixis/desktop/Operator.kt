@@ -93,6 +93,8 @@ interface TrayActions {
     fun quit()
     fun chooseRole()
     fun updates()
+    /** Окно «Holyrics → телефон по QR». */
+    fun holyrics()
 }
 
 /**
@@ -107,6 +109,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
         popup.add(item("Открыть пульт") { actions.openOperator() })
         popup.add(screens)
         popup.add(item("Как работает компьютер…") { actions.chooseRole() })
+        popup.add(item("Holyrics — телефон по QR…") { actions.holyrics() })
         popup.add(item("Обновления…") { actions.updates() })
         popup.addSeparator()
         popup.add(item("Выйти") { actions.quit() })
