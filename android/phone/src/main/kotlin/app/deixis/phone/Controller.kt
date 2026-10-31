@@ -215,6 +215,19 @@ class Controller(private val app: Application) {
         live.value?.let { c -> if (c.slide is Slide.Text || c.slide is Slide.Scripture) deliver(c) }
     }
 
+    // ——— Пульт Holyrics: Библия Deixis показывает стихи в Holyrics ———
+
+    /** Что умеет пульт Holyrics для вкладки «Библия»; задаёт HolyricsSource. */
+    interface HolyricsRemote {
+        fun showBible(p: BiblePick)
+        fun toggleKey(key: app.deixis.core.HolyricsKey)
+    }
+    var holyricsRemote: HolyricsRemote? = null
+    /** Последнее место, отправленное в Holyrics из «Библии» (в режиме пульта Holyrics это и есть «в зале»). */
+    val holyricsVerse = MutableStateFlow<BiblePick?>(null)
+    /** Режим «Пульт Holyrics»: Библия, «Чёрный» и «Очистить» идут в Holyrics. */
+    fun toHolyrics(): Boolean = settings.value.workMode == WorkMode.HOLYRICS && holyricsRemote != null
+
     fun item(id: String?): LibItem? = id?.let { i -> data.value.items.firstOrNull { it.id == i } }
 
     /** Модули Библии: встроенные копируются при первом запуске, поэтому открываются не на главном потоке. */

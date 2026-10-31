@@ -8,6 +8,8 @@ import android.util.Base64
 import app.deixis.core.Discovery
 import app.deixis.core.HolyricsDiscovery
 import app.deixis.core.HolyricsAnnouncement
+import app.deixis.core.HolyricsBible
+import app.deixis.core.HolyricsBibleVersion
 import app.deixis.core.HolyricsBackground
 import app.deixis.core.HolyricsClient
 import app.deixis.core.HolyricsFavorite
@@ -76,6 +78,11 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     private var poll: Job? = null
 
     init {
+        // Вкладка «Библия» в режиме пульта Holyrics показывает стихи в Holyrics, «Чёрный» и «Очистить» — его F10 и F9.
+        controller.holyricsRemote = object : Controller.HolyricsRemote {
+            override fun showBible(p: BiblePick) = this@HolyricsSource.showBible(p)
+            override fun toggleKey(key: HolyricsKey) { this@HolyricsSource.toggleKey(key) }
+        }
         val host = prefs.getString("host", null)
         val token = prefs.getString("token", null)
         if (host != null && token != null) connect(HolyricsLink(host, prefs.getInt("port", HolyricsClient.DEFAULT_PORT), token), quiet = true)
@@ -199,6 +206,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         runCatching { c.songs() }.onSuccess { l -> songs.value = l.sortedBy { it.title.lowercase() } }
         runCatching { c.texts() }.onSuccess { l -> texts.value = l.sortedBy { it.folder.lowercase() + "/" + it.title.lowercase() } }
         runCatching { c.themes() }.onSuccess { themes.value = it }
+        runCatching { c.bibleVersions() }.onSuccess { bibleVersions.value = it }
         images.value = runCatching { c.files(HolyricsMedia.IMAGE) }.getOrDefault(emptyList())
         videos.value = runCatching { c.files(HolyricsMedia.VIDEO) }.getOrDefault(emptyList())
     }
@@ -413,6 +421,71 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         keys.value = if (on) keys.value + key else keys.value - key
     }
 
+    // ——— Библия: модули Deixis ↔ переводы Holyrics ———
+
+    /** Переводы Библии в Holyrics. */
+    val bibleVersions = MutableStateFlow<List<HolyricsBibleVersion>>(emptyList())
+    /** Свой выбор «модуль Deixis → перевод Holyrics» поверх подбора; меняется в «Переводы в Holyrics». */
+    val bibleMap = MutableStateFlow(readBibleMap())
+    private var syncedTabs: List<String>? = null
+
+    private fun readBibleMap(): Map<String, String> =
+        prefs.all.filterKeys { it.startsWith(BIBLE_KEY) }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix(BIBLE_KEY) to it } }.toMap()
+
+    fun loadBibleVersions() = io { c -> bibleVersions.value = c.bibleVersions() }
+
+    /** Перевод Holyrics для модуля Deixis: свой выбор, иначе подобранный по сокращению, названию, языку. */
+    fun versionFor(file: String): HolyricsBibleVersion? {
+        val all = bibleVersions.value
+        bibleMap.value[file]?.let { id -> return all.firstOrNull { it.id == id } }
+        val m = controller.bibleModules.value.firstOrNull { it.fileName == file } ?: return null
+        return HolyricsBible.match(m.title, m.abbreviation, m.language, all)
+    }
+
+    /** Свой выбор перевода Holyrics для модуля; null — снова подбирать самому. */
+    fun mapBible(file: String, versionId: String?) {
+        prefs.edit().apply { if (versionId == null) remove(BIBLE_KEY + file) else putString(BIBLE_KEY + file, versionId) }.apply()
+        bibleMap.value = readBibleMap()
+        syncedTabs = null
+    }
+
+    /**
+     * Стихи из «Библии» Deixis — в Holyrics: тем же переводом (модуль → перевод Holyrics), а если выбрано два
+     * перевода — они же ставятся во вкладки Библии Holyrics и показываются рядом.
+     */
+    fun showBible(p: BiblePick) = io { c ->
+        if (bibleVersions.value.isEmpty()) bibleVersions.value = runCatching { c.bibleVersions() }.getOrDefault(emptyList())
+        val ids = HolyricsBible.verseIds(p.book, p.chapter, p.from, p.to)
+        if (ids.isEmpty()) return@io controller.messages.emit("Этой книги нет в Библии Holyrics")
+        val tabs = p.modules.mapNotNull { versionFor(it)?.id }.distinct()
+        if (tabs.isNotEmpty() && tabs != syncedTabs) {
+            runCatching { c.setBibleTabs(tabs) }.onSuccess { syncedTabs = tabs }
+        }
+        c.showVerses(ids, tabs.firstOrNull())
+        mixInto(c)
+    }
+
+    /** Переводы из вкладок Библии Holyrics — в «Библию» Deixis (модули, сопоставленные с ними). */
+    fun takeBibleTabs() = io { c ->
+        if (bibleVersions.value.isEmpty()) bibleVersions.value = c.bibleVersions()
+        val tabs = c.bibleTabs().filter { it.isNotBlank() }
+        val files = tabs.mapNotNull { v -> controller.bibleModules.value.firstOrNull { versionFor(it.fileName)?.id == v }?.fileName }
+        if (files.isEmpty()) return@io controller.messages.emit("Для переводов Holyrics (${tabs.joinToString()}) в Deixis нет модулей: добавьте их в «Переводы Библии»")
+        withContext(Dispatchers.Main) { controller.desk.choose(files) }
+        syncedTabs = tabs
+        controller.messages.emit("Переводы как в Holyrics: ${tabs.joinToString()}")
+    }
+
+    /** Переводы, выбранные в Deixis, — во вкладки Библии Holyrics. */
+    fun pushBibleTabs(files: List<String>) = io { c ->
+        if (bibleVersions.value.isEmpty()) bibleVersions.value = c.bibleVersions()
+        val tabs = files.mapNotNull { versionFor(it)?.id }.distinct()
+        if (tabs.isEmpty()) return@io controller.messages.emit("Для этих модулей в Holyrics нет переводов")
+        c.setBibleTabs(tabs)
+        syncedTabs = tabs
+        controller.messages.emit("В Holyrics: ${tabs.joinToString()}")
+    }
+
     fun next() = io { it.next() }
     fun previous() = io { it.previous() }
     fun goTo(index: Int) = io { it.goTo(index) }
@@ -437,5 +510,6 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         const val KEYS_EVERY = 4
         const val THUMB_CHUNK = 12
         const val MIX_DELAY_MS = 250L
+        const val BIBLE_KEY = "bible:"
     }
 }

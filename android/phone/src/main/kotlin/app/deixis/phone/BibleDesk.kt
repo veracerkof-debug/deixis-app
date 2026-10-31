@@ -76,6 +76,15 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
         refreshLive()
     }
 
+    /** Переводы по списку (например, взятые из вкладок Библии Holyrics); первый — основной. */
+    fun choose(files: List<String>) {
+        val have = files.filter { f -> c.bibleModules.value.any { it.fileName == f } }.distinct().take(2)
+        if (have.isEmpty()) return
+        selected.value = have
+        lib.selected = have
+        reload()
+    }
+
     /** Основной и второй перевод меняются местами. */
     fun swap() {
         if (selected.value.size < 2) return
@@ -154,6 +163,14 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
     fun live(range: IntRange? = mark.value) {
         val r = range ?: return
         mark.value = r
+        // Пульт Holyrics: стихи — на экран Holyrics, его переводом, тем же, что выбран здесь.
+        if (c.toHolyrics()) {
+            val pk = pick(r) ?: return
+            c.holyricsRemote?.showBible(pk)
+            c.holyricsVerse.value = pk
+            remember(r)
+            return
+        }
         val cue = cue(r) ?: return
         c.goLive(cue)
         remember(r)
@@ -168,14 +185,15 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
         val last = ch.primary.lastOrNull()?.number ?: return
         if (from < 1 || from > last) return
         val next = from..minOf(from + size - 1, last)
-        val showing = c.live.value?.source?.bible?.let { it.book == ch.book && it.chapter == ch.chapter } == true
+        val shown = if (c.toHolyrics()) c.holyricsVerse.value else c.live.value?.source?.bible
+        val showing = shown?.let { it.book == ch.book && it.chapter == ch.chapter } == true
         mark.value = next
         scrollTo.value = next.first
         if (showing) live(next) else preview()
     }
 
     fun liveRange(): IntRange? {
-        val b = c.live.value?.source?.bible ?: return null
+        val b = (if (c.toHolyrics()) c.holyricsVerse.value else c.live.value?.source?.bible) ?: return null
         val ch = chapter.value ?: return null
         return if (b.book == ch.book && b.chapter == ch.chapter) b.from..b.to else null
     }
@@ -211,7 +229,7 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
 
     /** Если в зале Писание из этой вкладки — после смены переводов оно обновляется. */
     fun refreshLive() {
-        val b = c.live.value?.source?.bible ?: return
+        val b = (if (c.toHolyrics()) c.holyricsVerse.value else c.live.value?.source?.bible) ?: return
         val ch = chapter.value ?: return
         if (b.book == ch.book && b.chapter == ch.chapter) live(b.from..b.to)
     }

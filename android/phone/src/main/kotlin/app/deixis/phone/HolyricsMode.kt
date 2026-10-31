@@ -425,6 +425,67 @@ fun HolyricsExtrasSheet(h: HolyricsSource, ui: Ui) {
     }
 }
 
+/**
+ * «Переводы в Holyrics»: какой перевод Holyrics показывает стихи каждого модуля Deixis, обмен переводами между
+ * вкладками Библии Holyrics и Deixis, и чего нет на одной из сторон.
+ */
+@Composable
+fun HolyricsBibleSheet(c: Controller, ui: Ui) {
+    val h = (androidx.compose.ui.platform.LocalContext.current.applicationContext as PhoneApp).holyrics
+    val versions by h.bibleVersions.collectAsState()
+    val map by h.bibleMap.collectAsState()
+    val modules by c.bibleModules.collectAsState()
+    val selected by c.desk.selected.collectAsState()
+    LaunchedEffect(Unit) { h.loadBibleVersions() }
+    Note("Стихи выбираются в Deixis, а показываются в Holyrics — его переводом. Здесь видно, какой перевод Holyrics отвечает каждому модулю Deixis.")
+    GHead("Модули Deixis → Holyrics")
+    Group {
+        modules.forEachIndexed { i, m ->
+            if (i > 0) Sep()
+            val v = map.let { h.versionFor(m.fileName) }
+            Cell(
+                m.title, v?.let { "в Holyrics: ${it.title.ifBlank { it.id }}" + if (m.fileName in map) "" else " · подобран" } ?: "в Holyrics такого перевода нет",
+                "bible",
+                onClick = { ui.push(m.abbreviation) { BibleVersionPicker(h, ui, m.fileName, versions) } },
+            )
+        }
+        if (modules.isEmpty()) Cell("В Deixis пока нет модулей Библии", chevron = null)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
+        Btn("Как в Holyrics", Modifier.weight(1f), icon = "down") { h.takeBibleTabs(); ui.closeAll() }
+        Btn("Как в Deixis", Modifier.weight(1f), icon = "up", kind = BtnKind.TINT) { h.pushBibleTabs(selected); ui.closeAll() }
+    }
+    Note("«Как в Holyrics» — переводы из вкладок Библии Holyrics становятся выбранными здесь. «Как в Deixis» — выбранные здесь переводы ставятся во вкладки Holyrics.", Modifier.padding(top = T.gapS))
+    val used = modules.mapNotNull { h.versionFor(it.fileName)?.id }.toSet()
+    val missing = versions.filter { it.id !in used }
+    if (missing.isNotEmpty()) {
+        GHead("Есть в Holyrics, нет в Deixis")
+        Group {
+            missing.take(MAX_FOUND).forEachIndexed { i, v ->
+                if (i > 0) Sep()
+                Cell(v.title.ifBlank { v.id }, listOfNotNull(v.id, v.language?.altName ?: v.language?.name?.ifBlank { null }).joinToString(" · "), "bible", chevron = null)
+            }
+        }
+        Note("Чтобы листать и искать их в Deixis, добавьте MyBible-модуль того же перевода: «+» в строке переводов на вкладке «Библия». Holyrics не отдаёт текст своих модулей через API.")
+        Btn("Добавить модуль в Deixis", icon = "plus") { ui.push("Переводы Библии") { BibleModulesSheet(c) } }
+    }
+}
+
+@Composable
+private fun BibleVersionPicker(h: HolyricsSource, ui: Ui, file: String, versions: List<app.deixis.core.HolyricsBibleVersion>) {
+    val map by h.bibleMap.collectAsState()
+    val current = map[file]
+    var q by remember { mutableStateOf("") }
+    SearchField(q, "Перевод Holyrics") { q = it }
+    Group(Modifier.padding(top = T.gap)) {
+        Cell("Подбирать самому", "по сокращению, названию и языку", "loop", chevron = null, mark = if (current == null) P.current.tint else null, onClick = { h.mapBible(file, null); ui.close() })
+        versions.filter { q.isBlank() || it.title.contains(q.trim(), true) || it.id.contains(q.trim(), true) }.take(MAX_LIST).forEach { v ->
+            Sep()
+            Cell(v.title.ifBlank { v.id }, v.id, "bible", chevron = null, mark = if (current == v.id) P.current.tint else null, onClick = { h.mapBible(file, v.id); ui.close() })
+        }
+    }
+}
+
 private val LIB_TABS = listOf("Песни", "Тексты", "Презентации", "Фото", "Видео", "Аудио", "Объявления", "Авто")
 private val TIME = Regex("\\d{1,2}:\\d{2}")
 private const val TIME_LEN = 5

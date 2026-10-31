@@ -191,6 +191,7 @@ if tap "Устройства" && tap "Пульт Holyrics"; then
   adb shell input keyevent KEYCODE_BACK; sleep 1
   shot phone-holyrics-mode
   tap "Показ" && shot phone-holyrics-mode-show
+  tap "Библия" && shot phone-holyrics-bible
   tap "Устройства" && tap "Deixis" && sleep 1 && shot phone-deixis-mode
   adb shell pidof app.deixis.phone > /dev/null || { echo "=== Deixis упал при смене режима"; exit 1; }
 fi

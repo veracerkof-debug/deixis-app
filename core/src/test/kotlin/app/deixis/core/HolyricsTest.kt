@@ -105,6 +105,9 @@ class FakeHolyrics(private val token: String = "secret") {
                         "GetSavedPlaylists" -> call.ok("""[{"id":"p1","name":"Воскресенье","items":[{"id":"1","type":"song","name":"Великий Бог"},{"id":"v","type":"video","name":"клип.mp4"}]}]""")
                         "LoadSavedPlaylist" -> { loaded += body; call.ok(null) }
                         "GetF8", "GetF9", "GetF10" -> call.ok((keys[action.removePrefix("Get")] ?: false).toString())
+                        "GetBibleVersionsV2" -> call.ok("""[{"key":"ru_rst","version":"ru_rst","title":"Синодальный перевод","language":{"id":"ru","iso":"ru","name":"Russian","alt_name":"Русский"}},{"key":"en_kjv","version":"en_kjv","title":"King James Version","language":{"id":"en","iso":"en","name":"English"}}]""")
+                        "GetBibleSettings" -> call.ok("""{"tab_version_1":"ru_rst","tab_version_2":"en_kjv","tab_version_3":"","show_x_verses":1}""")
+                        "ShowVerse", "SetBibleSettings" -> { sent += "$action $body"; call.ok(if (action == "SetBibleSettings") "true" else null) }
                         "GetBackgrounds" -> call.ok("""[{"id":"t1","type":"theme","name":"Синяя","tags":["blue"]},{"id":"v1","type":"my_video","name":"Волны","tags":[]}]""")
                         "GetThumbnail" -> call.ok("""[{"type":"theme","id":"t1","image":"data:image/png;base64,iVBORw0KGgo="}]""")
                         "GetAnnouncements" -> call.ok("""[{"id":"a1","name":"Чай","text":"После служения — чай","archived":false}]""")
@@ -200,6 +203,23 @@ class HolyricsTest {
             assertEquals(listOf("GetSongPlaylist", "SetF10"), perm.missing)
             assertEquals("pending", perm.request)
             assertTrue(h.checkPermissions(listOf("GetSongs")).ok)
+        }
+    }
+
+    /** Библия: переводы Holyrics, стихи по номерам BBCCCVVV его переводом, вкладки переводов туда и обратно. */
+    @Test
+    fun bibleVersesGoToHolyricsInItsTranslation() = runBlocking<Unit> {
+        HolyricsClient("127.0.0.1", port, "secret").use { h ->
+            val versions = h.bibleVersions()
+            assertEquals(listOf("ru_rst", "en_kjv"), versions.map { it.id })
+            assertEquals("Русский", versions[0].language?.altName)
+            assertEquals(listOf("ru_rst", "en_kjv", ""), h.bibleTabs())
+            h.showVerses(HolyricsBible.verseIds(500, 3, 16, 17), "ru_rst")
+            h.setBibleTabs(listOf("en_kjv", "ru_rst"))
+            val show = fake.sent.single { it.startsWith("ShowVerse") }
+            assertTrue(show.contains("\"ids\":[\"43003016\",\"43003017\"]") && show.contains("\"version\":\"ru_rst\""), show)
+            val tabs = fake.sent.single { it.startsWith("SetBibleSettings") }
+            assertTrue(tabs.contains("\"tab_version_1\":\"en_kjv\"") && tabs.contains("\"tab_version_2\":\"ru_rst\"") && tabs.contains("\"show_second_version\":true"), tabs)
         }
     }
 

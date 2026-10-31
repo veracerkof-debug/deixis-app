@@ -153,15 +153,15 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     LaunchedEffect(settings.church, settings.workMode) {
         // Пульт Holyrics — часть церковного раздела: без раздела режим возвращается к Deixis.
         if (!settings.church && settings.workMode == WorkMode.HOLYRICS) c.setSettings { it.copy(workMode = WorkMode.DEIXIS) }
-        if ((!settings.church || settings.workMode == WorkMode.HOLYRICS) && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW
+        if (!settings.church && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW
     }
     val needPin by c.needPin.collectAsState()
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
     UpdatesEffects(c, ui)
 
-    // «Библия» — церковный раздел: без него вкладки нет; в режиме пульта Holyrics — тоже (Библия там в Holyrics).
+    // «Библия» — церковный раздел: без него вкладки нет. В режиме пульта Holyrics она остаётся: стихи идут в Holyrics.
     val holyricsMode = settings.workMode == WorkMode.HOLYRICS
-    val tabs = remember(settings.church, holyricsMode) { AppTab.entries.filter { (settings.church && !holyricsMode) || it != AppTab.BIBLE } }
+    val tabs = remember(settings.church) { AppTab.entries.filter { settings.church || it != AppTab.BIBLE } }
     // Пульт Holyrics опрашивает Holyrics, только пока выбран этот режим.
     val holyricsOn = h.status.collectAsState().value is HolyricsStatus.On
     LaunchedEffect(holyricsMode, holyricsOn) { h.setRemote(holyricsMode && holyricsOn) }

@@ -57,7 +57,11 @@ fun BibleScreen(c: Controller, ui: Ui) {
     val live by c.live.collectAsState()
     val mode by c.mode.collectAsState()
     val scrollTo by d.scrollTo.collectAsState()
-    val liveRange = live?.source?.bible?.let { b -> chapter?.let { ch -> if (b.book == ch.book && b.chapter == ch.chapter) b.from..b.to else null } }
+    val holyVerse by c.holyricsVerse.collectAsState()
+    val settings by c.settings.collectAsState()
+    // Пульт Holyrics: «в зале» — то, что отправлено в Holyrics.
+    val holy = settings.workMode == WorkMode.HOLYRICS && c.holyricsRemote != null
+    val liveRange = (if (holy) holyVerse else live?.source?.bible)?.let { b -> chapter?.let { ch -> if (b.book == ch.book && b.chapter == ch.chapter) b.from..b.to else null } }
     var searchOpen by remember { mutableStateOf(false) }
     val list = rememberLazyListState()
     LaunchedEffect(scrollTo, chapter) {
@@ -82,7 +86,8 @@ fun BibleScreen(c: Controller, ui: Ui) {
             }
             IconBtn("search", "Поиск по тексту") { searchOpen = !searchOpen; if (!searchOpen) d.search("") }
             IconBtn("brush", "Тема оформления") { openStyle(c, ui) }
-            IconBtn("gear", "Оформление Писания") { ui.sheet("Оформление Писания") { ScriptureOptionsSheet(c) } }
+            if (holy) IconBtn("loop", "Переводы Holyrics") { ui.sheet("Переводы в Holyrics") { HolyricsBibleSheet(c, ui) } }
+            else IconBtn("gear", "Оформление Писания") { ui.sheet("Оформление Писания") { ScriptureOptionsSheet(c) } }
         }
 
         // Переводы: быстро на этом экране. Первый — основной; «⇄» меняет их местами.
@@ -154,7 +159,7 @@ fun BibleScreen(c: Controller, ui: Ui) {
                     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp)) {
                         items(ch.primary, key = { "v${ch.book}:${ch.chapter}:${it.number}" }) { v ->
                             val second = ch.second?.firstOrNull { it.number == v.number }
-                            val isLive = liveRange?.contains(v.number) == true && mode.inHall()
+                            val isLive = liveRange?.contains(v.number) == true && (holy || mode.inHall())
                             val isMark = mark?.contains(v.number) == true
                             VerseRow(v.number, v.text, second?.text, isLive, isMark,
                                 onTap = { d.select(v.number) },
@@ -172,7 +177,7 @@ fun BibleScreen(c: Controller, ui: Ui) {
                 }
             }
         }
-        BibleBar(c, ui, mark, liveRange, mode)
+        BibleBar(c, ui, mark, liveRange, mode, holy)
     }
 }
 
@@ -207,7 +212,7 @@ private fun VerseRow(n: Int, text: String, second: String?, live: Boolean, marke
 
 /** Нижняя полоса: стих назад и вперёд (в зале — сразу в зал), «В зал» для выбранного, «Чёрный». */
 @Composable
-private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange?, mode: Mode) {
+private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange?, mode: Mode, holy: Boolean) {
     val p = P.current
     val d = c.desk
     Column(Modifier.fillMaxWidth().background(p.cell)) {
@@ -219,8 +224,10 @@ private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange
             Box(Modifier.size(8.dp).clip(RoundedCornerShape(T.rPill)).background(if (liveRange != null) p.live else p.l3))
             Txt(
                 when {
-                    mode == Mode.BLACK -> "В зале чёрный экран"
-                    mode == Mode.AWAY -> "Deixis ушёл с экранов"
+                    holy && liveRange != null -> "В Holyrics: ${d.label(liveRange)}"
+                    holy && mark == null -> "Касание — выбрать, двойное — сразу в Holyrics"
+                    !holy && mode == Mode.BLACK -> "В зале чёрный экран"
+                    !holy && mode == Mode.AWAY -> "Deixis ушёл с экранов"
                     liveRange != null -> "В зале: ${d.label(liveRange)}"
                     mark != null -> "Выбрано: ${d.label(mark)}"
                     else -> "Касание — предпросмотр, двойное — в зал, удержание — до этого стиха"
@@ -230,19 +237,23 @@ private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange
             if (mark != null) Pill("В сетлист", label = "Сохранить в сетлист") { d.saveToSet()?.let { ui.toast("В сетлисте: $it") } }
         }
         Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-            BarBtn2("black", "Чёрный", mode == Mode.BLACK, Modifier.weight(1f)) { c.mode(Mode.BLACK) }
+            BarBtn2("black", "Чёрный", !holy && mode == Mode.BLACK, Modifier.weight(1f)) {
+                if (holy) c.holyricsRemote?.toggleKey(app.deixis.core.HolyricsKey.F10) else c.mode(Mode.BLACK)
+            }
             BarBtn2("prev", "Стих", false, Modifier.weight(1f)) { d.step(-1) }
             val can = mark != null && mark != liveRange
             Column(
                 Modifier.weight(1.6f).heightIn(min = T.barBtn).clip(RoundedCornerShape(T.rBtn)).background(if (can) p.tint else p.fill)
-                    .press(enabled = can, scaleTo = 0.94f, label = "В зал") { d.live(); ui.toast("В зале") },
+                    .press(enabled = can, scaleTo = 0.94f, label = if (holy) "В Holyrics" else "В зал") { d.live(); ui.toast(if (holy) "В Holyrics" else "В зале") },
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
                 Icon("up", if (can) Color.White else p.l3, T.iconBar)
-                Txt("В зал", T.fBar, if (can) Color.White else p.l3, FontWeight.SemiBold)
+                Txt(if (holy) "В Holyrics" else "В зал", T.fBar, if (can) Color.White else p.l3, FontWeight.SemiBold)
             }
             BarBtn2("next", "Стих", false, Modifier.weight(1f)) { d.step(1) }
-            BarBtn2("clear", "Очистить", mode == Mode.CLEAR, Modifier.weight(1f)) { c.mode(Mode.CLEAR) }
+            BarBtn2("clear", "Очистить", !holy && mode == Mode.CLEAR, Modifier.weight(1f)) {
+                if (holy) c.holyricsRemote?.toggleKey(app.deixis.core.HolyricsKey.F9) else c.mode(Mode.CLEAR)
+            }
         }
     }
 }

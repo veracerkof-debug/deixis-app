@@ -499,6 +499,33 @@ class HolyricsClient(
 
     private fun theme(id: String) = buildJsonObject { put("id", id) }
 
+    // ——— Библия Holyrics ———
+
+    suspend fun bibleVersions(): List<HolyricsBibleVersion> =
+        get("GetBibleVersionsV2", ListSerializer(HolyricsBibleVersion.serializer())).orEmpty().filter { it.id.isNotBlank() }
+
+    /** Стихи на экран Holyrics: [ids] — BBCCCVVV, [version] — перевод Holyrics (null — основной в Holyrics). */
+    suspend fun showVerses(ids: List<String>, version: String? = null) {
+        if (ids.isEmpty()) return
+        call("ShowVerse", args("ids" to ids.take(HolyricsBible.MAX_VERSES), "version" to version))
+    }
+
+    /** Переводы во вкладках Библии Holyrics: 1-я, 2-я, 3-я (пусто — не задана). */
+    suspend fun bibleTabs(): List<String> {
+        val o = call("GetBibleSettings") as? JsonObject ?: return emptyList()
+        return (1..3).map { o["tab_version_$it"]?.jsonPrimitive?.contentOrNull.orEmpty() }
+    }
+
+    /** Переводы во вкладки Библии Holyrics; второй и третий показываются рядом, если заданы. */
+    suspend fun setBibleTabs(versions: List<String>) {
+        val v = versions.filter { it.isNotBlank() }.take(3)
+        if (v.isEmpty()) return
+        call("SetBibleSettings", args(
+            "tab_version_1" to v[0], "tab_version_2" to v.getOrNull(1), "tab_version_3" to v.getOrNull(2),
+            "show_second_version" to (v.size > 1), "show_third_version" to (v.size > 2),
+        ))
+    }
+
     companion object {
         const val DEFAULT_PORT = 8091
 
@@ -513,6 +540,7 @@ class HolyricsClient(
             "GetBackgrounds", "GetThumbnail", "SetCurrentBackground", "ShowQuickPresentation", "ShowCountdown",
             "GetAnnouncements", "ShowAnnouncement", "GetAPs", "PlayAP", "GetFavorites", "FavoriteAction",
             "SetAlert", "StartCountdownCP", "StopCountdownCP",
+            "GetBibleVersionsV2", "ShowVerse", "GetBibleSettings", "SetBibleSettings",
         )
     }
 
