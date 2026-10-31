@@ -98,6 +98,49 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         status.value = HolyricsStatus.Off
     }
 
+    /** Ход переноса в библиотеку Deixis: «Песни: 120 из 640»; null — не идёт. */
+    val importing = MutableStateFlow<String?>(null)
+
+    /**
+     * «Перенести в Deixis»: песни (со слайдами в порядке исполнения и подписями частей), тексты, темы и
+     * плейлист Holyrics становятся своими и остаются без Holyrics. Holyrics отдаёт списки без слайдов,
+     * поэтому каждая песня и текст берутся по одной; не взялся — пропускается, остальное переносится.
+     */
+    fun importAll() {
+        if (importing.value != null) return
+        io { c ->
+            importing.value = "Подготовка…"
+            try {
+                val songList = c.songs()
+                val songs = songList.mapIndexedNotNull { i, s ->
+                    importing.value = "Песни: ${i + 1} из ${songList.size}"
+                    val full = runCatching { c.song(s.id) }.getOrNull() ?: return@mapIndexedNotNull null
+                    val slides = full.orderedSlides()
+                    LibItem(HolyricsImport.songId(s.id), Kind.SONG, full.title.ifBlank { s.title }, slides.map { it.text }, slides.map { it.description?.takeIf { d -> d.isNotBlank() } })
+                }
+                val textList = c.texts()
+                val texts = textList.mapIndexedNotNull { i, t ->
+                    importing.value = "Тексты: ${i + 1} из ${textList.size}"
+                    val full = runCatching { c.text(t.id) }.getOrNull() ?: return@mapIndexedNotNull null
+                    LibItem(HolyricsImport.textId(t.id), Kind.TEXT, full.title.ifBlank { t.title }, full.slides.map { it.text })
+                }
+                importing.value = "Темы и плейлист…"
+                val themes = runCatching { c.themes() }.getOrDefault(emptyList()).map { t ->
+                    val name = t.name.ifBlank { "Holyrics ${t.id}" }
+                    Theme(HolyricsImport.themeId(t.id), name, t.toTextStyle().copy(name = name))
+                }
+                val playlist = runCatching { c.songPlaylist() }.getOrNull()?.map { HolyricsImport.songId(it.id) }
+                withContext(Dispatchers.Main) { controller.importHolyrics(HolyricsHaul(songs + texts, themes, playlist)) }
+                controller.messages.emit(
+                    "Из Holyrics в Deixis: песен ${songs.size}, текстов ${texts.size}, тем ${themes.size}" +
+                        if (playlist != null) ", плейлист — сетлист «Плейлист Holyrics»" else "",
+                )
+            } finally {
+                importing.value = null
+            }
+        }
+    }
+
     /** Найденные в сети Holyrics; null — ещё не искали. */
     val found = MutableStateFlow<List<HolyricsFound>?>(null)
     val searching = MutableStateFlow(false)

@@ -179,6 +179,15 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
         }
     }
     Spacer(Modifier.height(10.dp))
+    // Всё из Holyrics — своим в Deixis: песни, тексты, темы, плейлист. Повторно — обновит, без копий.
+    val importing by h.importing.collectAsState()
+    PrimaryButton(importing ?: "Перенести всё в Deixis", enabled = importing == null) { h.importAll() }
+    BasicText(
+        "Песни, тексты, темы и плейлист станут своими в библиотеке Deixis и останутся без Holyrics. Повторный перенос обновит их, а не добавит копии.",
+        style = TextStyle(fontSize = 13.sp, color = p.l2),
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.weight(1f)) { PlainButton(if (remote) "Пульт: вкл" else "Пульт Holyrics") { h.setRemote(!remote) } }
         Box(Modifier.weight(1f)) { PlainButton("Обновить") { h.refresh() } }

@@ -1264,6 +1264,9 @@ class Controller(private val app: Application) {
         }
     }
 
+    /** Перенесённое из Holyrics — в библиотеку, темы и сетлист плейлиста (повторный перенос обновляет). */
+    fun importHolyrics(haul: HolyricsHaul) = edit { d -> HolyricsImport.merge(d, haul) }
+
     fun saveItem(item: LibItem) = edit { d ->
         val exists = d.items.any { it.id == item.id }
         d.copy(items = if (exists) d.items.map { if (it.id == item.id) item else it } else listOf(item) + d.items)

@@ -1520,6 +1520,8 @@ function sheetHolyrics() {
       <div style="margin-bottom:var(--g5)">${seg("htab", tabs, hs.tab)}</div>
       ${hs.tab !== "THEMES" ? `<label class="search">${ico("search")}<input id="hq" type="search" placeholder="Поиск" value="${esc(hs.query)}" aria-label="Поиск"></label>` : ""}
       <div class="group" id="hlist">${holyListHTML()}</div>
+      <button class="btn tint" data-act="himport" style="margin-bottom:var(--g3)">${hs.importing || "Перенести всё в Deixis"}</button>
+      <p class="note tight" style="margin-bottom:var(--g6)">Песни, тексты, темы и плейлист станут своими в библиотеке Deixis и останутся без Holyrics. Повторный перенос обновит их, а не добавит копии.</p>
       <div class="two"><button class="btn" data-act="hremote">${hs.remote ? "Пульт: вкл" : "Пульт Holyrics"}</button><button class="btn red" data-act="hoff">Отключить</button></div>`;
   }, { mount: (sh) => { const q = sh.querySelector("#hq"); if (q) q.addEventListener("input", () => { S.holy.query = q.value; sh.querySelector("#hlist").innerHTML = holyListHTML(); }); } });
 }
@@ -2575,6 +2577,31 @@ const A = {
   // Holyrics
   holyrics: () => sheetHolyrics(),
   // Поиск Holyrics в сети: в демо он «находится» на ноутбуке преподавателя.
+  // Перенос из Holyrics: свои копии с постоянным id (повторно — обновит), темы — в панель тем, плейлист — сетлист.
+  himport: () => {
+    if (S.holy.importing) return;
+    const total = HOLY.songs.length + HOLY.texts.length;
+    let n = 0;
+    const tick = setInterval(() => {
+      n++;
+      S.holy.importing = n <= HOLY.songs.length ? `Песни: ${n} из ${HOLY.songs.length}` : `Тексты: ${n - HOLY.songs.length} из ${HOLY.texts.length}`;
+      refreshSheet();
+      if (n < total) return;
+      clearInterval(tick);
+      const put = (x, type) => {
+        const it = buildSlides({ id: "hl-" + x.id, type, title: x.title, texts: x.slides });
+        const i = LIB.findIndex((y) => y.id === it.id);
+        if (i >= 0) LIB[i] = it; else LIB.unshift(it);
+      };
+      HOLY.songs.forEach((x) => put(x, "song"));
+      HOLY.texts.forEach((x) => put(x, "text"));
+      for (const t of HOLY.themes) if (!S.themes.some((m) => m.id === "hl-" + t.id)) S.themes.push({ id: "hl-" + t.id, name: t.name, style: holyStyle(t) });
+      S.setlists = [{ id: "hl-playlist", title: "Плейлист Holyrics", date: "31 октября", items: HOLY.playlist.map((x) => "hl-" + x.id), past: false }, ...S.setlists.filter((s) => s.id !== "hl-playlist")];
+      S.holy.importing = null;
+      refreshSheet(); render();
+      toast(`Из Holyrics в Deixis: песен ${HOLY.songs.length}, текстов ${HOLY.texts.length}, тем ${HOLY.themes.length}, плейлист — сетлист «Плейлист Holyrics»`);
+    }, 220);
+  },
   hfind: () => { S.holy.finding = true; refreshSheet(); setTimeout(() => { S.holy.finding = false; S.holy.found = true; refreshSheet(); }, 1200); },
   hpick: () => toast("Адрес подставлен: 192.168.1.31"),
   hconnect: () => { S.holy.status = "connecting"; refreshSheet(); setTimeout(() => { S.holy.status = "on"; refreshSheet(); render(); }, 700); },
