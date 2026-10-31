@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
+import app.deixis.core.Discovery
+import app.deixis.core.HolyricsDiscovery
 import app.deixis.core.HolyricsClient
 import app.deixis.core.HolyricsFile
 import app.deixis.core.HolyricsLink
@@ -149,11 +151,11 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     /** «Найти»: опрос своей сети Wi-Fi на порту API Server Holyrics — только по нажатию. */
     fun find() = scope.launch {
-        val local = app.deixis.core.Discovery.localAddress() as? java.net.Inet4Address
+        val local = Discovery.localAddress() as? java.net.Inet4Address
         if (local == null) { controller.messages.emit("Телефон не в сети Wi-Fi: Holyrics ищется в той же сети"); return@launch }
         searching.value = true
         try {
-            val hosts = app.deixis.core.HolyricsDiscovery.scan(app.deixis.core.HolyricsDiscovery.neighbours(local))
+            val hosts = HolyricsDiscovery.scan(HolyricsDiscovery.neighbours(local))
             found.value = hosts.map { HolyricsFound(it, controller.screenName(it)) }
         } finally {
             searching.value = false
