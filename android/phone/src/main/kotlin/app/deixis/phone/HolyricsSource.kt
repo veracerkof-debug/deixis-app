@@ -11,6 +11,7 @@ import app.deixis.core.HolyricsAnnouncement
 import app.deixis.core.HolyricsBackground
 import app.deixis.core.HolyricsClient
 import app.deixis.core.HolyricsFavorite
+import app.deixis.core.HolyricsPermissions
 import app.deixis.core.HolyricsFile
 import app.deixis.core.HolyricsLink
 import app.deixis.core.HolyricsSavedPlaylist
@@ -85,10 +86,12 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         client?.close()
         val c = HolyricsClient(link.host, link.port, link.token)
         try {
-            val v = withContext(Dispatchers.IO) { c.version() }
+            val v = withContext(Dispatchers.IO) { c.hello() }
             client = c
-            prefs.edit().putString("host", link.host).putInt("port", link.port).putString("token", link.token).apply()
-            status.value = HolyricsStatus.On(link, v.version)
+            val clean = link.copy(token = link.token.trim())
+            prefs.edit().putString("host", clean.host).putInt("port", clean.port).putString("token", clean.token).apply()
+            status.value = HolyricsStatus.On(clean, v)
+            askRights(c, quiet)
             refresh()
         } catch (e: Exception) {
             c.close()
@@ -97,11 +100,32 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         }
     }
 
+    /** Права токена, которых не хватает пульту; пусто — всё разрешено. */
+    val missing = MutableStateFlow<HolyricsPermissions?>(null)
+
+    /**
+     * Holyrics даёт токену права по каждому действию. Чего не хватает — просим одним разом: Holyrics (2.25+)
+     * показывает на компьютере уведомление «разрешить». Без этих прав подключение остаётся, просто часть кнопок молчит.
+     */
+    private suspend fun askRights(c: HolyricsClient, quiet: Boolean) {
+        val p = withContext(Dispatchers.IO) { runCatching { c.checkPermissions(HolyricsClient.REMOTE) }.getOrNull() } ?: return
+        missing.value = p.takeIf { !it.ok }
+        if (p.ok || quiet) return
+        controller.messages.emit(
+            if (p.request == "pending") "Holyrics просит подтвердить права для Deixis: нажмите «Разрешить» в уведомлении на компьютере"
+            else "У токена Holyrics не хватает прав (${p.missing.size}). Добавьте их в Holyrics: Файл → Настройки → API Server → Управление правами",
+        )
+    }
+
+    /** Ещё раз спросить права — после того как их дали в Holyrics. */
+    fun recheckRights() = io { c -> askRights(c, quiet = false); refresh() }
+
     fun disconnect() {
         setRemote(false)
         client?.close()
         client = null
         prefs.edit().clear().apply()
+        missing.value = null
         status.value = HolyricsStatus.Off
     }
 
@@ -170,10 +194,11 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     /** Перечитывает библиотеку Holyrics. */
     fun refresh() = io { c ->
-        playlist.value = c.songPlaylist()
-        songs.value = c.songs().sortedBy { it.title.lowercase() }
-        texts.value = c.texts().sortedBy { it.folder.lowercase() + "/" + it.title.lowercase() }
-        themes.value = c.themes()
+        // Каждый список — отдельно: если на что-то у токена нет права, остальное всё равно приходит.
+        runCatching { c.songPlaylist() }.onSuccess { playlist.value = it }
+        runCatching { c.songs() }.onSuccess { l -> songs.value = l.sortedBy { it.title.lowercase() } }
+        runCatching { c.texts() }.onSuccess { l -> texts.value = l.sortedBy { it.folder.lowercase() + "/" + it.title.lowercase() } }
+        runCatching { c.themes() }.onSuccess { themes.value = it }
         images.value = runCatching { c.files(HolyricsMedia.IMAGE) }.getOrDefault(emptyList())
         videos.value = runCatching { c.files(HolyricsMedia.VIDEO) }.getOrDefault(emptyList())
     }

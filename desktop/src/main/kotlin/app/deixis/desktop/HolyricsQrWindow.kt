@@ -80,12 +80,20 @@ object HolyricsQrWindow {
                     qr.link = null
                 } else {
                     // Токен проверяется входом в Holyrics: неверный — кода нет, верный — запоминается.
-                    val version = withContext(Dispatchers.IO) { runCatching { HolyricsClient("127.0.0.1", p, tok).use { it.version().version } } }
-                    version.onSuccess { v ->
-                        runCatching { dataDir.mkdirs(); tokenFile.writeText(tok) }
+                    // Права пульта просятся сразу здесь: Holyrics покажет уведомление на этом же компьютере.
+                    val version = withContext(Dispatchers.IO) {
+                        runCatching { HolyricsClient("127.0.0.1", p, tok).use { c -> c.hello() to runCatching { c.checkPermissions(HolyricsClient.REMOTE) }.getOrNull() } }
+                    }
+                    version.onSuccess { (v, rights) ->
+                        runCatching { dataDir.mkdirs(); tokenFile.writeText(tok.trim()) }
                         val host = lanHost ?: "127.0.0.1"
-                        status.text = "Holyrics $v · $host:$p"
-                        qr.link = HolyricsLink(host, p, tok).toUri()
+                        val name = if (v.isBlank()) "Holyrics" else "Holyrics $v"
+                        status.text = when {
+                            rights == null || rights.ok -> "$name · $host:$p"
+                            rights.request == "pending" -> "$name · $host:$p. Holyrics просит разрешить права для пульта — нажмите «Разрешить» в его уведомлении"
+                            else -> "$name · $host:$p. Токену не хватает прав (${rights.missing.size}): отметьте их в «Управление правами»"
+                        }
+                        qr.link = HolyricsLink(host, p, tok.trim()).toUri()
                     }.onFailure { e ->
                         status.text = "Holyrics не принял токен: ${e.message ?: "проверьте права токена"}"
                         qr.link = null

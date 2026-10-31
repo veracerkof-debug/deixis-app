@@ -32,6 +32,8 @@ class FakeHolyrics(private val token: String = "secret") {
     var baseDir = "C:\\\\Holyrics\\\\Holyrics"
     val calls = mutableListOf<String>()
     val sent = mutableListOf<String>()
+    /** Права токена; null — всё разрешено. Как в Holyrics: без права — «unauthorized». */
+    var allowed: Set<String>? = null
     private val sessions = mutableMapOf<String, Pair<String, Long>>() // sid -> nonce, последний rid
     private var server: EmbeddedServer<*, *>? = null
 
@@ -60,6 +62,17 @@ class FakeHolyrics(private val token: String = "secret") {
                     }
                     if (!authorized) return@post call.respondText("""{"status":"error","error":"invalid token"}""", ContentType.Application.Json)
                     calls += action
+                    val allow = allowed
+                    if (action == "CheckPermissions" && allow != null) {
+                        val want = Regex("\"actions\":\"([^\"]*)\"").find(body)!!.groupValues[1].split(',')
+                        val no = want.filter { it !in allow }
+                        return@post if (no.isEmpty()) call.ok(null)
+                        else call.respondText("""{"status":"error","error":{"unauthorized_actions":"${no.joinToString(",")}","request_status":"pending"}}""", ContentType.Application.Json)
+                    }
+                    if (allow != null && action != "Auth" && action != "GetTokenInfo" && action !in allow) {
+                        return@post call.respondText("""{"status":"error","error":"unauthorized"}""", ContentType.Application.Json)
+                    }
+                    if (action == "GetTokenInfo") return@post call.ok("""{"version":"2.30.0","permissions":"${allow.orEmpty().joinToString(",")}"}""")
                     when (action) {
                         "Auth" -> call.ok(null)
                         "GetVersion" -> call.ok("""{"version":"2.26.0","platform":"win","baseDir":"$baseDir"}""")
@@ -170,6 +183,23 @@ class HolyricsTest {
             assertTrue(sent[3].contains("\"id\":\"all\"") && sent[3].contains("\"seconds\":8"), sent[3])
             assertTrue(sent[4].contains("\"show\":true"), sent[4])
             assertTrue(sent[5].contains("\"minutes\":3"), sent[5])
+        }
+    }
+
+    /** Токен без права на «GetVersion»: вход всё равно удаётся, а недостающие права названы по-русски. */
+    @Test
+    fun tokenWithoutRightsStillConnectsAndNamesWhatIsMissing() = runBlocking<Unit> {
+        fake.allowed = setOf("GetSongs", "ShowSong")
+        HolyricsClient("127.0.0.1", port, "  secret\n").use { h ->
+            assertEquals("2.30.0", h.hello())
+            assertEquals(1, h.songs().size)
+            val e = assertFailsWith<HolyricsException> { h.songPlaylist() }
+            assertTrue(e.unauthorized && e.missing == listOf("GetSongPlaylist"), e.message)
+            assertTrue(e.message!!.contains("токену не разрешено: GetSongPlaylist"), e.message)
+            val perm = h.checkPermissions(listOf("GetSongs", "ShowSong", "GetSongPlaylist", "SetF10"))
+            assertEquals(listOf("GetSongPlaylist", "SetF10"), perm.missing)
+            assertEquals("pending", perm.request)
+            assertTrue(h.checkPermissions(listOf("GetSongs")).ok)
         }
     }
 

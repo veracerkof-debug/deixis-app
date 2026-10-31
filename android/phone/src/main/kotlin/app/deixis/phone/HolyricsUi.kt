@@ -75,7 +75,7 @@ fun HolyricsDialog(h: HolyricsSource, onDismiss: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 BasicText(
                     when (val s = status) {
-                        is HolyricsStatus.On -> "подключён · ${s.version}"
+                        is HolyricsStatus.On -> if (s.version.isBlank()) "подключён" else "подключён · ${s.version}"
                         HolyricsStatus.Connecting -> "подключение…"
                         is HolyricsStatus.Failed -> "нет связи"
                         HolyricsStatus.Off -> ""
@@ -84,6 +84,7 @@ fun HolyricsDialog(h: HolyricsSource, onDismiss: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(10.dp))
+            if (status is HolyricsStatus.On) MissingRights(h)
             when (val s = status) {
                 is HolyricsStatus.On -> Library(h, s.link, onDismiss)
                 else -> ConnectForm(h, (s as? HolyricsStatus.Failed)?.reason)
@@ -91,6 +92,24 @@ fun HolyricsDialog(h: HolyricsSource, onDismiss: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             PlainButton("Закрыть", onDismiss)
         }
+    }
+}
+
+/** Чего не разрешено токену: подсказка, где дать права в Holyrics, и «Проверить снова». */
+@Composable
+private fun MissingRights(h: HolyricsSource) {
+    val p = P.current
+    val m by h.missing.collectAsState()
+    val miss = m ?: return
+    Column(Modifier.fillMaxWidth().padding(bottom = T.gap).clip(RoundedCornerShape(T.rCard)).background(p.cell).padding(T.gap), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
+        Txt("Не хватает прав у токена", T.fBody, p.ink, FontWeight.SemiBold)
+        Txt(
+            (if (miss.request == "pending") "На компьютере Holyrics показал уведомление — нажмите там «Разрешить». "
+            else "В Holyrics: Файл → Настройки → API Server → Управление правами — отметьте для этого токена всё. ") +
+                "Сейчас не разрешено: ${miss.missing.joinToString(", ")}.",
+            T.fSub, p.l2,
+        )
+        Btn("Проверить снова", kind = BtnKind.TINT) { h.recheckRights() }
     }
 }
 

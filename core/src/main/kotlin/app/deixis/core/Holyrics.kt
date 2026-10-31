@@ -199,6 +199,9 @@ data class HolyricsSavedPlaylist(val id: String = "", val name: String = "", val
     data class Item(val id: String = "", val type: String = "", val name: String = "")
 }
 
+@Serializable
+data class HolyricsTokenInfo(val version: String = "", val permissions: String = "")
+
 /** Тема или фон Holyrics: тип `theme`, `my_image`, `my_video`, `image`, `video`. */
 @Serializable
 data class HolyricsBackground(val id: String = "", val type: String = "", val name: String = "", val tags: List<String> = emptyList()) {
@@ -229,7 +232,23 @@ enum class HolyricsMedia(val listAction: String, val getAction: String) {
     FILE("GetFiles", "GetFile"),
 }
 
-class HolyricsException(message: String) : IOException(message)
+/**
+ * Ошибка Holyrics. [missing] — действия, на которые у токена нет права (Holyrics отвечает «unauthorized»);
+ * [request] — `pending`, если Holyrics показал оператору уведомление с просьбой дать права, `denied` — отказано.
+ */
+class HolyricsException(
+    message: String,
+    val key: String? = null,
+    val missing: List<String> = emptyList(),
+    val request: String? = null,
+) : IOException(message) {
+    val unauthorized: Boolean get() = missing.isNotEmpty() || key.equals("unauthorized", true) || message.orEmpty().contains("unauthorized", true)
+}
+
+/** Права токена на действия пульта: чего не хватает и попросил ли Holyrics оператора их дать. */
+data class HolyricsPermissions(val missing: List<String>, val request: String?) {
+    val ok: Boolean get() = missing.isEmpty()
+}
 
 /**
  * Подключение к Holyrics. По умолчанию — вход по хешу: токен не уходит в сеть открытым текстом,
@@ -238,7 +257,7 @@ class HolyricsException(message: String) : IOException(message)
 class HolyricsClient(
     val host: String,
     val port: Int = DEFAULT_PORT,
-    private val token: String,
+    token: String,
     private val useHash: Boolean = true,
     private val http: HttpClient = HttpClient(CIO) {
         install(HttpTimeout) {
@@ -247,6 +266,8 @@ class HolyricsClient(
         }
     },
 ) : AutoCloseable {
+    /** Токен без пробелов и переносов по краям: при вставке из Holyrics они часто прилипают. */
+    private val token = token.trim()
     private val lock = Mutex()
     private var sid: String? = null
     private var nonce: String? = null
@@ -257,17 +278,17 @@ class HolyricsClient(
     /** Выполняет действие API и возвращает поле `data` (или null). Ошибку Holyrics превращает в [HolyricsException]. */
     suspend fun call(action: String, body: JsonObject = JsonObject(emptyMap())): JsonElement? = lock.withLock {
         val data = body.toString()
-        if (!useHash) return@withLock parse(http.post("$base/$action?token=${token.encodeURLParameter()}") { json(data) }.bodyAsText())
+        if (!useHash) return@withLock parse(http.post("$base/$action?token=${token.encodeURLParameter()}") { json(data) }.bodyAsText(), action)
         repeat(2) { attempt ->
             if (sid == null) login()
             rid++
             val dtoken = sha256Hex("$nonce:$rid:$token:$data")
             val text = http.post("$base/$action?sid=$sid&rid=$rid&dtoken=$dtoken") { json(data) }.bodyAsText()
             try {
-                return@withLock parse(text)
+                return@withLock parse(text, action)
             } catch (e: HolyricsException) {
                 // Сессия могла истечь (перезапуск Holyrics): входим заново один раз.
-                if (attempt == 0 && isSessionError(e.message)) { sid = null; return@repeat }
+                if (attempt == 0 && !e.unauthorized && isSessionError(e.message)) { sid = null; return@repeat }
                 throw e
             }
         }
@@ -290,13 +311,30 @@ class HolyricsClient(
         setBody(data)
     }
 
-    private fun parse(text: String): JsonElement? {
+    private fun parse(text: String, action: String? = null): JsonElement? {
         val obj = runCatching { HolyricsJson.parseToJsonElement(text).jsonObject }.getOrNull()
             ?: throw HolyricsException("Holyrics ответил непонятно")
-        if (obj["status"]?.jsonPrimitive?.contentOrNull != "ok") {
-            throw HolyricsException(obj["error"]?.jsonPrimitive?.contentOrNull ?: "Holyrics вернул ошибку")
-        }
+        if (obj["status"]?.jsonPrimitive?.contentOrNull != "ok") throw errorOf(obj["error"], action)
         return obj["data"]?.takeIf { it !is JsonNull }
+    }
+
+    /** Ошибка Holyrics бывает строкой («invalid token») или объектом (код, ключ, недостающие права). */
+    private fun errorOf(err: JsonElement?, action: String?): HolyricsException {
+        val o = err as? JsonObject
+        val text = (err as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+            ?: o?.get("message")?.jsonPrimitive?.contentOrNull ?: o?.get("key")?.jsonPrimitive?.contentOrNull
+        val key = o?.get("key")?.jsonPrimitive?.contentOrNull ?: text
+        val listed = o?.get("unauthorized_actions")?.jsonPrimitive?.contentOrNull
+            ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        val request = o?.get("request_status")?.jsonPrimitive?.contentOrNull
+        val unauthorized = listed.isNotEmpty() || key.equals("unauthorized", true) || text.orEmpty().contains("unauthorized", true)
+        if (!unauthorized) return HolyricsException(text ?: "Holyrics вернул ошибку", key)
+        val missing = listed.ifEmpty { listOfNotNull(action) }
+        val what = if (missing.isEmpty()) "это действие" else missing.joinToString(", ")
+        return HolyricsException(
+            "токену не разрешено: $what. В Holyrics: Файл → Настройки → API Server → Управление правами",
+            "unauthorized", missing, request,
+        )
     }
 
     private fun isSessionError(msg: String?) = msg != null && listOf("session", "sid", "token", "nonce", "auth", "expired").any { msg.contains(it, ignoreCase = true) }
@@ -317,6 +355,33 @@ class HolyricsClient(
     }
 
     suspend fun version(): HolyricsVersion = get("GetVersion", HolyricsVersion.serializer()) ?: HolyricsVersion()
+
+    /** Версия Holyrics и права токена (v2.25+). */
+    suspend fun tokenInfo(): HolyricsTokenInfo = get("GetTokenInfo", HolyricsTokenInfo.serializer()) ?: HolyricsTokenInfo()
+
+    /**
+     * Проверка входа: токен верный, если Holyrics его принял. Версия — из сведений о токене или «GetVersion»;
+     * если ни на то, ни на другое у токена нет права, вход всё равно состоялся — версия пустая.
+     */
+    suspend fun hello(): String {
+        for (ask in listOf<suspend () -> String>({ tokenInfo().version }, { version().version })) {
+            try { return ask() } catch (e: HolyricsException) { if (!e.unauthorized) throw e }
+        }
+        return ""
+    }
+
+    /**
+     * Есть ли у токена права на [actions]. Чего не хватает, Holyrics (v2.25+) сам предлагает оператору разрешить
+     * уведомлением на компьютере (`request` = `pending`).
+     */
+    suspend fun checkPermissions(actions: Collection<String>): HolyricsPermissions = try {
+        call("CheckPermissions", args("actions" to actions.joinToString(",")))
+        HolyricsPermissions(emptyList(), null)
+    } catch (e: HolyricsException) {
+        if (!e.unauthorized) throw e
+        // Если Holyrics не назвал, каких именно прав нет, — вслепую не перечисляем всё: пусть оператор проверит сам.
+        HolyricsPermissions(e.missing.filter { it != "CheckPermissions" }.ifEmpty { listOf("CheckPermissions") }, e.request)
+    }
 
     /** Список песен без текстов (быстро); текст — через [song]. */
     suspend fun songs(): List<HolyricsSong> =
@@ -434,11 +499,24 @@ class HolyricsClient(
 
     private fun theme(id: String) = buildJsonObject { put("id", id) }
 
-    override fun close() = http.close()
-
     companion object {
         const val DEFAULT_PORT = 8091
+
+        /** Всё, что делает пульт Holyrics: права на это просятся у Holyrics одним уведомлением. */
+        val REMOTE = listOf(
+            "GetVersion", "GetSongs", "GetSong", "GetSongPlaylist", "GetTexts", "GetText", "GetThemes",
+            "GetImages", "GetVideos", "GetAudios", "GetFiles", "GetCurrentPresentation",
+            "ShowSong", "ShowText", "ShowImage", "PlayVideo", "PlayAudio", "ExecuteFile",
+            "ActionNext", "ActionPrevious", "ActionGoToIndex", "CloseCurrentPresentation",
+            "AddLyricsToPlaylist", "RemoveFromLyricsPlaylist", "GetSavedPlaylists", "LoadSavedPlaylist",
+            "GetF8", "GetF9", "GetF10", "SetF8", "SetF9", "SetF10",
+            "GetBackgrounds", "GetThumbnail", "SetCurrentBackground", "ShowQuickPresentation", "ShowCountdown",
+            "GetAnnouncements", "ShowAnnouncement", "GetAPs", "PlayAP", "GetFavorites", "FavoriteAction",
+            "SetAlert", "StartCountdownCP", "StopCountdownCP",
+        )
     }
+
+    override fun close() = http.close()
 }
 
 internal fun sha256Hex(s: String): String =
