@@ -162,6 +162,14 @@ private fun TopBar(c: Controller, ui: Ui) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Mark()
+        // Профилей несколько — на главном видно, какой открыт; касание — сменить.
+        val book by c.profiles.collectAsState()
+        if (book.list.size > 1) Txt(
+            book.current.name, T.fSub, P.current.tintText, FontWeight.SemiBold, lines = 1,
+            modifier = Modifier.widthIn(max = T.profileMax).clip(RoundedCornerShape(T.rPill)).background(P.current.tint.copy(alpha = T.devFill))
+                .press(label = "Профиль «${book.current.name}»", onClick = { ui.sheet("Профили") { ProfilesSheet(c, ui) } })
+                .padding(horizontal = T.gap, vertical = T.gapXs),
+        )
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(T.gapXs, Alignment.End)) {
             val live by c.live.collectAsState()
             val mode by c.mode.collectAsState()

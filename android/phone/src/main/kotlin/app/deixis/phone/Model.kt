@@ -183,8 +183,8 @@ data class OverlayDrafts(
 data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false)
 
 /** Хранилище библиотеки и сетлистов: один JSON в памяти приложения, запись после каждого изменения. */
-class Store(private val context: Context) {
-    private val file = File(context.filesDir, "library.json")
+class Store(private val context: Context, dir: File = context.filesDir, private val backups: Backups = Backups(context)) {
+    private val file = File(dir, "library.json")
 
     /** Основной файл не прочитался, и библиотека восстановлена из резервной копии. */
     var recovered = false
@@ -202,7 +202,7 @@ class Store(private val context: Context) {
         val saved = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), file.readText()) }.getOrNull()
         if (saved != null) return saved
         runCatching { file.copyTo(File(file.parentFile, "library.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
-        val backup = runCatching { Backups(context).newest() }.getOrNull()
+        val backup = runCatching { backups.newest() }.getOrNull()
         recovered = backup != null
         return backup ?: firstRun()
     }

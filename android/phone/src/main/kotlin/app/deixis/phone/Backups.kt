@@ -18,8 +18,15 @@ data class BackupInfo(val name: String, val at: String, val reason: String, val 
  * Ещё одна копия — в папке, которую оператор выбрал сам (флешка, Google Диск, «Документы»): она переживает
  * потерю или сброс телефона. Большие видео и фото не копируются: в копии — ссылки на них.
  */
-class Backups(private val context: Context) {
-    private val dir = File(context.filesDir, "backups").apply { mkdirs() }
+class Backups(
+    private val context: Context,
+    root: File = context.filesDir,
+    /** Начало имени копии: у каждого профиля своё, копии профилей не путаются и в общей папке. */
+    private val prefix: String = "deixis-",
+    private val lastKey: String = "last",
+) {
+    private val dir = File(root, "backups").apply { mkdirs() }
+    private val nameRe = Regex("^" + Regex.escape(prefix) + "(\\d{8}-\\d{6})-(.+)\\.json$")
     private val prefs = context.getSharedPreferences("backups", Context.MODE_PRIVATE)
 
     /** Папка вне приложения, выбранная оператором (SAF). */
@@ -27,7 +34,7 @@ class Backups(private val context: Context) {
         get() = prefs.getString("folder", null)?.let(Uri::parse)
         set(v) { prefs.edit().putString("folder", v?.toString()).apply() }
 
-    fun lastAt(): Long = prefs.getLong("last", 0)
+    fun lastAt(): Long = prefs.getLong(lastKey, 0)
 
     /** Копия, если последней больше суток. */
     fun daily(data: StoreData) {
@@ -37,12 +44,12 @@ class Backups(private val context: Context) {
     /** Копия сейчас: «before-update-0.10.0», «manual», «before-restore». Возвращает имя файла. */
     fun save(data: StoreData, reason: String): String {
         val stamp = LocalDateTime.now().format(STAMP)
-        val name = "deixis-$stamp-$reason.json"
+        val name = "$prefix$stamp-$reason.json"
         val json = DeixisJson.encodeToString(StoreData.serializer(), data)
         File(dir, name).writeText(json)
         prune(dir.listFiles().orEmpty().filter { it.name.endsWith(".json") }.sortedBy { it.name }) { it.delete() }
         runCatching { folder?.let { writeExternal(it, name, json) } }
-        prefs.edit().putLong("last", System.currentTimeMillis()).apply()
+        prefs.edit().putLong(lastKey, System.currentTimeMillis()).apply()
         return name
     }
 
@@ -55,7 +62,7 @@ class Backups(private val context: Context) {
         val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val doc = DocumentsContract.createDocument(cr, parent, "application/json", name) ?: return
         cr.openOutputStream(doc, "w")?.use { it.write(json.toByteArray()) }
-        prune(externalFiles(tree).filter { it.second.startsWith("deixis-") }.sortedBy { it.second }) { (uri, _) -> DocumentsContract.deleteDocument(cr, uri) }
+        prune(externalFiles(tree).filter { it.second.startsWith(prefix) }.sortedBy { it.second }) { (uri, _) -> DocumentsContract.deleteDocument(cr, uri) }
     }
 
     private fun externalFiles(tree: Uri): List<Pair<Uri, String>> {
@@ -78,7 +85,7 @@ class Backups(private val context: Context) {
     }
 
     private fun info(name: String, external: Boolean, uri: Uri?, text: () -> String): BackupInfo? {
-        val m = NAME.find(name) ?: return null
+        val m = nameRe.find(name) ?: return null
         val d = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), text()) }.getOrNull() ?: return null
         val at = runCatching { LocalDateTime.parse(m.groupValues[1], STAMP).format(SHOW) }.getOrDefault(m.groupValues[1])
         return BackupInfo(name, at, m.groupValues[2], d.items.size, d.setlists.size, external, uri)
@@ -108,7 +115,6 @@ class Backups(private val context: Context) {
         private const val DAY_MS = 24L * 60 * 60 * 1000
         private val STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
         private val SHOW = DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
-        private val NAME = Regex("^deixis-(\\d{8}-\\d{6})-(.+)\\.json$")
 
         fun reasonText(r: String): String = when {
             r == "daily" -> "ежедневная"

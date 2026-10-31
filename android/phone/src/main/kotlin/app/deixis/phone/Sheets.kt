@@ -186,6 +186,12 @@ fun SettingsSheet(c: Controller) {
     val st by c.settings.collectAsState()
     val context = LocalContext.current
     val themes = listOf("light" to "Светлая", "dark" to "Тёмная", "paper" to "Бумага", "oled" to "OLED")
+    val ui = LocalUi.current
+    val book by c.profiles.collectAsState()
+    GHead("Профиль")
+    Group {
+        Cell(book.current.name, "Своя библиотека и вид · профилей: ${book.list.size}", book.current.kind.icon, onClick = { ui.push("Профили") { ProfilesSheet(c, ui) } })
+    }
     GHead("Тема")
     Seg(themes.map { it.second }, themes.indexOfFirst { it.first == st.theme }.coerceAtLeast(0), Modifier.fillMaxWidth().padding(bottom = 18.dp)) { i ->
         c.setSettings { it.copy(theme = themes[i].first) }
@@ -203,7 +209,6 @@ fun SettingsSheet(c: Controller) {
         SwitchRow("Текст заглавными буквами", st.caps, "Песни, тексты и Писание в зале") { v -> c.setSettings { it.copy(caps = v) } }
     }
     GHead("Оформление")
-    val ui = LocalUi.current
     Group {
         Cell("Оформление по умолчанию", "Фон, шрифт, размер — для всех слайдов без своего", kind = "brush", onClick = {
             ui.push("Оформление по умолчанию") { DefaultStyleEditor(c, ui) }

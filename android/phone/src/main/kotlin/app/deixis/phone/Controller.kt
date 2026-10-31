@@ -152,9 +152,48 @@ class Controller(private val app: Application) {
     val progress = MutableStateFlow<String?>(null)
 
     // ——— Библиотека, сетлисты, настройки ———
-    private val store = Store(app)
+    // Профили: у каждого своя библиотека, настройки и копии (Profiles.kt). Открыт один.
+    private val profileStore = Profiles(app.filesDir)
+    val profiles = MutableStateFlow(profileStore.load())
+    private var currentBackups = profileStore.backupsOf(app, profiles.value.active)
+    private var store = Store(app, profileStore.dirOf(profiles.value.active), currentBackups)
     val data = MutableStateFlow(store.data)
-    val backups = Backups(app)
+    /** Копии открытого профиля. */
+    val backups: Backups get() = currentBackups
+
+    /**
+     * Открыть другой профиль: его библиотека, сетлисты, темы и вид пульта. Показ в зале не трогается —
+     * идёт, пока оператор не покажет что-то из нового профиля; предпросмотр очищается.
+     */
+    fun switchProfile(id: String) {
+        val book = profiles.value
+        if (id == book.active || book.list.none { it.id == id }) return
+        val b = profileStore.backupsOf(app, id)
+        val s = Store(app, profileStore.dirOf(id), b)
+        val logoBefore = settings.value.logo to settings.value.logoImage
+        currentBackups = b
+        store = s
+        preview.value = null
+        draft.value = null
+        profiles.value = profileStore.save(book.copy(active = id))
+        data.value = s.data
+        // Заставка «Логотип» в зале — логотипом нового профиля.
+        if (s.data.settings.logo to s.data.settings.logoImage != logoBefore && mode.value == Mode.LOGO) outs.value.forEach { sendMode(it, Mode.LOGO) }
+        scope.launch(Dispatchers.IO) { runCatching { b.daily(s.data) } }
+        scope.launch { messages.emit("Профиль «${profiles.value.current.name}»") }
+    }
+
+    fun createProfile(name: String, kind: ProfileKind, accent: Accent) {
+        val (book, p) = profileStore.create(profiles.value, name, kind, accent)
+        profiles.value = book
+        switchProfile(p.id)
+    }
+
+    fun editProfile(p: Profile) {
+        profiles.value = profileStore.save(profiles.value.copy(list = profiles.value.list.map { if (it.id == p.id) p else it }))
+    }
+
+    fun deleteProfile(id: String) { profiles.value = profileStore.delete(profiles.value, id) }
 
     /** Копия сейчас (кнопка в настройках или перед обновлением). */
     fun backupNow(reason: String = "manual"): String = backups.save(store.data, reason)

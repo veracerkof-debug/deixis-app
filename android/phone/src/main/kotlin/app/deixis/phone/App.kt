@@ -59,6 +59,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -138,8 +139,10 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     LaunchedEffect(controller) { controller.messages.collect { ui.toast(it) } }
     val info by controller.receiverInfo.collectAsState()
     val testRatio by controller.testRatio.collectAsState()
-    CompositionLocalProvider(P provides paletteOf(theme), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
-        Root(controller, holyrics, ui)
+    val profile by controller.profiles.collectAsState()
+    CompositionLocalProvider(P provides paletteOf(theme, profile.current.accent), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
+        // Другой профиль — экраны пульта начинаются заново: ничего из прежнего профиля не остаётся на виду.
+        key(profile.current.id) { Root(controller, holyrics, ui) }
     }
 }
 

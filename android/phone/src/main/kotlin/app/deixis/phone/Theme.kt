@@ -82,11 +82,28 @@ private val Dark = Palette(
 private val Paper = Light.copy(bg = Color(0xFFF4EFE6), cell = Color(0xFFFBF8F2), ink = Color(0xFF2B2620))
 private val Oled = Dark.copy(bg = Color(0xFF000000), cell = Color(0xFF0E0E10))
 
-fun paletteOf(theme: String): Palette = when (theme) {
-    "dark" -> Dark
-    "paper" -> Paper
-    "oled" -> Oled
-    else -> Light
+fun paletteOf(theme: String, accent: Accent = Accent.BRONZE): Palette {
+    val base = when (theme) {
+        "dark" -> Dark
+        "paper" -> Paper
+        "oled" -> Oled
+        else -> Light
+    }
+    if (accent == Accent.BRONZE) return base
+    val (tint, text) = accentColors(accent, base.dark)
+    return base.copy(tint = tint, tintText = text)
+}
+
+/**
+ * Акцент профиля: кнопки, выбранное, значки на связи. Бронза — основной цвет Deixis; остальные — того же
+ * веса и контраста (подписи акцентом читаются на фоне пульта не хуже 4,5:1).
+ */
+fun accentColors(accent: Accent, dark: Boolean): Pair<Color, Color> = when (accent) {
+    Accent.BRONZE -> if (dark) Color(0xFFBC9361) to Color(0xFFBC9361) else Color(0xFF9C7242) to Color(0xFF765A38)
+    Accent.BLUE -> if (dark) Color(0xFF6E9BD6) to Color(0xFF8DB2E4) else Color(0xFF3E6DAA) to Color(0xFF2F5688)
+    Accent.GREEN -> if (dark) Color(0xFF6FAE86) to Color(0xFF8CC3A0) else Color(0xFF3F7D57) to Color(0xFF2F6243)
+    Accent.PLUM -> if (dark) Color(0xFFB38AC2) to Color(0xFFC6A3D2) else Color(0xFF7E5590) to Color(0xFF644274)
+    Accent.SLATE -> if (dark) Color(0xFF9AA4AE) to Color(0xFFB4BCC4) else Color(0xFF5B6772) to Color(0xFF47515B)
 }
 
 internal val P = staticCompositionLocalOf { Light }
@@ -122,6 +139,8 @@ object T {
     val swatch = 30.dp
     /** Плитка темы или фона Holyrics в ленте тем пульта Holyrics. */
     val themeTile = 104.dp
+    /** Метка профиля в верхней полосе главного: длинное имя обрезается. */
+    val profileMax = 120.dp
     /** Соотношение сторон экрана 16:9 — плитки тем и превью. */
     val wide = 16f / 9f
     val stepperW = 44.dp
