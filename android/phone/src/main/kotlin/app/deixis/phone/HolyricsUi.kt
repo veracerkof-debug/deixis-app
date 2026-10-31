@@ -158,7 +158,6 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
     var tab by remember { mutableStateOf(Tab.PLAYLIST) }
     var query by remember { mutableStateOf("") }
     var showQr by remember { mutableStateOf(false) }
-    val remote by h.remote.collectAsState()
     val themeId by h.themeId.collectAsState()
 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -208,7 +207,7 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { PlainButton(if (remote) "Режим Deixis" else "Работать пультом Holyrics") { h.useAsRemote(!remote); onDismiss() } }
+        // Режим работы («Deixis» / «Пульт Holyrics») меняется только в «Устройствах»: здесь его не переключить случайно.
         Box(Modifier.weight(1f)) { PlainButton("Обновить") { h.refresh() } }
     }
     Spacer(Modifier.height(8.dp))

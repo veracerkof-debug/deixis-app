@@ -613,18 +613,3 @@ fun ViewersBlock(c: Controller) {
         local?.let { Sep(T.gutter); Cell(it, "По имени: iPhone, компьютер", chevron = null) }
     }
 }
-
-// ——— Пульт Holyrics ———
-
-@Composable
-fun HolyricsBar(h: HolyricsSource) {
-    val p = P.current
-    Column(Modifier.fillMaxWidth().background(p.cell).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-            Btn("Назад", Modifier.weight(1f), icon = "prev") { h.previous() }
-            Btn("Дальше", Modifier.weight(1f), icon = "next") { h.next() }
-        }
-        Btn("Режим Deixis", icon = "close") { h.useAsRemote(false) }
-    }
-}
-

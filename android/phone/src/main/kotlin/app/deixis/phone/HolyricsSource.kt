@@ -247,8 +247,6 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     /** Фото или видео из базы Holyrics — в самом Holyrics (режим пульта Holyrics). */
     fun showMediaInHolyrics(kind: HolyricsMedia, file: HolyricsFile) = io { c -> if (kind == HolyricsMedia.VIDEO) c.playVideo(file.name) else c.showImage(file.name) }
 
-    /** Режим работы «Пульт Holyrics» или «Deixis» (выбор хранится в настройках приложения). */
-    fun useAsRemote(on: Boolean) = controller.setSettings { it.copy(workMode = if (on) WorkMode.HOLYRICS else WorkMode.DEIXIS) }
 
     /** Показ в самом Holyrics. */
     fun showInHolyrics(song: HolyricsSong? = null, text: HolyricsText? = null) = io { c ->
