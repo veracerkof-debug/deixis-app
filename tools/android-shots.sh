@@ -185,6 +185,15 @@ scene tablet-16x9
 scene tablet-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size reset
 adb shell wm density reset
+# Режим «Пульт Holyrics»: вкладка «Библия» пропадает, вкладок становится меньше — приложение не должно падать.
+open_app
+if tap "Устройства" && tap "Пульт Holyrics"; then
+  adb shell input keyevent KEYCODE_BACK; sleep 1
+  shot phone-holyrics-mode
+  tap "Показ" && shot phone-holyrics-mode-show
+  tap "Устройства" && tap "Deixis" && sleep 1 && shot phone-deixis-mode
+  adb shell pidof app.deixis.phone > /dev/null || { echo "=== Deixis упал при смене режима"; exit 1; }
+fi
 # Профили: окно профилей, новый профиль «Учёба» (своя пустая библиотека, синий акцент) и возврат.
 open_app
 if tap "Настройки" && tap "Основной"; then

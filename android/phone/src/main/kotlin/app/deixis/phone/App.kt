@@ -165,7 +165,9 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     // Пульт Holyrics опрашивает Holyrics, только пока выбран этот режим.
     val holyricsOn = h.status.collectAsState().value is HolyricsStatus.On
     LaunchedEffect(holyricsMode, holyricsOn) { h.setRemote(holyricsMode && holyricsOn) }
-    val pager = rememberPagerState(initialPage = tabs.indexOf(ui.tab).coerceAtLeast(0)) { tabs.size }
+    // Набор вкладок меняется (режим Holyrics, церковный раздел, профиль) — листалка создаётся заново под новый набор:
+    // прежняя ещё помнит старое число страниц и обратилась бы к вкладке, которой уже нет.
+    val pager = key(tabs) { rememberPagerState(initialPage = tabs.indexOf(ui.tab).coerceAtLeast(0)) { tabs.size } }
     Box(Modifier.fillMaxSize().background(p.bg)) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
             val rail = maxWidth >= 1024.dp
@@ -202,8 +204,8 @@ private fun Pages(c: Controller, h: HolyricsSource, ui: Ui, tabs: List<AppTab>, 
     LaunchedEffect(pager, tabs) {
         snapshotFlow { pager.settledPage }.collect { i -> tabs.getOrNull(i)?.let { if (ui.tab != it) ui.tab = it } }
     }
-    HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs[it] }, userScrollEnabled = ui.themeDrag.dragged == null) { i ->
-        Screen(c, h, ui, tabs[i])
+    HorizontalPager(pager, Modifier.fillMaxSize(), key = { tabs.getOrNull(it) ?: it }, userScrollEnabled = ui.themeDrag.dragged == null) { i ->
+        tabs.getOrNull(i)?.let { Screen(c, h, ui, it) }
     }
 }
 
