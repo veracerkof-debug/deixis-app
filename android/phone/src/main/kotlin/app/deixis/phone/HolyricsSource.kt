@@ -80,7 +80,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     init {
         // Вкладка «Библия» в режиме пульта Holyrics показывает стихи в Holyrics, «Чёрный» и «Очистить» — его F10 и F9.
         controller.holyricsRemote = object : Controller.HolyricsRemote {
-            override fun showBible(p: BiblePick) = this@HolyricsSource.showBible(p)
+            override fun showBible(p: BiblePick) { this@HolyricsSource.showBible(p) }
             override fun toggleKey(key: HolyricsKey) { this@HolyricsSource.toggleKey(key) }
         }
         val host = prefs.getString("host", null)
