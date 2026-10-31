@@ -120,6 +120,10 @@ object T {
     val switchH = 31.dp
     val knob = 27.dp
     val swatch = 30.dp
+    /** Плитка темы или фона Holyrics в ленте тем пульта Holyrics. */
+    val themeTile = 104.dp
+    /** Соотношение сторон экрана 16:9 — плитки тем и превью. */
+    val wide = 16f / 9f
     val stepperW = 44.dp
     val grabW = 36.dp
     val grabH = 5.dp

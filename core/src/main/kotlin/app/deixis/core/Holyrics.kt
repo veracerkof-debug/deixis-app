@@ -199,6 +199,25 @@ data class HolyricsSavedPlaylist(val id: String = "", val name: String = "", val
     data class Item(val id: String = "", val type: String = "", val name: String = "")
 }
 
+/** Тема или фон Holyrics: тип `theme`, `my_image`, `my_video`, `image`, `video`. */
+@Serializable
+data class HolyricsBackground(val id: String = "", val type: String = "", val name: String = "", val tags: List<String> = emptyList()) {
+    val isTheme get() = type == "theme"
+    val isVideo get() = type.endsWith("video")
+}
+
+@Serializable
+data class HolyricsAnnouncement(val id: String = "", val name: String = "", val text: String = "", val archived: Boolean = false)
+
+@Serializable
+data class HolyricsFavorite(val id: String = "", val name: String = "")
+
+@Serializable
+internal data class HolyricsNamed(val name: String = "")
+
+@Serializable
+internal data class HolyricsThumb(val id: String = "", val type: String = "", val image: String? = null)
+
 /** Клавиши экрана Holyrics: F8 — обои, F9 — пустой экран, F10 — чёрный экран. */
 enum class HolyricsKey { F8, F9, F10 }
 
@@ -291,6 +310,8 @@ class HolyricsClient(
             is String -> put(k, v)
             is Number -> put(k, v)
             is Boolean -> put(k, v)
+            is JsonElement -> put(k, v)
+            is List<*> -> put(k, kotlinx.serialization.json.JsonArray(v.map { kotlinx.serialization.json.JsonPrimitive(it.toString()) }))
             else -> put(k, v.toString())
         }
     }
@@ -350,6 +371,68 @@ class HolyricsClient(
     suspend fun showText(id: String, index: Int = 0) { call("ShowText", args("id" to id, "initial_index" to index)) }
     suspend fun showImage(file: String) { call("ShowImage", args("file" to file)) }
     suspend fun playVideo(file: String) { call("PlayVideo", args("file" to file)) }
+    suspend fun playAudio(file: String) { call("PlayAudio", args("file" to file)) }
+    /** Файл из вкладки «Файлы» (презентации, документы): Holyrics открывает его сам. */
+    suspend fun executeFile(file: String) { call("ExecuteFile", args("file" to file)) }
+
+    /** Темы и фоны Holyrics одним списком: `theme`, `my_image`, `my_video`, `image`, `video`. */
+    suspend fun backgrounds(): List<HolyricsBackground> = get("GetBackgrounds", ListSerializer(HolyricsBackground.serializer())).orEmpty()
+
+    /** Тема или фон — тому, что идёт сейчас. Так песня, текст или медиа смешиваются с любой темой. */
+    suspend fun setBackground(id: String) { call("SetCurrentBackground", args("id" to id)) }
+
+    /** Миниатюры тем и фонов: id → картинка (PNG/JPEG). */
+    suspend fun thumbnails(type: String, ids: List<String>): Map<String, ByteArray> {
+        if (ids.isEmpty()) return emptyMap()
+        val list = get("GetThumbnail", ListSerializer(HolyricsThumb.serializer()), args("ids" to ids, "type" to type)).orEmpty()
+        return list.mapNotNull { t -> t.image?.let { img -> runCatching { java.util.Base64.getMimeDecoder().decode(img.substringAfter("base64,")) }.getOrNull()?.let { t.id to it } } }.toMap()
+    }
+
+    /** Быстрый текст на экран; [themeId] — с этой темой, иначе с темой Holyrics по умолчанию. */
+    suspend fun quickText(text: String, themeId: String? = null) {
+        call("ShowQuickPresentation", args("text" to text, "theme" to themeId?.let { theme(it) }))
+    }
+
+    /** Обратный отсчёт на экране: [time] — «MM:SS» на сколько или «HH:MM» до какого времени ([exact]). */
+    suspend fun countdown(time: String, exact: Boolean, before: String = "", after: String = "", themeId: String? = null) {
+        call("ShowCountdown", args(
+            "time" to time, "exact_time" to exact, "text_before" to before.ifBlank { null }, "text_after" to after.ifBlank { null },
+            "zero_fill" to true, "theme" to themeId?.let { theme(it) },
+        ))
+    }
+
+    suspend fun announcements(): List<HolyricsAnnouncement> = get("GetAnnouncements", ListSerializer(HolyricsAnnouncement.serializer())).orEmpty()
+
+    /** Объявление; [id] = null — все по кругу, раз в [seconds] секунд. */
+    suspend fun showAnnouncement(id: String?, seconds: Int = 10) {
+        call("ShowAnnouncement", args(
+            "id" to (id ?: "all"),
+            "automatic" to if (id == null) buildJsonObject { put("seconds", seconds); put("repeat", true) } else null,
+        ))
+    }
+
+    /** Автоматические презентации (файлы .ap). */
+    suspend fun automaticPresentations(): List<String> =
+        get("GetAPs", ListSerializer(HolyricsNamed.serializer())).orEmpty().map { it.name }.filter { it.isNotBlank() }
+
+    suspend fun playAutomaticPresentation(file: String, themeId: String? = null) {
+        call("PlayAP", args("file" to file, "theme" to themeId?.let { theme(it) }))
+    }
+
+    /** Кнопки панели «Избранное» Holyrics. */
+    suspend fun favorites(): List<HolyricsFavorite> = get("GetFavorites", ListSerializer(HolyricsFavorite.serializer())).orEmpty()
+    suspend fun runFavorite(id: String) { call("FavoriteAction", args("id" to id)) }
+
+    /** Тревога — строка поверх всего на экране Holyrics; пустая или [show] = false — убрать. */
+    suspend fun alert(text: String, show: Boolean) { call("SetAlert", args("text" to text, "show" to show)) }
+
+    /** Обратный отсчёт на панели для сцены (зал его не видит). */
+    suspend fun stageCountdown(minutes: Int, seconds: Int = 0, text: String = "") {
+        call("StartCountdownCP", args("minutes" to minutes, "seconds" to seconds, "yellow_starts_at" to 60, "text" to text.ifBlank { null }))
+    }
+    suspend fun stopStageCountdown() { call("StopCountdownCP") }
+
+    private fun theme(id: String) = buildJsonObject { put("id", id) }
 
     override fun close() = http.close()
 

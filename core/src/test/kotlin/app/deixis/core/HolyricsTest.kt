@@ -31,6 +31,7 @@ class FakeHolyrics(private val token: String = "secret") {
     val keys = mutableMapOf<String, Boolean>()
     var baseDir = "C:\\\\Holyrics\\\\Holyrics"
     val calls = mutableListOf<String>()
+    val sent = mutableListOf<String>()
     private val sessions = mutableMapOf<String, Pair<String, Long>>() // sid -> nonce, последний rid
     private var server: EmbeddedServer<*, *>? = null
 
@@ -91,6 +92,13 @@ class FakeHolyrics(private val token: String = "secret") {
                         "GetSavedPlaylists" -> call.ok("""[{"id":"p1","name":"Воскресенье","items":[{"id":"1","type":"song","name":"Великий Бог"},{"id":"v","type":"video","name":"клип.mp4"}]}]""")
                         "LoadSavedPlaylist" -> { loaded += body; call.ok(null) }
                         "GetF8", "GetF9", "GetF10" -> call.ok((keys[action.removePrefix("Get")] ?: false).toString())
+                        "GetBackgrounds" -> call.ok("""[{"id":"t1","type":"theme","name":"Синяя","tags":["blue"]},{"id":"v1","type":"my_video","name":"Волны","tags":[]}]""")
+                        "GetThumbnail" -> call.ok("""[{"type":"theme","id":"t1","image":"data:image/png;base64,iVBORw0KGgo="}]""")
+                        "GetAnnouncements" -> call.ok("""[{"id":"a1","name":"Чай","text":"После служения — чай","archived":false}]""")
+                        "GetAPs" -> call.ok("""[{"name":"Рождество.ap"}]""")
+                        "GetFavorites" -> call.ok("""[{"id":"f1","name":"Заставка"}]""")
+                        "SetCurrentBackground", "ShowQuickPresentation", "ShowCountdown", "ShowAnnouncement", "PlayAP", "FavoriteAction",
+                        "SetAlert", "StartCountdownCP", "StopCountdownCP", "ExecuteFile", "PlayAudio" -> { sent += "$action $body"; call.ok(null) }
                         "SetF8", "SetF9", "SetF10" -> { keys[action.removePrefix("Set")] = body.contains("true"); call.ok(null) }
                         else -> call.respondText("""{"status":"error","error":"unknown action $action"}""", ContentType.Application.Json)
                     }
@@ -135,6 +143,34 @@ class HolyricsTest {
         val n = HolyricsDiscovery.neighbours(java.net.InetAddress.getByName("192.168.1.37") as java.net.Inet4Address)
         assertEquals(253, n.size, "254 адреса сети без своего")
         assertTrue("192.168.1.37" !in n && "192.168.1.1" in n && "192.168.1.254" in n)
+    }
+
+    /** Тема Holyrics на всё, что идёт; быстрый текст, отсчёт, объявления, тревога, таймер сцены. */
+    @Test
+    fun themesMixWithAnythingAndExtrasReachHolyrics() = runBlocking<Unit> {
+        HolyricsClient("127.0.0.1", port, "secret").use { h ->
+            val bg = h.backgrounds()
+            assertEquals(listOf(true, false), bg.map { it.isTheme })
+            assertTrue(bg[1].isVideo)
+            val thumbs = h.thumbnails("theme", listOf("t1"))
+            assertEquals(listOf(0x89.toByte(), 'P'.code.toByte()), thumbs.getValue("t1").take(2))
+            h.setBackground("t1")
+            h.quickText("Тишина", themeId = "t1")
+            h.countdown("05:00", exact = false, before = "Начнём через", themeId = "t1")
+            h.showAnnouncement(null, seconds = 8)
+            h.alert("Машина у входа", true)
+            h.stageCountdown(3)
+            assertEquals("Чай", h.announcements().single().name)
+            assertEquals(listOf("Рождество.ap"), h.automaticPresentations())
+            assertEquals("Заставка", h.favorites().single().name)
+            val sent = fake.sent
+            assertTrue(sent[0].startsWith("SetCurrentBackground") && sent[0].contains("\"id\":\"t1\""), sent[0])
+            assertTrue(sent[1].contains("\"theme\":{\"id\":\"t1\"}"), sent[1])
+            assertTrue(sent[2].contains("\"time\":\"05:00\"") && sent[2].contains("\"exact_time\":false") && sent[2].contains("\"theme\":{\"id\":\"t1\"}"), sent[2])
+            assertTrue(sent[3].contains("\"id\":\"all\"") && sent[3].contains("\"seconds\":8"), sent[3])
+            assertTrue(sent[4].contains("\"show\":true"), sent[4])
+            assertTrue(sent[5].contains("\"minutes\":3"), sent[5])
+        }
     }
 
     /** Пульт Holyrics без подписки: плейлист, сохранённые плейлисты, F8/F9/F10. */

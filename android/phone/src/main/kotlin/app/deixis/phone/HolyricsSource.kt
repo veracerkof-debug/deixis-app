@@ -7,7 +7,10 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import app.deixis.core.Discovery
 import app.deixis.core.HolyricsDiscovery
+import app.deixis.core.HolyricsAnnouncement
+import app.deixis.core.HolyricsBackground
 import app.deixis.core.HolyricsClient
+import app.deixis.core.HolyricsFavorite
 import app.deixis.core.HolyricsFile
 import app.deixis.core.HolyricsLink
 import app.deixis.core.HolyricsSavedPlaylist
@@ -218,6 +221,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun showInHolyrics(song: HolyricsSong? = null, text: HolyricsText? = null) = io { c ->
         song?.let { c.showSong(it.id) }
         text?.let { c.showText(it.id) }
+        mixInto(c)
     }
 
     /**
@@ -291,8 +295,71 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         withContext(Dispatchers.IO) { runCatching { c.song(id) }.getOrNull() }?.also { songSlides[id] = it }
     }
 
-    /** Песня (и сразу с нужного слайда) в самом Holyrics. */
-    fun showSongAt(id: String, index: Int) = io { it.showSong(id, index) }
+    /** Песня (и сразу с нужного слайда) в самом Holyrics — с выбранной темой, если она выбрана. */
+    fun showSongAt(id: String, index: Int) = io { c -> c.showSong(id, index); mixInto(c) }
+
+    // ——— Данные Holyrics, которые смешиваются с темами ———
+
+    /** Темы и фоны Holyrics (лента тем на главном) и их миниатюры. */
+    val backgrounds = MutableStateFlow<List<HolyricsBackground>>(emptyList())
+    val thumbs = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+
+    /**
+     * Тема или фон Holyrics, который держится для всех показов с пульта: песня, текст, быстрый текст,
+     * отсчёт, автопрезентация идут с ним. null — у каждого своя тема, как задано в Holyrics.
+     */
+    val mix = MutableStateFlow(prefs.getString("mix", null))
+
+    val announcements = MutableStateFlow<List<HolyricsAnnouncement>>(emptyList())
+    val automatic = MutableStateFlow<List<String>>(emptyList())
+    val favorites = MutableStateFlow<List<HolyricsFavorite>>(emptyList())
+    val audios = MutableStateFlow<List<HolyricsFile>>(emptyList())
+    val documents = MutableStateFlow<List<HolyricsFile>>(emptyList())
+
+    /** Темы, фоны, объявления, автопрезентации, избранное, аудио и файлы Holyrics — для режима пульта. */
+    fun loadExtras() = io { c ->
+        val bg = runCatching { c.backgrounds() }.getOrDefault(emptyList())
+        backgrounds.value = bg
+        announcements.value = runCatching { c.announcements() }.getOrDefault(emptyList()).filter { !it.archived }
+        automatic.value = runCatching { c.automaticPresentations() }.getOrDefault(emptyList())
+        favorites.value = runCatching { c.favorites() }.getOrDefault(emptyList())
+        audios.value = runCatching { c.files(HolyricsMedia.AUDIO, thumbnails = false) }.getOrDefault(emptyList())
+        documents.value = runCatching { c.files(HolyricsMedia.FILE, thumbnails = false) }.getOrDefault(emptyList())
+        // Миниатюры — пачками, чтобы лента наполнялась сразу, а не после всех.
+        for ((type, list) in bg.groupBy { if (it.isTheme) "theme" else "background" }) {
+            for (chunk in list.map { it.id }.chunked(THUMB_CHUNK)) {
+                val got = runCatching { c.thumbnails(type, chunk) }.getOrDefault(emptyMap())
+                    .mapNotNull { (id, bytes) -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { id to it } }
+                thumbs.value = thumbs.value + got
+            }
+        }
+    }
+
+    /** Касание темы в ленте: она сразу ложится на то, что идёт, и держится дальше; повторное касание — отпустить. */
+    fun pickMix(bg: HolyricsBackground) {
+        val next = if (mix.value == bg.id) null else bg.id
+        mix.value = next
+        prefs.edit().putString("mix", next).apply()
+        if (next != null) io { c -> c.setBackground(next) }
+    }
+
+    /** Выбранная тема — тому, что только что пошло в Holyrics (Holyrics открывает показ со своей темой). */
+    private suspend fun mixInto(c: HolyricsClient) {
+        val id = mix.value ?: return
+        delay(MIX_DELAY_MS)
+        runCatching { c.setBackground(id) }
+    }
+
+    fun quickText(text: String) = io { c -> c.quickText(text, mix.value) }
+    fun countdown(time: String, exact: Boolean, before: String, after: String) = io { c -> c.countdown(time, exact, before, after, mix.value) }
+    fun showAnnouncement(id: String?, seconds: Int) = io { c -> c.showAnnouncement(id, seconds); mixInto(c) }
+    fun playAutomatic(file: String) = io { c -> c.playAutomaticPresentation(file, mix.value) }
+    fun runFavorite(f: HolyricsFavorite) = io { c -> c.runFavorite(f.id) }
+    fun playAudio(f: HolyricsFile) = io { c -> c.playAudio(f.name) }
+    fun openFile(f: HolyricsFile) = io { c -> c.executeFile(f.name); controller.messages.emit("«${f.name}» открыт в Holyrics") }
+    fun alert(text: String, show: Boolean) = io { c -> c.alert(text, show) }
+    fun stageCountdown(minutes: Int, text: String) = io { c -> c.stageCountdown(minutes, 0, text) }
+    fun stopStageCountdown() = io { c -> c.stopStageCountdown() }
 
     fun addToPlaylist(song: HolyricsSong) = io { c ->
         c.addToPlaylist(song.id)
@@ -343,5 +410,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         const val PREVIEW = "320x180"
         /** Клавиши F8–F10 опрашиваются через столько циклов (по полсекунды). */
         const val KEYS_EVERY = 4
+        const val THUMB_CHUNK = 12
+        const val MIX_DELAY_MS = 250L
     }
 }
