@@ -185,6 +185,17 @@ scene tablet-16x9
 scene tablet-screen-9x16 --ef deixis.test.ratio 0.5625
 adb shell wm size reset
 adb shell wm density reset
+# Профили: окно профилей, новый профиль «Учёба» (своя пустая библиотека, синий акцент) и возврат.
+open_app
+if tap "Настройки" && tap "Основной"; then
+  shot phone-profiles
+  tap "Новый профиль" && shot phone-profile-new
+  if tap "Создать и открыть"; then
+    sleep 2; shot phone-profile-study
+    tap "Библиотека" && shot phone-profile-study-library
+    tap "Показ" && tap "Профиль «Учёба»" && tap "Основной" && sleep 2 && shot phone-profile-back
+  fi
+fi
 # Дополнительные сцены — из аргументов: имя:вкладка (например library:Библиотека).
 for s in "$@"; do
   open_app
