@@ -619,7 +619,7 @@ fun HolyricsBar(h: HolyricsSource) {
             Btn("Назад", Modifier.weight(1f), icon = "prev") { h.previous() }
             Btn("Дальше", Modifier.weight(1f), icon = "next") { h.next() }
         }
-        Btn("Выйти из пульта Holyrics", icon = "close") { h.setRemote(false) }
+        Btn("Режим Deixis", icon = "close") { h.useAsRemote(false) }
     }
 }
 

@@ -26,6 +26,9 @@ import kotlin.test.assertTrue
  */
 class FakeHolyrics(private val token: String = "secret") {
     var slide = 1
+    val playlist = mutableListOf<String>()
+    val loaded = mutableListOf<String>()
+    val keys = mutableMapOf<String, Boolean>()
     var baseDir = "C:\\\\Holyrics\\\\Holyrics"
     val calls = mutableListOf<String>()
     private val sessions = mutableMapOf<String, Pair<String, Long>>() // sid -> nonce, последний rid
@@ -83,6 +86,12 @@ class FakeHolyrics(private val token: String = "secret") {
                         "ActionNext" -> { slide = (slide + 1).coerceAtMost(3); call.ok(null) }
                         "ActionPrevious" -> { slide = (slide - 1).coerceAtLeast(1); call.ok(null) }
                         "CloseCurrentPresentation" -> call.ok(null)
+                        "AddLyricsToPlaylist" -> { playlist += Regex("\"id\":\"([^\"]+)\"").find(body)!!.groupValues[1]; call.ok(null) }
+                        "RemoveFromLyricsPlaylist" -> { playlist.removeAt(Regex("\"index\":(\\d+)").find(body)!!.groupValues[1].toInt()); call.ok(null) }
+                        "GetSavedPlaylists" -> call.ok("""[{"id":"p1","name":"Воскресенье","items":[{"id":"1","type":"song","name":"Великий Бог"},{"id":"v","type":"video","name":"клип.mp4"}]}]""")
+                        "LoadSavedPlaylist" -> { loaded += body; call.ok(null) }
+                        "GetF8", "GetF9", "GetF10" -> call.ok((keys[action.removePrefix("Get")] ?: false).toString())
+                        "SetF8", "SetF9", "SetF10" -> { keys[action.removePrefix("Set")] = body.contains("true"); call.ok(null) }
                         else -> call.respondText("""{"status":"error","error":"unknown action $action"}""", ContentType.Application.Json)
                     }
                 }
@@ -126,6 +135,24 @@ class HolyricsTest {
         val n = HolyricsDiscovery.neighbours(java.net.InetAddress.getByName("192.168.1.37") as java.net.Inet4Address)
         assertEquals(253, n.size, "254 адреса сети без своего")
         assertTrue("192.168.1.37" !in n && "192.168.1.1" in n && "192.168.1.254" in n)
+    }
+
+    /** Пульт Holyrics без подписки: плейлист, сохранённые плейлисты, F8/F9/F10. */
+    @Test
+    fun playlistAndScreenKeys() = runBlocking<Unit> {
+        HolyricsClient("127.0.0.1", port, "secret").use { h ->
+            h.addToPlaylist("1"); h.addToPlaylist("7")
+            assertEquals(listOf("1", "7"), fake.playlist)
+            h.removeFromPlaylist(0)
+            assertEquals(listOf("7"), fake.playlist)
+            val saved = h.savedPlaylists().single()
+            assertEquals("Воскресенье" to 2, saved.name to saved.items.size)
+            h.loadSavedPlaylist("Воскресенье", merge = true)
+            assertTrue(fake.loaded.single().contains("\"merge\":true"))
+            assertTrue(!h.screenKey(HolyricsKey.F10))
+            h.setScreenKey(HolyricsKey.F10, true)
+            assertTrue(h.screenKey(HolyricsKey.F10))
+        }
     }
 
     @Test

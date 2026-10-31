@@ -8,6 +8,8 @@ import android.util.Base64
 import app.deixis.core.HolyricsClient
 import app.deixis.core.HolyricsFile
 import app.deixis.core.HolyricsLink
+import app.deixis.core.HolyricsSavedPlaylist
+import app.deixis.core.HolyricsKey
 import app.deixis.core.HolyricsMedia
 import app.deixis.core.HolyricsMediaRequest
 import app.deixis.core.HolyricsPresentation
@@ -204,6 +206,12 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         }
     }
 
+    /** Фото или видео из базы Holyrics — в самом Holyrics (режим пульта Holyrics). */
+    fun showMediaInHolyrics(kind: HolyricsMedia, file: HolyricsFile) = io { c -> if (kind == HolyricsMedia.VIDEO) c.playVideo(file.name) else c.showImage(file.name) }
+
+    /** Режим работы «Пульт Holyrics» или «Deixis» (выбор хранится в настройках приложения). */
+    fun useAsRemote(on: Boolean) = controller.setSettings { it.copy(workMode = if (on) WorkMode.HOLYRICS else WorkMode.DEIXIS) }
+
     /** Показ в самом Holyrics. */
     fun showInHolyrics(song: HolyricsSong? = null, text: HolyricsText? = null) = io { c ->
         song?.let { c.showSong(it.id) }
@@ -248,6 +256,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         poll = scope.launch(Dispatchers.IO) {
             var previews = emptyMap<Int, Bitmap>()
             var shownId: String? = null
+            var tick = 0
             while (isActive) {
                 val c = client
                 if (c != null) {
@@ -259,11 +268,55 @@ class HolyricsSource(private val app: Application, private val controller: Contr
                             shownId = cheap.id
                         }
                         live.value = cheap?.let { HolyricsLive(it, previews) }
+                        // Клавиши экрана меняют и в самом Holyrics: сверка раз в пару секунд.
+                        if (tick++ % KEYS_EVERY == 0) keys.value = HolyricsKey.entries.filter { k -> runCatching { c.screenKey(k) }.getOrDefault(false) }.toSet()
                     }
                 }
                 delay(500)
             }
         }
+    }
+
+    // ——— Режим «Пульт Holyrics»: плейлист, сохранённые плейлисты, F8/F9/F10 ———
+
+    /** Включённые клавиши экрана Holyrics (F8 — обои, F9 — пустой, F10 — чёрный). */
+    val keys = MutableStateFlow<Set<HolyricsKey>>(emptySet())
+    val saved = MutableStateFlow<List<HolyricsSavedPlaylist>>(emptyList())
+
+    /** Слайды песни для раскрытой строки плейлиста: берутся по одной песне и запоминаются. */
+    private val songSlides = mutableMapOf<String, HolyricsSong>()
+    suspend fun song(id: String): HolyricsSong? = songSlides[id] ?: client?.let { c ->
+        withContext(Dispatchers.IO) { runCatching { c.song(id) }.getOrNull() }?.also { songSlides[id] = it }
+    }
+
+    /** Песня (и сразу с нужного слайда) в самом Holyrics. */
+    fun showSongAt(id: String, index: Int) = io { it.showSong(id, index) }
+
+    fun addToPlaylist(song: HolyricsSong) = io { c ->
+        c.addToPlaylist(song.id)
+        playlist.value = runCatching { c.songPlaylist() }.getOrDefault(playlist.value)
+        controller.messages.emit("«${song.title}» — в плейлисте Holyrics")
+    }
+
+    fun removeFromPlaylist(index: Int) = io { c ->
+        c.removeFromPlaylist(index)
+        playlist.value = runCatching { c.songPlaylist() }.getOrDefault(playlist.value)
+    }
+
+    fun loadSaved() = io { c -> saved.value = c.savedPlaylists() }
+
+    /** Сохранённый плейлист в Holyrics: заменить открытый или дописать в конец. */
+    fun loadPlaylist(name: String, merge: Boolean) = io { c ->
+        c.loadSavedPlaylist(name, merge)
+        playlist.value = runCatching { c.songPlaylist() }.getOrDefault(playlist.value)
+        controller.messages.emit(if (merge) "«$name» добавлен в плейлист Holyrics" else "В Holyrics открыт плейлист «$name»")
+    }
+
+    /** F8/F9/F10: повторное нажатие выключает, как в Holyrics. */
+    fun toggleKey(key: HolyricsKey) = io { c ->
+        val on = key !in keys.value
+        c.setScreenKey(key, on)
+        keys.value = if (on) keys.value + key else keys.value - key
     }
 
     fun next() = io { it.next() }
@@ -286,5 +339,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     private companion object {
         const val PREVIEW = "320x180"
+        /** Клавиши F8–F10 опрашиваются через столько циклов (по полсекунды). */
+        const val KEYS_EVERY = 4
     }
 }

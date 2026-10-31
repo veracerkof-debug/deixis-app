@@ -189,7 +189,7 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { PlainButton(if (remote) "Пульт: вкл" else "Пульт Holyrics") { h.setRemote(!remote) } }
+        Box(Modifier.weight(1f)) { PlainButton(if (remote) "Режим Deixis" else "Работать пультом Holyrics") { h.useAsRemote(!remote); onDismiss() } }
         Box(Modifier.weight(1f)) { PlainButton("Обновить") { h.refresh() } }
     }
     Spacer(Modifier.height(8.dp))

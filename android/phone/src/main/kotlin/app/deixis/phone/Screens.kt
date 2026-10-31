@@ -196,6 +196,7 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.fillMaxSize()) {
         Header("Устройства") { Gear(c, ui) }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
+            if (st.church) WorkModeSwitch(c, ui, h)
             GHead("Экраны")
             Group {
                 outputs.forEachIndexed { i, o ->

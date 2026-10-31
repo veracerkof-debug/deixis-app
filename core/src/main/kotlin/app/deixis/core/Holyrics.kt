@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -169,6 +170,8 @@ data class HolyricsPresentation(
     /** default, wallpaper, blank, black, final_slide. */
     @SerialName("slide_type") val slideType: String = "default",
     val slides: List<Slide>? = null,
+    /** Песня, если показ — песня: по нему пульт отмечает её в плейлисте. */
+    @SerialName("song_id") val songId: String? = null,
 ) {
     @Serializable
     data class Slide(
@@ -188,6 +191,16 @@ data class HolyricsVersion(
     /** Папка данных Holyrics на компьютере. */
     val baseDir: String? = null,
 )
+
+/** Сохранённый плейлист Holyrics: имя и что в нём. */
+@Serializable
+data class HolyricsSavedPlaylist(val id: String = "", val name: String = "", val items: List<Item> = emptyList()) {
+    @Serializable
+    data class Item(val id: String = "", val type: String = "", val name: String = "")
+}
+
+/** Клавиши экрана Holyrics: F8 — обои, F9 — пустой экран, F10 — чёрный экран. */
+enum class HolyricsKey { F8, F9, F10 }
 
 /** Вкладка файлов Holyrics. */
 enum class HolyricsMedia(val listAction: String, val getAction: String) {
@@ -309,6 +322,25 @@ class HolyricsClient(
             "GetCurrentPresentation", HolyricsPresentation.serializer(),
             args("include_slides" to true, "include_slide_preview" to (previewSize != null), "slide_preview_size" to previewSize),
         )
+
+    // ——— Плейлист и экран Holyrics: всё это доступно без подписки Holyrics Plan ———
+
+    /** Песня в конец плейлиста Holyrics (того, что открыт в Holyrics сейчас). */
+    suspend fun addToPlaylist(songId: String) { call("AddLyricsToPlaylist", args("id" to songId)) }
+
+    /** Убрать из плейлиста Holyrics по месту в списке (с нуля). */
+    suspend fun removeFromPlaylist(index: Int) { call("RemoveFromLyricsPlaylist", args("index" to index)) }
+
+    /** Сохранённые в Holyrics плейлисты. */
+    suspend fun savedPlaylists(): List<HolyricsSavedPlaylist> = get("GetSavedPlaylists", ListSerializer(HolyricsSavedPlaylist.serializer())).orEmpty()
+
+    /** Сохранённый плейлист в Holyrics: заменить открытый или [merge] — дописать в конец. */
+    suspend fun loadSavedPlaylist(name: String, merge: Boolean = false) { call("LoadSavedPlaylist", args("name" to name, "merge" to merge)) }
+
+    /** F8 — обои, F9 — пустой экран, F10 — чёрный экран Holyrics: включено ли. */
+    suspend fun screenKey(key: HolyricsKey): Boolean = call("Get${key.name}")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.booleanOrNull } ?: false
+
+    suspend fun setScreenKey(key: HolyricsKey, on: Boolean) { call("Set${key.name}", args("enable" to on)) }
 
     suspend fun next() { call("ActionNext") }
     suspend fun previous() { call("ActionPrevious") }

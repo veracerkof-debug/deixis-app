@@ -129,7 +129,15 @@ data class AppSettings(
     val logoImage: app.deixis.core.FileRef? = null,
     /** Панель тем на главном: спрятана в значок, узкая полоса или на всё место под окнами. */
     val themePanel: ThemePanel = ThemePanel.STRIP,
+    /** Режим работы: своя база Deixis или пульт Holyrics (его база на компьютере). Выбирается в «Устройствах». */
+    val workMode: WorkMode = WorkMode.DEIXIS,
 )
+
+/**
+ * DEIXIS — своя библиотека, сетлисты и экраны Deixis. HOLYRICS — пульт Holyrics: главный экран, библиотека
+ * и сетлисты — его плейлист, база и сохранённые плейлисты на компьютере; показ идёт в самом Holyrics.
+ */
+enum class WorkMode { DEIXIS, HOLYRICS }
 
 enum class ThemePanel { HIDDEN, STRIP, FULL }
 

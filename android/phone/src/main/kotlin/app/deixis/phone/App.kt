@@ -147,13 +147,21 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
 private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     val p = P.current
     val settings by c.settings.collectAsState()
-    LaunchedEffect(settings.church) { if (!settings.church && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW }
+    LaunchedEffect(settings.church, settings.workMode) {
+        // Пульт Holyrics — часть церковного раздела: без раздела режим возвращается к Deixis.
+        if (!settings.church && settings.workMode == WorkMode.HOLYRICS) c.setSettings { it.copy(workMode = WorkMode.DEIXIS) }
+        if ((!settings.church || settings.workMode == WorkMode.HOLYRICS) && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW
+    }
     val needPin by c.needPin.collectAsState()
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
     UpdatesEffects(c, ui)
 
-    // «Библия» — церковный раздел: без него вкладки нет.
-    val tabs = remember(settings.church) { AppTab.entries.filter { settings.church || it != AppTab.BIBLE } }
+    // «Библия» — церковный раздел: без него вкладки нет; в режиме пульта Holyrics — тоже (Библия там в Holyrics).
+    val holyricsMode = settings.workMode == WorkMode.HOLYRICS
+    val tabs = remember(settings.church, holyricsMode) { AppTab.entries.filter { (settings.church && !holyricsMode) || it != AppTab.BIBLE } }
+    // Пульт Holyrics опрашивает Holyrics, только пока выбран этот режим.
+    val holyricsOn = h.status.collectAsState().value is HolyricsStatus.On
+    LaunchedEffect(holyricsMode, holyricsOn) { h.setRemote(holyricsMode && holyricsOn) }
     val pager = rememberPagerState(initialPage = tabs.indexOf(ui.tab).coerceAtLeast(0)) { tabs.size }
     Box(Modifier.fillMaxSize().background(p.bg)) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -201,8 +209,8 @@ private fun Screen(c: Controller, h: HolyricsSource, ui: Ui, tab: AppTab) {
     when (tab) {
         AppTab.SHOW -> ShowScreen(c, h, ui)
         AppTab.BIBLE -> BibleScreen(c, ui)
-        AppTab.LIBRARY -> LibraryScreen(c, h, ui)
-        AppTab.SETLISTS -> SetlistsScreen(c, ui)
+        AppTab.LIBRARY -> if (holyricsMode(c)) HolyricsLibraryScreen(h, ui) else LibraryScreen(c, h, ui)
+        AppTab.SETLISTS -> if (holyricsMode(c)) HolyricsPlaylistsScreen(h, ui) else SetlistsScreen(c, ui)
         AppTab.DEVICES -> DevicesScreen(c, h, ui)
     }
 }
@@ -380,3 +388,7 @@ fun Modifier.swipes(
 
 @Composable
 fun Spacer16() = Spacer(Modifier.height(T.gutter))
+
+/** Выбран режим «Пульт Holyrics». */
+@Composable
+private fun holyricsMode(c: Controller): Boolean = c.settings.collectAsState().value.workMode == WorkMode.HOLYRICS

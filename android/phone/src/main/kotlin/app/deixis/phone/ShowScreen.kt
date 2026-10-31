@@ -109,7 +109,8 @@ fun subOf(c: Controller, it: LibItem): String = when (it.kind) {
 @Composable
 fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     val p = P.current
-    val holyricsRemote by h.remote.collectAsState()
+    // Режим «Пульт Holyrics» (выбран в «Устройствах»): главный экран — Holyrics, его показ и плейлист.
+    val holyricsRemote = c.settings.collectAsState().value.workMode == WorkMode.HOLYRICS
     Column(Modifier.fillMaxSize()) {
         TopBar(c, ui)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -125,14 +126,14 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                         val slotMin = if (tall && each > 0.dp) col / each else 1f
                         if (holyricsRemote) HolyricsLiveCard(h) else CompositionLocalProvider(LocalSlotMin provides maxOf(1f, slotMin)) { Monitors(c, ui, stacked = tall) }
                     }
-                    if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
+                    if (holyricsRemote) HolyricsKeys(h) else ControlBar(c, ui)
                 }
                 Box(Modifier.width(T.hair).fillMaxHeight().background(p.sep))
-                Box(Modifier.weight(1f)) { ShowBody(c, h, ui) }
+                Box(Modifier.weight(1f)) { if (holyricsRemote) HolyricsPlaylistPane(h, ui) else ShowBody(c, h, ui) }
             } else Column(Modifier.fillMaxSize()) {
                 if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = false)
-                Box(Modifier.weight(1f)) { ShowBody(c, h, ui) }
-                if (holyricsRemote) HolyricsBar(h) else ControlBar(c, ui)
+                Box(Modifier.weight(1f)) { if (holyricsRemote) HolyricsPlaylistPane(h, ui) else ShowBody(c, h, ui) }
+                if (holyricsRemote) HolyricsKeys(h) else ControlBar(c, ui)
             }
         }
     }
