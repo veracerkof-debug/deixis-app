@@ -292,7 +292,7 @@ enum class PickKind(val mimes: Array<String>, val formats: String) {
     ),
     VIDEO(arrayOf("video/*", "audio/*"), "Любой формат: MP4, MKV, MOV, AVI, WMV, WebM…"),
     PHOTO(arrayOf("image/*"), "JPEG, PNG, WebP, GIF, HEIC"),
-    FILE(arrayOf("*/*"), "PDF, DOCX, TXT и любые файлы: формат определяется сам"),
+    FILE(arrayOf("*/*"), "PDF, DOCX, TXT, песни ChordPro и OpenLyrics и любые файлы: формат определяется сам"),
 }
 
 private fun PickKind.matches(k: Kind) = when (this) {

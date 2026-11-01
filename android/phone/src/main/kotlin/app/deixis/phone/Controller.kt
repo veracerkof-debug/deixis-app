@@ -1295,7 +1295,14 @@ class Controller(private val app: Application) {
         return when (kind) {
             Kind.TEXT -> {
                 val text = app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
-                LibItem(id, Kind.TEXT, name.substringBeforeLast('.'), slides = splitIntoSlides(text))
+                // ChordPro и OpenLyrics — песня с частями «Куплет», «Припев»; чужой XML не подходит вовсе.
+                val song = app.deixis.core.SongFormats.import(name, text)
+                when {
+                    song != null && song.slides.isNotEmpty() ->
+                        LibItem(id, Kind.SONG, song.title.ifBlank { name.substringBeforeLast('.') }, slides = song.slides, labels = song.labels)
+                    name.lowercase().endsWith(".xml") -> return null
+                    else -> LibItem(id, Kind.TEXT, name.substringBeforeLast('.'), slides = splitIntoSlides(text))
+                }
             }
             Kind.VIDEO -> {
                 val dur = runCatching {

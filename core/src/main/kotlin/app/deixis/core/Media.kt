@@ -50,6 +50,9 @@ private val kinds: Map<String, Pair<MediaKind, String>> = buildMap {
     put(MediaKind.DOCUMENT, "application/vnd.ms-excel", "xls")
     put(MediaKind.DOCUMENT, "application/vnd.oasis.opendocument.spreadsheet", "ods")
     put(MediaKind.TEXT, "text/plain", "txt")
+    // Песни из открытых форматов (SongFormats): ChordPro и OpenLyrics.
+    put(MediaKind.TEXT, "application/x-chordpro", "cho", "chopro", "chordpro", "crd")
+    put(MediaKind.TEXT, "application/xml", "xml")
 }
 
 fun mediaKindOf(fileName: String): MediaKind? = kinds[fileName.substringAfterLast('.', "").lowercase()]?.first
