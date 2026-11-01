@@ -23,6 +23,7 @@ import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.ScreenRole
 import app.deixis.receiver.VlcPlayer
 import app.deixis.receiver.followAway
+import app.deixis.receiver.guardBackOnHall
 
 class MainActivity : ComponentActivity() {
 
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
         setContent { ReceiverScreen(runtime, vlc, overscan = true) }
         // «Уйти с экранов»: Deixis уходит назад, на ТВ — главный экран или другой вход.
         followAway(runtime)
+        guardBackOnHall()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

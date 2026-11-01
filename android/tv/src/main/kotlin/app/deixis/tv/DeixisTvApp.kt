@@ -34,7 +34,12 @@ class DeixisTvApp : Application() {
             runCatching { crashFile.writeText(describe(e)) }
             previous?.uncaughtException(t, e)
         }
-        startError = crashFile.takeIf { it.isFile }?.readText()?.also { crashFile.delete() }
+        // Прошлое падение (например, сбой видео посреди показа) не закрывает зал текстом ошибки: экран
+        // запускается как обычно, а причина остаётся в файле для отчёта. Экран ошибки — только если не запустился сейчас.
+        crashFile.takeIf { it.isFile }?.let { f ->
+            runCatching { f.copyTo(File(filesDir, "previous-crash.txt"), overwrite = true) }
+            f.delete()
+        }
         try {
             val name = Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
             val rt = ReceiverRuntime(this, name, "android-tv", File(filesDir, "receiver"))

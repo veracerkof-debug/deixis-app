@@ -17,7 +17,7 @@
         android:theme="@style/Theme.Deixis">
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape">

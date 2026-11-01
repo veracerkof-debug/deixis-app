@@ -20,6 +20,7 @@ import app.deixis.receiver.ReceiverRuntime
 import app.deixis.receiver.ReceiverScreen
 import app.deixis.receiver.VlcPlayer
 import app.deixis.receiver.followAway
+import app.deixis.receiver.guardBackOnHall
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,6 +47,7 @@ class ScreenActivity : ComponentActivity() {
         setContent { ReceiverScreen(runtime, player, overscan = isTelevision(this)) }
         // «Уйти с экранов»: Deixis уходит назад, на экране — то, что под ним.
         followAway(runtime)
+        guardBackOnHall()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -104,7 +106,8 @@ private object ScreenRuntime {
             // Пульт может обновить этот экран, как Deixis TV.
             val phone = app as PhoneApp
             if (!ApkUpdates.fromPlay(app)) rt.core.updates = ScreenUpdateHost(app, rt.core, phone.updater, scope)
-            started = scope.launch { rt.start() }
+            // Сбой запуска не роняет приложение: пульт телефона работает и без экрана на нём.
+            started = scope.launch { runCatching { rt.start() }.onFailure { android.util.Log.e("Deixis", "Экран не запустился", it) } }
         }
     }
 

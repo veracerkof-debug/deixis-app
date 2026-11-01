@@ -34,3 +34,19 @@ fun ComponentActivity.followAway(runtime: ReceiverRuntime) {
 }
 
 private const val RETURN_WAIT_MS = 2_500L
+
+/**
+ * «Назад» на экране зала: одно нажатие (случайно задели пульт ТВ) ничего не делает — показ остаётся.
+ * Второе в течение [BACK_TWICE_MS] закрывает экран. Подсказки на экран не выводится: интерфейс в зал не попадает.
+ */
+fun androidx.activity.ComponentActivity.guardBackOnHall() {
+    var last = 0L
+    onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - last < BACK_TWICE_MS) { isEnabled = false; onBackPressedDispatcher.onBackPressed() } else last = now
+        }
+    })
+}
+
+private const val BACK_TWICE_MS = 2_000L

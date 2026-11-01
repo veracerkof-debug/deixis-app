@@ -57,7 +57,14 @@ object Dlna {
     const val AV_TRANSPORT = "urn:schemas-upnp-org:service:AVTransport:1"
 
     /** Ищет DLNA-экраны: запрос SSDP M-SEARCH и описания найденных устройств. */
-    suspend fun discover(timeoutMs: Int = 2_500, http: HttpClient = defaultHttp()): List<DlnaRenderer> = withContext(Dispatchers.IO) {
+    /** [http] не задан — свой клиент на один поиск, закрывается после него (поиск идёт каждые 20 с: клиенты не копятся). */
+    suspend fun discover(timeoutMs: Int = 2_500, http: HttpClient? = null): List<DlnaRenderer> {
+        val own = http == null
+        val client = http ?: defaultHttp()
+        try { return search(timeoutMs, client) } finally { if (own) client.close() }
+    }
+
+    private suspend fun search(timeoutMs: Int, http: HttpClient): List<DlnaRenderer> = withContext(Dispatchers.IO) {
         val locations = linkedSetOf<String>()
         MulticastSocket(null).use { sock ->
             sock.reuseAddress = true

@@ -59,6 +59,14 @@ class ScreenShareService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification(false))
         }
+        // Повторный запуск во время трансляции: прежняя останавливается сама, без своего «стоп» (иначе система,
+        // остановив старую проекцию, остановила бы и новую), и ничего от неё не остаётся висеть.
+        soundCapture?.stop()
+        soundCapture = null
+        capture?.stop()
+        capture = null
+        projection?.let { runCatching { it.stop() } }
+        projection = null
         val stream = controller.openScreenStream()
         if (data == null || stream == null) {
             controller.screenStopped("Нет связи с экраном")
@@ -69,7 +77,13 @@ class ScreenShareService : Service() {
             val mpm = getSystemService(MediaProjectionManager::class.java)
             val p = mpm.getMediaProjection(code, data) ?: error("Нет разрешения на захват экрана")
             projection = p
-            capture = ScreenCapture(this, p, stream) { w, h -> controller.showScreen(w, h) }.also { it.start() }
+            val c = ScreenCapture(this, p, stream, onSize = { w, h -> controller.showScreen(w, h) }) { reason ->
+                // Кодировщик остановился (его забрало другое приложение, сбой медиасервера): трансляция
+                // заканчивается честно — в зале чёрный экран, на телефоне причина, а не застывший кадр.
+                Handler(mainLooper).post { controller.screenStopped(reason); stop(this) }
+            }
+            capture = c
+            c.start()
             if (sound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 controller.openScreenAudio()?.let { out ->
                     soundCapture = runCatching { SoundCapture(p, out).also { it.start() } }
@@ -77,6 +91,8 @@ class ScreenShareService : Service() {
                 }
             }
         } catch (e: Exception) {
+            capture?.stop()
+            capture = null
             stream.close()
             controller.screenStopped(e.message ?: "Не удалось начать трансляцию экрана")
             stopSelf()
@@ -143,7 +159,9 @@ private class ScreenCapture(
     private val projection: MediaProjection,
     private val stream: ScreenStream,
     private val onSize: (Int, Int) -> Unit,
+    private val onFail: (String) -> Unit,
 ) {
+    @Volatile private var stopped = false
     private val thread = HandlerThread("deixis-capture").apply { start() }
     private val handler = Handler(thread.looper)
     private val displays = context.getSystemService(DisplayManager::class.java)
@@ -161,10 +179,10 @@ private class ScreenCapture(
 
     fun start() {
         projection.registerCallback(object : MediaProjection.Callback() {
-            override fun onStop() = ScreenShareService.stop(context)
+            override fun onStop() { if (!stopped) ScreenShareService.stop(context) }
         }, handler)
         val (w, h) = targetSize()
-        val enc = Encoder(w, h, stream)
+        val enc = Encoder(w, h, stream) { if (!stopped) onFail(ENCODER_STOPPED) }
         encoder = enc
         size = w to h
         display = projection.createVirtualDisplay(
@@ -175,9 +193,16 @@ private class ScreenCapture(
     }
 
     private fun restart() {
+        if (stopped) return
         val (w, h) = targetSize()
         val old = encoder
-        val enc = Encoder(w, h, stream)
+        // Поворот: новый кодировщик под новый размер. Не создался — трансляция заканчивается, приложение не падает.
+        val enc = try {
+            Encoder(w, h, stream) { if (!stopped) onFail(ENCODER_STOPPED) }
+        } catch (e: Exception) {
+            onFail(ENCODER_STOPPED)
+            return
+        }
         display?.resize(w, h, density())
         display?.surface = enc.surface
         encoder = enc
@@ -187,6 +212,7 @@ private class ScreenCapture(
     }
 
     fun stop() {
+        stopped = true
         runCatching { displays.unregisterDisplayListener(listener) }
         display?.release()
         display = null
@@ -213,11 +239,12 @@ private class ScreenCapture(
     private companion object {
         const val MAX_LONG = 1920.0
         const val MAX_SHORT = 1080.0
+        const val ENCODER_STOPPED = "Трансляция остановилась: кодировщик видео телефона занят или дал сбой"
     }
 }
 
 /** Кодировщик H.264 с выходом в [ScreenStream]. Готовые кадры уходят сразу, без накопления. */
-private class Encoder(w: Int, h: Int, private val stream: ScreenStream) {
+private class Encoder(w: Int, h: Int, private val stream: ScreenStream, private val onFail: () -> Unit = {}) {
     private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     val surface: Surface
     @Volatile private var running = true
@@ -271,7 +298,7 @@ private class Encoder(w: Int, h: Int, private val stream: ScreenStream) {
     private fun drainLoop() {
         val info = MediaCodec.BufferInfo()
         while (running) {
-            val index = try { codec.dequeueOutputBuffer(info, 10_000) } catch (e: Exception) { break }
+            val index = try { codec.dequeueOutputBuffer(info, 10_000) } catch (e: Exception) { if (running) onFail(); break }
             if (index < 0) continue
             try {
                 if (info.size > 0) {
@@ -285,6 +312,7 @@ private class Encoder(w: Int, h: Int, private val stream: ScreenStream) {
                 }
                 codec.releaseOutputBuffer(index, false)
             } catch (e: Exception) {
+                if (running) onFail()
                 break
             }
         }

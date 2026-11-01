@@ -24,6 +24,7 @@ import app.deixis.core.VideoContent
 import app.deixis.core.VideoState
 import app.deixis.receiver.renderPdfPage
 import app.deixis.receiver.renderSlideBitmap
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,8 +54,8 @@ class DlnaOutput(private val app: Application) {
         private set
     private var server: DlnaFileServer? = null
     private val sources = mutableMapOf<String, UploadSource>()
-    private var shown: Content? = null
-    private var mode = Mode.NORMAL
+    @Volatile private var shown: Content? = null
+    @Volatile private var mode = Mode.NORMAL
     private var poll: Job? = null
 
     /** Поиск телевизоров раз в 20 секунд, пока открыт пульт. */
@@ -106,7 +107,19 @@ class DlnaOutput(private val app: Application) {
         shown = content
         mode = Mode.NORMAL
         state.value = ReceiverState(content = content, mode = mode)
-        render()
+        renderLatest()
+    }
+
+    private val renderLock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var renderGen = 0L
+
+    /**
+     * Команды телевизору — по одной: каждая — три запроса по сети, и при быстром листании они перемешивались,
+     * телевизор оставался на более раннем слайде. Если пока ждали, пришёл новый слайд, этот уже не отправляется.
+     */
+    private suspend fun renderLatest() {
+        val my = ++renderGen
+        renderLock.withLock { if (my == renderGen) render() }
     }
 
     /** Вид заставки «Логотип» на телевизоре. */
@@ -119,7 +132,7 @@ class DlnaOutput(private val app: Application) {
     suspend fun toggle(m: Mode) {
         mode = if (mode == m) Mode.NORMAL else m
         state.value = state.value?.copy(mode = mode)
-        render()
+        renderLatest()
     }
 
     suspend fun video(action: VideoAction, deltaMs: Long) {
