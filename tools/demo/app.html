@@ -536,7 +536,9 @@ const LIB = [
   { id: "rep", type: "file", title: "Отчёт по практике.docx", ref: () => hub.REPORT, pages: 1, size: 0.3 * MB },
   { id: "ph1", type: "photo", title: "Горы на закате.jpg", ref: () => hub.PHOTO, size: 2.4 * MB },
   { id: "ph2", type: "photo", title: "Утро в горах.jpg", ref: () => hub.MORNING, size: 1.9 * MB },
-  { id: "vid", type: "video", title: "Демо-видео.mp4", ref: () => hub.VIDEO, size: 14 * MB, durationMs: 12000 },
+  { id: "ph3", type: "photo", title: "Звёздная ночь.jpg", ref: () => hub.NIGHT, size: 2.2 * MB },
+  { id: "ph4", type: "photo", title: "Тёплые огни.jpg", ref: () => hub.LIGHTS, size: 1.5 * MB },
+  { id: "vid", type: "video", title: "Огни. Видеофон.mp4", ref: () => hub.VIDEO, size: 0.5 * MB, durationMs: 12000 },
   { id: "big", type: "video", title: "Запись концерта.mp4", size: 2.4 * GB, big: true, durationMs: 5400000 },
   { id: "s1", type: "song", title: "Коль славен наш Господь в Сионе", texts: [
     "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.",
@@ -583,7 +585,7 @@ const HOLY = {
     { id: "ht2", title: "Благодарность", slides: ["Спасибо всем,\nкто помогал с ремонтом"] },
   ],
   images: [{ id: "hi1", title: "Горы на закате.jpg", ref: () => hub.PHOTO }, { id: "hi2", title: "Утро в горах.jpg", ref: () => hub.MORNING }],
-  videos: [{ id: "hv1", title: "Демо-видео.mp4", ref: () => hub.VIDEO }],
+  videos: [{ id: "hv1", title: "Огни. Видеофон.mp4", ref: () => hub.VIDEO }],
   themes: [
     { id: "th1", name: "Тёмная классика", style: { background: 0xFF101418, color: 0xFFFFFFFF, shadow: true, name: "Тёмная классика" } },
     { id: "th2", name: "Горы", style: { background: 0xFF000000, color: 0xFFFFFFFF, shadow: true, box: 0x66000000, name: "Горы" }, bg: true },
@@ -594,6 +596,15 @@ HOLY.playlist = [HOLY.songs[0], HOLY.texts[0], HOLY.songs[1]];
 
 // ——— Состояние ———
 const DEFAULT_STYLE = { background: 0xFF000000, color: 0xFFFFFFFF, shadow: true, outline: false, sizePercent: 20 };
+// Демо-темы на картинках набора: песни и тексты демо-сетлиста сразу показываются в них.
+const demoTheme = (id, name, bg, extra) => ({ id, name, demo: true, style: Object.assign({}, DEFAULT_STYLE, { backgroundImage: bg(), name }, extra) });
+const DEMO_THEMES = () => [
+  demoTheme("dt-sunset", "Горы на закате", () => hub.PHOTO, { shadowColor: 0xCC000000 }),
+  demoTheme("dt-night", "Звёздная ночь", () => hub.NIGHT, { color: 0xFFF4EEDF }),
+  demoTheme("dt-morning", "Утренний туман", () => hub.MORNING, { color: 0xFF14232E, shadow: false, valign: "TOP" }),
+  demoTheme("dt-lights", "Тёплые огни", () => hub.LIGHTS, { color: 0xFFFFF4E6 }),
+];
+const DEMO_STYLES = { s1: "dt-night", s2: "dt-lights", t1: "dt-morning", b1: "dt-sunset", b2: "dt-night" };
 const S = {
   tab: "show", listSeg: "set", open: "s1",
   live: null, pre: null, mode: "NORMAL",     // показ: {src, idx}; src — элемент библиотеки или разовый {title, type, slides}
@@ -601,7 +612,7 @@ const S = {
   styles: { slide: {}, item: {}, set: {} },
   devices: [], found: [], searching: true, progress: null,
   setlists: [
-    { id: "today", title: "Сегодня", date: "23 октября", items: ["lec", "s1", "b1", "ph1", "vid", "t1"], past: false },
+    { id: "today", title: "Сегодня", date: "23 октября", items: ["t1", "s1", "b1", "s2", "lec", "ph1", "ph3", "vid"], past: false },
     { id: "sem", title: "Семинар", date: "30 октября", items: ["lecpdf", "rep", "t2", "s2"], past: false },
     { id: "last", title: "Лекция 2", date: "16 октября", items: ["lecpdf", "ph2", "b2"], past: true },
   ],
@@ -2145,6 +2156,8 @@ function removeDemo() {
   if (!S.setlists.length) S.setlists.push({ id: "n" + Date.now(), title: "Новый сетлист", date: "24 октября", items: [], past: false });
   S.active = S.setlists[0].id;
   S.recent = S.recent.filter((x) => !demo.has(x));
+  S.themes = S.themes.filter((t) => !t.demo);
+  for (const id of demo) delete S.styles.item[id];
   if (S.pre && demo.has(S.pre.src.id)) S.pre = null;
   S.open = null;
   S.demoRemoved = true;
@@ -2638,6 +2651,9 @@ document.addEventListener("keydown", (e) => {
 
 // ——— Старт ———
 async function init() {
+  // Демо-темы и оформление демо-песен — когда демо-приёмник (hub) уже готов.
+  S.themes = DEMO_THEMES().concat(S.themes);
+  for (const [item, th] of Object.entries(DEMO_STYLES)) S.styles.item[item] = S.themes.find((t) => t.id === th).style;
   LIB.forEach(buildSlides);
   for (const it of LIB.filter((x) => x.pick)) {
     const res = await scriptureSlides(it.pick);

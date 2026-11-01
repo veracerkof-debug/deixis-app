@@ -4,7 +4,9 @@
 (function () {
   const LECTURE = { sha256: "demo-lecture", name: "Город пятнадцати минут.pdf", size: 55408, mime: "application/pdf" };
   const PHOTO = { sha256: "demo-photo", name: "Горы на закате.jpg", size: 82435, mime: "image/jpeg" };
-  const VIDEO = { sha256: "demo-video", name: "Демо-видео.mp4", size: 212661, mime: "video/mp4" };
+  const VIDEO = { sha256: "demo-video", name: "Огни. Видеофон.mp4", size: 498793, mime: "video/mp4" };
+  const NIGHT = { sha256: "demo-night", name: "Звёздная ночь.jpg", size: 218769, mime: "image/jpeg" };
+  const LIGHTS = { sha256: "demo-lights", name: "Тёплые огни.jpg", size: 149033, mime: "image/jpeg" };
 
   const REPORT = { sha256: "demo-report", name: "Отчёт по практике.pdf", size: 109603, mime: "application/pdf" };
   const MORNING = { sha256: "demo-morning", name: "Утро в горах.jpg", size: 63551, mime: "image/jpeg" };
@@ -18,6 +20,8 @@
     [REPORT.sha256]: { ref: REPORT, pages: ["media/report-0.jpg"] },
     [PHOTO.sha256]: { ref: PHOTO, url: "media/mountains.jpg" },
     [MORNING.sha256]: { ref: MORNING, url: "media/morning.jpg" },
+    [NIGHT.sha256]: { ref: NIGHT, url: "media/night.jpg" },
+    [LIGHTS.sha256]: { ref: LIGHTS, url: "media/lights.jpg" },
     [VIDEO.sha256]: { ref: VIDEO, url: "media/clip.mp4", durationMs: 12000 },
     [KONSPEKT.sha256]: { ref: KONSPEKT, pages: ["media/konspekt-0.jpg", "media/konspekt-1.jpg"] },
     [LOGO_DEIXIS.sha256]: { ref: LOGO_DEIXIS, url: "media/deixis.png" },
@@ -375,7 +379,7 @@
 
   window.DeixisDemo = {
     connect, http, url, files, addReceiver, receivers, finishUpload, bibleSlides, bibleModules: () => BIBLE.modules, bibleBooks,
-    LECTURE, PHOTO, VIDEO, REPORT, MORNING, KONSPEKT, LOGO_DEIXIS, LOGO_LIVE, LOGO_SPRING,
+    LECTURE, PHOTO, VIDEO, REPORT, MORNING, NIGHT, LIGHTS, KONSPEKT, LOGO_DEIXIS, LOGO_LIVE, LOGO_SPRING,
     // Для витрины веб-пульта: экран «demo».
     onChange(fn) { return receivers.demo.onChange(fn); },
     get state() { return receivers.demo.state; },

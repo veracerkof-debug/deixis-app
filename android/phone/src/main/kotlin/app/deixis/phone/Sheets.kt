@@ -244,15 +244,20 @@ fun SettingsSheet(c: Controller) {
         SwitchRow("Церковный раздел", st.church, "Библия и Holyrics на главном") { v -> c.setSettings { it.copy(church = v) } }
     }
     @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
-    if (c.hasDemo()) {
-        Group(Modifier.padding(top = T.gap)) {
-            Cell("Убрать демо-материалы", "Песни, тексты, файлы и сетлист «Демо» первого запуска", kind = "trash", onClick = {
-                ui.push("Убрать демо-материалы") {
-                    Note("Уйдут песни, тексты, места из Библии, фото, видео, презентации и сетлист «Демо», добавленные при первом запуске. Своё остаётся.", Modifier.padding(bottom = T.gap))
+    GHead("Демо-материалы")
+    Group {
+        if (c.hasDemo()) {
+            Cell("Убрать демо", "Песни, тексты, лекция, фото, видео, темы и сетлист «Демо»", kind = "trash", onClick = {
+                ui.push("Убрать демо") {
+                    Note("Уйдут демо-песни, тексты, места из Библии, лекция, фото, видео, демо-темы и сетлист «Демо». Своё остаётся. Вернуть их можно здесь же.", Modifier.padding(bottom = T.gap))
                     Btn("Убрать", kind = BtnKind.RED) { c.removeDemo(); ui.closeAll(); ui.toast("Демо-материалы убраны") }
                 }
             })
+            Sep(T.gutter)
         }
+        Cell(if (c.hasDemo()) "Обновить демо" else "Вернуть демо", "Сетлист «Демо»: песни в своих темах, Писание, лекция, фото и видеофон", kind = "layers", onClick = {
+            c.restoreDemo(); ui.closeAll(); ui.toast("Демо-материалы на главном")
+        })
     }
     BackupsSection(c, LocalUi.current)
     UpdatesSection()

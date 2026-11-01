@@ -45,6 +45,7 @@ import app.deixis.core.ScriptureOptions
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
 import app.deixis.core.TextStyle
+import app.deixis.core.VAlign
 import app.deixis.core.UploadSource
 import app.deixis.core.VideoAction
 import app.deixis.core.VideoCommand
@@ -1191,54 +1192,83 @@ class Controller(private val app: Application) {
      * Демо-материалы при первом запуске: презентация, PDF, фото, видео, песни, текст, Писание и сетлист «Демо»,
      * чтобы приложение можно было попробовать сразу. Удаляются как обычные элементы библиотеки.
      */
-    private fun seedDemo() = scope.launch {
-        if (data.value.demoSeeded) return@launch
+    private fun seedDemo(force: Boolean = false) = scope.launch {
+        if (data.value.demoSeeded && !force) return@launch
         edit { it.copy(demoSeeded = true) }
         val files = withContext(Dispatchers.IO) {
             val dir = File(app.filesDir, "demo").apply { mkdirs() }
             app.assets.list("demo").orEmpty().sorted().mapNotNull { name ->
                 runCatching {
                     val f = File(dir, name)
-                    if (!f.isFile) app.assets.open("demo/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
-                    describe(Uri.fromFile(f), preferPresentation = false)?.let { it.copy(title = name, demo = true) }
+                    // Новая версия демо-набора заменяет прежние файлы с тем же именем.
+                    // Размер в APK известен только у несжатых файлов (фото, видео); сжатые копируются всегда.
+                    val size = runCatching { app.assets.openFd("demo/$name").use { it.length } }.getOrDefault(-1L)
+                    if (!f.isFile || size < 0 || f.length() != size) app.assets.open("demo/$name").use { input -> f.outputStream().use { input.copyTo(it) } }
+                    describe(Uri.fromFile(f), preferPresentation = false)?.let { it.copy(title = name.substringBeforeLast('.'), demo = true) }
                 }.getOrNull()
             }
         }
-        val songs = listOf(
-            LibItem(Store.newId(), Kind.SONG, "Коль славен наш Господь в Сионе", slides = listOf(
-                "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.\nВелик Он в небесах на троне,\nВ былинках на земле велик.",
-                "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен.",
-                "Тебя Твой агнец златорунный\nВ себе изображает нам;\nПсалтирью мы десятиструнной\nТебе приносим фимиам.",
-            ), labels = listOf("Куплет 1", "Припев", "Куплет 2")),
-            LibItem(Store.newId(), Kind.SONG, "Amazing Grace", slides = listOf(
-                "Amazing grace! How sweet the sound\nThat saved a wretch like me!\nI once was lost, but now am found;\nWas blind, but now I see.",
-                "'Twas grace that taught my heart to fear,\nAnd grace my fears relieved;\nHow precious did that grace appear\nThe hour I first believed.",
-            ), labels = listOf("Verse 1", "Verse 2")),
-            LibItem(Store.newId(), Kind.TEXT, "Объявления", slides = listOf(
-                "Добро пожаловать!\nНачало в 10:00",
-                "Чай после встречи\nв малом зале",
-                "Молодёжная встреча\nв пятницу в 19:00",
-            )),
-            LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
-            LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, ScriptureOptions(sideBySide = true))),
-        ).map { it.copy(demo = true) }
-        // Тема с фото гор на фоне: пример своей темы.
-        val mountains = files.firstOrNull { it.kind == Kind.PHOTO && it.title.startsWith("Горы") }
-        val theme = mountains?.uri?.let { u ->
-            runCatching { backgroundFrom(Uri.parse(u)) }.getOrNull()?.let { ref ->
-                Theme(Store.newId(), "Горы", TextStyle(backgroundImage = ref, box = 0x66000000, name = "Горы"))
-            }
-        }
-        val all = songs + files
-        val demo = Setlist(Store.newId(), DEMO_SET, LocalDate.now().toString(), all.map { it.id })
+        val star = LibItem(Store.newId(), Kind.SONG, "Коль славен наш Господь в Сионе", slides = listOf(
+            "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.\nВелик Он в небесах на троне,\nВ былинках на земле велик.",
+            "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен.",
+            "Тебя Твой агнец златорунный\nВ себе изображает нам;\nПсалтирью мы десятиструнной\nТебе приносим фимиам.",
+        ), labels = listOf("Куплет 1", "Припев", "Куплет 2"))
+        val grace = LibItem(Store.newId(), Kind.SONG, "Amazing Grace", slides = listOf(
+            "Amazing grace! How sweet the sound\nThat saved a wretch like me!\nI once was lost, but now am found;\nWas blind, but now I see.",
+            "'Twas grace that taught my heart to fear,\nAnd grace my fears relieved;\nHow precious did that grace appear\nThe hour I first believed.",
+        ), labels = listOf("Verse 1", "Verse 2"))
+        val news = LibItem(Store.newId(), Kind.TEXT, "Объявления", slides = listOf(
+            "Добро пожаловать!\nНачало в 10:00",
+            "Чай после встречи\nв малом зале",
+            "Молодёжная встреча\nв пятницу в 19:00",
+        ))
+        val john = LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, ScriptureOptions(sideBySide = true)))
+        val psalm = LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, ScriptureOptions(sideBySide = true)))
+        val texts = listOf(star, grace, news, john, psalm).map { it.copy(demo = true) }
+
+        // Темы на фото и видео из набора: так сразу видно, как выглядят свои темы в зале.
+        suspend fun bg(prefix: String) = files.firstOrNull { it.title.startsWith(prefix) }?.uri?.let { u -> runCatching { backgroundFrom(Uri.parse(u)) }.getOrNull() }
+        val sunset = bg("Горы на закате")
+        val night = bg("Звёздная ночь")
+        val morning = bg("Утро в горах")
+        val glow = bg("Огни")
+        fun theme(name: String, style: TextStyle) = Theme(Store.newId(), name, style.copy(name = name), demo = true)
+        val themes = listOfNotNull(
+            sunset?.let { theme("Горы на закате", TextStyle(backgroundImage = it, shadow = true, shadowColor = 0xCC000000)) },
+            night?.let { theme("Звёздная ночь", TextStyle(backgroundImage = it, color = 0xFFF4EEDF, shadow = true)) },
+            morning?.let { theme("Утренний туман", TextStyle(backgroundImage = it, color = 0xFF14232E, shadow = false, valign = VAlign.TOP)) },
+            glow?.let { theme("Тёплые огни", TextStyle(backgroundVideo = it, color = 0xFFFFF4E6, shadow = true)) },
+        )
+        fun styleOf(name: String) = themes.firstOrNull { it.name == name }?.style
+        val styles = listOfNotNull(
+            styleOf("Звёздная ночь")?.let { "item:${star.id}" to it },
+            styleOf("Тёплые огни")?.let { "item:${grace.id}" to it },
+            styleOf("Утренний туман")?.let { "item:${news.id}" to it },
+            styleOf("Горы на закате")?.let { "item:${john.id}" to it },
+            styleOf("Звёздная ночь")?.let { "item:${psalm.id}" to it },
+        ).toMap()
+
+        // Сетлист — как настоящая встреча: объявления, песни, Писание, лекция, фото, видео.
+        fun file(prefix: String) = files.firstOrNull { it.title.startsWith(prefix) }
+        val order = listOfNotNull(news, star, john, grace, psalm, file("Лекция"), file("Город"), file("Конспект"),
+            file("Горы на закате"), file("Звёздная ночь"), file("Утро"), file("Тёплые"), file("Огни"))
+        val all = texts + files
+        val demo = Setlist(Store.newId(), DEMO_SET, LocalDate.now().toString(), (order + all).map { it.id }.distinct())
         edit { d ->
             d.copy(
                 items = all + d.items,
                 setlists = d.setlists.filter { it.items.isNotEmpty() || it.id != d.active } + demo,
                 active = demo.id,
-                themes = d.themes + listOfNotNull(theme),
+                themes = d.themes + themes,
+                styles = d.styles + styles,
             )
         }
+    }
+
+    /** Вернуть демо-набор (после «Убрать»): песни, тексты, файлы, темы и сетлист «Демо» заново. */
+    fun restoreDemo() {
+        if (hasDemo()) removeDemo(keepFiles = true)
+        seedDemo(force = true)
     }
 
     private fun describe(uri: Uri, preferPresentation: Boolean): LibItem? {
@@ -1366,8 +1396,8 @@ class Controller(private val app: Application) {
     private fun isDemo(it: LibItem) = it.demo || it.uri?.contains("/files/demo/") == true ||
         it.kind in setOf(Kind.SONG, Kind.TEXT, Kind.BIBLE) && it.title in DEMO_TITLES
 
-    /** Убирает демо-набор: песни, тексты, файлы, сетлист «Демо», тему «Горы». Своё не трогает. */
-    fun removeDemo() {
+    /** Убирает демо-набор: песни, тексты, файлы, сетлист «Демо», демо-темы. Своё не трогает. */
+    fun removeDemo(keepFiles: Boolean = false) {
         val d0 = data.value
         val ids = d0.items.filter(::isDemo).map { it.id }.toSet()
         if (live.value?.source?.itemId in ids) { live.value = null; outs.value.forEach { it.client.mode(Mode.BLACK) } }
@@ -1379,12 +1409,12 @@ class Controller(private val app: Application) {
                 setlists = sets,
                 active = d.active?.takeIf { a -> sets.any { it.id == a } } ?: sets.firstOrNull()?.id,
                 recent = d.recent.filter { it !in ids },
-                themes = d.themes.filter { t -> !(t.name == "Горы" && t.style.backgroundImage != null) },
+                themes = d.themes.filter { t -> !t.demo && !(t.name == "Горы" && t.style.backgroundImage != null) },
                 styles = d.styles.filterKeys { k -> ids.none { id -> k == "item:$id" || k.startsWith("slide:$id:") } },
                 hashes = d.hashes - ids, conversions = d.conversions - ids,
             )
         }
-        scope.launch(Dispatchers.IO) {
+        if (!keepFiles) scope.launch(Dispatchers.IO) {
             File(app.filesDir, "demo").deleteRecursively()
             ids.forEach { File(File(app.filesDir, "converted"), "$it.pdf").delete() }
         }

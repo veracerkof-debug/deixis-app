@@ -180,7 +180,7 @@ data class OverlayDrafts(
 
 /** Тема оформления слайдов с текстом: фон, цвет, размер, тень, плашка, положение. */
 @Serializable
-data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false)
+data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false, /** Из демо-набора: уходит вместе с ним. */ val demo: Boolean = false)
 
 /** Хранилище библиотеки и сетлистов: один JSON в памяти приложения, запись после каждого изменения. */
 class Store(private val context: Context, dir: File = context.filesDir, private val backups: Backups = Backups(context)) {
