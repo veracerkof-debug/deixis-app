@@ -158,7 +158,7 @@ class Controller(private val app: Application) {
     private val profileStore = Profiles(app.filesDir)
     val profiles = MutableStateFlow(profileStore.load())
     private var currentBackups = profileStore.backupsOf(app, profiles.value.active)
-    private var store = Store(app, profileStore.dirOf(profiles.value.active), currentBackups)
+    private var store = bind(Store(app, profileStore.dirOf(profiles.value.active), currentBackups))
     val data = MutableStateFlow(store.data)
     /** Копии открытого профиля. */
     val backups: Backups get() = currentBackups
@@ -167,11 +167,32 @@ class Controller(private val app: Application) {
      * Открыть другой профиль: его библиотека, сетлисты, темы и вид пульта. Показ в зале не трогается —
      * идёт, пока оператор не покажет что-то из нового профиля; предпросмотр очищается.
      */
+    /** Хранилище открытого профиля сообщает оператору, если изменения не записались (нет места). */
+    private fun bind(s: Store): Store = s.also {
+        it.onSaveFailed = {
+            val now = System.currentTimeMillis()
+            if (now - lastSaveWarning > SAVE_WARNING_MS) {
+                lastSaveWarning = now
+                scope.launch { messages.emit("Изменения не сохраняются: мало места на телефоне") }
+            }
+        }
+    }
+    @Volatile private var lastSaveWarning = 0L
+
+    /**
+     * Изменение данных профиля [profileId], даже если его уже закрыли: перевод и разбор файлов идут секунды,
+     * и результат ложится туда, где файл добавляли, а не в открытый сейчас профиль.
+     */
+    private fun editIn(profileId: String, change: (StoreData) -> StoreData) {
+        if (profileId == profiles.value.active) edit(change)
+        else Store(app, profileStore.dirOf(profileId), profileStore.backupsOf(app, profileId)).update(change)
+    }
+
     fun switchProfile(id: String) {
         val book = profiles.value
         if (id == book.active || book.list.none { it.id == id }) return
         val b = profileStore.backupsOf(app, id)
-        val s = Store(app, profileStore.dirOf(id), b)
+        val s = bind(Store(app, profileStore.dirOf(id), b))
         val logoBefore = settings.value.logo to settings.value.logoImage
         // Показ в зале не прерывается: его элемент и оформление уходят с оператором, слои поверх — тоже,
         // иначе пульт нового профиля не видел бы (и не мог убрать) то, что сейчас на экране.
@@ -191,7 +212,10 @@ class Controller(private val app: Application) {
     }
 
     fun createProfile(name: String, kind: ProfileKind, accent: Accent) {
-        val (book, p) = profileStore.create(profiles.value, name, kind, accent)
+        val (book, p) = try { profileStore.create(profiles.value, name, kind, accent) } catch (e: java.io.IOException) {
+            scope.launch { messages.emit(e.message ?: "Не удалось создать профиль") }
+            return
+        }
         profiles.value = book
         switchProfile(p.id)
     }
@@ -207,7 +231,11 @@ class Controller(private val app: Application) {
 
     /** Восстановить библиотеку из копии; текущая сначала сохраняется копией. */
     fun restore(d: StoreData) {
-        runCatching { backups.save(store.data, "before-restore") }
+        // Без копии текущей библиотеки восстановление не идёт: обещание «прежнее сохранится копией» держится.
+        if (runCatching { backups.save(store.data, "before-restore") }.isFailure) {
+            scope.launch { messages.emit("Не удалось сохранить копию текущей библиотеки — восстановление отменено. Мало места на телефоне?") }
+            return
+        }
         data.value = store.replace(d)
     }
     private fun edit(change: (StoreData) -> StoreData) { data.value = store.update(change) }
@@ -1213,12 +1241,12 @@ class Controller(private val app: Application) {
     fun importFiles(uris: List<Uri>, preferPresentation: Boolean = false, then: (LibItem) -> Unit = {}) = scope.launch {
         // Перевод презентации идёт секунды: если за это время сменили профиль, файл ложится в тот профиль,
         // где его добавляли, а не в открытый.
-        val target = store
+        val target = profiles.value.active
         for (uri in uris) {
             try {
                 val item = withContext(Dispatchers.IO) { describe(uri, preferPresentation) }
                 if (item == null) { messages.emit("Этот формат не поддерживается"); continue }
-                if (target !== store) { target.update { d -> d.copy(items = listOf(item) + d.items) }; continue }
+                if (target != profiles.value.active) { editIn(target) { d -> d.copy(items = listOf(item) + d.items) }; continue }
                 edit { d -> d.copy(items = listOf(item) + d.items) }
                 then(item)
             } catch (e: Exception) {
@@ -1385,12 +1413,17 @@ class Controller(private val app: Application) {
      * переводятся один раз, в фоне, тот же элемент становится PDF со страницами.
      */
     private fun convertOldDocuments() = scope.launch {
+        val profile = profiles.value.active
         val old = data.value.items.filter { it.uri != null && it.mime != "application/pdf" && it.pages == 0 && it.title.substringAfterLast('.', "").lowercase() in Docx.FORMATS }
         for (item in old) {
             val done = withContext(Dispatchers.IO) { runCatching { convertHere(item.id, item.title, Uri.parse(item.uri), item.kind) }.getOrNull() } ?: continue
-            saveItem(done.copy(style = item.style))
-            // Прежний хэш — от файла Word: передаётся теперь PDF.
-            edit { d -> d.copy(hashes = d.hashes - item.id, conversions = d.conversions - item.id) }
+            // Профиль могли сменить, пока шёл перевод: документ остаётся в своём профиле и только заменяется там.
+            editIn(profile) { d ->
+                if (d.items.none { it.id == item.id }) d
+                else d.copy(items = d.items.map { if (it.id == item.id) done.copy(style = item.style) else it },
+                    // Прежний хэш — от файла Word: передаётся теперь PDF.
+                    hashes = d.hashes - item.id, conversions = d.conversions - item.id)
+            }
         }
     }
 
@@ -1694,6 +1727,8 @@ private const val OVERLAY_DRAFTS = 8
 private const val DEMO_SET = "Демо"
 /** Через сколько проверить, принял ли экран звук (три попытки соединения). */
 private const val SOUND_CHECK_MS = 4_000L
+/** Предупреждение «не сохраняется» — не чаще раза в 30 секунд, а не на каждое изменение. */
+private const val SAVE_WARNING_MS = 30_000L
 /** Начало первого слайда демо-песен и текстов старых наборов (до метки demo). */
 private val DEMO_STARTS = mapOf(
     "Коль славен наш Господь в Сионе" to "Коль славен наш Господь в Сионе",

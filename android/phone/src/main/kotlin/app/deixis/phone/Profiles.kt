@@ -46,16 +46,23 @@ data class ProfileBook(val list: List<Profile>, val active: String) {
 class Profiles(private val root: File) {
     private val file = File(root, "profiles.json")
 
-    fun load(): ProfileBook = runCatching { DeixisJson.decodeFromString(ProfileBook.serializer(), file.readText()) }.getOrNull()
-        ?.takeIf { b -> b.list.isNotEmpty() && b.list.any { it.id == MAIN } }
-        ?: ProfileBook(listOf(Profile(MAIN, "Основной")), MAIN)
+    fun load(): ProfileBook {
+        val read = runCatching { DeixisJson.decodeFromString(ProfileBook.serializer(), file.readText()) }.getOrNull()
+            ?.takeIf { b -> b.list.isNotEmpty() && b.list.any { it.id == MAIN } }
+        if (read != null) return read
+        // Список не читается (оборвалась запись): профили не пропадают — их папки на месте, список собирается
+        // заново по ним, испорченный файл откладывается рядом.
+        if (file.isFile) runCatching { file.copyTo(File(root, "profiles.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
+        val found = File(root, "profiles").listFiles { f -> f.isDirectory && File(f, "library.json").isFile }
+            ?.sortedBy { it.lastModified() }.orEmpty()
+            .mapIndexed { i, dir -> Profile(dir.name, "Профиль ${i + 2}") }
+        val book = ProfileBook(listOf(Profile(MAIN, "Основной")) + found, MAIN)
+        if (found.isNotEmpty()) save(book)
+        return book
+    }
 
     fun save(b: ProfileBook): ProfileBook {
-        runCatching {
-            val tmp = File(file.parentFile, file.name + ".tmp")
-            tmp.writeText(DeixisJson.encodeToString(ProfileBook.serializer(), b))
-            tmp.renameTo(file)
-        }
+        writeDurably(file, DeixisJson.encodeToString(ProfileBook.serializer(), b))
         return b
     }
 
@@ -72,7 +79,9 @@ class Profiles(private val root: File) {
             setlists = listOf(set), active = set.id, demoSeeded = true, bibleBooksV2 = true,
             settings = AppSettings(church = kind == ProfileKind.CHURCH),
         )
-        File(dirOf(p.id), "library.json").writeText(DeixisJson.encodeToString(StoreData.serializer(), start))
+        if (!writeDurably(File(dirOf(p.id), "library.json"), DeixisJson.encodeToString(StoreData.serializer(), start))) {
+            throw java.io.IOException("Не удалось создать профиль: мало места на телефоне")
+        }
         return save(b.copy(list = b.list + p)) to p
     }
 

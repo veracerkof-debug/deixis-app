@@ -55,4 +55,16 @@ class ProfilesTest {
         assertTrue(File(p.dirOf(uni.id), "library.json").isFile)
         assertTrue(File(root, "library.json").isFile, "данные первого профиля на месте")
     }
+
+    @Test
+    fun brokenProfileListIsRebuiltFromFolders() {
+        val p = Profiles(root)
+        val (b1, work) = p.create(p.load(), "Работа", ProfileKind.WORK, Accent.SLATE)
+        assertEquals(2, b1.list.size)
+        // Питание пропало посреди записи списка: файл пустой.
+        File(root, "profiles.json").writeText("")
+        val back = p.load()
+        assertEquals(listOf(Profiles.MAIN, work.id), back.list.map { it.id }, "профиль не пропал, его данные снова доступны")
+        assertEquals(back, p.load(), "восстановленный список записан")
+    }
 }

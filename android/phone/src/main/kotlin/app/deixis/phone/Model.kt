@@ -187,8 +187,28 @@ data class OverlayDrafts(
 data class Theme(val id: String, val name: String, val style: TextStyle, val builtIn: Boolean = false, /** Из демо-набора: уходит вместе с ним. */ val demo: Boolean = false)
 
 /** Хранилище библиотеки и сетлистов: один JSON в памяти приложения, запись после каждого изменения. */
+/**
+ * Запись файла, которая переживает выключение питания: сначала во временный файл с принудительной записью
+ * на диск, потом замена одним переименованием. Читатель видит либо прежний файл целиком, либо новый.
+ * false — не записалось (нет места, ошибка памяти): прежний файл остаётся нетронутым.
+ */
+fun writeDurably(file: File, text: String): Boolean = try {
+    val tmp = File(file.parentFile, file.name + ".tmp")
+    java.io.FileOutputStream(tmp).use { out ->
+        out.write(text.toByteArray(Charsets.UTF_8))
+        out.flush()
+        out.fd.sync()
+    }
+    tmp.renameTo(file) || (file.delete() && tmp.renameTo(file))
+} catch (e: java.io.IOException) {
+    false
+}
+
 class Store(private val context: Context, dir: File = context.filesDir, private val backups: Backups = Backups(context)) {
     private val file = File(dir, "library.json")
+
+    /** Сохранение не удалось (чаще всего — нет места): пульт сообщает оператору, данные в памяти целы. */
+    @Volatile var onSaveFailed: () -> Unit = {}
 
     /** Основной файл не прочитался, и библиотека восстановлена из резервной копии. */
     var recovered = false
@@ -208,11 +228,15 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
         runCatching { file.copyTo(File(file.parentFile, "library.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
         val backup = runCatching { backups.newest() }.getOrNull()
         recovered = backup != null
-        return backup ?: firstRun()
+        // Восстановленное сразу приводится к нынешнему виду и записывается: испорченный файл заменяется,
+        // и при следующем запуске восстановление не повторяется.
+        val fixed = backup?.let { migrateBibleBooks(it, write = false) } ?: return firstRun()
+        writeDurably(file, DeixisJson.encodeToString(StoreData.serializer(), fixed))
+        return fixed
     }
 
     /** Заменить всю библиотеку (восстановление из копии). */
-    fun replace(d: StoreData): StoreData = update { d }
+    fun replace(d: StoreData): StoreData = update { migrateBibleBooks(d, write = false) }
 
     /** Первый запуск: пустой сетлист на сегодня, чтобы на главном было куда добавлять. */
     private fun firstRun(): StoreData {
@@ -224,23 +248,20 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
      * Старые встроенные переводы нумеровали послания по порядку KJV; теперь — как MyBible. Места, где все переводы
      * встроенные, переводятся один раз; места со своими модулями (уже с номерами MyBible) не трогаются.
      */
-    private fun migrateBibleBooks(d: StoreData): StoreData {
+    private fun migrateBibleBooks(d: StoreData, write: Boolean = true): StoreData {
         if (d.bibleBooksV2) return d
         val items = d.items.map { it ->
             val pick = it.bible ?: return@map it
             val book = app.deixis.core.DefaultBibles.OLD_BOOKS[pick.book]
             if (book == null || pick.modules.any { m -> m !in app.deixis.core.DefaultBibles.FILES }) it else it.copy(bible = pick.copy(book = book))
         }
-        return d.copy(items = items, bibleBooksV2 = true).also { fixed -> runCatching { file.writeText(DeixisJson.encodeToString(StoreData.serializer(), fixed)) } }
+        return d.copy(items = items, bibleBooksV2 = true).also { fixed -> if (write) writeDurably(file, DeixisJson.encodeToString(StoreData.serializer(), fixed)) }
     }
 
     fun update(change: (StoreData) -> StoreData): StoreData {
         data = change(data)
-        runCatching {
-            val tmp = File(file.parentFile, file.name + ".tmp")
-            tmp.writeText(DeixisJson.encodeToString(StoreData.serializer(), data))
-            tmp.renameTo(file)
-        }
+        val ok = runCatching { writeDurably(file, DeixisJson.encodeToString(StoreData.serializer(), data)) }.getOrDefault(false)
+        if (!ok) onSaveFailed()
         return data
     }
 

@@ -46,8 +46,12 @@ class Backups(
         val stamp = LocalDateTime.now().format(STAMP)
         val name = "$prefix$stamp-$reason.json"
         val json = DeixisJson.encodeToString(StoreData.serializer(), data)
-        File(dir, name).writeText(json)
-        prune(dir.listFiles().orEmpty().filter { it.name.endsWith(".json") }.sortedBy { it.name }) { it.delete() }
+        if (!writeDurably(File(dir, name), json)) throw java.io.IOException("Копия не записалась: мало места на телефоне")
+        val local = dir.listFiles().orEmpty().filter { it.name.endsWith(".json") }.sortedBy { it.name }
+        // Одна копия постарше (не новее трёх дней до последней) не вытесняется: семь копий подряд после
+        // случайного удаления не стирают последнюю хорошую.
+        val anchor = local.lastOrNull()?.let { newest -> local.lastOrNull { newest.lastModified() - it.lastModified() >= ANCHOR_AGE_MS } }
+        prune(local.filter { it != anchor }) { it.delete() }
         runCatching { folder?.let { writeExternal(it, name, json) } }
         prefs.edit().putLong(lastKey, System.currentTimeMillis()).apply()
         return name
@@ -91,7 +95,23 @@ class Backups(
         return BackupInfo(name, at, m.groupValues[2], d.items.size, d.setlists.size, external, uri)
     }
 
-    private fun read(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } ?: error("Копия не читается")
+    private fun read(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { input ->
+        // Случайно выбранный огромный файл не роняет приложение нехваткой памяти.
+        val bytes = input.readNBytesCompat(MAX_BACKUP_BYTES + 1)
+        if (bytes.size > MAX_BACKUP_BYTES) error("Это не копия Deixis: файл слишком большой")
+        bytes.decodeToString()
+    } ?: error("Копия не читается")
+
+    private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (out.size() < limit) {
+            val n = read(buf, 0, minOf(buf.size, limit - out.size()))
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
 
     /** Данные копии; бросает, если файл не читается. */
     fun load(b: BackupInfo): StoreData {
@@ -113,6 +133,8 @@ class Backups(
     companion object {
         const val KEEP = 7
         private const val DAY_MS = 24L * 60 * 60 * 1000
+        private const val ANCHOR_AGE_MS = 3 * DAY_MS
+        private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
         private val STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
         private val SHOW = DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
 
