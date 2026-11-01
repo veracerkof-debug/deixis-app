@@ -69,7 +69,13 @@ class BackgroundVideo(private val onFrame: () -> Unit) {
         runCatching { player?.controls()?.stop() }
     }
 
+    private var released = false
+
+    /** Повторный вызов ничего не делает: двойное освобождение libVLC роняет программу. */
+    @Synchronized
     fun release() {
+        if (released) return
+        released = true
         stop()
         runCatching { player?.release() }
         runCatching { factory?.release() }

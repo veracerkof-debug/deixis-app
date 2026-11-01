@@ -22,6 +22,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MonitorsTest {
@@ -33,6 +34,12 @@ class MonitorsTest {
         assertTrue(m.primary)
         assertTrue(m.enabled)
         assertEquals(OutputLayout.HALL, m.layout)
+    }
+
+    @Test
+    fun unpluggedProjectorDoesNotCoverTheOperatorMonitor() {
+        val m = resolveMonitors(two.take(1), "\\Display0", MonitorSettings(), singleTakesHall = false).single()
+        assertFalse(m.enabled, "кабель проектора выпал — пульт оператора не накрывается залом")
     }
 
     @Test
@@ -177,6 +184,17 @@ class OutputFramesTest {
     fun hallIsTheReceiverPicture() {
         val img = frames.render(OutputLayout.HALL, w, h, FrameState(PdfContent(FileRef("b".repeat(64), "x.pdf", 1, "application/pdf"), 0), Mode.BLACK))
         assertEquals(0, img.count(0, 0, w, h) { it != 0 })
+    }
+
+    @Test
+    fun failedVideoNeverShowsThePinToTheHall() {
+        val idle = IdleInfo("Зал", "1234", "192.168.1.5:47820", "deixis://pair")
+        val video = VideoContent(FileRef("c".repeat(64), "x.mp4", 1, "video/mp4"))
+        // Под видео (или вместо незапустившегося видео) — чёрный кадр, а не экран сопряжения.
+        val img = frames.render(OutputLayout.HALL, w, h, FrameState(video, Mode.NORMAL, idle = idle))
+        assertEquals(0, img.count(0, 0, w, h) { it and 0xFFFFFF != 0 })
+        val waiting = frames.render(OutputLayout.HALL, w, h, FrameState(null, Mode.NORMAL, idle = idle))
+        assertTrue(waiting.count(0, 0, w, h) { it and 0xFFFFFF != 0 } > 0, "без показа экран ожидания на месте")
     }
 
     @Test

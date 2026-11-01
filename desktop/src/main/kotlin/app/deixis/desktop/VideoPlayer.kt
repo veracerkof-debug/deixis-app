@@ -34,11 +34,14 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
      * поэтому кадры идут через память и рисуются самим окном, с сохранением пропорций.
      * Ввод VLC отключён: мышь и клавиши получает окно вывода, а не проигрыватель.
      */
+    // Своя фабрика (экземпляр libVLC) освобождается вместе с проигрывателем: компонент vlcj чужую фабрику не освобождает.
+    private val factory: MediaPlayerFactory? = if (available) MediaPlayerFactory(vlcArgs) else null
     private val component: javax.swing.JComponent? = when {
-        !available -> null
-        isMac -> CallbackMediaPlayerComponent(MediaPlayerFactory(vlcArgs), null, InputEvents.NONE, true, ScaledCallbackImagePainter())
-        else -> EmbeddedMediaPlayerComponent(MediaPlayerFactory(vlcArgs), null, null, InputEvents.DISABLE_NATIVE, null)
+        factory == null -> null
+        isMac -> CallbackMediaPlayerComponent(factory, null, InputEvents.NONE, true, ScaledCallbackImagePainter())
+        else -> EmbeddedMediaPlayerComponent(factory, null, null, InputEvents.DISABLE_NATIVE, null)
     }
+    private var released = false
     val view: Component? get() = component
 
     /** VLC рисует в своё окно (Windows, Linux): поверх него рисовать можно только отдельным окном. */
@@ -229,10 +232,17 @@ class VideoPlayer(private val onError: (String) -> Unit, private val onFinished:
         }
     }
 
+    /** Повторный вызов ничего не делает: двойное освобождение libVLC роняет программу. */
+    @Synchronized
     fun release() {
-        when (val c = component) {
-            is EmbeddedMediaPlayerComponent -> c.release()
-            is CallbackMediaPlayerComponent -> c.release()
+        if (released) return
+        released = true
+        runCatching {
+            when (val c = component) {
+                is EmbeddedMediaPlayerComponent -> c.release()
+                is CallbackMediaPlayerComponent -> c.release()
+            }
         }
+        runCatching { factory?.release() }
     }
 }

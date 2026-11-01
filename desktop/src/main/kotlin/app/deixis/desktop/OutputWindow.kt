@@ -103,7 +103,21 @@ class OutputWindow(
      * Главный проигрыватель зала: даёт звук и сообщает пульту ход видео и ошибки.
      * Остальные мониторы зала показывают то же без звука.
      */
+    /**
+     * Звук и ход видео — у первого монитора зала. Если первым стал другой монитор (основной отключили),
+     * видео перезапускается со звуком, а не остаётся беззвучным.
+     */
     var primary = false
+        set(v) {
+            if (field == v) return
+            field = v
+            if (video != null || playingSha != null) {
+                releaseVideo()
+                videoKey = null
+            }
+            screenAudio.stop()
+            state?.let { s -> videoKey = null; update(s) }
+        }
 
     private val frames = OutputFrames(files)
     private val overlayPainter = OverlayPainter(files)
@@ -127,7 +141,7 @@ class OutputWindow(
     private var state: FrameState? = null
     private var drawnKey: Any? = null
     private var videoKey: Any? = null
-    private var renderSeq = 0L
+    @Volatile private var renderSeq = 0L
 
     /**
      * Клавиши окна. Перехват до компонентов: фокус может быть где угодно внутри окна, в том числе на видео.
@@ -402,7 +416,7 @@ class OutputWindow(
             if (playingSha != null && playingSha != FAST_STREAM) { video?.stop(); if (primary && playingSha != STREAM) host.reportVideo(null) }
             if (playingSha != FAST_STREAM) {
                 playingSha = FAST_STREAM
-                host.streamFrames()?.let { frames -> screen.start(host.scope, frames) { screenFailed = true; applyVideo(s) } }
+                host.streamFrames()?.let { frames -> screen.start(host.scope, frames) { screenFailed = true; state?.let(::applyVideo) } }
             }
             // «Чёрный» и «Логотип» закрывают трансляцию, но поток не рвут: картинка вернётся сразу.
             if (s.mode == Mode.NORMAL) showScreen() else showSlide()
@@ -475,8 +489,11 @@ class OutputWindow(
         val l = layout
         // Кадр готовится в фоне: тяжёлая страница PDF не должна подвешивать окно.
         host.scope.launch {
+            // Пока кадр ждал очереди, пришёл более новый: этот не рисуется (быстрое листание тяжёлого PDF
+            // и обратный отсчёт с долями секунды не копят отставание в зале).
+            if (renderSeq != seq) return@launch
             val img = try {
-                frames.render(l, pw, ph, s)
+                synchronized(frames) { if (renderSeq != seq) null else frames.render(l, pw, ph, s) } ?: return@launch
             } catch (e: Throwable) {
                 if (primary || l != OutputLayout.HALL) host.reportError(e.message ?: "Не удалось показать файл")
                 BufferedImage(pw, ph, BufferedImage.TYPE_INT_RGB).also { blank ->
@@ -516,6 +533,9 @@ class OutputWindow(
     fun release() {
         runCatching { video?.release() }
         runCatching { backdrop?.release() }
+        video = null
+        backdrop = null
+        slide.backdrop = null
     }
 
     /**

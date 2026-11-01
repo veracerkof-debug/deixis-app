@@ -146,7 +146,9 @@ class OutputFrames(files: FileStore) {
         OutputLayout.HALL -> slides.render(
             width, height,
             s.content.takeUnless { (it is VideoContent || it is ScreenContent) && s.mode == Mode.NORMAL },
-            s.mode, s.idle, s.now, s.logo, s.logoImage,
+            // Экран ожидания (PIN, QR, адрес) — только когда показывать нечего. Пока идёт видео или трансляция,
+            // кадр под ними — чёрный: если видео не запустилось, зал видит чёрное, а не PIN для захвата пульта.
+            s.mode, s.idle.takeIf { s.content == null }, s.now, s.logo, s.logoImage,
         )
         OutputLayout.LOWER_THIRD -> caption(width, height, s, chroma = false)
         OutputLayout.CHROMA -> caption(width, height, s, chroma = true)

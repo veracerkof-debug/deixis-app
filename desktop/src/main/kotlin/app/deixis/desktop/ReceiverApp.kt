@@ -167,7 +167,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         }
         observe()
         updates.start()
-        if (!GraphicsEnvironment.isHeadless()) {
+        // «Что нового» — окно интерфейса: на компьютере-экране с одним монитором оно открылось бы поверх зала.
+        if (!GraphicsEnvironment.isHeadless() && !(role == Role.SCREEN && screens.size <= 1)) {
             val news = updates.updater.takeWhatsNew()
             if (news.isNotEmpty()) SwingUtilities.invokeLater { UpdatesWindow.whatsNew(news) }
         }
@@ -226,10 +227,14 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             ScreenInfo(d.iDstring, b.x, b.y, m?.width?.takeIf { it > 0 } ?: b.width, m?.height?.takeIf { it > 0 } ?: b.height)
         }
         primaryId = runCatching { ge.defaultScreenDevice.iDstring }.getOrNull()
+        if (screens.size > 1) sawSeveralScreens = true
     }
 
+    /** Был ли с запуска второй монитор: тогда пропажа проектора не переносит зал на монитор пульта. */
+    @Volatile private var sawSeveralScreens = false
+
     private fun monitors(): List<MonitorOutput> {
-        val list = resolveMonitors(screens, primaryId, settings)
+        val list = resolveMonitors(screens, primaryId, settings, singleTakesHall = !sawSeveralScreens || role == Role.SCREEN)
         val only = screenOverride ?: return list
         val index = only.coerceIn(0, (list.size - 1).coerceAtLeast(0))
         return list.mapIndexed { i, m -> m.copy(enabled = i == index, layout = if (i == index) OutputLayout.HALL else m.layout) }

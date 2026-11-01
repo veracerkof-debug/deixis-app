@@ -62,7 +62,8 @@ class LowLatencyDecoder : AutoCloseable {
 
     init {
         av_log_set_level(AV_LOG_QUIET)
-        val codec = avcodec_find_decoder(AV_CODEC_ID_H264) ?: throw IllegalStateException("Нет декодера H.264")
+        val codec = avcodec_find_decoder(AV_CODEC_ID_H264)
+        if (codec == null) { av_frame_free(frame); av_packet_free(packet); throw IllegalStateException("Нет декодера H.264") }
         ctx = avcodec_alloc_context3(codec)
         ctx.flags(ctx.flags() or AV_CODEC_FLAG_LOW_DELAY)
         ctx.flags2(ctx.flags2() or AV_CODEC_FLAG2_FAST)
@@ -70,6 +71,8 @@ class LowLatencyDecoder : AutoCloseable {
         ctx.thread_count(0)
         if (avcodec_open2(ctx, codec, null as AVDictionary?) < 0) {
             avcodec_free_context(ctx)
+            av_frame_free(frame)
+            av_packet_free(packet)
             throw IllegalStateException("Декодер H.264 не открылся")
         }
     }

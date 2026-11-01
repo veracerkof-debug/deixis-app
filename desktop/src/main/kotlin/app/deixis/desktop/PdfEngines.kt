@@ -57,6 +57,7 @@ class MsOfficeEngine(private val apps: Set<String>, private val timeoutSec: Long
         pb.environment().putAll(mapOf("DEIXIS_APP" to app, "DEIXIS_IN" to input.absolutePath, "DEIXIS_OUT" to out.absolutePath))
         val p = pb.start()
         if (!p.waitFor(timeoutSec, TimeUnit.SECONDS)) {
+            p.descendants().forEach { runCatching { it.destroyForcibly() } }
             p.destroyForcibly()
             throw StoreException("convert", "Microsoft Office переводит файл слишком долго")
         }
@@ -133,6 +134,7 @@ class KeynoteEngine(private val timeoutSec: Long = 180) : PdfEngine {
         val p = ProcessBuilder("osascript", script.path, input.absolutePath, out.absolutePath)
             .redirectErrorStream(true).redirectOutput(File(workDir, "keynote-log.txt")).start()
         if (!p.waitFor(timeoutSec, TimeUnit.SECONDS)) {
+            p.descendants().forEach { runCatching { it.destroyForcibly() } }
             p.destroyForcibly()
             throw StoreException("convert", "Keynote переводит файл слишком долго")
         }

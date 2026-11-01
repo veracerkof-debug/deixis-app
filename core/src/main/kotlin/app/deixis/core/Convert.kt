@@ -31,9 +31,11 @@ class LibreOfficeConverter(private val soffice: File, private val timeoutSec: Lo
         val p = ProcessBuilder(
             soffice.path, "--headless", "--norestore", "--nolockcheck", "-env:UserInstallation=$profile",
             // Без пережатия картинок, без страниц заметок и скрытых слайдов: в PDF ровно то, что идёт на показе.
-            "--convert-to", "pdf:${filterFor(input)}:" + PDF_OPTIONS, "--outdir", out.path, input.path,
+            "--convert-to", "pdf:${filterFor(input)}:" + windowsArg(PDF_OPTIONS), "--outdir", out.path, input.path,
         ).redirectErrorStream(true).redirectOutput(File(workDir, "log.txt")).start()
         if (!p.waitFor(timeoutSec, TimeUnit.SECONDS)) {
+            // soffice — запускалка: сам перевод идёт в soffice.bin, его тоже нужно остановить, иначе он висит.
+            p.descendants().forEach { runCatching { it.destroyForcibly() } }
             p.destroyForcibly()
             throw StoreException("convert", "Презентация переводится слишком долго")
         }
@@ -41,6 +43,13 @@ class LibreOfficeConverter(private val soffice: File, private val timeoutSec: Lo
         if (p.exitValue() != 0 || !pdf.isFile || pdf.length() == 0L) throw StoreException("convert", "LibreOffice не смог открыть «${input.name}»")
         return pdf
     }
+
+    /**
+     * Windows разбирает строку запуска сам и съедает кавычки внутри аргумента без пробелов: JSON настроек PDF
+     * дошёл бы до LibreOffice без кавычек и не прочитался. Кавычки экранируются; на Mac и Linux — как есть.
+     */
+    private fun windowsArg(arg: String): String =
+        if (System.getProperty("os.name").orEmpty().startsWith("Windows")) arg.replace("\"", "\\\"") else arg
 
     companion object {
         private const val PDF_OPTIONS = """{"ReduceImageResolution":{"type":"boolean","value":"false"},""" +

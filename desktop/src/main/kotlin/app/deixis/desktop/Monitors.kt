@@ -41,9 +41,11 @@ class MonitorSettingsStore(private val file: File) {
  * Мониторы с раскладкой и признаком «показывать». Умолчания:
  * - один монитор — на нём зал во весь экран, как раньше;
  * - два и больше — монитор пульта ([primaryId]) свободен, на остальных зал.
+ * [singleTakesHall] = false — проектор отключили посреди работы: оставшийся монитор пульта не занимается
+ * залом сам (иначе выдернутый кабель накрыл бы пульт оператора видео со звуком).
  */
-fun resolveMonitors(screens: List<ScreenInfo>, primaryId: String?, saved: MonitorSettings): List<MonitorOutput> {
-    val single = screens.size == 1
+fun resolveMonitors(screens: List<ScreenInfo>, primaryId: String?, saved: MonitorSettings, singleTakesHall: Boolean = true): List<MonitorOutput> {
+    val single = screens.size == 1 && singleTakesHall
     return screens.mapIndexed { i, s ->
         val primary = s.id == primaryId
         val choice = saved.monitors[s.id]
