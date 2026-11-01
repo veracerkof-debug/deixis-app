@@ -29,7 +29,9 @@ class BibleSearch(private val module: BibleModule) {
 
     companion object {
         private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
-        fun normalize(s: String): String = s.lowercase().replace('ё', 'е').replace(NON_WORD, " ").trim()
+        /** Апостроф узбекской латиницы набирают по-разному (ʻ ʼ ' ’ ‘ `): «oʻgʻil» и «o'g'il» — одно слово. */
+        private val APOSTROPHES = Regex("[\u02BB\u02BC\u0027\u2019\u2018\u0060]")
+        fun normalize(s: String): String = s.lowercase().replace('ё', 'е').replace(APOSTROPHES, "").replace(NON_WORD, " ").trim()
     }
 }
 

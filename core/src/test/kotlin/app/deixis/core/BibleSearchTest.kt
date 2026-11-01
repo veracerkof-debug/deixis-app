@@ -28,4 +28,13 @@ class BibleSearchTest {
         val hits = BibleSearch(kjv).search("God so loved")
         assertTrue(hits.any { it.book == 500 && it.chapter == 3 && it.verse == 16 })
     }
+
+    @Test
+    fun uzbekApostropheVariantsAreOneWord() {
+        val ref = BibleSearch.normalize("Xudoning Oʻgʻli")
+        for (typed in listOf("xudoning o'g'li", "Xudoning O’g’li", "xudoning o`g`li", "XUDONING OʼGʼLI")) {
+            kotlin.test.assertEquals(ref, BibleSearch.normalize(typed), typed)
+        }
+        kotlin.test.assertEquals("xudoning ogli", ref)
+    }
 }
