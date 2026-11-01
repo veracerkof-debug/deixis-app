@@ -172,12 +172,17 @@ class Controller(private val app: Application) {
         val b = profileStore.backupsOf(app, id)
         val s = Store(app, profileStore.dirOf(id), b)
         val logoBefore = settings.value.logo to settings.value.logoImage
+        // Показ в зале не прерывается: его элемент и оформление уходят с оператором, слои поверх — тоже,
+        // иначе пульт нового профиля не видел бы (и не мог убрать) то, что сейчас на экране.
+        carryLive()
+        val onAir = data.value.overlays
         currentBackups = b
         store = s
         preview.value = null
         draft.value = null
         profiles.value = profileStore.save(book.copy(active = id))
         data.value = s.data
+        if (!onAir.isEmpty) edit { it.copy(overlays = onAir) }
         // Заставка «Логотип» в зале — логотипом нового профиля.
         if (s.data.settings.logo to s.data.settings.logoImage != logoBefore && mode.value == Mode.LOGO) outs.value.forEach { sendMode(it, Mode.LOGO) }
         scope.launch(Dispatchers.IO) { runCatching { b.daily(s.data) } }
@@ -229,7 +234,23 @@ class Controller(private val app: Application) {
     /** Режим «Пульт Holyrics»: Библия, «Чёрный» и «Очистить» идут в Holyrics. */
     fun toHolyrics(): Boolean = settings.value.workMode == WorkMode.HOLYRICS && holyricsRemote != null
 
-    fun item(id: String?): LibItem? = id?.let { i -> data.value.items.firstOrNull { it.id == i } }
+    fun item(id: String?): LibItem? = id?.let { i -> data.value.items.firstOrNull { it.id == i } ?: carried[i] }
+
+    /**
+     * Что сейчас в зале, но уже не в библиотеке открытого профиля (элемент удалили или сменили профиль):
+     * показ продолжается — «Дальше» листает его же, тем же оформлением, — пока в зал не уйдёт другое.
+     */
+    private val carried = mutableMapOf<String, LibItem>()
+    private val carriedStyles = mutableMapOf<String, TextStyle>()
+
+    /** Унести элемент из зала (и отсчёт) с собой: вызывается перед удалением и сменой профиля. */
+    private fun carryLive() {
+        carried.clear(); carriedStyles.clear()
+        for (id in listOfNotNull(live.value?.source?.itemId, timer.value?.itemId)) {
+            data.value.items.firstOrNull { it.id == id }?.let { carried[id] = it }
+        }
+        live.value?.source?.itemId?.let { id -> carriedStyles[id] = styleFor(live.value).let { st -> if (settings.value.caps) st.copy(caps = false) else st } }
+    }
 
     /** Модули Библии: встроенные копируются при первом запуске, поэтому открываются не на главном потоке. */
     val bible by lazy { BibleLibrary(app) }
@@ -535,9 +556,12 @@ class Controller(private val app: Application) {
 
     fun sourceOf(item: LibItem) = Source(item.id, item.title, item.kind, slidesOf(item), item.style)
 
-    fun scripture(pick: BiblePick): List<ScriptureContent> = scriptureCache.getOrPut(pick) {
+    fun scripture(pick: BiblePick): List<ScriptureContent> {
+        scriptureCache[pick]?.let { return it }
         val modules = pick.modules.mapNotNull { f -> bibleModules.value.firstOrNull { it.fileName == f } }
-        if (modules.isEmpty()) emptyList() else buildScriptureSlides(BibleRef(pick.book, pick.chapter, pick.from, pick.to), modules, pick.options)
+        // Модули ещё грузятся (первый запуск) или перевода нет: пустое не запоминается — повторится, когда появятся.
+        if (modules.isEmpty()) return emptyList()
+        return buildScriptureSlides(BibleRef(pick.book, pick.chapter, pick.from, pick.to), modules, pick.options).also { scriptureCache[pick] = it }
     }
 
     // ——— Показ ———
@@ -556,7 +580,8 @@ class Controller(private val app: Application) {
 
     /** «В зал»: предпросмотр (и правка оформления) уходят на экраны. */
     fun previewToLive() {
-        draft.value?.let { applyDraft(draftScope) }
+        // Правка сохраняется без повторной отправки прежнего слайда: в зал сразу идёт новый (без мигания).
+        draft.value?.let { applyDraft(draftScope, deliverLive = false) }
         preview.value?.let { goLive(it); messages.tryEmit("В зале") }
     }
 
@@ -646,7 +671,9 @@ class Controller(private val app: Application) {
             val cue = live.value?.takeIf { it.source.itemId == r.itemId } ?: continue
             advancedFor = r.itemId
             val set = data.value.setlists.firstOrNull { it.id == data.value.active } ?: continue
-            val nextId = set.items.getOrNull(set.items.indexOf(r.itemId) + 1) ?: continue
+            val at = set.items.indexOf(r.itemId)
+            if (at < 0) continue // отсчёт не из сетлиста — «дальше» некуда
+            val nextId = set.items.getOrNull(at + 1) ?: continue
             item(nextId)?.let { kotlinx.coroutines.withContext(Dispatchers.Main) { goLive(Cue(sourceOf(it), 0)) } }
         }
     }
@@ -670,6 +697,7 @@ class Controller(private val app: Application) {
 
     fun previewStep(delta: Int) {
         val c = preview.value ?: return
+        if (c.source.slides.isEmpty()) return
         val i = (c.index + delta).coerceIn(0, c.source.slides.lastIndex)
         preview.value = c.copy(index = i)
     }
@@ -718,13 +746,19 @@ class Controller(private val app: Application) {
         if (withDraft) draft.value?.let { return it }
         val d = data.value
         val id = cue?.source?.itemId
-        val base = (id?.let { d.styles["slide:$it:${cue?.index}"] ?: d.styles["item:$it"] })
+        val base = (id?.let { d.styles["slide:$it:${cue?.index}"] ?: d.styles["item:$it"] ?: if (d.items.none { i -> i.id == it }) carriedStyles[it] else null })
             ?: d.active?.takeIf { a -> id == null || d.setlists.firstOrNull { it.id == a }?.items?.contains(id) == true }?.let { d.styles["set:$it"] }
             ?: cue?.source?.style
             ?: d.styles["all"]
             ?: TextStyle()
         return if (settings.value.caps) base.copy(caps = true) else base
     }
+
+    /**
+     * Заглавные из общей настройки добавляются при показе ([styleFor]), поэтому в сохраняемое оформление их не пишем.
+     * Заглавные, включённые в самой теме при выключенной общей настройке, сохраняются.
+     */
+    private fun unbaked(st: TextStyle): TextStyle = if (settings.value.caps) st.copy(caps = false) else st
 
     enum class StyleScope { SLIDE, ITEM, SET, ALL }
 
@@ -735,7 +769,7 @@ class Controller(private val app: Application) {
     fun defaultStyle(): TextStyle = data.value.styles["all"] ?: TextStyle()
 
     fun setDefaultStyle(st: TextStyle) {
-        edit { it.copy(styles = it.styles + ("all" to st.copy(caps = false))) }
+        edit { it.copy(styles = it.styles + ("all" to unbaked(st))) }
         live.value?.let(::deliver)
     }
 
@@ -743,7 +777,7 @@ class Controller(private val app: Application) {
     fun cancelDraft() { draft.value = null }
 
     /** Сохраняет правку оформления и показывает её в зале. */
-    fun applyDraft(to: StyleScope) {
+    fun applyDraft(to: StyleScope, deliverLive: Boolean = true) {
         val st = draft.value ?: return
         val cue = preview.value ?: live.value
         val id = cue?.source?.itemId
@@ -756,10 +790,10 @@ class Controller(private val app: Application) {
         edit { d ->
             // На весь документ — как в Holyrics: прежнее оформление отдельных слайдов этого документа снимается.
             val cleared = if (to == StyleScope.ITEM && id != null) d.styles.filterKeys { !it.startsWith("slide:$id:") } else d.styles
-            d.copy(styles = cleared + (key to st.copy(caps = false)))
+            d.copy(styles = cleared + (key to unbaked(st)))
         }
         draft.value = null
-        live.value?.let(::deliver)
+        if (deliverLive) live.value?.let(::deliver)
     }
 
     private fun deliver(cue: Cue) {
@@ -1176,10 +1210,14 @@ class Controller(private val app: Application) {
     // ——— Библиотека ———
     /** Файлы телефона в библиотеку: доступ к ним сохраняется, сам файл не копируется. */
     fun importFiles(uris: List<Uri>, preferPresentation: Boolean = false, then: (LibItem) -> Unit = {}) = scope.launch {
+        // Перевод презентации идёт секунды: если за это время сменили профиль, файл ложится в тот профиль,
+        // где его добавляли, а не в открытый.
+        val target = store
         for (uri in uris) {
             try {
                 val item = withContext(Dispatchers.IO) { describe(uri, preferPresentation) }
                 if (item == null) { messages.emit("Этот формат не поддерживается"); continue }
+                if (target !== store) { target.update { d -> d.copy(items = listOf(item) + d.items) }; continue }
                 edit { d -> d.copy(items = listOf(item) + d.items) }
                 then(item)
             } catch (e: Exception) {
@@ -1257,7 +1295,8 @@ class Controller(private val app: Application) {
         edit { d ->
             d.copy(
                 items = all + d.items,
-                setlists = d.setlists.filter { it.items.isNotEmpty() || it.id != d.active } + demo,
+                // Первый запуск: пустой «Сегодня» уступает место «Демо»; при «Вернуть демо» своё не трогаем.
+                setlists = d.setlists.filter { force || it.items.isNotEmpty() || it.id != d.active } + demo,
                 active = demo.id,
                 themes = d.themes + themes,
                 styles = d.styles + styles,
@@ -1361,17 +1400,27 @@ class Controller(private val app: Application) {
         d.copy(items = if (exists) d.items.map { if (it.id == item.id) item else it } else listOf(item) + d.items)
     }
 
-    fun deleteItem(id: String) = edit { d ->
-        File(File(app.filesDir, "converted"), "$id.pdf").delete()
-        d.copy(
-            items = d.items.filter { it.id != id },
-            setlists = d.setlists.map { s -> s.copy(items = s.items.filter { it != id }) },
-            recent = d.recent - id,
-        )
+    fun deleteItem(id: String) {
+        // В зале этот элемент — показ идёт дальше, пока не уйдёт другое; предпросмотр с ним закрывается.
+        if (live.value?.source?.itemId == id || timer.value?.itemId == id) carryLive()
+        if (preview.value?.source?.itemId == id) preview.value = null
+        val showing = live.value?.source?.itemId == id
+        edit { d ->
+            d.copy(
+                items = d.items.filter { it.id != id },
+                setlists = d.setlists.map { s -> s.copy(items = s.items.filter { it != id }) },
+                recent = d.recent - id,
+                styles = d.styles.filterKeys { k -> k != "item:$id" && !k.startsWith("slide:$id:") },
+                hashes = d.hashes - id,
+                conversions = d.conversions - id,
+            )
+        }
+        // Переведённый PDF нужен, пока презентация в зале.
+        if (!showing) File(File(app.filesDir, "converted"), "$id.pdf").delete()
     }
 
     // ——— Сетлисты ———
-    val activeSet: StateFlow<Setlist?> = data.map { d -> d.setlists.firstOrNull { it.id == d.active } ?: d.setlists.firstOrNull() }
+    val activeSet: StateFlow<Setlist?> = data.map { d -> (d.setlists.firstOrNull { it.id == d.active } ?: d.setlists.firstOrNull())?.let { s -> if (s.items.size == s.items.toSet().size) s else s.copy(items = s.items.distinct()) } }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     fun pickSet(id: String) = edit { it.copy(active = id) }
@@ -1400,8 +1449,15 @@ class Controller(private val app: Application) {
     /** Есть ли ещё что-то из демо-набора первого запуска. */
     fun hasDemo(): Boolean = data.value.let { d -> d.items.any(::isDemo) || d.setlists.any { it.title == DEMO_SET } }
 
-    private fun isDemo(it: LibItem) = it.demo || it.uri?.contains("/files/demo/") == true ||
-        it.kind in setOf(Kind.SONG, Kind.TEXT, Kind.BIBLE) && it.title in DEMO_TITLES
+    /**
+     * Демо-элемент: с меткой или из папки демо-файлов. Старые наборы (до метки) узнаются по содержимому, а не только
+     * по названию: своя песня «Amazing Grace» или свои «Объявления» не демо.
+     */
+    private fun isDemo(it: LibItem) = it.demo || it.uri?.contains("/files/demo/") == true || when (it.kind) {
+        Kind.SONG, Kind.TEXT -> DEMO_STARTS[it.title]?.let { start -> it.slides.firstOrNull()?.startsWith(start) } == true
+        Kind.BIBLE -> it.title in DEMO_TITLES && it.bible?.book in setOf(500, 230)
+        else -> false
+    }
 
     /** Убирает демо-набор: песни, тексты, файлы, сетлист «Демо», демо-темы. Своё не трогает. */
     fun removeDemo(keepFiles: Boolean = false) {
@@ -1410,19 +1466,22 @@ class Controller(private val app: Application) {
         if (live.value?.source?.itemId in ids) { live.value = null; outs.value.forEach { it.client.mode(Mode.BLACK) } }
         if (preview.value?.source?.itemId in ids) preview.value = null
         edit { d ->
-            val sets = d.setlists.filter { it.title != DEMO_SET }.map { s -> s.copy(items = s.items.filter { it !in ids }) }
+            // Сетлист «Демо» уходит, только если в нём одни демо-элементы; в свой «Демо» пользователь мог добавить своё.
+            val sets = d.setlists.filter { s -> !(s.title == DEMO_SET && s.items.all { it in ids }) }.map { s -> s.copy(items = s.items.filter { it !in ids }) }
             d.copy(
                 items = d.items.filter { it.id !in ids },
                 setlists = sets,
                 active = d.active?.takeIf { a -> sets.any { it.id == a } } ?: sets.firstOrNull()?.id,
                 recent = d.recent.filter { it !in ids },
-                themes = d.themes.filter { t -> !t.demo && !(t.name == "Горы" && t.style.backgroundImage != null) },
+                themes = d.themes.filter { t -> !t.demo && !(t.name == "Горы" && t.style.backgroundImage?.let { b -> d.localFiles[b.sha256]?.contains("/files/demo/") } == true) },
                 styles = d.styles.filterKeys { k -> ids.none { id -> k == "item:$id" || k.startsWith("slide:$id:") } },
                 hashes = d.hashes - ids, conversions = d.conversions - ids,
             )
         }
+        // Папка демо-файлов общая для всех профилей: стирается, только если профиль один.
+        val shared = profiles.value.list.size > 1
         if (!keepFiles) scope.launch(Dispatchers.IO) {
-            File(app.filesDir, "demo").deleteRecursively()
+            if (!shared) File(app.filesDir, "demo").deleteRecursively()
             ids.forEach { File(File(app.filesDir, "converted"), "$it.pdf").delete() }
         }
     }
@@ -1434,7 +1493,7 @@ class Controller(private val app: Application) {
     fun applyTheme(st: TextStyle) {
         val cue = live.value ?: preview.value ?: return
         val id = cue.source.itemId
-        val style = st.copy(caps = false)
+        val style = unbaked(st)
         if (id != null) edit { d -> d.copy(styles = d.styles.filterKeys { !it.startsWith("slide:$id:") } + ("item:$id" to style)) }
         else {
             // Разовый показ (текст, Holyrics) — без элемента библиотеки: тема только у этого показа.
@@ -1450,7 +1509,7 @@ class Controller(private val app: Application) {
      * если он сейчас в зале — сразу и там.
      */
     fun applyThemeTo(itemId: String, index: Int?, st: TextStyle) {
-        val style = st.copy(caps = false)
+        val style = unbaked(st)
         edit { d ->
             if (index == null) d.copy(styles = d.styles.filterKeys { !it.startsWith("slide:$itemId:") } + ("item:$itemId" to style))
             else d.copy(styles = d.styles + ("slide:$itemId:$index" to style))
@@ -1462,8 +1521,13 @@ class Controller(private val app: Application) {
     fun currentStyle(): TextStyle = styleFor(live.value ?: preview.value).copy(caps = false, name = null)
 
     fun addToSet(itemId: String) = edit { d ->
-        val a = d.active ?: return@edit d
-        d.copy(setlists = d.setlists.map { if (it.id == a && itemId !in it.items) it.copy(items = it.items + itemId) else it })
+        // Нет выбранного сетлиста — тот, что на главном (первый), а нет ни одного — новый на сегодня.
+        val a = d.active?.takeIf { a -> d.setlists.any { it.id == a } } ?: d.setlists.firstOrNull()?.id
+        if (a == null) {
+            val set = Setlist(Store.newId(), "Сегодня", LocalDate.now().toString(), listOf(itemId))
+            return@edit d.copy(setlists = d.setlists + set, active = set.id)
+        }
+        d.copy(active = a, setlists = d.setlists.map { if (it.id == a && itemId !in it.items) it.copy(items = it.items + itemId) else it })
     }
 
     fun moveInSet(itemId: String, delta: Int) = edit { d ->
@@ -1628,4 +1692,10 @@ private const val OVERLAY_DRAFTS = 8
 private const val DEMO_SET = "Демо"
 /** Через сколько проверить, принял ли экран звук (три попытки соединения). */
 private const val SOUND_CHECK_MS = 4_000L
+/** Начало первого слайда демо-песен и текстов старых наборов (до метки demo). */
+private val DEMO_STARTS = mapOf(
+    "Коль славен наш Господь в Сионе" to "Коль славен наш Господь в Сионе",
+    "Amazing Grace" to "Amazing grace! How sweet the sound",
+    "Объявления" to "Добро пожаловать!",
+)
 private val DEMO_TITLES = setOf("Коль славен наш Господь в Сионе", "Amazing Grace", "Объявления", "Ин 3:16–17", "Пс 22:1–4")

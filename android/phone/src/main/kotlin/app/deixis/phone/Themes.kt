@@ -92,8 +92,9 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
         Btn("Сохранить", Modifier.weight(1f), kind = BtnKind.TINT, enabled = name.isNotBlank()) {
             val t = Theme(if (own) theme!!.id else Store.newId(), name.trim(), st.copy(name = name.trim()))
             c.saveTheme(t)
-            // Сохранённая тема сразу в предпросмотре: её можно применить в зал.
-            c.draft.value = t.style
+            // Открыта правка оформления — сохранённая тема сразу в ней; из панели тем — только сохранение,
+            // иначе тема молча ушла бы в зал со следующим «В зал».
+            if (c.draft.value != null) c.draft.value = t.style
             ui.close()
             ui.toast("Тема «${t.name}» сохранена")
         }

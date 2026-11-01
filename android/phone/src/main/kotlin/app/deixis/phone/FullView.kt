@@ -41,8 +41,9 @@ private object F {
     val bg = Color.Black
     val ink = Color.White
     val button = Color.White.copy(alpha = 0.14f)
-    val go = Color(0xFFBC9361)
-    val live = Color(0xFFB96E65)
+    // Акцент и «в зале» — те же, что в тёмной палитре пульта (Theme.kt), просмотр всегда на чёрном.
+    val go = accentColors(Accent.BRONZE, dark = true).first
+    val live = paletteOf("dark").live
     const val dim = 0.7f
 }
 

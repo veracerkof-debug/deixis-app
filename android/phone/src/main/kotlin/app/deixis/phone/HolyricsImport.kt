@@ -32,7 +32,7 @@ object HolyricsImport {
         // Плейлист Holyrics — свой сетлист на сегодня: при новом переносе он обновляется, а не множится.
         val setlists = haul.playlist?.let { ids ->
             val known = items.map { it.id }.toSet()
-            val set = Setlist(PLAYLIST_SET, "Плейлист Holyrics", today.toString(), ids.filter { it in known })
+            val set = Setlist(PLAYLIST_SET, "Плейлист Holyrics", today.toString(), ids.filter { it in known }.distinct())
             listOf(set) + d.setlists.filter { it.id != PLAYLIST_SET }
         } ?: d.setlists
         return d.copy(items = items, themes = themes, setlists = setlists)

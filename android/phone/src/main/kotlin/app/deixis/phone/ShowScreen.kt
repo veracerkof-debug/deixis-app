@@ -192,7 +192,7 @@ private fun Dev(icon: String, state: OutState, label: String, count: Int = -1, o
     Box(Modifier.size(T.dev).clip(RoundedCornerShape(T.rPill)).background(ring).press(label = label, onClick = onClick), contentAlignment = Alignment.Center) {
         if (state == OutState.SYNC || state == OutState.CONNECTING) {
             val spin = rememberInfiniteTransition(label = "sync")
-            val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart), label = "spin")
+            val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(T.spin, easing = LinearEasing), RepeatMode.Restart), label = "spin")
             Canvas(Modifier.fillMaxSize().padding(3.dp).rotate(a)) {
                 drawArc(p.tint, 0f, 270f, false, style = Stroke(2.dp.toPx()))
             }
@@ -297,10 +297,10 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
 private fun BoxScope.Loading(text: String) {
     val p = P.current
     val spin = rememberInfiniteTransition(label = "load")
-    val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin")
+    val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(T.spin, easing = LinearEasing), RepeatMode.Restart), label = "spin")
     val percent = Regex("(\\d+)%").find(text)?.groupValues?.get(1)
     Column(
-        Modifier.matchParentSize().clip(RoundedCornerShape(T.rSlide)).background(Color.Black.copy(alpha = 0.6f)).padding(T.gapS),
+        Modifier.matchParentSize().clip(RoundedCornerShape(T.rSlide)).background(Color.Black.copy(alpha = T.scrim)).padding(T.gapS),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Canvas(Modifier.size(28.dp).rotate(a)) { drawArc(p.tint, 0f, 270f, false, style = Stroke(3.dp.toPx())) }
