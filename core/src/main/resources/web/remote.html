@@ -431,7 +431,7 @@ const TR = {
   enterPin: ["Подключиться по PIN", "PIN orqali ulanish", "Connect with a PIN"],
   wrongPin: ["Неверный PIN", "PIN noto‘g‘ri", "Wrong PIN"],
   pin4: ["PIN — четыре цифры", "PIN — to‘rt raqam", "The PIN has four digits"],
-  tooMany: ["Слишком много попыток. Через полминуты — новый PIN с экрана", "Urinishlar ko‘p. Yarim daqiqadan so‘ng ekrandagi yangi PIN", "Too many attempts. In half a minute, use the new PIN on the screen"],
+  tooMany: ["Слишком много попыток. Попытки ненадолго закрыты, потом — новый PIN с экрана", "Urinishlar ko‘p. Biroz kutib, ekrandagi yangi PIN bilan", "Too many attempts. Wait a little, then use the new PIN on the screen"],
   oldVersion: ["Версии Deixis не совпадают", "Deixis versiyalari mos emas", "Deixis versions differ"],
   forgot: ["Экран не узнал это устройство. Нужен PIN", "Ekran bu qurilmani tanimadi. PIN kerak", "The screen did not recognise this device. A PIN is needed"],
   failed: ["Не удалось", "Bo‘lmadi", "Failed"],
@@ -918,7 +918,7 @@ function connect(pin) {
     let m;
     try { m = JSON.parse(e.data); } catch (err) { return; }
     if (m.type === "pong") return;
-    if (m.type === "paired") { token = m.token; store.set("token", token); if (params.has("pin")) history.replaceState(null, "", "/remote"); }
+    if (m.type === "paired") { token = m.token; store.set("token", token); dropPinFromUrl(); }
     else if (m.type === "welcome") {
       receiver = m.receiver; viewKey = m.viewKey || null;
       setScreenRatio(receiver);
@@ -998,9 +998,19 @@ function altUrl() {
 }
 const isLoopback = () => /^(127\.|localhost$|\[?::1\]?$)/.test(location.hostname);
 
+// PIN из QR-кода — запасной путь: сначала сохранённое сопряжение, PIN — только если экран его не знает.
+let qrPin = params.get("pin");
+const startPin = qrPin || "";
+// Устаревший PIN в адресе при каждом обновлении страницы снова считался бы неверной попыткой.
+function dropPinFromUrl() { if (params.has("pin")) { params.delete("pin"); history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash); } }
 function denied(reason) {
   const msg = { WRONG_PIN: t.wrongPin, TOO_MANY_ATTEMPTS: t.tooMany, INCOMPATIBLE_VERSION: t.oldVersion, UNKNOWN_TOKEN: t.forgot }[reason] || t.failed;
-  if (reason === "UNKNOWN_TOKEN" || reason === "WRONG_PIN" || reason === "TOO_MANY_ATTEMPTS") { token = null; store.set("token", null); }
+  // Неверный PIN и пауза после попыток к сохранённому сопряжению отношения не имеют: его стирает только «не знаю такого».
+  if (reason === "UNKNOWN_TOKEN") {
+    token = null; store.set("token", null);
+    if (qrPin) { const p = qrPin; qrPin = null; connect(p); return; }
+  }
+  if (reason === "WRONG_PIN" || reason === "TOO_MANY_ATTEMPTS") dropPinFromUrl();
   toast(msg);
   everOnline = false; receiver = null;
   renderPair();
@@ -1246,7 +1256,8 @@ async function upload(file) {
   if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join(""); store.set(key, id); }
   setProgress(file.name, t.sending, 0);
   try {
-    let offset = (await getJson("/upload/" + id)).bytes || 0;
+    let offset = 0;
+    try { offset = (await getJson("/upload/" + id)).bytes || 0; } catch (e) { if (e.status) throw e; }
     const CHUNK = 4 * 1024 * 1024;
     for (let attempt = 0; ; ) {
       setProgress(file.name, t.sending, Math.floor((offset / Math.max(1, file.size)) * 100));
@@ -1261,10 +1272,12 @@ async function upload(file) {
         offset = j.bytes;
         attempt = 0;
       } catch (e) {
-        // Обрыв Wi-Fi: спросить, сколько дошло, и продолжить с того места.
+        // Отказ экрана (нет прав, слишком большой файл, нет места) повтором не лечится — сразу сообщить.
+        if (e.status && e.status !== 409 && e.status < 500) throw e;
+        // Обрыв Wi-Fi: спросить, сколько дошло, и продолжить с того места. Сеть ещё не вернулась — новая попытка.
         if (++attempt > 5) throw e;
         await new Promise((res) => setTimeout(res, 800 * attempt));
-        offset = (await getJson("/upload/" + id)).bytes || 0;
+        try { offset = (await getJson("/upload/" + id)).bytes || 0; } catch (_) {}
       }
     }
   } finally {
@@ -2566,7 +2579,7 @@ const A = {
   forget: () => { token = null; store.set("token", null); clearTimeout(retry); if (ws) { ws.onclose = null; try { ws.close(); } catch (e) {} } ws = null; netText = ""; renderPair(); },
   byname: () => { const a = altUrl(); if (a) location.href = a; },
   unpair: () => { closeSheet(); A.forget(); everOnline = false; receiver = null; renderPair(); },
-  app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(params.get("pin") || "")}`; },
+  app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(startPin)}`; },
   tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") loadOutputs(); render(); },
   lseg: (d) => { S.listSeg = d.v; render(); },
   preLive: () => preToLive(),
@@ -2807,6 +2820,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && e.target.id === "bq") { if (BD.ref) A.bref(); return; }
   if (!everOnline || e.target.matches("input, textarea, select") || !settings.clicker || e.altKey || e.ctrlKey || e.metaKey) return;
   if (FULL && FULL.video) return;
+  // Пробел на кнопке или строке списка — нажатие на неё, а не «Дальше» в зал.
+  if (e.defaultPrevented || (e.key === " " && e.target.closest && e.target.closest("button, [role=button], [data-tap], [data-act]"))) return;
   if (["ArrowRight", "PageDown", " ", "ArrowDown"].includes(e.key)) { e.preventDefault(); step(1); }
   else if (["ArrowLeft", "PageUp", "ArrowUp"].includes(e.key)) { e.preventDefault(); step(-1); }
   else if (e.key === "b" || e.key === "B" || e.key === "и" || e.key === "И" || e.key === ".") { e.preventDefault(); setMode("BLACK"); }
@@ -2887,8 +2902,8 @@ function started() {
 setInterval(rememberLive, 2000);
 
 // Запуск: PIN из QR-кода, токен в адресе (окно пульта на компьютере) или сохранённый токен.
-if (params.get("pin")) connect(params.get("pin"));
-else if (token) connect();
+if (token) { connect(); dropPinFromUrl(); }
+else if (qrPin) { const p = qrPin; qrPin = null; connect(p); }
 renderPair();
 </script>
 </body>

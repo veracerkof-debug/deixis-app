@@ -286,6 +286,8 @@ private val HOLYRICS_ALLOWED = setOf(
 internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.() -> Boolean) {
     get("/remote") {
         call.response.header("Cache-Control", "no-store")
+        // Ссылки на файлы пульта несут токен: адрес страницы никуда не уходит в заголовке Referer.
+        call.response.header("Referrer-Policy", "no-referrer")
         call.respondText(remoteResource("/web/remote.html").decodeToString(), ContentType.Text.Html)
     }
 
