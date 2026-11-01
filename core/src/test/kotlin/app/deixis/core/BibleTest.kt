@@ -36,6 +36,9 @@ class BibleTest {
         assertEquals(BibleRef(530, 13, 4, 7), parseBibleRef("1 Кор 13:4–7", rst.books))
         assertEquals(BibleRef(230, 22, null, null), parseBibleRef("Пс 22", rst.books))
         assertEquals(BibleRef(500, 3, 16, 16), parseBibleRef("John 3:16", kjv.books))
+        assertEquals(BibleRef(530, 13, null, null), parseBibleRef("1 Коринфянам 13", rst.books), "полное название с номером")
+        assertEquals(BibleRef(530, 13, 4, 4), parseBibleRef("1-е Кор 13:4", rst.books), "номер с окончанием")
+        assertEquals(BibleRef(500, 3, 16, 16), parseBibleRef("Ин 3 16", rst.books), "пробел вместо двоеточия")
         assertNull(parseBibleRef("Неизвестная 1:1", rst.books))
         assertNull(parseBibleRef("Ин", rst.books))
     }

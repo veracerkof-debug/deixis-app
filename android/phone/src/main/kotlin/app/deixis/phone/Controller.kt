@@ -1262,7 +1262,8 @@ class Controller(private val app: Application) {
             "Молодёжная встреча\nв пятницу в 19:00",
         ))
         val john = LibItem(Store.newId(), Kind.BIBLE, "Ин 3:16–17", bible = BiblePick(500, 3, 16, 17, DefaultBibles.FILES, ScriptureOptions(sideBySide = true)))
-        val psalm = LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, DefaultBibles.FILES, ScriptureOptions(sideBySide = true)))
+        // Псалмы у Синодального и KJV пронумерованы по-разному (Пс 22 — это Ps 23): псалом — одним переводом.
+        val psalm = LibItem(Store.newId(), Kind.BIBLE, "Пс 22:1–4", bible = BiblePick(230, 22, 1, 4, listOf(DefaultBibles.FILES.first()), ScriptureOptions()))
         val texts = listOf(star, grace, news, john, psalm).map { it.copy(demo = true) }
 
         // Темы на фото и видео из набора: так сразу видно, как выглядят свои темы в зале.

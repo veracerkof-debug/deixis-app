@@ -88,7 +88,9 @@ fun cleanVerseText(raw: String): String = raw
 /** Место Писания: книга, глава и стихи (если стихи не указаны — вся глава). */
 data class BibleRef(val book: Int, val chapter: Int, val fromVerse: Int? = null, val toVerse: Int? = null)
 
-private val REF = Regex("^\\s*(\\d?\\s*[\\p{L}.]+(?:\\s+[\\p{L}.]+)*)\\s*(\\d+)(?:\\s*[:.,]\\s*(\\d+)(?:\\s*[-–—]\\s*(\\d+))?)?\\s*$")
+// Название может быть с номером, дефисом и окончанием («1-е Кор»), с узбекским апострофом («Qoʻshiqlar»);
+// глава и стих — через двоеточие, точку, запятую или пробел («Ин 3 16»).
+private val REF = Regex("^\\s*(\\d?\\s*[\\p{L}.'ʻʼ’-]+(?:\\s+[\\p{L}.'ʻʼ’-]+)*)\\s*(\\d+)(?:(?:\\s*[:.,]\\s*|\\s+)(\\d+)(?:\\s*[-–—]\\s*(\\d+))?)?\\s*$")
 
 /**
  * Разбирает «Ин 3:16-18», «Иоанна 3:16», «1 Кор 13:4–7», «Быт 1», «Пс 22.1». Книга ищется по названиям
@@ -109,7 +111,10 @@ fun parseBibleRef(input: String, books: List<BibleBook>): BibleRef? {
     return BibleRef(book.number, chapter, from, to ?: from)
 }
 
-private fun normalizeBookName(s: String) = s.lowercase().replace(".", "").replace(Regex("\\s+"), "").replace('ё', 'е')
+/** «1-е Коринфянам», «1 Кор.», «Qoʻshiqlar»: без регистра, точек, пробелов, дефисов, окончаний «-е/-я» и апострофов. */
+private fun normalizeBookName(s: String) = s.lowercase().replace('ё', 'е')
+    .replace(Regex("(\\d)\\s*-\\s*(?:ое|ая|е|я)(?=\\s|$)"), "$1")
+    .replace(Regex("[.\\s'ʻʼ’‘`-]+"), "")
 
 // Раскладка и настройки показа
 

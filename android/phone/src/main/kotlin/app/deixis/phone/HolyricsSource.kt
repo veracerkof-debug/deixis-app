@@ -59,7 +59,8 @@ data class HolyricsLive(val p: HolyricsPresentation, val previews: Map<Int, Bitm
 class HolyricsSource(private val app: Application, private val controller: Controller) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = app.getSharedPreferences("holyrics", Context.MODE_PRIVATE)
-    private var client: HolyricsClient? = null
+    @Volatile private var client: HolyricsClient? = null
+    private var connectJob: Job? = null
 
     val status = MutableStateFlow<HolyricsStatus>(HolyricsStatus.Off)
     val playlist = MutableStateFlow<List<HolyricsSong>>(emptyList())
@@ -80,7 +81,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     init {
         // Вкладка «Библия» в режиме пульта Holyrics показывает стихи в Holyrics, «Чёрный» и «Очистить» — его F10 и F9.
         controller.holyricsRemote = object : Controller.HolyricsRemote {
-            override fun showBible(p: BiblePick) { this@HolyricsSource.showBible(p) }
+            override fun showBible(p: BiblePick) { this@HolyricsSource.showBible(p) { controller.holyricsVerse.value = p } }
             override fun toggleKey(key: HolyricsKey) { this@HolyricsSource.toggleKey(key) }
         }
         val host = prefs.getString("host", null)
@@ -88,9 +89,15 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         if (host != null && token != null) connect(HolyricsLink(host, prefs.getInt("port", HolyricsClient.DEFAULT_PORT), token), quiet = true)
     }
 
-    fun connect(link: HolyricsLink, quiet: Boolean = false) = scope.launch {
+    fun connect(link: HolyricsLink, quiet: Boolean = false) {
+        // Новое подключение (вторая кнопка, QR во время подключения) отменяет прежнее: соединения не плодятся.
+        connectJob?.cancel()
+        connectJob = scope.launch { connectNow(link, quiet) }
+    }
+
+    private suspend fun connectNow(link: HolyricsLink, quiet: Boolean) {
         status.value = HolyricsStatus.Connecting
-        client?.close()
+        client?.let { old -> client = null; old.close() }
         val c = HolyricsClient(link.host, link.port, link.token)
         try {
             val v = withContext(Dispatchers.IO) { c.hello() }
@@ -98,8 +105,12 @@ class HolyricsSource(private val app: Application, private val controller: Contr
             val clean = link.copy(token = link.token.trim())
             prefs.edit().putString("host", clean.host).putInt("port", clean.port).putString("token", clean.token).apply()
             status.value = HolyricsStatus.On(clean, v)
-            askRights(c, quiet)
+            // Тихое переподключение при запуске не просит прав: иначе Holyrics выводил бы уведомление при каждом старте.
+            if (!quiet) askRights(c, quiet = false)
             refresh()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            c.close()
+            throw e
         } catch (e: Exception) {
             c.close()
             status.value = HolyricsStatus.Failed(e.message ?: "Нет связи с Holyrics")
@@ -129,9 +140,10 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     fun disconnect() {
         setRemote(false)
-        client?.close()
-        client = null
-        prefs.edit().clear().apply()
+        connectJob?.cancel()
+        client?.let { old -> client = null; old.close() }
+        // Забывается только связь; выбор тем и переводов Holyrics остаётся.
+        prefs.edit().remove("host").remove("port").remove("token").apply()
         missing.value = null
         status.value = HolyricsStatus.Off
     }
@@ -413,10 +425,11 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     }
 
     /** F8/F9/F10: повторное нажатие выключает, как в Holyrics. */
-    fun toggleKey(key: HolyricsKey) = io { c ->
+    /** Состояние меняется сразу, ещё до ответа Holyrics: два быстрых нажатия — включить и выключить, а не дважды включить. */
+    fun toggleKey(key: HolyricsKey) {
         val on = key !in keys.value
-        c.setScreenKey(key, on)
         keys.value = if (on) keys.value + key else keys.value - key
+        io { c -> c.setScreenKey(key, on) }
     }
 
     // ——— Библия: модули Deixis ↔ переводы Holyrics ———
@@ -451,7 +464,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
      * Стихи из «Библии» Deixis — в Holyrics: тем же переводом (модуль → перевод Holyrics), а если выбрано два
      * перевода — они же ставятся во вкладки Библии Holyrics и показываются рядом.
      */
-    fun showBible(p: BiblePick) = io { c ->
+    fun showBible(p: BiblePick, onShown: () -> Unit = {}) = io { c ->
         if (bibleVersions.value.isEmpty()) bibleVersions.value = runCatching { c.bibleVersions() }.getOrDefault(emptyList())
         val ids = HolyricsBible.verseIds(p.book, p.chapter, p.from, p.to)
         if (ids.isEmpty()) return@io controller.messages.emit("Этой книги нет в Библии Holyrics")
@@ -460,6 +473,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
             runCatching { c.setBibleTabs(tabs) }.onSuccess { syncedTabs = tabs }
         }
         c.showVerses(ids, tabs.firstOrNull())
+        withContext(Dispatchers.Main) { onShown() }
         mixInto(c)
     }
 

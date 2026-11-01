@@ -69,7 +69,7 @@ class Profiles(private val root: File) {
         val p = Profile(Store.newId(), name.trim().ifBlank { kind.title }, kind, accent)
         val set = Setlist(Store.newId(), "Сегодня", LocalDate.now().toString())
         val start = StoreData(
-            setlists = listOf(set), active = set.id, demoSeeded = true,
+            setlists = listOf(set), active = set.id, demoSeeded = true, bibleBooksV2 = true,
             settings = AppSettings(church = kind == ProfileKind.CHURCH),
         )
         File(dirOf(p.id), "library.json").writeText(DeixisJson.encodeToString(StoreData.serializer(), start))

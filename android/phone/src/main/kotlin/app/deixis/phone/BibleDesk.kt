@@ -47,7 +47,13 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
 
     private var loaded = false
     private var searchJob: Job? = null
-    private val searchers = mutableMapOf<String, BibleSearch>()
+    private val searchers = java.util.concurrent.ConcurrentHashMap<String, BibleSearch>()
+    private var openJob: Job? = null
+
+    init {
+        // Перевод добавили заново или удалили: прежний индекс поиска держит закрытый файл — забыть его.
+        scope.launch { c.bibleModules.collect { searchers.clear() } }
+    }
 
     /** Первое открытие вкладки: переводы и последнее место. */
     fun ensure() {
@@ -95,26 +101,31 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
     }
 
     /** Открывает главу; [then] — после загрузки (например выбрать стихи и показать). */
-    fun open(book: Int, chapter: Int, verse: Int? = null, then: (() -> Unit)? = null) {
+    fun open(book: Int, chapter: Int, verse: Int? = null, range: IntRange? = null, then: (() -> Unit)? = null) {
         lib.lastRef = "$book:$chapter"
-        scope.launch {
+        // Новое открытие отменяет прежнее: быстрые касания не приводят к главе, выбранной раньше.
+        openJob?.cancel()
+        openJob = scope.launch {
             val ms = modules()
             val p = ms.firstOrNull() ?: return@launch
+            // Модуль заменили или удалили во время чтения, файл испорчен — глава не открывается, приложение не падает.
             val text = withContext(Dispatchers.IO) {
-                val primaryVerses = p.verses(book, chapter)
-                ChapterText(
-                    book, chapter, p.book(book)?.longName ?: "", primaryVerses,
-                    ms.getOrNull(1)?.verses(book, chapter), p.chapterCount(book),
-                )
-            }
+                runCatching {
+                    ChapterText(
+                        book, chapter, p.book(book)?.longName ?: "", p.verses(book, chapter),
+                        runCatching { ms.getOrNull(1)?.verses(book, chapter) }.getOrNull(), p.chapterCount(book),
+                    )
+                }.getOrNull()
+            } ?: return@launch
             this@BibleDesk.chapter.value = text
-            mark.value = verse?.let { it..it }
+            mark.value = range ?: verse?.let { it..it }
             scrollTo.value = verse ?: 1
             then?.invoke()
         }
     }
 
-    private fun reload() { chapter.value?.let { ch -> open(ch.book, ch.chapter, mark.value?.first) } }
+    /** После смены переводов — то же место и тот же выбранный диапазон стихов (а не только первый стих). */
+    private fun reload() { chapter.value?.let { ch -> open(ch.book, ch.chapter, mark.value?.first, mark.value) } }
 
     fun nextChapter(d: Int) {
         val ch = chapter.value ?: return
@@ -166,8 +177,8 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
         // Пульт Holyrics: стихи — на экран Holyrics, его переводом, тем же, что выбран здесь.
         if (c.toHolyrics()) {
             val pk = pick(r) ?: return
+            // «В Holyrics» отмечается, когда Holyrics показал стихи (HolyricsSource), а не сразу.
             c.holyricsRemote?.showBible(pk)
-            c.holyricsVerse.value = pk
             remember(r)
             return
         }
@@ -256,8 +267,8 @@ class BibleDesk(private val c: Controller, private val scope: CoroutineScope) {
         searchJob = scope.launch {
             delay(250)
             searching.value = true
-            val found = withContext(Dispatchers.Default) { searchers.getOrPut(p.fileName) { BibleSearch(p) }.search(text) }
-            hits.value = found
+            val found = withContext(Dispatchers.Default) { runCatching { searchers.getOrPut(p.fileName) { BibleSearch(p) }.search(text) }.getOrNull() }
+            hits.value = found.orEmpty()
             searching.value = false
         }
     }

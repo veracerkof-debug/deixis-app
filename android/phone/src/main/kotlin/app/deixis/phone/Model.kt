@@ -169,6 +169,8 @@ data class StoreData(
     val overlays: Overlays = Overlays(),
     /** Заготовки слоя, чтобы не набирать заново: имена для плашки и тексты бегущей строки. */
     val overlayDrafts: OverlayDrafts = OverlayDrafts(),
+    /** Места из Писания со встроенными переводами переведены на номера книг MyBible (послания). */
+    val bibleBooksV2: Boolean = false,
 )
 
 /** Последние плашки и строки: чаще всего ведущий показывает одни и те же имена. */
@@ -202,7 +204,7 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
     private fun load(): StoreData {
         if (!file.isFile) return firstRun()
         val saved = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), file.readText()) }.getOrNull()
-        if (saved != null) return saved
+        if (saved != null) return migrateBibleBooks(saved)
         runCatching { file.copyTo(File(file.parentFile, "library.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
         val backup = runCatching { backups.newest() }.getOrNull()
         recovered = backup != null
@@ -215,7 +217,21 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
     /** Первый запуск: пустой сетлист на сегодня, чтобы на главном было куда добавлять. */
     private fun firstRun(): StoreData {
         val set = Setlist(newId(), "Сегодня", LocalDate.now().toString())
-        return StoreData(setlists = listOf(set), active = set.id)
+        return StoreData(setlists = listOf(set), active = set.id, bibleBooksV2 = true)
+    }
+
+    /**
+     * Старые встроенные переводы нумеровали послания по порядку KJV; теперь — как MyBible. Места, где все переводы
+     * встроенные, переводятся один раз; места со своими модулями (уже с номерами MyBible) не трогаются.
+     */
+    private fun migrateBibleBooks(d: StoreData): StoreData {
+        if (d.bibleBooksV2) return d
+        val items = d.items.map { it ->
+            val pick = it.bible ?: return@map it
+            val book = app.deixis.core.DefaultBibles.OLD_BOOKS[pick.book]
+            if (book == null || pick.modules.any { m -> m !in app.deixis.core.DefaultBibles.FILES }) it else it.copy(bible = pick.copy(book = book))
+        }
+        return d.copy(items = items, bibleBooksV2 = true).also { fixed -> runCatching { file.writeText(DeixisJson.encodeToString(StoreData.serializer(), fixed)) } }
     }
 
     fun update(change: (StoreData) -> StoreData): StoreData {

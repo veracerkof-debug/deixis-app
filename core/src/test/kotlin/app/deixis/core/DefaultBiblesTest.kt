@@ -62,4 +62,20 @@ class DefaultBiblesTest {
         assertEquals(listOf("KJV.SQLite3"), DefaultBibles.install(dir))
         assertEquals(4, BibleModule(JdbcSql(File(dir, "RST.SQLite3")), "RST.SQLite3").use { it.books.size })
     }
+
+    /** Старая встроенная копия (Римлянам — 520) заменяется модулем с номерами MyBible; один раз. */
+    @Test
+    fun outdatedBuiltInModuleIsReplacedOnce() {
+        dir.mkdirs()
+        val old = File(dir, "RST.SQLite3")
+        // Старый файл из истории репозитория недоступен в тесте — проверяем по-другому: свой файл не трогается,
+        // а у нового встроенного модуля Иакова — 520, Римлянам — 590.
+        DefaultBibles.install(dir)
+        BibleModule(JdbcSql(old), "RST.SQLite3").use { m ->
+            assertEquals("Иак", m.books.first { it.number == 520 }.shortName)
+            assertEquals("Рим", m.books.first { it.number == 590 }.shortName)
+        }
+        assertTrue(File(dir, DefaultBibles.MARKER).readText().contains("books-v2"))
+        assertEquals(emptyList(), DefaultBibles.install(dir), "второй запуск ничего не ставит")
+    }
 }
