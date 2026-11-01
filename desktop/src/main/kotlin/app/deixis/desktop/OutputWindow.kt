@@ -65,6 +65,8 @@ interface OutputHost {
     fun streamUrl(): String
     /** Кадры трансляции экрана прямо из приёмника этой программы (быстрый показ без плеера); null — нет. */
     fun streamFrames(): kotlinx.coroutines.flow.Flow<app.deixis.core.StreamSample>? = null
+    /** Звук трансляции экрана из приёмника этой программы; null — нет. */
+    fun streamAudio(): kotlinx.coroutines.flow.Flow<app.deixis.core.AudioChunk>? = null
     fun reportError(message: String?)
     fun reportVideo(state: VideoState?)
     fun quit()
@@ -117,6 +119,8 @@ class OutputWindow(
     private val slide = SlideView()
     /** Трансляция экрана с малой задержкой (FFmpeg напрямую); без FFmpeg трансляцию показывает VLC. */
     private val screen = ScreenView()
+    /** Звук трансляции: играет только окно зала (как звук видео), пока трансляция на экране. */
+    private val screenAudio = ScreenAudio()
     private var video: VideoPlayer? = null
     private var videoPane: VideoPane? = null
     private var playingSha: String? = null
@@ -390,6 +394,9 @@ class OutputWindow(
     private fun applyVideo(s: FrameState) {
         if (primary) host.reportError(null)
         val content = s.content
+        // Звук трансляции — в колонки зала, пока трансляция видна; «Чёрный», «Логотип» и уход — тишина.
+        if (primary && content is ScreenContent && s.mode == Mode.NORMAL) host.streamAudio()?.let { screenAudio.start(host.scope, it) }
+        else screenAudio.stop()
         // Трансляция экрана — быстрым путём, если на компьютере есть FFmpeg (в установщике он есть): кадр сразу на экран.
         if (content is ScreenContent && fastScreen()) {
             if (playingSha != null && playingSha != FAST_STREAM) { video?.stop(); if (primary && playingSha != STREAM) host.reportVideo(null) }
@@ -492,6 +499,7 @@ class OutputWindow(
 
     fun dispose() {
         screen.stop()
+        screenAudio.stop()
         overlayTimer.stop()
         overlayWindow?.dispose()
         overlayWindow = null

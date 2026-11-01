@@ -31,6 +31,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -239,6 +240,39 @@ class StreamEndToEndTest {
         pump.cancel()
         stream.close()
         withTimeout(5_000) { core.stream.active.first { !it } }
+    }
+
+    /** Звук трансляции: куски PCM доходят до колонок зала без изменений и по порядку. */
+    @Test
+    fun soundReachesTheHall() = runBlocking<Unit> {
+        val c = sender()
+        val audio = c.openAudio()
+        withTimeout(5_000) { audio.connected.first { it } }
+        withTimeout(5_000) { core.audio.active.first { it } }
+        val chunks = (0 until 30).map { i -> AudioChunk(i * 10_000L, ByteArray(AudioFormat.CHUNK_BYTES) { (it + i).toByte() }) }
+        val got = async { withTimeout(5_000) { core.audio.subscribe().take(20).toList() } }
+        // Подписчик ловит не с самого начала: шлём, пока он не набрал своё.
+        val feed = launch { for (ch in chunks) { audio.send(ch.ptsUs, ch.pcm); delay(10) } }
+        val list = got.await()
+        feed.cancel()
+        assertEquals(list.map { it.ptsUs }, list.map { it.ptsUs }.sorted(), "куски по порядку")
+        val first = chunks.first { it.ptsUs == list[0].ptsUs }
+        assertTrue(first.pcm.contentEquals(list[0].pcm), "звук без изменений")
+        assertEquals(AudioFormat.CHUNK_BYTES, list[0].pcm.size)
+        assertFalse(audio.unsupported)
+        audio.close()
+        withTimeout(5_000) { core.audio.active.first { !it } }
+    }
+
+    /** Колонки держат небольшой запас: после опустошения — тишина до запаса, лишнее сверх предела выбрасывается. */
+    @Test
+    fun soundBufferStaysShort() {
+        assertEquals(AudioPacer.Step.PAD_THEN_PLAY, AudioPacer.step(0))
+        assertEquals(AudioPacer.Step.PLAY, AudioPacer.step(40))
+        assertEquals(AudioPacer.Step.PLAY, AudioPacer.step(AudioFormat.MAX_BUFFER_MS))
+        assertEquals(AudioPacer.Step.DROP, AudioPacer.step(AudioFormat.MAX_BUFFER_MS + 1))
+        assertEquals(AudioFormat.START_BUFFER_MS, AudioFormat.ms(AudioPacer.padding().size))
+        assertEquals(10, AudioFormat.ms(AudioFormat.CHUNK_BYTES))
     }
 
     @Test

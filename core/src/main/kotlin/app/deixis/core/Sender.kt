@@ -340,6 +340,9 @@ class SenderClient(
         }
     }
 
+    /** Звук трансляции экрана — своим соединением, рядом с картинкой ([openStream]). */
+    fun openAudio(): AudioSender = audioSender(scope, http, host, port, token ?: error("Нет сопряжения"))
+
     fun close() {
         loop?.cancel()
         loop = null

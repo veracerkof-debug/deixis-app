@@ -4,6 +4,10 @@
     <!-- Демонстрация экрана: видимая служба с уведомлением, без неё Android не даёт захватывать экран. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Звук трансляции экрана: захват звука приложений (Android 10+) требует разрешения на запись звука.
+         Микрофон не включается — снимается только то, что телефон воспроизводит. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Связь с экранами в фоне: видимая служба «подключённое устройство» (ShowService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -69,7 +73,7 @@
         <service
             android:name=".ScreenShareService"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:foregroundServiceType="mediaProjection|microphone" />
         <service
             android:name=".ShowService"
             android:exported="false"

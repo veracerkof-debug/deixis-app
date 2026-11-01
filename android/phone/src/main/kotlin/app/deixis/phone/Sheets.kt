@@ -72,7 +72,7 @@ fun rememberActs(c: Controller, ui: Ui): Acts {
     val capture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val data = r.data
         if (r.resultCode == Activity.RESULT_OK && data != null) {
-            ScreenShareService.start(context, r.resultCode, data)
+            ScreenShareService.start(context, r.resultCode, data, sound = c.settings.value.shareSound)
             // Большой файл открывается в проигрывателе телефона, а в зал идёт экран.
             openAfter?.let { f ->
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(f.uri, f.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
@@ -82,6 +82,16 @@ fun rememberActs(c: Controller, ui: Ui): Acts {
     }
     val requestCapture = { capture.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent()) }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { requestCapture() }
+    val afterSound = {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else requestCapture()
+    }
+    // Звук приложений телефона: Android даёт его снимать только с разрешением на запись звука (микрофон не включается).
+    val soundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) ui.toast("Трансляция пойдёт без звука: нет разрешения на звук")
+        afterSound()
+    }
 
     return remember(c, ui) {
         Acts(
@@ -93,9 +103,10 @@ fun rememberActs(c: Controller, ui: Ui): Acts {
                 if (c.outputs.value.none { it.state == OutState.ONLINE && it.target.kind != Target.Kind.DLNA }) ui.toast("Сначала подключите экран")
                 else {
                     openAfter = f
-                    if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                        notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else requestCapture()
+                    val wantSound = c.settings.value.shareSound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    if (wantSound && context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        soundPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    } else afterSound()
                 }
             },
             addBible = { runCatching { bible.launch(arrayOf("*/*")) } },
@@ -330,7 +341,15 @@ fun TextSheet(c: Controller, ui: Ui) = SongEditor(c, ui, Kind.TEXT, quick = true
 @Composable
 fun MirrorSheet(c: Controller, ui: Ui) {
     val acts = LocalActs.current
+    val st by c.settings.collectAsState()
     Note("Всё, что на экране телефона, уйдёт в зал. Подходит для презентаций с анимацией, Google Slides и любого приложения. Android спросит разрешение.", Modifier)
+    Group(Modifier.padding(top = T.gap)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            SwitchRow("Со звуком", st.shareSound, "Музыка и видео из приложений телефона — в колонки зала. Микрофон не включается") { v -> c.setSettings { it.copy(shareSound = v) } }
+        } else {
+            Cell("Без звука", "Звук приложений передаётся с Android 10", "vol", chevron = null)
+        }
+    }
     Btn("Начать трансляцию", icon = "phone", kind = BtnKind.TINT) { ui.closeAll(); acts.share(null) }
 }
 

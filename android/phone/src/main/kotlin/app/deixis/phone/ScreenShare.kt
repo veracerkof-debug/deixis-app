@@ -35,6 +35,7 @@ import kotlin.math.roundToInt
 class ScreenShareService : Service() {
     private var projection: MediaProjection? = null
     private var capture: ScreenCapture? = null
+    private var soundCapture: SoundCapture? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -48,11 +49,15 @@ class ScreenShareService : Service() {
         val data: Intent? = intent?.let {
             if (Build.VERSION.SDK_INT >= 33) it.getParcelableExtra(EXTRA_DATA, Intent::class.java) else @Suppress("DEPRECATION") it.getParcelableExtra(EXTRA_DATA)
         }
+        // Звук приложений — только с Android 10, по выбору в окне трансляции и с разрешением на запись звука.
+        val sound = intent?.getBooleanExtra(EXTRA_SOUND, false) == true && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         // Уведомление — до получения проекции: так требует Android 14.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or (if (sound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+            startForeground(NOTIFICATION_ID, notification(sound), types)
         } else {
-            startForeground(NOTIFICATION_ID, notification())
+            startForeground(NOTIFICATION_ID, notification(false))
         }
         val stream = controller.openScreenStream()
         if (data == null || stream == null) {
@@ -65,6 +70,12 @@ class ScreenShareService : Service() {
             val p = mpm.getMediaProjection(code, data) ?: error("Нет разрешения на захват экрана")
             projection = p
             capture = ScreenCapture(this, p, stream) { w, h -> controller.showScreen(w, h) }.also { it.start() }
+            if (sound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                controller.openScreenAudio()?.let { out ->
+                    soundCapture = runCatching { SoundCapture(p, out).also { it.start() } }
+                        .onFailure { out.close(); controller.soundFailed(it.message) }.getOrNull()
+                }
+            }
         } catch (e: Exception) {
             stream.close()
             controller.screenStopped(e.message ?: "Не удалось начать трансляцию экрана")
@@ -74,6 +85,8 @@ class ScreenShareService : Service() {
     }
 
     override fun onDestroy() {
+        soundCapture?.stop()
+        soundCapture = null
         capture?.stop()
         capture = null
         runCatching { projection?.stop() }
@@ -82,7 +95,7 @@ class ScreenShareService : Service() {
         super.onDestroy()
     }
 
-    private fun notification(): Notification {
+    private fun notification(sound: Boolean): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Трансляция экрана", NotificationManager.IMPORTANCE_LOW))
         val stop = PendingIntent.getService(
@@ -93,7 +106,7 @@ class ScreenShareService : Service() {
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_slideshow)
             .setContentTitle("Экран транслируется")
-            .setContentText("Всё, что на экране телефона, видно в зале")
+            .setContentText(if (sound) "Экран и звук телефона — в зале" else "Всё, что на экране телефона, видно в зале")
             .setContentIntent(open)
             .setOngoing(true)
             .addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, "Остановить", stop).build())
@@ -106,10 +119,11 @@ class ScreenShareService : Service() {
         private const val ACTION_STOP = "app.deixis.phone.STOP_SCREEN"
         private const val EXTRA_CODE = "code"
         private const val EXTRA_DATA = "data"
+        private const val EXTRA_SOUND = "sound"
 
-        fun start(context: Context, resultCode: Int, data: Intent) {
+        fun start(context: Context, resultCode: Int, data: Intent, sound: Boolean) {
             context.startForegroundService(
-                Intent(context, ScreenShareService::class.java).putExtra(EXTRA_CODE, resultCode).putExtra(EXTRA_DATA, data),
+                Intent(context, ScreenShareService::class.java).putExtra(EXTRA_CODE, resultCode).putExtra(EXTRA_DATA, data).putExtra(EXTRA_SOUND, sound),
             )
         }
 
@@ -282,5 +296,69 @@ private class Encoder(w: Int, h: Int, private val stream: ScreenStream) {
         runCatching { codec.stop() }
         runCatching { codec.release() }
         surface.release()
+    }
+}
+
+
+/**
+ * Звук трансляции: то, что воспроизводят приложения телефона (музыка, видео, игры), — без микрофона.
+ * Кусками по 10 мс, без сжатия, сразу в [AudioSender]. Приложения, запретившие захват своего звука
+ * (часть стримингов, звонки), дают тишину — так решает Android.
+ */
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+@android.annotation.SuppressLint("MissingPermission") // разрешение на запись звука проверено в onStartCommand
+private class SoundCapture(projection: MediaProjection, private val out: app.deixis.core.AudioSender) {
+    @Volatile private var running = true
+    private val record: android.media.AudioRecord
+    private val thread: Thread
+
+    init {
+        val cfg = android.media.AudioPlaybackCaptureConfiguration.Builder(projection)
+            .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
+            .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
+            .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
+            .build()
+        val fmt = android.media.AudioFormat.Builder()
+            .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+            .setSampleRate(app.deixis.core.AudioFormat.RATE)
+            .setChannelMask(android.media.AudioFormat.CHANNEL_IN_STEREO)
+            .build()
+        val min = android.media.AudioRecord.getMinBufferSize(
+            app.deixis.core.AudioFormat.RATE, android.media.AudioFormat.CHANNEL_IN_STEREO, android.media.AudioFormat.ENCODING_PCM_16BIT,
+        )
+        record = android.media.AudioRecord.Builder()
+            .setAudioFormat(fmt)
+            .setBufferSizeInBytes(maxOf(min, app.deixis.core.AudioFormat.CHUNK_BYTES * 4))
+            .setAudioPlaybackCaptureConfig(cfg)
+            .build()
+        check(record.state == android.media.AudioRecord.STATE_INITIALIZED) { "Звук телефона недоступен для трансляции" }
+        thread = Thread({ loop() }, "deixis-sound")
+    }
+
+    fun start() {
+        record.startRecording()
+        thread.start()
+    }
+
+    private fun loop() {
+        val size = app.deixis.core.AudioFormat.CHUNK_BYTES
+        val buf = ByteArray(size)
+        while (running) {
+            var off = 0
+            while (off < size && running) {
+                val n = record.read(buf, off, size - off)
+                if (n <= 0) break
+                off += n
+            }
+            if (off == size) out.send(System.nanoTime() / 1000, buf.copyOf())
+        }
+    }
+
+    fun stop() {
+        running = false
+        runCatching { record.stop() }
+        runCatching { thread.join(300) }
+        record.release()
+        out.close()
     }
 }

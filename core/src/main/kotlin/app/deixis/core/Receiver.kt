@@ -92,6 +92,9 @@ class ReceiverCore(
     /** Поток демонстрации экрана от источника; экран зала и зрители подписываются на него сами. */
     val stream = StreamHub()
 
+    /** Звук трансляции экрана от источника; колонки зала подписываются сами. */
+    val audio = AudioHub()
+
     /** Когда пошёл первый слайд после запуска: от него считается время на виде «Сцена». */
     @Volatile
     var showStartedAt: Long? = null
@@ -241,6 +244,7 @@ class ReceiverServer(
                 }
                 webSocket("/ws") { handleSession(this) }
                 webSocket("/stream") { handleStream(this) }
+                webSocket("/audio") { handleAudio(this) }
                 // Поток экрана для своего же проигрывателя (VLC на компьютере): тот же MP4, что у зрителей,
                 // с метками времени — без них VLC играл бы с угаданной частотой кадров и копил отставание.
                 get("/stream/mp4") {
@@ -360,6 +364,24 @@ class ReceiverServer(
         } finally {
             keys.cancel()
             if (streamSource.get() == me) core.stream.stop()
+        }
+    }
+
+    private val audioSource = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Звук трансляции: двоичные куски PCM. Новый источник вытесняет прежний. */
+    private suspend fun handleAudio(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
+        if (!call.authorized()) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
+        val me = audioSource.incrementAndGet()
+        core.audio.start()
+        try {
+            for (frame in incoming) {
+                if (audioSource.get() != me) break
+                if (frame !is Frame.Binary) continue
+                AudioChunk.decode(frame.readBytes())?.let(core.audio::publish)
+            }
+        } finally {
+            if (audioSource.get() == me) core.audio.stop()
         }
     }
 

@@ -131,6 +131,8 @@ data class AppSettings(
     val themePanel: ThemePanel = ThemePanel.STRIP,
     /** Режим работы: своя база Deixis или пульт Holyrics (его база на компьютере). Выбирается в «Устройствах». */
     val workMode: WorkMode = WorkMode.DEIXIS,
+    /** Трансляция экрана со звуком приложений телефона (Android 10+). */
+    val shareSound: Boolean = true,
 )
 
 /**

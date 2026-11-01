@@ -126,7 +126,7 @@ fun ReceiverScreen(
         }
         if (video != null) VideoSurface(player, video)
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
-        (content as? ScreenContent)?.let { ScreenSurface(runtime, it) }
+        (content as? ScreenContent)?.let { ScreenSurface(runtime, it, sound = mode == Mode.NORMAL) }
         when {
             // «Уйти с экранов»: окно уходит само (AwayFollower); пока оно ещё видно — чёрное.
             mode == Mode.BLACK || mode == Mode.AWAY -> Box(Modifier.fillMaxSize().background(Color.Black))
@@ -227,9 +227,11 @@ private const val BLUR_DIM = 0.45f
 
 /** Поверхность для трансляции экрана с пропорциями источника, по центру на чёрном. */
 @Composable
-private fun ScreenSurface(runtime: ReceiverRuntime, c: ScreenContent) {
+private fun ScreenSurface(runtime: ReceiverRuntime, c: ScreenContent, sound: Boolean) {
     val scope = rememberCoroutineScope()
     val ratio = if (c.width > 0 && c.height > 0) c.width.toFloat() / c.height else 16f / 9
+    // Звук трансляции — пока она видна; «Чёрный», «Логотип», уход или другой слайд — тишина.
+    androidx.compose.runtime.LaunchedEffect(sound) { if (sound) playScreenSound(runtime.core.audio.subscribe()) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AndroidView(
             factory = { ctx ->

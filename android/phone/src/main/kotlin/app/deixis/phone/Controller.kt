@@ -1529,6 +1529,25 @@ class Controller(private val app: Application) {
         return o.client.openStream().also { screenStream = it }
     }
 
+    private var screenAudio: app.deixis.core.AudioSender? = null
+
+    /** Звук трансляции на тот же экран, что и картинка; null — нет связи. */
+    fun openScreenAudio(): app.deixis.core.AudioSender? {
+        val o = primary.value ?: return null
+        if (o.client.connection.value !is Connection.Connected) return null
+        screenAudio?.close()
+        val a = o.client.openAudio()
+        screenAudio = a
+        // Экран старой версии звука не принимает: картинка идёт, а звук — нет. Подсказать один раз.
+        scope.launch {
+            kotlinx.coroutines.delay(SOUND_CHECK_MS)
+            if (a.unsupported && screenAudio === a) messages.emit("Экран не принимает звук: обновите Deixis на экране, картинка идёт без звука")
+        }
+        return a
+    }
+
+    fun soundFailed(reason: String?) = scope.launch { messages.emit("Трансляция без звука: ${reason ?: "звук телефона недоступен"}") }
+
     fun showScreen(width: Int, height: Int) = scope.launch {
         sharing.value = true
         val cue = Cue(Source(null, "Экран телефона", null, listOf(Slide.Screen(width, height))), 0)
@@ -1537,6 +1556,8 @@ class Controller(private val app: Application) {
     }
 
     fun screenStopped(error: String?) = scope.launch {
+        screenAudio?.close()
+        screenAudio = null
         screenStream?.close()
         screenStream = null
         val wasSharing = sharing.value
@@ -1598,4 +1619,6 @@ private const val OVERLAY_DRAFTS = 8
 
 /** Демо-набор первого запуска: сетлист и элементы, которые убираются кнопкой в настройках. */
 private const val DEMO_SET = "Демо"
+/** Через сколько проверить, принял ли экран звук (три попытки соединения). */
+private const val SOUND_CHECK_MS = 4_000L
 private val DEMO_TITLES = setOf("Коль славен наш Господь в Сионе", "Amazing Grace", "Объявления", "Ин 3:16–17", "Пс 22:1–4")
