@@ -21,7 +21,14 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
         dir.mkdirs()
     }
 
-    fun file(sha256: String): File? = complete(sha256).takeIf { it.isFile }
+    /**
+     * Что сейчас на экране и не должно вытесняться новым файлом (показ, следующий слайд, наложения, логотип).
+     * Задаёт приёмник.
+     */
+    @Volatile var protect: () -> Set<String> = { emptySet() }
+
+    /** Готовый файл по хэшу; null — нет такого или это не хэш (имя от пульта не выходит за пределы кэша). */
+    fun file(sha256: String): File? = if (isSha(sha256)) complete(sha256).takeIf { it.isFile } else null
 
     fun status(sha256: String): FileStatus {
         requireSha(sha256)
@@ -79,7 +86,7 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
 
     /** Отмечает использование файла, чтобы очистка кэша удаляла давно не нужные. */
     fun touch(sha256: String) {
-        complete(sha256).takeIf { it.isFile }?.setLastModified(System.currentTimeMillis())
+        if (isSha(sha256)) complete(sha256).takeIf { it.isFile }?.setLastModified(System.currentTimeMillis())
     }
 
     private fun finish(sha256: String, part: File) {
@@ -91,10 +98,19 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
         if (!part.renameTo(complete(sha256))) throw StoreException("io", "Не удалось сохранить файл")
     }
 
+    /**
+     * Освобождает место под [needed] байт, удаляя давно не показанные файлы. Файл больше всего кэша
+     * отклоняется сразу, ничего не удаляя; то, что на экране, и то, что сейчас пишется, не трогается.
+     */
+    @Synchronized
     private fun ensureSpace(needed: Long) {
         if (needed <= 0) return
-        val files = dir.listFiles { f -> f.isFile && !f.name.endsWith(".part") }?.sortedBy { it.lastModified() } ?: return
-        var used = dir.listFiles()?.sumOf { it.length() } ?: 0
+        if (needed > limitBytes) throw StoreException("space", "Файл больше, чем весь кэш приёмника")
+        val keep = runCatching { protect() }.getOrDefault(emptySet()).map { it.lowercase() }.toSet()
+        val files = dir.listFiles { f -> f.isFile && !f.name.endsWith(".part") && f.name !in keep && f.name !in writing }
+            ?.sortedBy { it.lastModified() } ?: return
+        // Загрузки из браузера лежат во вложенной папке: их объём тоже считается.
+        var used = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
         for (f in files) {
             if (used + needed <= limitBytes) break
             used -= f.length()
@@ -106,8 +122,10 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
     private fun complete(sha256: String) = File(dir, sha256.lowercase())
     private fun part(sha256: String) = File(dir, sha256.lowercase() + ".part")
 
+    private fun isSha(sha256: String) = SHA_RE.matches(sha256)
+
     private fun requireSha(sha256: String) {
-        if (!SHA_RE.matches(sha256)) throw StoreException("sha", "Неверный идентификатор файла")
+        if (!isSha(sha256)) throw StoreException("sha", "Неверный идентификатор файла")
     }
 
     companion object {

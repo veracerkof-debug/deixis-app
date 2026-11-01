@@ -41,6 +41,8 @@ object AudioFormat {
     const val START_BUFFER_MS = 40
     /** Больше этого в запасе — лишнее выбрасывается: звук не отстаёт от картинки. */
     const val MAX_BUFFER_MS = 100
+    /** Самый длинный кусок, который приёмник играет (40 мс); длиннее — отбрасывается, иначе звук отстал бы. */
+    const val MAX_CHUNK_BYTES = CHUNK_BYTES * 4
 
     fun ms(bytes: Int): Int = bytes * 1000 / (RATE * BYTES_PER_FRAME)
     fun bytes(ms: Int): Int = ms * RATE / 1000 * BYTES_PER_FRAME
@@ -53,6 +55,7 @@ class AudioChunk(val ptsUs: Long, val pcm: ByteArray) {
     companion object {
         fun decode(bytes: ByteArray): AudioChunk? {
             if (bytes.size < 8 || (bytes.size - 8) % AudioFormat.BYTES_PER_FRAME != 0) return null
+            if (bytes.size - 8 > AudioFormat.MAX_CHUNK_BYTES) return null
             val b = ByteBuffer.wrap(bytes)
             return AudioChunk(b.long, bytes.copyOfRange(8, bytes.size))
         }
@@ -111,24 +114,30 @@ class AudioSender internal constructor(
         private set
 
     private val job = scope.launch(Dispatchers.IO) {
-        var failures = 0
+        var refused = 0
+        var pause = RETRY_MS
         while (isActive) {
-            var opened = false
             try {
                 open { ws ->
-                    opened = true
-                    failures = 0
+                    refused = 0
                     _connected.value = true
                     while (queue.tryReceive().isSuccess) Unit // старое не нужно: звук должен идти с картинкой
-                    for (c in queue) ws.send(Frame.Binary(true, c.encode()))
+                    for (c in queue) {
+                        ws.send(Frame.Binary(true, c.encode()))
+                        pause = RETRY_MS // пауза сбрасывается только у живой связи, а не у сразу закрытой
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: io.ktor.client.plugins.websocket.WebSocketException) {
+                // Приёмник ответил, но /audio не знает (старая версия): после нескольких таких ответов — без звука.
+                // Обрыв Wi-Fi или перезапуск приёмника сюда не попадает: тогда звук возвращается вместе с картинкой.
+                if (++refused >= GIVE_UP_AFTER) { _connected.value = false; unsupported = true; return@launch }
             } catch (_: Exception) {
             }
             _connected.value = false
-            if (!opened && ++failures >= GIVE_UP_AFTER) { unsupported = true; return@launch }
-            delay(RETRY_MS)
+            delay(pause)
+            pause = (pause * 2).coerceAtMost(MAX_RETRY_MS)
         }
     }
 
@@ -146,7 +155,8 @@ class AudioSender internal constructor(
         /** 50 мс: больше — уже отставание, меньше — щелчки на неровной сети. */
         const val QUEUE_CHUNKS = 5
         const val GIVE_UP_AFTER = 3
-        const val RETRY_MS = 1000L
+        const val RETRY_MS = 500L
+        const val MAX_RETRY_MS = 5_000L
     }
 }
 

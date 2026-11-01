@@ -8,31 +8,43 @@ import java.security.SecureRandom
 
 /**
  * Сопряжение: приёмник показывает PIN, источник вводит его один раз и получает постоянный токен.
- * После пяти неверных PIN код меняется, чтобы его нельзя было подобрать.
+ * После пяти неверных PIN код меняется, а новые попытки не принимаются какое-то время (30 с, дальше вдвое
+ * дольше, до 10 мин) — так четырёхзначный PIN не подобрать перебором из той же сети.
  */
-class Pairing(private val tokens: TokenStore, private val random: SecureRandom = SecureRandom()) {
+class Pairing(
+    private val tokens: TokenStore,
+    private val random: SecureRandom = SecureRandom(),
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
 
     @Volatile
     var pin: String = newPin()
         private set
 
     private var failures = 0
+    private var lockedUntil = 0L
+    private var lockMs = LOCK_FIRST_MS
 
     /** Вызывается при смене PIN, чтобы экран приёмника показал новый. */
     var onPinChanged: (String) -> Unit = {}
 
     @Synchronized
     fun pair(pin: String, sender: String): Result {
+        val now = clock()
+        if (now < lockedUntil) return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
         if (!constantTimeEquals(pin, this.pin)) {
             failures++
             if (failures >= MAX_FAILURES) {
                 rotate()
+                lockedUntil = now + lockMs
+                lockMs = (lockMs * 2).coerceAtMost(LOCK_MAX_MS)
                 return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
             }
             return Result.Denied(DenyReason.WRONG_PIN)
         }
         val token = ByteArray(32).also(random::nextBytes).joinToString("") { "%02x".format(it) }
-        tokens.add(PairedSender(token, sender, System.currentTimeMillis()))
+        tokens.add(PairedSender(token, sender, now))
+        lockMs = LOCK_FIRST_MS
         rotate()
         return Result.Ok(token)
     }
@@ -59,6 +71,8 @@ class Pairing(private val tokens: TokenStore, private val random: SecureRandom =
 
     companion object {
         const val MAX_FAILURES = 5
+        const val LOCK_FIRST_MS = 30_000L
+        const val LOCK_MAX_MS = 10 * 60_000L
     }
 }
 

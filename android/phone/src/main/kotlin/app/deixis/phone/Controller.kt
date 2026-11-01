@@ -432,7 +432,7 @@ class Controller(private val app: Application) {
             messages.emit(
                 when (e.reason) {
                     DenyReason.WRONG_PIN -> "Неверный PIN"
-                    DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. На экране новый PIN"
+                    DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
                     DenyReason.INCOMPATIBLE_VERSION -> "Версии Deixis не совпадают. Обновите приложения"
                     DenyReason.UNKNOWN_TOKEN -> "Приёмник не узнал телефон"
                 },

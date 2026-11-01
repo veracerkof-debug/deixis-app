@@ -89,6 +89,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
+        maxFrameSize = VIEW_FRAME_BYTES // от браузера зрителя приходят только короткие подтверждения
         // Превью в пульте и экран в браузере (`screen=1`) — не зрители: их не считаем.
         val screen = call.request.queryParameters["screen"] == "1"
         val preview = call.request.queryParameters["preview"] == "1" || screen
@@ -121,6 +122,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
+        maxFrameSize = VIEW_FRAME_BYTES // от браузера зрителя приходят только короткие подтверждения
         // Браузер подтверждает каждое полученное сообщение. Буферы сети и браузера способны спрятать
         // секунды видео, поэтому отставание считается по неподтверждённым кадрам, а не по скорости отправки.
         val sent = java.util.concurrent.atomic.AtomicLong()
@@ -230,3 +232,6 @@ private suspend fun ApplicationCall.currentFile(core: ReceiverCore): FileRef? {
 
 private fun resource(path: String): ByteArray =
     ReceiverCore::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: error("Нет ресурса $path")
+
+/** Самый большой кадр от браузера зрителя: ему нечего слать, кроме подтверждений. */
+private const val VIEW_FRAME_BYTES = 64L * 1024

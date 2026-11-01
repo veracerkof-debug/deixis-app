@@ -300,4 +300,12 @@ class StreamEndToEndTest {
         assertTrue(closed)
         assertTrue(!core.stream.active.value)
     }
+
+    @Test
+    fun audioChunkLongerThanFortyMillisecondsIsRejected() {
+        val ok = AudioChunk(1, ByteArray(AudioFormat.MAX_CHUNK_BYTES)).encode()
+        assertTrue(AudioChunk.decode(ok) != null)
+        val long = AudioChunk(1, ByteArray(AudioFormat.MAX_CHUNK_BYTES + AudioFormat.BYTES_PER_FRAME)).encode()
+        assertEquals(null, AudioChunk.decode(long), "8 МБ звука одним куском задержали бы зал на десятки секунд")
+    }
 }

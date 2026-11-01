@@ -67,6 +67,15 @@ class ReceiverCore(
     /** Загрузки из браузера пульта: хэш считает приёмник. */
     val uploads = UploadArea(files, File(files.root, "uploads"))
 
+    /** Файлы, которые сейчас нужны экрану: показ, следующий слайд, наложения, логотип. Очистка кэша их не трогает. */
+    fun onScreen(): Set<String> {
+        val s = _state.value
+        return (s.content?.files.orEmpty() + s.next?.files.orEmpty() + s.overlays.files + listOfNotNull(s.logoImage))
+            .map { it.sha256.lowercase() }.toSet()
+    }
+
+    init { files.protect = ::onScreen }
+
     /** Модули Библии на приёмнике для веб-пульта; null — платформа не читает SQLite. */
     @Volatile
     var bible: BibleStore? = null
@@ -264,8 +273,7 @@ class ReceiverServer(
         server = s
         cleaner = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
             while (true) {
-                val keep = core.state.value.content?.files.orEmpty().map { it.sha256 }.toSet()
-                runCatching { core.files.purgeOlderThan(fileTtlMs, keep) }
+                runCatching { core.files.purgeOlderThan(fileTtlMs, core.onScreen()) }
                 runCatching { core.uploads.purgeOlderThan(fileTtlMs) }
                 kotlinx.coroutines.delay(CLEAN_EVERY_MS)
             }
@@ -290,6 +298,8 @@ class ReceiverServer(
 
     private suspend fun handleSession(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
         val job = coroutineContext[kotlinx.coroutines.Job]
+        // До входа по токену большие кадры не нужны: чужое соединение не займёт 8 МБ памяти.
+        maxFrameSize = PRE_AUTH_FRAME_BYTES
         job?.let(sessions::add)
         try { session(ws) } finally { job?.let(sessions::remove) }
     }
@@ -315,6 +325,7 @@ class ReceiverServer(
             else -> false
         }
         if (!ok) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
+        maxFrameSize = SESSION_FRAME_BYTES
 
         // Подписка — до приветствия, и состояние в приветствии — то же, что первое в подписке. Иначе
         // команда, пришедшая сразу после входа (переподключение шлёт слайд мгновенно), меняла экран
@@ -378,7 +389,8 @@ class ReceiverServer(
             for (frame in incoming) {
                 if (audioSource.get() != me) break
                 if (frame !is Frame.Binary) continue
-                AudioChunk.decode(frame.readBytes())?.let(core.audio::publish)
+                // Кусок длиннее положенного (больше 40 мс) не играется: он задержал бы звук в зале.
+                AudioChunk.decode(frame.readBytes())?.takeIf { it.pcm.size <= AudioFormat.MAX_CHUNK_BYTES }?.let(core.audio::publish)
             }
         } finally {
             if (audioSource.get() == me) core.audio.stop()
@@ -398,6 +410,8 @@ class ReceiverServer(
 
     companion object {
         const val DEFAULT_PORT = 47820
+        private const val PRE_AUTH_FRAME_BYTES = 64L * 1024
+        private const val SESSION_FRAME_BYTES = 8L * 1024 * 1024
         const val HEADER_SIZE = "Deixis-Size"
         const val FILE_TTL_MS = 24L * 60 * 60 * 1000
         private val LOOPBACK = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")

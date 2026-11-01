@@ -52,6 +52,39 @@ class FileStoreTest {
     }
 
     @Test
+    fun namesOutsideTheCacheAreNotReachable() {
+        val store = FileStore(File(dir, "files"))
+        File(dir, "tokens.json").writeText("секрет")
+        assertNull(store.file("../tokens.json"))
+        assertNull(store.file("..%2Ftokens.json"))
+        store.touch("../tokens.json")
+        assertFailsWith<StoreException> { store.status("../tokens.json") }
+    }
+
+    @Test
+    fun fileLargerThanCacheEvictsNothing() {
+        val store = FileStore(dir, limitBytes = 700_000)
+        store.append(sha, data.size.toLong(), 0, data.inputStream())
+        val e = assertFailsWith<StoreException> { store.append("a".repeat(64), 10_000_000, 0, ByteArray(0).inputStream()) }
+        assertEquals("space", e.code)
+        assertNotNull(store.file(sha), "кэш не опустел из-за одного слишком большого файла")
+    }
+
+    @Test
+    fun fileOnScreenIsNotEvicted() {
+        val store = FileStore(dir, limitBytes = 700_000)
+        val files = (1..3).map { Random(it + 10).nextBytes(300_000) }
+        val shas = files.map { sha256Of(it.inputStream()) }
+        store.protect = { setOf(shas[0]) }
+        store.append(shas[0], 300_000, 0, files[0].inputStream())
+        File(dir, shas[0]).setLastModified(1_000)
+        store.append(shas[1], 300_000, 0, files[1].inputStream())
+        store.append(shas[2], 300_000, 0, files[2].inputStream())
+        assertNotNull(store.file(shas[0]), "то, что на экране, остаётся")
+        assertNull(store.file(shas[1]))
+    }
+
+    @Test
     fun oldestFilesAreEvictedWhenFull() {
         val store = FileStore(dir, limitBytes = 700_000)
         val files = (1..3).map { Random(it).nextBytes(300_000) }

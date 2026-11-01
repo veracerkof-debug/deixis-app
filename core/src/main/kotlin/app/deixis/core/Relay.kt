@@ -157,7 +157,7 @@ class ScreenRelay(
             } catch (e: PairingException) {
                 return LinkResult(false, error = when (e.reason) {
                     DenyReason.WRONG_PIN -> "Неверный PIN"
-                    DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток: на экране новый PIN"
+                    DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
                     DenyReason.INCOMPATIBLE_VERSION -> "На экране другая версия Deixis"
                     DenyReason.UNKNOWN_TOKEN -> "Экран не принял подключение"
                 }, needPin = true)

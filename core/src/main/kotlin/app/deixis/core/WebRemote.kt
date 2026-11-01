@@ -42,7 +42,7 @@ class UploadArea(private val files: FileStore, private val dir: File) {
     init { dir.mkdirs() }
 
     private fun part(id: String): File {
-        require(ID.matches(id)) { "Неверный номер загрузки" }
+        if (!ID.matches(id)) throw StoreException("id", "Неверный номер загрузки")
         return File(dir, "$id.part")
     }
 
@@ -51,12 +51,21 @@ class UploadArea(private val files: FileStore, private val dir: File) {
         dir.listFiles()?.forEach { if (it.isFile && now - it.lastModified() > maxAgeMs) it.delete() }
     }
 
-    fun received(id: String): Long = part(id).takeIf { it.isFile }?.length() ?: 0
+    fun received(id: String): Long = if (!ID.matches(id)) 0 else part(id).takeIf { it.isFile }?.length() ?: 0
 
-    /** Дописывает часть; когда собран весь файл, кладёт его в хранилище и возвращает ссылку. */
-    @Synchronized
+    private val writing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * Дописывает часть; когда собран весь файл, кладёт его в хранилище и возвращает ссылку.
+     * Замок — на одну загрузку: медленный телефон не задерживает загрузки с других.
+     */
     fun append(id: String, name: String, size: Long, offset: Long, input: InputStream): FileRef? {
         val p = part(id)
+        if (!writing.add(id)) throw StoreException("busy", "Файл уже передаётся")
+        try { return appendLocked(id, p, name, size, offset, input) } finally { writing.remove(id) }
+    }
+
+    private fun appendLocked(id: String, p: File, name: String, size: Long, offset: Long, input: InputStream): FileRef? {
         val have = received(id)
         if (offset != have) throw StoreException("offset", "Ожидалось смещение $have, получено $offset")
         if (size > FILE_LIMIT_BYTES) throw StoreException("size", "Файл больше 1 ГБ: покажите его с компьютера")
@@ -315,7 +324,7 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
             if (ref == null) call.respondText("""{"bytes":${area.received(id)}}""", ContentType.Application.Json)
             else call.respondText("""{"file":${DeixisJson.encodeToString(FileRef.serializer(), ref)}}""", ContentType.Application.Json)
         } catch (e: StoreException) {
-            call.respondText(e.message.orEmpty(), status = if (e.code == "offset") HttpStatusCode.Conflict else HttpStatusCode.BadRequest)
+            call.respondText(e.message.orEmpty(), status = if (e.code == "offset" || e.code == "busy") HttpStatusCode.Conflict else HttpStatusCode.BadRequest)
         }
     }
 

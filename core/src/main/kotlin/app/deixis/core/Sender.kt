@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.io.InputStream
 
@@ -115,7 +115,8 @@ class SenderClient(
         var result: Result<String>? = null
         http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/ws") {
             send(Frame.Text(PairRequest(PROTOCOL_VERSION, senderName, pin).encode()))
-            val reply = withTimeout(10_000) { (incoming.receive() as? Frame.Text)?.readText()?.let(::decodeMsg) }
+            // Без ответа за 10 с — обычная ошибка связи, а не отмена (иначе её проглотил бы обработчик отмены выше).
+            val reply = withTimeoutOrNull(10_000) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }
             result = when (reply) {
                 is Paired -> Result.success(reply.token)
                 is Denied -> Result.failure(PairingException(reply.reason))
@@ -159,7 +160,9 @@ class SenderClient(
     /** Возвращает true, если сессия дошла до welcome. */
     private suspend fun DefaultClientWebSocketSession.runSession(token: String): Boolean = coroutineScope {
         send(Frame.Text(Hello(PROTOCOL_VERSION, senderName, token).encode()))
-        when (val first = withTimeout(10_000) { (incoming.receive() as? Frame.Text)?.readText()?.let(::decodeMsg) }) {
+        // withTimeoutOrNull: истёкшее ожидание — обрыв связи, после него цикл подключается заново. withTimeout бросил бы
+        // отмену, и цикл переподключения молча закончился бы навсегда.
+        when (val first = withTimeoutOrNull(10_000) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }) {
             is Welcome -> {
                 _state.value = first.state
                 receiverId = first.receiver.id
