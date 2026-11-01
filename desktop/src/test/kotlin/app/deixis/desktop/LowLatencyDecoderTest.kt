@@ -70,6 +70,8 @@ class LowLatencyDecoderTest {
 
     @Test
     fun ffmpegBuildIsLgpl() {
+        // В CI библиотеки FFmpeg обязаны загрузиться на каждой системе: иначе быстрый показ молча не включится.
+        if (System.getenv("CI") != null) assertTrue(LowLatencyDecoder.available, "FFmpeg не загрузился на " + System.getProperty("os.name"))
         if (!LowLatencyDecoder.available) return
         val cfg = LowLatencyDecoder.configuration()
         println("FFmpeg: $cfg")
