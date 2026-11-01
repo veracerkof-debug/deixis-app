@@ -9,6 +9,17 @@ plugins {
 java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
+/** Платформа библиотек FFmpeg: та, на которой идёт сборка (каждый установщик собирается на своей системе). */
+val javacppPlatform: String = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arm = System.getProperty("os.arch").lowercase().let { it.contains("aarch64") || it.contains("arm64") }
+    when {
+        os.contains("win") -> "windows-x86_64"
+        os.contains("mac") -> if (arm) "macosx-arm64" else "macosx-x86_64"
+        else -> if (arm) "linux-arm64" else "linux-x86_64"
+    }
+}
+
 dependencies {
     implementation(project(":core"))
     implementation(libs.coroutines.swing)
@@ -20,6 +31,12 @@ dependencies {
     implementation(libs.poi.ooxml)
     implementation(libs.poi.scratchpad)
     implementation(libs.sqlite.jdbc)
+    // Трансляция экрана с малой задержкой: декодер FFmpeg напрямую (сборка bytedeco под LGPL), кадр — сразу на экран.
+    // В установщик идут библиотеки только той платформы, на которой он собирается.
+    implementation(libs.ffmpeg)
+    runtimeOnly(variantOf(libs.ffmpeg) { classifier(javacppPlatform) })
+    runtimeOnly(variantOf(libs.javacpp) { classifier(javacppPlatform) })
+    testRuntimeOnly(variantOf(libs.ffmpeg) { classifier(javacppPlatform) })
     runtimeOnly(libs.slf4j.nop)
 
     testImplementation(libs.kotlin.test)

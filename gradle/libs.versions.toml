@@ -5,6 +5,8 @@ serialization = "1.12.0"
 ktor = "3.6.0"
 jmdns = "3.6.4"
 vlcj = "4.12.1"
+ffmpeg = "7.1-1.5.11"
+javacpp = "1.5.11"
 libvlc = "3.7.7"
 pdfbox = "3.0.8"
 poi = "5.4.1"
@@ -31,6 +33,8 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 jmdns = { module = "org.jmdns:jmdns", version.ref = "jmdns" }
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
+ffmpeg = { module = "org.bytedeco:ffmpeg", version.ref = "ffmpeg" }
+javacpp = { module = "org.bytedeco:javacpp", version.ref = "javacpp" }
 libvlc = { module = "org.videolan.android:libvlc-all", version.ref = "libvlc" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }

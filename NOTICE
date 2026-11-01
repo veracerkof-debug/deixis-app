@@ -44,3 +44,13 @@ android/receiver/src/main/res/font: Carlito and Caladea (Google, metric-compatib
 with Calibri and Cambria) and Liberation Sans (Red Hat, metric-compatible with Arial),
 all under the SIL Open Font License 1.1. They are used by the built-in PPTX to PDF
 conversion so that lines break where PowerPoint breaks them.
+
+
+Bundled FFmpeg (desktop)
+
+The desktop installers include FFmpeg libraries packaged by the Bytedeco JavaCPP Presets
+(org.bytedeco:ffmpeg, https://github.com/bytedeco/javacpp-presets; JavaCPP is Apache-2.0).
+That FFmpeg build is configured with --enable-version3 and without --enable-gpl or
+--enable-nonfree, so it is licensed under the GNU LGPL version 3 or later. Source code:
+https://ffmpeg.org and the javacpp-presets repository. It decodes the phone's screen
+broadcast with low latency (the same approach as scrcpy; no scrcpy code is used).

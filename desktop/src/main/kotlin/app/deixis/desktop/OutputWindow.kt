@@ -63,6 +63,8 @@ interface OutputHost {
     val snapshotDir: File?
     fun file(sha256: String): File?
     fun streamUrl(): String
+    /** Кадры трансляции экрана прямо из приёмника этой программы (быстрый показ без плеера); null — нет. */
+    fun streamFrames(): kotlinx.coroutines.flow.Flow<app.deixis.core.StreamSample>? = null
     fun reportError(message: String?)
     fun reportVideo(state: VideoState?)
     fun quit()
@@ -113,6 +115,8 @@ class OutputWindow(
     private val frame = JFrame("Deixis").also(AppIcon::apply)
     private val cards = JPanel(CardLayout())
     private val slide = SlideView()
+    /** Трансляция экрана с малой задержкой (FFmpeg напрямую); без FFmpeg трансляцию показывает VLC. */
+    private val screen = ScreenView()
     private var video: VideoPlayer? = null
     private var videoPane: VideoPane? = null
     private var playingSha: String? = null
@@ -142,6 +146,7 @@ class OutputWindow(
         frame.background = Color.BLACK
         cards.background = Color.BLACK
         cards.add(slide, CARD_SLIDE)
+        cards.add(screen, CARD_SCREEN)
         frame.contentPane = cards
         // Полный экран macOS требует обычного окна с заголовком: система сама убирает рамку.
         if (mode == WindowMode.EXCLUSIVE || mode == WindowMode.COVER) frame.isUndecorated = true
@@ -335,21 +340,23 @@ class OutputWindow(
         if (needWindow && overlayWindow == null) overlayWindow = OverlayWindow(frame) { g, w, h -> paintOverlay(g, w, h) }
         overlayWindow?.let { it.showing = needWindow }
         slide.overlay = if (!active) null else { g, w, h -> paintOverlay(g, w, h) }
+        screen.overlay = if (!active) null else { g, w, h -> paintOverlay(g, w, h) }
         pane?.let { p -> p.overlay = if (!active || video?.nativeWindow == true) null else { g -> paintOverlay(g, p.width, p.height) } }
     }
 
     private fun repaintOverlay() {
         slide.repaint()
+        if (playingSha == FAST_STREAM) screen.repaint()
         videoPane?.repaint()
         overlayWindow?.repaintLayer()
     }
 
     fun videoCommand(cmd: VideoCommand) {
-        if (playingSha != null && playingSha != STREAM) video?.apply(cmd)
+        if (playingSha != null && playingSha != STREAM && playingSha != FAST_STREAM) video?.apply(cmd)
     }
 
     /** Ход видео для пульта; null — сейчас не идёт файл. */
-    fun videoState(): VideoState? = if (playingSha != null && playingSha != STREAM) video?.state() else null
+    fun videoState(): VideoState? = if (playingSha != null && playingSha != STREAM && playingSha != FAST_STREAM) video?.state() else null
 
     private fun ensureVideo() {
         if (video != null) return
@@ -383,6 +390,18 @@ class OutputWindow(
     private fun applyVideo(s: FrameState) {
         if (primary) host.reportError(null)
         val content = s.content
+        // Трансляция экрана — быстрым путём, если на компьютере есть FFmpeg (в установщике он есть): кадр сразу на экран.
+        if (content is ScreenContent && fastScreen()) {
+            if (playingSha != null && playingSha != FAST_STREAM) { video?.stop(); if (primary && playingSha != STREAM) host.reportVideo(null) }
+            if (playingSha != FAST_STREAM) {
+                playingSha = FAST_STREAM
+                host.streamFrames()?.let { frames -> screen.start(host.scope, frames) { screenFailed = true; applyVideo(s) } }
+            }
+            // «Чёрный» и «Логотип» закрывают трансляцию, но поток не рвут: картинка вернётся сразу.
+            if (s.mode == Mode.NORMAL) showScreen() else showSlide()
+            return
+        }
+        if (playingSha == FAST_STREAM) { screen.stop(); playingSha = null }
         // VLC запускается, только когда понадобился: программа без видео не зависит от него вовсе.
         if (content is VideoContent || content is ScreenContent) ensureVideo()
         val v = video
@@ -431,6 +450,13 @@ class OutputWindow(
 
     private fun showSlide() { (cards.layout as CardLayout).show(cards, CARD_SLIDE); placeOverlay() }
 
+    private fun showScreen() { (cards.layout as CardLayout).show(cards, CARD_SCREEN); placeOverlay() }
+
+    /** Сбой быстрого показа (нет библиотек, ошибка декодера) — до конца работы программы трансляцию ведёт VLC. */
+    private var screenFailed = false
+
+    private fun fastScreen(): Boolean = !screenFailed && host.streamFrames() != null && LowLatencyDecoder.available
+
     private fun redraw(s: FrameState) {
         val w = slide.width.takeIf { it > 0 } ?: return
         val h = slide.height.takeIf { it > 0 } ?: return
@@ -465,6 +491,7 @@ class OutputWindow(
     }
 
     fun dispose() {
+        screen.stop()
         overlayTimer.stop()
         overlayWindow?.dispose()
         overlayWindow = null
@@ -555,6 +582,9 @@ class OutputWindow(
     internal companion object {
         const val CARD_SLIDE = "slide"
         const val CARD_VIDEO = "video"
+        const val CARD_SCREEN = "screen-fast"
+        /** Трансляция идёт быстрым путём (FFmpeg напрямую), а не через VLC. */
+        const val FAST_STREAM = "screen-fast"
         /** Метка в playingSha: в проигрывателе идёт трансляция экрана, а не файл. */
         const val STREAM = "screen"
         const val STREAM_RESTART_MS = 300

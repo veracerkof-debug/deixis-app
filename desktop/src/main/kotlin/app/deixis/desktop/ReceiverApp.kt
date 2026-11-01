@@ -438,6 +438,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     override fun file(sha256: String): File? = core.files.file(sha256)
     override fun streamUrl(): String = server.localStreamUrl(port)
+    override fun streamFrames() = core.stream.subscribe()
     override fun reportError(message: String?) = core.reportError(message)
     override fun reportVideo(state: VideoState?) = core.reportVideo(state)
 

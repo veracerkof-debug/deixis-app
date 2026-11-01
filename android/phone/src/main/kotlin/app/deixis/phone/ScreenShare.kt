@@ -233,6 +233,9 @@ private class Encoder(w: Int, h: Int, private val stream: ScreenStream) {
                 // Baseline без B-кадров: кадр уходит сразу, его понимает любой декодер, включая браузеры.
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
                 setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41)
+                // Кодировщик не держит кадры у себя: каждый выходит сразу (как у scrcpy). Не понял ключ —
+                // запасная настройка ниже обходится без него.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) setInteger(MediaFormat.KEY_LATENCY, 1)
             }
         }
         try {
