@@ -300,7 +300,7 @@ private fun BoxScope.Loading(text: String) {
     val a by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(T.spin, easing = LinearEasing), RepeatMode.Restart), label = "spin")
     val percent = Regex("(\\d+)%").find(text)?.groupValues?.get(1)
     Column(
-        Modifier.matchParentSize().clip(RoundedCornerShape(T.rSlide)).background(Color.Black.copy(alpha = T.scrim)).padding(T.gapS),
+        Modifier.matchParentSize().clip(RoundedCornerShape(T.rSlide)).background(Color.Black.copy(alpha = T.busyDim)).padding(T.gapS),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Canvas(Modifier.size(28.dp).rotate(a)) { drawArc(p.tint, 0f, 270f, false, style = Stroke(3.dp.toPx())) }

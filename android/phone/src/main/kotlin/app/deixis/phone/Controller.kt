@@ -44,6 +44,7 @@ import app.deixis.core.ScriptureContent
 import app.deixis.core.ScriptureOptions
 import app.deixis.core.SenderClient
 import app.deixis.core.TextContent
+import app.deixis.core.SongFormats
 import app.deixis.core.TextStyle
 import app.deixis.core.VAlign
 import app.deixis.core.UploadSource
@@ -1335,7 +1336,7 @@ class Controller(private val app: Application) {
             Kind.TEXT -> {
                 val text = app.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() }
                 // ChordPro и OpenLyrics — песня с частями «Куплет», «Припев»; чужой XML не подходит вовсе.
-                val song = app.deixis.core.SongFormats.import(name, text)
+                val song = SongFormats.import(name, text)
                 when {
                     song != null && song.slides.isNotEmpty() ->
                         LibItem(id, Kind.SONG, song.title.ifBlank { name.substringBeforeLast('.') }, slides = song.slides, labels = song.labels)

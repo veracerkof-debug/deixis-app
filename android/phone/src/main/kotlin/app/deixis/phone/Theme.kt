@@ -194,8 +194,8 @@ object T {
     const val slow = 340
     /** Оборот значка «идёт связь» и «передаётся файл». */
     const val spin = 1100
-    /** Затемнение под ходом передачи на миниатюре. */
-    const val scrim = 0.6f
+    /** Затемнение под ходом передачи на миниатюре: цифры читаются на любом кадре. */
+    const val busyDim = 0.6f
     val eOut = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
     val eIn = CubicBezierEasing(0.4f, 0f, 1f, 1f)
     val eSpring = CubicBezierEasing(0.3f, 1.35f, 0.55f, 1f)
