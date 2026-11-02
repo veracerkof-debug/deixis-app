@@ -921,6 +921,8 @@ function connect(pin) {
     if (m.type === "paired") { token = m.token; store.set("token", token); dropPinFromUrl(); }
     else if (m.type === "welcome") {
       receiver = m.receiver; viewKey = m.viewKey || null;
+      // Cookie сеанса для превью; старый экран её не знает — тогда превью просто не загрузятся, как раньше без токена.
+      authed("/remote/session", { method: "POST" }).then(() => render()).catch(() => {});
       setScreenRatio(receiver);
       store.set("receiver", { id: receiver.id, port: location.port });
       pause = 500; fails = 0;
@@ -1029,8 +1031,9 @@ const getJson = (path) => authed(path).then((r) => r.json());
 const postJson = (path, body) => authed(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
 
 // Файлы с экрана для превью: картинке и видео браузер заголовок не пришлёт, поэтому токен — параметром.
-const fileUrl = (ref) => LOCAL[ref.sha256] || `/remote/file/${ref.sha256}?n=${encodeURIComponent(ref.name || "")}&t=${encodeURIComponent(token || "")}`;
-const pageUrl = (ref, page, w) => `/remote/page/${ref.sha256}/${page}?w=${w || 480}&t=${encodeURIComponent(token || "")}`;
+// Токен в адресах ссылок не нужен: превью идут по закрытой cookie сеанса (POST /remote/session после входа).
+const fileUrl = (ref) => LOCAL[ref.sha256] || `/remote/file/${ref.sha256}?n=${encodeURIComponent(ref.name || "")}`;
+const pageUrl = (ref, page, w) => `/remote/page/${ref.sha256}/${page}?w=${w || 480}`;
 const qrUrl = (text) => `/remote/qr.svg?text=${encodeURIComponent(text)}`;
 
 // ——— Состояние экрана ———

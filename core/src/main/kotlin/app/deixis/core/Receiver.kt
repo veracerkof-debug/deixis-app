@@ -276,7 +276,10 @@ class ReceiverServer(
                 // Поток экрана для своего же проигрывателя (VLC на компьютере): тот же MP4, что у зрителей,
                 // с метками времени — без них VLC играл бы с угаданной частотой кадров и копил отставание.
                 get("/stream/mp4") {
-                    if (call.request.local.remoteAddress !in LOOPBACK || call.secure()) return@get call.respondText("", status = HttpStatusCode.Forbidden)
+                    // Только этому же устройству и только по его же адресу: страница из сети, подменившая имя
+                    // своего сайта на 127.0.0.1 (DNS rebinding), поток не получит.
+                    val hostOk = call.request.local.serverHost.let { it == "127.0.0.1" || it == "localhost" || it == "::1" }
+                    if (call.request.local.remoteAddress !in LOOPBACK || call.secure() || !hostOk) return@get call.respondText("", status = HttpStatusCode.Forbidden)
                     call.response.header("Cache-Control", "no-store")
                     call.respondBytesWriter(ContentType("video", "mp4")) {
                         fmp4Stream(core, onCodec = {}, onData = { writeFully(it); flush() }, endOnNewConfig = true)
@@ -342,6 +345,9 @@ class ReceiverServer(
 
     private val sessions = java.util.concurrent.ConcurrentHashMap.newKeySet<kotlinx.coroutines.Job>()
 
+    /** Соединений /ws, ещё не вошедших по токену или PIN: чужая программа не займёт ими весь сервер. */
+    private val waiting = java.util.concurrent.atomic.AtomicInteger()
+
     private suspend fun handleSession(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
         val job = coroutineContext[kotlinx.coroutines.Job]
         // До входа по токену большие кадры не нужны: чужое соединение не займёт 8 МБ памяти.
@@ -352,8 +358,16 @@ class ReceiverServer(
 
     private suspend fun session(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
         // Первое сообщение — hello с токеном или pair с PIN. Без него сессия закрывается.
-        val first = withTimeoutOrNull(10_000) {
-            (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg)
+        if (waiting.incrementAndGet() > MAX_WAITING) {
+            waiting.decrementAndGet()
+            return@with close(CloseReason(CloseReason.Codes.TRY_AGAIN_LATER, "busy"))
+        }
+        val first = try {
+            withTimeoutOrNull(10_000) {
+                (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg)
+            }
+        } finally {
+            waiting.decrementAndGet()
         }
         val ok = when (first) {
             is Hello -> when {
@@ -462,6 +476,8 @@ class ReceiverServer(
         /** Шифрованный вход пультов. */
         const val DEFAULT_TLS_PORT = 47821
         private const val PRE_AUTH_FRAME_BYTES = 64L * 1024
+        /** Сколько соединений одновременно может ждать входа по токену или PIN. */
+        private const val MAX_WAITING = 32
         private const val SESSION_FRAME_BYTES = 8L * 1024 * 1024
         const val HEADER_SIZE = "Deixis-Size"
         const val FILE_TTL_MS = 24L * 60 * 60 * 1000

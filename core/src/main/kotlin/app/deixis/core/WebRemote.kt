@@ -449,17 +449,30 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
         call.respondText(qrSvg(text), ContentType.Image.SVG)
     }
 
-    // Файлы и страницы PDF на этом экране — для превью на пульте. Картинке и видео браузер заголовок не пришлёт,
-    // поэтому токен можно передать и параметром t.
+    // Сеанс веб-пульта: токен — в закрытой cookie (HttpOnly, только этому сайту). Картинки и видео превью
+    // идут с ней сами, и токену не нужно быть в адресе ссылки (история браузера, «Поделиться» на iPhone).
+    post("/remote/session") {
+        if (!call.authorized()) return@post call.respondText("", status = HttpStatusCode.Unauthorized)
+        val token = call.request.header("Authorization")?.removePrefix("Bearer ")?.trim().orEmpty()
+        call.response.cookies.append(io.ktor.http.Cookie(
+            REMOTE_COOKIE, token, path = "/remote", httpOnly = true, maxAge = REMOTE_COOKIE_AGE_S,
+            extensions = mapOf("SameSite" to "Strict"),
+        ))
+        call.respondText("{}", ContentType.Application.Json)
+    }
+
+    // Файлы и страницы PDF на этом экране — для превью на пульте: по cookie сеанса (прежние страницы — параметром t).
+    fun ApplicationCall.previewAllowed(): Boolean = authorized() ||
+        core.pairing.isValid(request.cookies[REMOTE_COOKIE]) || core.pairing.isValid(request.queryParameters["t"])
     get("/remote/file/{sha}") {
-        if (!call.authorized() && !core.pairing.isValid(call.request.queryParameters["t"])) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
+        if (!call.previewAllowed()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
         val file = core.files.file(call.parameters["sha"].orEmpty()) ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
         val type = runCatching { ContentType.parse(mimeOf(call.request.queryParameters["n"].orEmpty())) }.getOrDefault(ContentType.Application.OctetStream)
         call.response.header("Cache-Control", "private, max-age=3600")
         call.respond(LocalFileContent(file, type))
     }
     get("/remote/page/{sha}/{page}") {
-        if (!call.authorized() && !core.pairing.isValid(call.request.queryParameters["t"])) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
+        if (!call.previewAllowed()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
         val file = core.files.file(call.parameters["sha"].orEmpty()) ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
         val page = call.parameters["page"]?.toIntOrNull() ?: return@get call.respondText("", status = HttpStatusCode.BadRequest)
         val renderer = core.pageRenderer ?: return@get call.respondText("", status = HttpStatusCode.NotImplemented)
@@ -480,6 +493,8 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
         if (core.holyrics == null) return@post call.respondText("Holyrics доступен через Deixis для компьютера рядом с ним", status = HttpStatusCode.NotImplemented)
         try {
             val req = DeixisJson.decodeFromString(HolyricsCall.serializer(), call.receiveText())
+            // Только порт обычной программы: этот запрос не должен становиться ходом к любым службам компьютера.
+            if (req.port !in 1024..65535) return@post call.respondText("Неверный порт Holyrics", status = HttpStatusCode.BadRequest)
             if (req.action !in HOLYRICS_ALLOWED) return@post call.respondText("Действие недоступно", status = HttpStatusCode.Forbidden)
             val data: JsonElement = withContext(Dispatchers.IO) { HolyricsClient("127.0.0.1", req.port, req.token).use { it.call(req.action, req.body) } } ?: JsonNull
             call.respondText(data.toString(), ContentType.Application.Json)
@@ -540,3 +555,7 @@ private fun remoteResource(path: String): ByteArray =
 
 @Serializable
 internal data class OverlaySampleInfo(val name: String, val overlays: Overlays)
+
+/** Cookie сеанса веб-пульта. */
+private const val REMOTE_COOKIE = "deixis"
+private const val REMOTE_COOKIE_AGE_S = 365 * 24 * 60 * 60

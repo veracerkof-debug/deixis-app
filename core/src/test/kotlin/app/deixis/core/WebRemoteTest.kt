@@ -200,6 +200,13 @@ class WebRemoteTest {
         assertEquals(HttpStatusCode.OK, png.status)
         assertEquals("image/png", png.headers["Content-Type"])
         assertEquals(HttpStatusCode.Unauthorized, http.get(url("/remote/page/${ref.sha256}/2?t=wrong")).status)
+        // Сеанс: закрытая cookie вместо токена в адресе картинки.
+        val session = http.post(url("/remote/session")) { header("Authorization", "Bearer $token") }
+        val cookie = session.headers["Set-Cookie"].orEmpty()
+        assertTrue(cookie.startsWith("deixis=") && cookie.contains("HttpOnly") && cookie.contains("SameSite=Strict"), cookie)
+        val byCookie = http.get(url("/remote/file/${ref.sha256}?n=a.jpg")) { header("Cookie", cookie.substringBefore(';')) }
+        assertEquals(HttpStatusCode.OK, byCookie.status)
+        assertEquals(HttpStatusCode.Unauthorized, http.post(url("/remote/session")).status)
     }
 
     @Test

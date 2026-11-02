@@ -85,7 +85,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
     }
 
     webSocket("/view/ws") {
-        if (call.request.queryParameters["k"] != core.viewKey) {
+        if (!viewKeyOk(call.request.queryParameters["k"], core.viewKey)) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
@@ -118,7 +118,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
     // Демонстрация экрана для браузера: фрагментированный MP4, кадр за кадром. Перед каждым новым набором
     // SPS/PPS идёт текстовое сообщение с кодеком и начальный сегмент.
     webSocket("/view/stream") {
-        if (call.request.queryParameters["k"] != core.viewKey) {
+        if (!viewKeyOk(call.request.queryParameters["k"], core.viewKey)) {
             close(CloseReason(VIEW_BAD_KEY, "bad key"))
             return@webSocket
         }
@@ -127,6 +127,12 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
         // секунды видео, поэтому отставание считается по неподтверждённым кадрам, а не по скорости отправки.
         val sent = java.util.concurrent.atomic.AtomicLong()
         val acked = java.util.concurrent.atomic.AtomicLong()
+        // Зрителей трансляции — не больше MAX_VIEW_STREAMS: у каждого свой упаковщик видео, память не безразмерна.
+        if (viewStreams.incrementAndGet() > MAX_VIEW_STREAMS) {
+            viewStreams.decrementAndGet()
+            close(CloseReason(CloseReason.Codes.TRY_AGAIN_LATER, "too many viewers"))
+            return@webSocket
+        }
         val acks = launch { for (frame in incoming) if (frame is Frame.Text) acked.incrementAndGet() }
         try {
             fmp4Stream(core,
@@ -135,6 +141,7 @@ internal fun Route.viewerRoutes(core: ReceiverCore) {
                 canSend = { sent.get() - acked.get() < VIEW_STREAM_WINDOW })
         } finally {
             acks.cancel()
+            viewStreams.decrementAndGet()
         }
     }
 
@@ -214,7 +221,7 @@ internal suspend fun fmp4Stream(
 private val ASSETS = setOf("GFSDidot-Regular.ttf", "NotoSans-SemiBold.ttf")
 
 private suspend fun ApplicationCall.currentFile(core: ReceiverCore): FileRef? {
-    if (request.queryParameters["k"] != core.viewKey) {
+    if (!viewKeyOk(request.queryParameters["k"], core.viewKey)) {
         respondText("", status = HttpStatusCode.Forbidden)
         return null
     }
@@ -235,3 +242,10 @@ private fun resource(path: String): ByteArray =
 
 /** Самый большой кадр от браузера зрителя: ему нечего слать, кроме подтверждений. */
 private const val VIEW_FRAME_BYTES = 64L * 1024
+
+private val viewStreams = java.util.concurrent.atomic.AtomicInteger()
+private const val MAX_VIEW_STREAMS = 32
+
+/** Ключ зрителей сравнивается за постоянное время: по времени ответа его не подобрать. */
+private fun viewKeyOk(given: String?, key: String): Boolean =
+    given != null && java.security.MessageDigest.isEqual(given.toByteArray(), key.toByteArray())
