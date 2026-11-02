@@ -321,7 +321,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
                         if (tick++ % KEYS_EVERY == 0) keys.value = HolyricsKey.entries.filter { k -> runCatching { c.screenKey(k) }.getOrDefault(false) }.toSet()
                     }
                 }
-                delay(500)
+                // Пульт не на экране (телефон в кармане) — реже: батарея не тратится на то, чего никто не видит.
+                delay(if ((app as? PhoneApp)?.remoteVisible != false) POLL_MS else POLL_HIDDEN_MS)
             }
         }
     }
@@ -520,6 +521,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         const val PREVIEW = "320x180"
         /** Клавиши F8–F10 опрашиваются через столько циклов (по полсекунды). */
         const val KEYS_EVERY = 4
+        const val POLL_MS = 500L
+        const val POLL_HIDDEN_MS = 3_000L
         const val THUMB_CHUNK = 12
         const val MIX_DELAY_MS = 250L
         const val BIBLE_KEY = "bible:"

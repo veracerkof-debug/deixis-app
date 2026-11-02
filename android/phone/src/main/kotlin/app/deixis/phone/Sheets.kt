@@ -364,8 +364,9 @@ fun LargeSheet(c: Controller, ui: Ui, f: LargeFile) {
 
 fun LibItem.matches(q: String): Boolean {
     if (q.isBlank()) return true
-    val needle = q.trim().lowercase()
-    return title.lowercase().contains(needle) || slides.any { it.lowercase().contains(needle) }
+    // Без перевода в нижний регистр каждой строки: на тысячах песен это десятки тысяч строк на каждую букву.
+    val needle = q.trim()
+    return title.contains(needle, ignoreCase = true) || slides.any { it.contains(needle, ignoreCase = true) }
 }
 
 @Composable
@@ -374,7 +375,9 @@ fun FindSheet(c: Controller, ui: Ui) {
     val set by c.activeSet.collectAsState()
     var q by remember { mutableStateOf("") }
     SearchField(q, "Песня, стих, файл", Modifier.padding(bottom = T.gap)) { q = it }
-    val found = data.items.filter { it.matches(q) }
+    val all = remember(data.items, q) { data.items.filter { it.matches(q) } }
+    // Лист не прокручивается списком: при пустом запросе и тысячах песен он строил бы их все сразу.
+    val found = all.take(FIND_SHOWN)
     Group {
         if (found.isEmpty()) Cell("Ничего не найдено", chevron = null)
         found.forEachIndexed { i, it ->
@@ -388,6 +391,7 @@ fun FindSheet(c: Controller, ui: Ui) {
             }
         }
     }
+    if (all.size > found.size) Note("Показаны первые $FIND_SHOWN из ${all.size}: точнее запрос — меньше лишнего.", Modifier.padding(top = T.gapS))
     Note("Найденное открывается в предпросмотре — его можно показать, даже если в сетлисте этого нет.")
 }
 
@@ -637,3 +641,6 @@ fun ViewersBlock(c: Controller) {
         local?.let { Sep(T.gutter); Cell(it, "По имени: iPhone, компьютер", chevron = null) }
     }
 }
+
+/** Сколько найденного показывает лист «Найти» сразу. */
+private const val FIND_SHOWN = 60

@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,8 +52,13 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
         null, Kind.PRESENTATION, Kind.VIDEO, Kind.PHOTO, Kind.FILE, Kind.SONG, Kind.TEXT, if (st.church) Kind.BIBLE else null,
     )
     val segs = listOf<Kind?>(null) + kinds.filterNotNull()
-    val items = data.items.filter { (ui.libSeg == null || it.kind == ui.libSeg) && it.matches(ui.libQuery) }
-    val groups = Kind.entries.mapNotNull { k -> items.filter { it.kind == k }.takeIf { it.isNotEmpty() }?.let { k to it } }
+    // Отбор пересчитывается, только когда изменились библиотека, вид или запрос — не на каждую перерисовку.
+    val seg = ui.libSeg
+    val query = ui.libQuery
+    val groups = remember(data.items, seg, query) {
+        val items = data.items.filter { (seg == null || it.kind == seg) && it.matches(query) }
+        Kind.entries.mapNotNull { k -> items.filter { it.kind == k }.takeIf { it.isNotEmpty() }?.let { k to it } }
+    }
     Column(Modifier.fillMaxSize()) {
         Header("Библиотека") {
             IconBtn("plus", "Добавить") { ui.sheet("Добавить") { AddSheet(c, ui) } }

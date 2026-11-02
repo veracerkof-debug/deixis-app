@@ -456,7 +456,9 @@ private fun PdfSlide(runtime: ReceiverRuntime, c: PdfContent) {
             value = withContext(Dispatchers.IO) {
                 runCatching {
                     val file = runtime.core.files.file(c.file.sha256) ?: error("Нет файла «${c.file.name}»")
-                    renderPdfPage(file, c.page, w, h)
+                    // На 4K-приставке страница в полный размер — 33 МБ и долгое листание; растягивает её уже экран.
+                    val k = minOf(1f, PDF_MAX_SIDE.toFloat() / maxOf(w, h))
+                    renderPdfPage(file, c.page, (w * k).toInt().coerceAtLeast(1), (h * k).toInt().coerceAtLeast(1))
                 }.onFailure { runtime.core.reportError(it.message ?: "Не удалось открыть PDF") }.getOrNull()
             }
         }
@@ -487,3 +489,6 @@ fun renderPdfPage(file: File, page: Int, maxW: Int, maxH: Int): Bitmap =
             }
         }
     }
+
+/** Страница PDF для зала рисуется не больше Full HD по длинной стороне. */
+private const val PDF_MAX_SIDE = 1920

@@ -67,6 +67,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -694,6 +695,8 @@ class Controller(private val app: Application) {
     /** После нуля «Дальше»: следующий элемент активного сетлиста уходит в зал сам. */
     private fun watchCountdown() = scope.launch {
         while (true) {
+            // Без идущего отсчёта ждать его появления, а не просыпаться пять раз в секунду весь день.
+            if (timer.value == null) timer.first { it != null }
             kotlinx.coroutines.delay(200)
             val r = timer.value ?: continue
             if (r.spec.afterZero != AfterZero.NEXT || r.left() > 0 || advancedFor == r.itemId) continue
@@ -713,8 +716,9 @@ class Controller(private val app: Application) {
         live.value = cue
         localMode.value = Mode.NORMAL
         if (preview.value?.same(cue) == true) preview.value = null
-        cue.source.itemId?.let { id -> edit { d -> d.copy(recent = (listOf(id) + d.recent.filter { it != id }).take(12)) } }
+        // Сначала — в зал; список «Недавнее» обновляется после и только когда в нём что-то меняется.
         deliver(cue)
+        cue.source.itemId?.let { id -> if (data.value.recent.firstOrNull() != id) edit { d -> d.copy(recent = (listOf(id) + d.recent.filter { it != id }).take(12)) } }
     }
 
     fun step(delta: Int) {
@@ -1690,7 +1694,14 @@ class Controller(private val app: Application) {
 
     private fun heicToJpeg(uri: Uri, name: String): UploadSource {
         val bitmap: Bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(app.contentResolver, uri))
+            // Снимок 48 Мп целиком — около 190 МБ памяти: уменьшается до 4K по длинной стороне при чтении.
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(app.contentResolver, uri)) { d, info, _ ->
+                val long = maxOf(info.size.width, info.size.height)
+                if (long > PHOTO_MAX_SIDE) {
+                    val k = PHOTO_MAX_SIDE.toFloat() / long
+                    d.setTargetSize((info.size.width * k).toInt().coerceAtLeast(1), (info.size.height * k).toInt().coerceAtLeast(1))
+                }
+            }
         } else {
             app.contentResolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it) } ?: error("Не удалось прочитать «$name»")
         }
@@ -1729,6 +1740,8 @@ private const val DEMO_SET = "Демо"
 private const val SOUND_CHECK_MS = 4_000L
 /** Предупреждение «не сохраняется» — не чаще раза в 30 секунд, а не на каждое изменение. */
 private const val SAVE_WARNING_MS = 30_000L
+/** Фото для экрана — не больше 4K по длинной стороне: больше зал не покажет. */
+private const val PHOTO_MAX_SIDE = 3840
 /** Начало первого слайда демо-песен и текстов старых наборов (до метки demo). */
 private val DEMO_STARTS = mapOf(
     "Коль славен наш Господь в Сионе" to "Коль славен наш Господь в Сионе",

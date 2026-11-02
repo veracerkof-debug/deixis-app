@@ -204,6 +204,31 @@ fun writeDurably(file: File, text: String): Boolean = try {
     false
 }
 
+/**
+ * Запись библиотеки в своём потоке: касание «Дальше» не ждёт, пока вся библиотека (мегабайты у тысяч песен)
+ * превратится в JSON и надёжно ляжет на диск. Частые изменения сливаются — пишется только последнее.
+ * Данные в памяти неизменяемы, поэтому снимок можно записывать позже, не боясь гонок.
+ */
+object StoreWriter {
+    private class Job(val data: StoreData, val onFail: () -> Unit)
+    private val pending = java.util.concurrent.ConcurrentHashMap<File, Job>()
+    private val thread = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "deixis-save").apply { isDaemon = true } }
+
+    fun save(file: File, data: StoreData, onFail: () -> Unit) {
+        pending[file] = Job(data, onFail)
+        thread.execute {
+            val job = pending.remove(file) ?: return@execute
+            val ok = runCatching { writeDurably(file, DeixisJson.encodeToString(StoreData.serializer(), job.data)) }.getOrDefault(false)
+            if (!ok) job.onFail()
+        }
+    }
+
+    /** Дождаться записи всего, что уже отдано (перед чтением файла заново — смена профиля, восстановление). */
+    fun flush() { runCatching { thread.submit {}.get(FLUSH_WAIT_S, java.util.concurrent.TimeUnit.SECONDS) } }
+
+    private const val FLUSH_WAIT_S = 10L
+}
+
 class Store(private val context: Context, dir: File = context.filesDir, private val backups: Backups = Backups(context)) {
     private val file = File(dir, "library.json")
 
@@ -214,7 +239,7 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
     var recovered = false
         private set
 
-    var data: StoreData = load()
+    var data: StoreData = run { StoreWriter.flush(); load() }
         private set
 
     /**
@@ -259,9 +284,10 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
     }
 
     fun update(change: (StoreData) -> StoreData): StoreData {
+        val before = data
         data = change(data)
-        val ok = runCatching { writeDurably(file, DeixisJson.encodeToString(StoreData.serializer(), data)) }.getOrDefault(false)
-        if (!ok) onSaveFailed()
+        // Ничего не изменилось — и писать нечего.
+        if (data !== before) StoreWriter.save(file, data) { onSaveFailed() }
         return data
     }
 
