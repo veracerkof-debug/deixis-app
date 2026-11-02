@@ -17,6 +17,7 @@ import app.deixis.core.Pairing
 import app.deixis.core.PairingCode
 import app.deixis.core.ReceiverCore
 import app.deixis.core.ReceiverInfo
+import app.deixis.core.TlsIdentity
 import app.deixis.core.ReceiverServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +46,8 @@ class ReceiverRuntime(
     screen: Pair<Int, Int>? = null,
 ) {
     private val appContext = context.applicationContext
+    /** Ключ экрана для шифрованного входа пультов; у приёмника этого же телефона по кабелю шифрование не нужно. */
+    private val tlsId: TlsIdentity? = if (loopbackOnly) null else runCatching { TlsIdentity.loadOrCreate(File(dataDir, "tls"), name) }.getOrNull()
     val core: ReceiverCore
     @Volatile private var server: ReceiverServer
 
@@ -82,7 +85,7 @@ class ReceiverRuntime(
         _pin = MutableStateFlow(pairing.pin)
         pin = _pin.asStateFlow()
         pairing.onPinChanged = { _pin.value = it }
-        server = ReceiverServer(core, port, if (loopbackOnly) "127.0.0.1" else "0.0.0.0")
+        server = ReceiverServer(core, port, if (loopbackOnly) "127.0.0.1" else "0.0.0.0", tls = tlsId)
         core.pageRenderer = PageRenderer { file, page, width ->
             val bmp = renderPdfPage(file, page, width, width * 4)
             java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it); bmp.recycle() }.toByteArray()
@@ -103,7 +106,7 @@ class ReceiverRuntime(
             // адрес в QR и в объявлении по сети всё равно берётся из фактического порта.
             if (port == 0) throw e
             runCatching { server.stop() }
-            server = ReceiverServer(core, 0, if (loopbackOnly) "127.0.0.1" else "0.0.0.0")
+            server = ReceiverServer(core, 0, if (loopbackOnly) "127.0.0.1" else "0.0.0.0", tls = tlsId, tlsPort = 0)
             server.start()
         }
         if (loopbackOnly) return@withContext
@@ -164,7 +167,7 @@ class ReceiverRuntime(
         val lock = multicastLock ?: (appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
             ?.createMulticastLock("deixis")?.apply { setReferenceCounted(false) }?.also { multicastLock = it }
         runCatching { lock?.acquire() }
-        advertisement = runCatching { Discovery.advertise(core.info, actualPort, addr) }.getOrNull()
+        advertisement = runCatching { Discovery.advertise(core.publicInfo(), actualPort, addr) }.getOrNull()
     }
 
     /** Адрес из ConnectivityManager (Wi-Fi или провод, без VPN), иначе — перебор интерфейсов. */
@@ -184,7 +187,7 @@ class ReceiverRuntime(
 
     fun pairingUri(): String? {
         val addr = _address.value ?: return null
-        return PairingCode(addr.substringBefore(':'), actualPort, _pin.value, core.info.id, core.info.name).toUri()
+        return PairingCode(addr.substringBefore(':'), actualPort, _pin.value, core.info.id, core.info.name, core.tls?.port ?: 0, core.tls?.fingerprint.orEmpty()).toUri()
     }
 
     fun stop() {

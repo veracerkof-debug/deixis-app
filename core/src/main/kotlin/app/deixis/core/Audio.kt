@@ -160,9 +160,9 @@ class AudioSender internal constructor(
     }
 }
 
-internal fun audioSender(scope: CoroutineScope, http: HttpClient, host: String, port: Int, token: String) =
+internal fun audioSender(scope: CoroutineScope, http: HttpClient, url: String, token: String) =
     AudioSender(scope) { session ->
-        http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/audio", request = {
+        http.webSocket(urlString = url, request = {
             header("Authorization", "Bearer $token")
         }) { session(this) }
     }

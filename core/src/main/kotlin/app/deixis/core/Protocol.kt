@@ -89,7 +89,11 @@ data class Pong(val t: Long) : Msg
 data class ErrorMsg(val code: String, val message: String) : Msg
 
 @Serializable
-enum class DenyReason { WRONG_PIN, TOO_MANY_ATTEMPTS, UNKNOWN_TOKEN, INCOMPATIBLE_VERSION }
+enum class DenyReason {
+    WRONG_PIN, TOO_MANY_ATTEMPTS, UNKNOWN_TOKEN, INCOMPATIBLE_VERSION,
+    /** Только у пульта: по адресу экрана отвечает устройство с другим сертификатом (подмена или переустановка). */
+    UNTRUSTED_SCREEN,
+}
 
 /** Что показано на экране. */
 @Serializable
@@ -204,6 +208,9 @@ data class ReceiverInfo(
     val convert: Boolean = false,
     /** Приёмник переводит документы и таблицы в PDF (LibreOffice на компьютере). */
     val documents: Boolean = false,
+    /** Шифрованный вход приёмника (0 — нет: старая версия или веб-страница) и отпечаток его сертификата. */
+    val tlsPort: Int = 0,
+    val fingerprint: String = "",
 )
 
 @Serializable

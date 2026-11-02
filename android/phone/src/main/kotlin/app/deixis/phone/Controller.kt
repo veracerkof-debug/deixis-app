@@ -451,8 +451,19 @@ class Controller(private val app: Application) {
         open(t, token)
     }
 
+    /**
+     * Связь с экраном с запомненным отпечатком его сертификата: по шифрованному каналу и только с ним.
+     * Отпечаток узнан впервые (старое сопряжение, сопряжение по PIN) — запоминается рядом с токеном.
+     */
+    private fun client(t: Target): SenderClient {
+        val k = key(t)
+        val c = SenderClient(t.host, t.port, deviceName, scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
+        c.onPinned = { tp, fp -> prefs.edit().putInt("$k.tp", tp).putString("$k.fp", fp).apply() }
+        return c
+    }
+
     fun pair(t: Target, pin: String) = scope.launch {
-        val c = SenderClient(t.host, t.port, deviceName, scope)
+        val c = client(t)
         try {
             val token = c.pair(pin.trim())
             prefs.edit().putString(key(t), token).apply()
@@ -466,6 +477,7 @@ class Controller(private val app: Application) {
                     DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
                     DenyReason.INCOMPATIBLE_VERSION -> "Версии Deixis не совпадают: нужно обновить приложения"
                     DenyReason.UNKNOWN_TOKEN -> "Приёмник не узнал телефон"
+                    DenyReason.UNTRUSTED_SCREEN -> UNTRUSTED.format(t.name)
                 },
             )
         } catch (e: Exception) {
@@ -480,6 +492,8 @@ class Controller(private val app: Application) {
         val code = PairingCode.parse(input.trim())
         if (code != null) {
             val t = Target(code.id.ifEmpty { "${code.host}:${code.port}" }, code.name.ifEmpty { code.host }, code.host, code.port, Target.Kind.MANUAL)
+            // Отпечаток из QR-кода — с самого экрана: ему верится сразу (и после переустановки экрана тоже).
+            if (code.fingerprint.isNotEmpty()) prefs.edit().putInt("${key(t)}.tp", code.tlsPort).putString("${key(t)}.fp", code.fingerprint).apply()
             manual.value = manual.value.filter { it.id != t.id } + t
             pair(t, code.pin)
             return
@@ -521,7 +535,7 @@ class Controller(private val app: Application) {
 
     private fun open(t: Target, token: String) {
         outs.value.firstOrNull { it.target.id == t.id }?.let(::close)
-        val c = SenderClient(t.host, t.port, deviceName, scope)
+        val c = client(t)
         c.connect(token)
         val o = Output(t, c)
         // Кабель — первым: он рядом и самый надёжный.
@@ -532,6 +546,11 @@ class Controller(private val app: Application) {
             scope.launch {
                 var was = false
                 c.connection.collect {
+                    if (it is Connection.Denied && it.reason == DenyReason.UNTRUSTED_SCREEN) {
+                        // По адресу экрана отвечает другой сертификат: токен туда не отправляется. Подключение заново —
+                        // только по QR-коду с экрана (в нём настоящий отпечаток), а не по PIN, который ушёл бы чужому.
+                        messages.emit(UNTRUSTED.format(t.name))
+                    }
                     if (it is Connection.Denied && it.reason == DenyReason.UNKNOWN_TOKEN) {
                         // Приёмник забыл телефон (сброс, переустановка): спрашиваем PIN заново.
                         prefs.edit().remove(key(t)).apply()
@@ -1742,6 +1761,8 @@ private const val DEMO_SET = "Демо"
 private const val SOUND_CHECK_MS = 4_000L
 /** Предупреждение «не сохраняется» — не чаще раза в 30 секунд, а не на каждое изменение. */
 private const val SAVE_WARNING_MS = 30_000L
+/** Сертификат экрана не совпал с запомненным. */
+private const val UNTRUSTED = "«%s»: по этому адресу отвечает другое устройство. Если экран переустановлен — подключение заново по QR-коду с экрана"
 /** Фото для экрана — не больше 4K по длинной стороне: больше зал не покажет. */
 private const val PHOTO_MAX_SIDE = 3840
 /** Начало первого слайда демо-песен и текстов старых наборов (до метки demo). */

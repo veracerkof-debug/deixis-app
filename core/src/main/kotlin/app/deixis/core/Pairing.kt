@@ -31,7 +31,7 @@ class Pairing(
     var onPinChanged: (String) -> Unit = {}
 
     @Synchronized
-    fun pair(pin: String, sender: String, from: String? = null): Result {
+    fun pair(pin: String, sender: String, from: String? = null, secure: Boolean = false): Result {
         val now = clock()
         val local = from == null || from in LOOPBACK_ADDRESSES
         val a = if (local) null else attempts.getOrPut(from!!) { Attempts() }.also { trimAttempts() }
@@ -49,7 +49,7 @@ class Pairing(
             return Result.Denied(DenyReason.WRONG_PIN)
         }
         val token = ByteArray(32).also(random::nextBytes).joinToString("") { "%02x".format(it) }
-        tokens.add(PairedSender(token, sender, now))
+        tokens.add(PairedSender(token, sender, now, secure))
         from?.let { attempts.remove(it) }
         rotate()
         return Result.Ok(token)
@@ -59,7 +59,17 @@ class Pairing(
         while (attempts.size > MAX_TRACKED) attempts.remove(attempts.keys.first())
     }
 
-    fun isValid(token: String?): Boolean = token != null && tokens.all().any { constantTimeEquals(it.token, token) }
+    /**
+     * Токен действителен. [secure] — запрос пришёл по шифрованному каналу. Токен, однажды прошедший по нему,
+     * по открытому HTTP больше не принимается: его нельзя подсмотреть в сети и нельзя «откатить» пульт на HTTP.
+     */
+    fun isValid(token: String?, secure: Boolean = false): Boolean {
+        if (token == null) return false
+        val s = tokens.all().firstOrNull { constantTimeEquals(it.token, token) } ?: return false
+        if (s.secure && !secure) return false
+        if (secure && !s.secure) tokens.markSecure(s.token)
+        return true
+    }
 
     fun senders(): List<PairedSender> = tokens.all()
 
@@ -89,12 +99,26 @@ class Pairing(
 }
 
 @Serializable
-data class PairedSender(val token: String, val sender: String, val pairedAt: Long)
+data class PairedSender(
+    val token: String,
+    val sender: String,
+    val pairedAt: Long,
+    /** Токен получен или уже использован по шифрованному каналу: по открытому HTTP он больше не принимается. */
+    val secure: Boolean = false,
+)
 
 interface TokenStore {
     fun all(): List<PairedSender>
     fun add(sender: PairedSender)
     fun remove(token: String)
+
+    /** Токен ходит только по шифрованному каналу. */
+    fun markSecure(token: String) {
+        val s = all().firstOrNull { it.token == token } ?: return
+        if (s.secure) return
+        remove(token)
+        add(s.copy(secure = true))
+    }
 }
 
 class MemoryTokenStore : TokenStore {

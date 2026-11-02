@@ -5,6 +5,7 @@ import app.deixis.core.Conversions
 import app.deixis.core.Discovery
 import app.deixis.core.FileRelayStore
 import app.deixis.core.FileStore
+import app.deixis.core.TlsIdentity
 import app.deixis.core.FileTokenStore
 import app.deixis.core.HolyricsBridge
 import app.deixis.core.LinkRequest
@@ -125,7 +126,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             override fun exitForUpdate() = exitNow()
         })
         core.updates = updates
-        server = ReceiverServer(core, opts.port)
+        server = ReceiverServer(core, opts.port, tls = runCatching { TlsIdentity.loadOrCreate(File(opts.dataDir, "tls"), core.info.name) }.getOrNull())
     }
 
     /** Размер монитора зала по сохранённому выбору; без мониторов (проверки) — 1920×1080. */
@@ -144,7 +145,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     fun run() {
         AppIcon.applyToDock()
         port = runBlocking { server.start() }
-        advertisement = runCatching { Discovery.advertise(core.info, port, address) }
+        advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
             .getOrNull()
         // Экраны Deixis в сети для пересылки показа.
@@ -335,7 +336,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             name = core.info.name,
             pin = pin,
             address = "${address?.hostAddress ?: "127.0.0.1"}:$port",
-            pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name).toUri() },
+            pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name, core.tls?.port ?: 0, core.tls?.fingerprint.orEmpty()).toUri() },
         )
         return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo, st.logoImage)
     }

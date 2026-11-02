@@ -7,6 +7,7 @@ import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.engine.connector
 import io.ktor.server.request.header
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.request.receiveText
@@ -66,6 +67,12 @@ class ReceiverCore(
 
     /** Загрузки из браузера пульта: хэш считает приёмник. */
     val uploads = UploadArea(files, File(files.root, "uploads"))
+
+    /** Шифрованный вход, когда он работает: его порт и отпечаток сертификата — в /info, приветствии, QR и mDNS. */
+    @Volatile var tls: TlsEndpoint? = null
+
+    /** Сведения о приёмнике для пультов: с шифрованным входом, если он есть. */
+    fun publicInfo(): ReceiverInfo = tls?.let { info.copy(tlsPort = it.port, fingerprint = it.fingerprint) } ?: info
 
     /** Файлы, которые сейчас нужны экрану: показ, следующий слайд, наложения, логотип. Очистка кэша их не трогает. */
     fun onScreen(): Set<String> {
@@ -186,20 +193,32 @@ fun newViewKey(): String {
 
 /** Сетевой сервер приёмника: WebSocket для команд, HTTP для файлов и страница для зрителей. */
 /** [host] = "127.0.0.1" — только для этого устройства (вывод по кабелю с телефона), иначе вся локальная сеть. */
+/** Шифрованный вход приёмника: порт и отпечаток сертификата. */
+data class TlsEndpoint(val port: Int, val fingerprint: String)
+
 class ReceiverServer(
     private val core: ReceiverCore,
     private val port: Int = DEFAULT_PORT,
     private val host: String = "0.0.0.0",
     /** Файлы хранятся сутки после последнего показа, потом удаляются: приёмник не копит чужие фото и видео. */
     private val fileTtlMs: Long = FILE_TTL_MS,
+    /** Ключ экрана для шифрованного входа; null — только открытый HTTP (проверки, этот же телефон по кабелю). */
+    private val tls: TlsIdentity? = null,
+    private val tlsPort: Int = DEFAULT_TLS_PORT,
 ) {
 
     private var server: EmbeddedServer<*, *>? = null
+    private var gateway: TlsGateway? = null
+    /** Внутренний вход только для шифрованного: запрос на нём пришёл через TLS. 0 — шифрования нет. */
+    @Volatile private var internalPort = 0
     private var cleaner: kotlinx.coroutines.Job? = null
 
     /** Запускает сервер и возвращает фактический порт (при port = 0 система выбирает свободный). */
     suspend fun start(): Int {
-        val s = embeddedServer(CIO, port = port, host = host) {
+        val s = embeddedServer(CIO, configure = {
+            connector { this.port = this@ReceiverServer.port; this.host = this@ReceiverServer.host }
+            if (tls != null) connector { this.port = 0; this.host = "127.0.0.1" }
+        }) {
             install(io.ktor.server.plugins.partialcontent.PartialContent)
             install(io.ktor.server.plugins.autohead.AutoHeadResponse)
             install(WebSockets) {
@@ -209,7 +228,7 @@ class ReceiverServer(
             }
             routing {
                 get("/info") {
-                    call.respondText(DeixisJson.encodeToString(ReceiverInfo.serializer(), core.info), ContentType.Application.Json)
+                    call.respondText(DeixisJson.encodeToString(ReceiverInfo.serializer(), core.publicInfo()), ContentType.Application.Json)
                 }
                 get("/files/{sha}") {
                     if (!call.authorized()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
@@ -257,7 +276,7 @@ class ReceiverServer(
                 // Поток экрана для своего же проигрывателя (VLC на компьютере): тот же MP4, что у зрителей,
                 // с метками времени — без них VLC играл бы с угаданной частотой кадров и копил отставание.
                 get("/stream/mp4") {
-                    if (call.request.local.remoteAddress !in LOOPBACK) return@get call.respondText("", status = HttpStatusCode.Forbidden)
+                    if (call.request.local.remoteAddress !in LOOPBACK || call.secure()) return@get call.respondText("", status = HttpStatusCode.Forbidden)
                     call.response.header("Cache-Control", "no-store")
                     call.respondBytesWriter(ContentType("video", "mp4")) {
                         fmp4Stream(core, onCodec = {}, onData = { writeFully(it); flush() }, endOnNewConfig = true)
@@ -278,8 +297,31 @@ class ReceiverServer(
                 kotlinx.coroutines.delay(CLEAN_EVERY_MS)
             }
         }
-        return s.engine.resolvedConnectors().first().port
+        val connectors = s.engine.resolvedConnectors()
+        tls?.let { id -> startTls(id, connectors.getOrNull(1)?.port ?: 0) }
+        return connectors.first().port
     }
+
+    /**
+     * Шифрованный вход на [tlsPort]; занят (два приложения Deixis на одном устройстве) — любой свободный порт:
+     * он всё равно есть в QR, /info и mDNS. Не запустился вовсе — приёмник работает по HTTP, как раньше.
+     */
+    private fun startTls(id: TlsIdentity, inner: Int) {
+        if (inner == 0) return
+        internalPort = inner
+        for (p in listOf(tlsPort, 0)) {
+            val g = TlsGateway(id, host, p, { inner })
+            val actual = runCatching { g.start() }.getOrNull() ?: continue
+            gateway = g
+            core.tls = TlsEndpoint(actual, id.fingerprint)
+            return
+        }
+        internalPort = 0
+    }
+
+    /** Адрес пульта: для шифрованных запросов — настоящий, со шлюза, а не 127.0.0.1. */
+    private fun ApplicationCall.clientAddress(): String =
+        if (secure()) gateway?.origins?.get(request.local.remotePort) ?: "tls" else request.local.remoteAddress
 
     /** Адрес потока экрана для проигрывателя на этом же устройстве. */
     fun localStreamUrl(port: Int) = "http://127.0.0.1:$port/stream/mp4"
@@ -290,6 +332,10 @@ class ReceiverServer(
         // Открытые сессии пультов закрываются сразу: пульт видит обрыв, а не ждёт, пока сервер дождётся их.
         sessions.forEach { it.cancel() }
         sessions.clear()
+        gateway?.stop()
+        gateway = null
+        internalPort = 0
+        core.tls = null
         server?.stop(500, 2_000)
         server = null
     }
@@ -312,12 +358,12 @@ class ReceiverServer(
         val ok = when (first) {
             is Hello -> when {
                 first.version != PROTOCOL_VERSION -> deny(DenyReason.INCOMPATIBLE_VERSION)
-                !core.pairing.isValid(first.token) -> deny(DenyReason.UNKNOWN_TOKEN)
+                !core.pairing.isValid(first.token, call.secure()) -> deny(DenyReason.UNKNOWN_TOKEN)
                 else -> true
             }
             is PairRequest -> when {
                 first.version != PROTOCOL_VERSION -> deny(DenyReason.INCOMPATIBLE_VERSION)
-                else -> when (val r = core.pairing.pair(first.pin, first.sender, call.request.local.remoteAddress)) {
+                else -> when (val r = core.pairing.pair(first.pin, first.sender, call.clientAddress(), call.secure())) {
                     is Pairing.Result.Ok -> { send(Frame.Text(Paired(r.token).encode())); true }
                     is Pairing.Result.Denied -> deny(r.reason)
                 }
@@ -339,7 +385,7 @@ class ReceiverServer(
                 send(Frame.Text(Status(s).encode()))
             }
         }
-        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.info, welcomeState ?: core.state.value, core.viewKey).encode()))
+        send(Frame.Text(Welcome(PROTOCOL_VERSION, core.publicInfo(), welcomeState ?: core.state.value, core.viewKey).encode()))
         welcomed.complete(Unit)
         try {
             for (frame in incoming) {
@@ -403,13 +449,18 @@ class ReceiverServer(
     }
 
     private fun ApplicationCall.authorized(): Boolean =
-        core.pairing.isValid(request.header("Authorization")?.removePrefix("Bearer ")?.trim())
+        core.pairing.isValid(request.header("Authorization")?.removePrefix("Bearer ")?.trim(), secure())
+
+    /** Запрос пришёл через шифрованный вход (TLS на этом же устройстве передаёт его на внутренний порт). */
+    private fun ApplicationCall.secure(): Boolean = internalPort != 0 && request.local.localPort == internalPort
 
     private suspend fun ApplicationCall.respondJson(status: FileStatus) =
         respondText(DeixisJson.encodeToString(FileStatus.serializer(), status), ContentType.Application.Json)
 
     companion object {
         const val DEFAULT_PORT = 47820
+        /** Шифрованный вход пультов. */
+        const val DEFAULT_TLS_PORT = 47821
         private const val PRE_AUTH_FRAME_BYTES = 64L * 1024
         private const val SESSION_FRAME_BYTES = 8L * 1024 * 1024
         const val HEADER_SIZE = "Deixis-Size"

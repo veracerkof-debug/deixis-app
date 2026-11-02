@@ -12,12 +12,18 @@ import java.net.URLEncoder
  * Адрес для QR-кода на экране приёмника. Это обычная веб-ссылка на пульт в браузере: камера любого телефона,
  * включая iPhone, откроет её сразу. Приложение Deixis понимает и её, и прежнюю ссылку deixis://.
  */
-data class PairingCode(val host: String, val port: Int, val pin: String, val id: String, val name: String) {
+data class PairingCode(
+    val host: String, val port: Int, val pin: String, val id: String, val name: String,
+    /** Шифрованный вход экрана и отпечаток его сертификата: приложение сразу знает, кому верить. */
+    val tlsPort: Int = 0, val fingerprint: String = "",
+) {
 
-    fun toUri(): String = "http://$host:$port/remote?pin=$pin&id=${enc(id)}&name=${enc(name)}"
+    private fun tlsQuery() = if (tlsPort > 0 && fingerprint.isNotEmpty()) "&tp=$tlsPort&fp=$fingerprint" else ""
+
+    fun toUri(): String = "http://$host:$port/remote?pin=$pin&id=${enc(id)}&name=${enc(name)}${tlsQuery()}"
 
     /** Ссылка для приложения Deixis (кнопка «Открыть в приложении» на веб-пульте). */
-    fun toAppUri(): String = "deixis://$host:$port?pin=$pin&id=${enc(id)}&name=${enc(name)}"
+    fun toAppUri(): String = "deixis://$host:$port?pin=$pin&id=${enc(id)}&name=${enc(name)}${tlsQuery()}"
 
     companion object {
         fun parse(uri: String): PairingCode? = try {
@@ -31,13 +37,18 @@ data class PairingCode(val host: String, val port: Int, val pin: String, val id:
                 }.toMap()
                 val pin = q["pin"]
                 if (pin == null || !pin.matches(Regex("\\d{4}"))) null
-                else PairingCode(u.host, u.port, pin, q["id"].orEmpty(), q["name"].orEmpty())
+                else PairingCode(
+                    u.host, u.port, pin, q["id"].orEmpty(), q["name"].orEmpty(),
+                    q["tp"]?.toIntOrNull()?.takeIf { it in 1..65535 } ?: 0,
+                    q["fp"]?.takeIf { FP.matches(it) }.orEmpty(),
+                )
             }
         } catch (e: Exception) {
             null
         }
 
         private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+        private val FP = Regex("^[A-Za-z0-9_-]{43}$")
     }
 }
 

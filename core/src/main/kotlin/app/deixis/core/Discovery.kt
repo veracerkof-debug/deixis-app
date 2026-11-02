@@ -28,7 +28,8 @@ object Discovery {
     fun advertise(info: ReceiverInfo, port: Int, address: InetAddress? = localAddress()): AutoCloseable {
         // Имя в сети вида deixis-ab12.local: его понимают iPhone и компьютеры, и оно не меняется, если роутер выдал новый IP.
         val jmdns = JmDNS.create(address, localHostName(info.id))
-        val props = mapOf("id" to info.id, "v" to PROTOCOL_VERSION.toString(), "platform" to info.platform)
+        val props = mapOf("id" to info.id, "v" to PROTOCOL_VERSION.toString(), "platform" to info.platform) +
+            (if (info.tlsPort > 0) mapOf("tp" to info.tlsPort.toString(), "fp" to info.fingerprint) else emptyMap())
         jmdns.registerService(ServiceInfo.create(SERVICE_TYPE, info.name, port, 0, 0, props))
         return AutoCloseable {
             jmdns.unregisterAllServices()

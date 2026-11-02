@@ -31,6 +31,9 @@ data class RelayEntry(
     val token: String? = null,
     /** Пересылка включена: после перезапуска связь восстанавливается сама. */
     val linked: Boolean = false,
+    /** Шифрованный вход экрана и отпечаток его сертификата: токен уходит только этому экрану. */
+    val tlsPort: Int = 0,
+    val fingerprint: String? = null,
 )
 
 interface RelayStore {
@@ -146,20 +149,23 @@ class ScreenRelay(
                 .copy(host = host, port = port, name = f?.name ?: known?.name ?: host, platform = f?.platform ?: known?.platform.orEmpty())
         }
         val pin = req.pin?.trim().orEmpty()
+        var pinned: Pair<Int, String?>? = null
         val token = if (pin.isEmpty()) {
             val needPin = target.token == null || synchronized(lock) { links[target.id]?.denied == true }
             if (needPin) return LinkResult(false, needPin = true)
             target.token
         } else {
             val probe = clientFactory(target.host, target.port, scope)
+            target.fingerprint?.let { probe.trust(target.tlsPort, it) }
             try {
-                probe.pair(pin)
+                probe.pair(pin).also { pinned = probe.tlsPort to probe.fingerprint }
             } catch (e: PairingException) {
                 return LinkResult(false, error = when (e.reason) {
                     DenyReason.WRONG_PIN -> "Неверный PIN"
                     DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
                     DenyReason.INCOMPATIBLE_VERSION -> "На экране другая версия Deixis"
                     DenyReason.UNKNOWN_TOKEN -> "Экран не принял подключение"
+                    DenyReason.UNTRUSTED_SCREEN -> "По этому адресу отвечает другое устройство, а не этот экран"
                 }, needPin = true)
             } catch (e: CancellationException) {
                 throw e
@@ -170,7 +176,9 @@ class ScreenRelay(
             }
         }
         synchronized(lock) {
-            val entry = target.copy(token = token, linked = true)
+            val entry = target.copy(token = token, linked = true).let { e ->
+                pinned?.takeIf { it.second != null }?.let { (tp, fp) -> e.copy(tlsPort = tp, fingerprint = fp) } ?: e
+            }
             entries[entry.id] = entry
             save()
             links.remove(entry.id)?.close()
@@ -201,7 +209,7 @@ class ScreenRelay(
     private fun save() = runCatching { store.save(entries.values.toList()) }
 
     private fun startLink(e: RelayEntry) {
-        links[e.id] = Link(e.id, e.host, e.port, e.token!!)
+        links[e.id] = Link(e.id, e.host, e.port, e.token!!, e.tlsPort, e.fingerprint)
     }
 
     // Список собирается и записывается под одним замком: иначе два одновременных вызова могут
@@ -238,9 +246,15 @@ class ScreenRelay(
         val logoImage: FileRef? = null,
     )
 
-    private inner class Link(val id: String, val host: String, val port: Int, token: String) {
+    private inner class Link(val id: String, val host: String, val port: Int, token: String, tlsPort: Int, fingerprint: String?) {
         private val linkScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
-        private val client = clientFactory(host, port, linkScope)
+        private val client = clientFactory(host, port, linkScope).also { c ->
+            fingerprint?.let { c.trust(tlsPort, it) }
+            // Старое сопряжение узнало отпечаток экрана — запомнить: дальше токен уходит только ему.
+            c.onPinned = { tp, fp ->
+                synchronized(lock) { entries[id]?.let { entries[id] = it.copy(tlsPort = tp, fingerprint = fp); save() } }
+            }
+        }
         private val syncing = MutableStateFlow(false)
         @Volatile var denied = false
             private set

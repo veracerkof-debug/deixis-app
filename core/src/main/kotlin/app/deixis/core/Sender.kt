@@ -67,13 +67,59 @@ class SenderClient(
     val port: Int,
     private val senderName: String,
     private val scope: CoroutineScope,
+    tlsPort: Int = 0,
+    fingerprint: String? = null,
 ) {
-    private val http = HttpClient(CIO) {
+    /**
+     * Шифрованный вход экрана и отпечаток его сертификата (TlsIdentity). Известен — вся связь идёт по TLS
+     * с проверкой отпечатка и на открытый HTTP уже не откатывается. Неизвестен (старое сопряжение) — пульт
+     * узнаёт его у экрана и запоминает ([onPinned]); дальше — только по TLS.
+     */
+    @Volatile var tlsPort: Int = tlsPort
+        private set
+    @Volatile var fingerprint: String? = fingerprint?.takeIf { it.isNotEmpty() }
+        private set
+
+    /** Отпечаток экрана узнан впервые: пульт запоминает его рядом с токеном. */
+    @Volatile var onPinned: (tlsPort: Int, fingerprint: String) -> Unit = { _, _ -> }
+
+    private val secure: Boolean get() = fingerprint != null && tlsPort > 0
+    private fun base() = if (secure) "https://$host:$tlsPort" else "http://$host:$port"
+    private fun wsBase() = if (secure) "wss://$host:$tlsPort" else "ws://$host:$port"
+
+    @Volatile private var http = client(this.fingerprint)
+
+    private fun client(fp: String?) = HttpClient(CIO) {
         install(WebSockets)
         install(HttpTimeout) {
             connectTimeoutMillis = 5_000
             socketTimeoutMillis = 30_000
         }
+        if (fp != null) engine { https { trustManager = PinnedTrustManager(fp) } }
+    }
+
+    /** Запомненный ранее отпечаток экрана: связь сразу по шифрованному каналу (до [pair] или [connect]). */
+    fun trust(tlsPort: Int, fingerprint: String) {
+        if (secure || tlsPort <= 0 || fingerprint.length != FINGERPRINT_LENGTH) return
+        this.tlsPort = tlsPort
+        this.fingerprint = fingerprint
+        val old = http
+        http = client(fingerprint)
+        old.close()
+    }
+
+    /**
+     * Экран сообщил свой шифрованный вход: связь переходит на него. Отпечаток, раз запомненный, не меняется:
+     * другой сертификат по тому же адресу — это другое устройство.
+     */
+    private fun adopt(info: ReceiverInfo) {
+        if (secure || info.tlsPort <= 0 || info.fingerprint.length != FINGERPRINT_LENGTH) return
+        tlsPort = info.tlsPort
+        fingerprint = info.fingerprint
+        val old = http
+        http = client(info.fingerprint)
+        scope.launch { delay(OLD_CLIENT_GRACE_MS); old.close() }
+        onPinned(info.tlsPort, info.fingerprint)
     }
 
     private val _connection = MutableStateFlow<Connection>(Connection.Idle)
@@ -112,20 +158,31 @@ class SenderClient(
 
     /** Первое подключение: PIN с экрана приёмника. Возвращает токен для следующих подключений. */
     suspend fun pair(pin: String): String {
+        // Шифрованный вход экрана — до PIN: тогда PIN и токен не видны в сети.
+        if (!secure) runCatching { info() }.getOrNull()?.let(::adopt)
         var result: Result<String>? = null
-        http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/ws") {
-            send(Frame.Text(PairRequest(PROTOCOL_VERSION, senderName, pin).encode()))
-            // Без ответа за 10 с — обычная ошибка связи, а не отмена (иначе её проглотил бы обработчик отмены выше).
-            val reply = withTimeoutOrNull(10_000) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }
-            result = when (reply) {
-                is Paired -> Result.success(reply.token)
-                is Denied -> Result.failure(PairingException(reply.reason))
-                else -> Result.failure(IOException("Неожиданный ответ приёмника"))
-            }
+        try {
+            pairSession(pin) { result = it }
+        } catch (e: Exception) {
+            if (e.isUntrusted()) throw PairingException(DenyReason.UNTRUSTED_SCREEN)
+            throw e
         }
         val t = result!!.getOrThrow()
         token = t
         return t
+    }
+
+    private suspend fun pairSession(pin: String, done: (Result<String>) -> Unit) {
+        http.webSocket(urlString = "${wsBase()}/ws") {
+            send(Frame.Text(PairRequest(PROTOCOL_VERSION, senderName, pin).encode()))
+            // Без ответа за 10 с — обычная ошибка связи, а не отмена (иначе её проглотил бы обработчик отмены выше).
+            val reply = withTimeoutOrNull(10_000) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }
+            done(when (reply) {
+                is Paired -> Result.success(reply.token)
+                is Denied -> Result.failure(PairingException(reply.reason))
+                else -> Result.failure(IOException("Неожиданный ответ приёмника"))
+            })
+        }
     }
 
     /** Подключается по токену и держит связь, пока не вызван [close]. */
@@ -141,7 +198,9 @@ class SenderClient(
                 outbox = Channel(Channel.BUFFERED)
                 _connection.value = Connection.Connecting
                 try {
-                    http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/ws") {
+                    // Старое сопряжение без шифрования: узнать у экрана его шифрованный вход и перейти на него.
+                    if (!secure) runCatching { info() }.getOrNull()?.let(::adopt)
+                    http.webSocket(urlString = "${wsBase()}/ws") {
                         if (runSession(token)) pause = 500L
                     }
                     if (_connection.value is Connection.Denied) return@launch
@@ -149,6 +208,11 @@ class SenderClient(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (e.isUntrusted()) {
+                        // По адресу экрана — другой сертификат: токен туда не отправляется, связь не повторяется.
+                        _connection.value = Connection.Denied(DenyReason.UNTRUSTED_SCREEN)
+                        return@launch
+                    }
                     _connection.value = Connection.Lost(e.message ?: e::class.simpleName.orEmpty())
                 }
                 delay(pause)
@@ -243,7 +307,7 @@ class SenderClient(
                 onProgress(status.bytes, source.size)
                 if (status.complete) return ref
                 if (status.bytes > reached) { reached = status.bytes; failures = 0 }
-                val response = http.put("http://$host:$port/files/$sha?offset=${status.bytes}") {
+                val response = http.put("${base()}/files/$sha?offset=${status.bytes}") {
                     header("Authorization", "Bearer $t")
                     header(ReceiverServer.HEADER_SIZE, source.size.toString())
                     setBody(StreamBody(source, status.bytes, onProgress))
@@ -276,7 +340,7 @@ class SenderClient(
      */
     suspend fun importFromHolyrics(req: HolyricsMediaRequest): FileRef {
         val t = token ?: error("Нет сопряжения")
-        val r = http.post("http://$host:$port/holyrics/media") {
+        val r = http.post("${base()}/holyrics/media") {
             header("Authorization", "Bearer $t")
             setBody(DeixisJson.encodeToString(HolyricsMediaRequest.serializer(), req))
         }
@@ -287,7 +351,7 @@ class SenderClient(
     /** Просит приёмник перевести переданную презентацию в PDF ([ReceiverInfo.convert]). */
     suspend fun convert(ref: FileRef): Converted {
         val t = token ?: error("Нет сопряжения")
-        val r = http.post("http://$host:$port/convert") {
+        val r = http.post("${base()}/convert") {
             header("Authorization", "Bearer $t")
             setBody(DeixisJson.encodeToString(FileRef.serializer(), ref))
         }
@@ -300,7 +364,7 @@ class SenderClient(
      * введённый по IP и найденный в сети, остаётся одним устройством.
      */
     suspend fun info(): ReceiverInfo {
-        val r = http.get("http://$host:$port/info")
+        val r = http.get("${base()}/info")
         if (r.status != HttpStatusCode.OK) throw IOException("Приёмник ответил ${r.status}")
         return DeixisJson.decodeFromString(ReceiverInfo.serializer(), r.bodyAsText())
     }
@@ -311,7 +375,7 @@ class SenderClient(
      */
     suspend fun update(req: UpdateRequest? = null): UpdateState? {
         val t = token ?: return null
-        val url = "http://$host:$port/api/update"
+        val url = "${base()}/api/update"
         val r = if (req == null) http.get(url) { header("Authorization", "Bearer $t") }
         else http.post(url) {
             header("Authorization", "Bearer $t")
@@ -325,7 +389,7 @@ class SenderClient(
     suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 
     private suspend fun fileStatus(sha: String, token: String): FileStatus {
-        val r = http.get("http://$host:$port/files/$sha") { header("Authorization", "Bearer $token") }
+        val r = http.get("${base()}/files/$sha") { header("Authorization", "Bearer $token") }
         if (r.status != HttpStatusCode.OK) throw IOException("Приёмник ответил ${r.status}")
         return DeixisJson.decodeFromString(FileStatus.serializer(), r.bodyAsText())
     }
@@ -337,14 +401,16 @@ class SenderClient(
     fun openStream(onKeyRequest: () -> Unit = {}): ScreenStream {
         val t = token ?: error("Нет сопряжения")
         return ScreenStream(scope, onKeyRequest) { session ->
-            http.webSocket(method = HttpMethod.Get, host = host, port = port, path = "/stream", request = {
+            http.webSocket(urlString = "${wsBase()}/stream", request = {
                 header("Authorization", "Bearer $t")
             }) { session(this) }
         }
     }
 
     /** Звук трансляции экрана — своим соединением, рядом с картинкой ([openStream]). */
-    fun openAudio(): AudioSender = audioSender(scope, http, host, port, token ?: error("Нет сопряжения"))
+    fun openAudio(): AudioSender = audioSender(scope, http, "${wsBase()}/audio", token ?: error("Нет сопряжения"))
+
+    private fun Throwable.isUntrusted(): Boolean = generateSequence(this) { it.cause }.take(10).any { it is UntrustedScreenException }
 
     fun close() {
         loop?.cancel()
@@ -484,6 +550,10 @@ class ScreenStream internal constructor(
 }
 
 private const val UPLOAD_RETRY_MS = 250L
+/** Длина отпечатка сертификата экрана (SHA-256, base64url). */
+private const val FINGERPRINT_LENGTH = 43
+/** Старый клиент закрывается не сразу: идущая передача файла успевает закончиться. */
+private const val OLD_CLIENT_GRACE_MS = 30_000L
 private const val UPLOAD_RETRY_MAX_MS = 5_000L
 
 /** Понятная причина, без адресов и названий классов: её читает ведущий во время показа. */
