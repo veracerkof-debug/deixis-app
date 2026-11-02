@@ -317,7 +317,7 @@ class ReceiverServer(
             }
             is PairRequest -> when {
                 first.version != PROTOCOL_VERSION -> deny(DenyReason.INCOMPATIBLE_VERSION)
-                else -> when (val r = core.pairing.pair(first.pin, first.sender)) {
+                else -> when (val r = core.pairing.pair(first.pin, first.sender, call.request.local.remoteAddress)) {
                     is Pairing.Result.Ok -> { send(Frame.Text(Paired(r.token).encode())); true }
                     is Pairing.Result.Denied -> deny(r.reason)
                 }

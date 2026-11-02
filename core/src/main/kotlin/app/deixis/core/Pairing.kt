@@ -8,8 +8,10 @@ import java.security.SecureRandom
 
 /**
  * Сопряжение: приёмник показывает PIN, источник вводит его один раз и получает постоянный токен.
- * После пяти неверных PIN код меняется, а новые попытки не принимаются какое-то время (30 с, дальше вдвое
- * дольше, до 10 мин) — так четырёхзначный PIN не подобрать перебором из той же сети.
+ * После пяти неверных PIN код меняется, а новые попытки с того же адреса не принимаются какое-то время (30 с,
+ * дальше вдвое дольше, до 10 мин) — так четырёхзначный PIN не подобрать перебором из той же сети. Пауза — для
+ * каждого адреса своя: чужое устройство, перебирающее PIN, не закрывает сопряжение настоящему пульту.
+ * Этот же компьютер (loopback) паузы не получает.
  */
 class Pairing(
     private val tokens: TokenStore,
@@ -21,32 +23,40 @@ class Pairing(
     var pin: String = newPin()
         private set
 
-    private var failures = 0
-    private var lockedUntil = 0L
-    private var lockMs = LOCK_FIRST_MS
+    /** Попытки одного адреса: сколько ошибок подряд, до какого времени закрыт, следующая пауза. */
+    private class Attempts(var failures: Int = 0, var lockedUntil: Long = 0L, var lockMs: Long = LOCK_FIRST_MS)
+    private val attempts = LinkedHashMap<String, Attempts>()
 
     /** Вызывается при смене PIN, чтобы экран приёмника показал новый. */
     var onPinChanged: (String) -> Unit = {}
 
     @Synchronized
-    fun pair(pin: String, sender: String): Result {
+    fun pair(pin: String, sender: String, from: String? = null): Result {
         val now = clock()
-        if (now < lockedUntil) return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
+        val local = from == null || from in LOOPBACK_ADDRESSES
+        val a = if (local) null else attempts.getOrPut(from!!) { Attempts() }.also { trimAttempts() }
+        if (a != null && now < a.lockedUntil) return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
         if (!constantTimeEquals(pin, this.pin)) {
-            failures++
-            if (failures >= MAX_FAILURES) {
+            if (a == null) return Result.Denied(DenyReason.WRONG_PIN)
+            a.failures++
+            if (a.failures >= MAX_FAILURES) {
                 rotate()
-                lockedUntil = now + lockMs
-                lockMs = (lockMs * 2).coerceAtMost(LOCK_MAX_MS)
+                a.failures = 0
+                a.lockedUntil = now + a.lockMs
+                a.lockMs = (a.lockMs * 2).coerceAtMost(LOCK_MAX_MS)
                 return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
             }
             return Result.Denied(DenyReason.WRONG_PIN)
         }
         val token = ByteArray(32).also(random::nextBytes).joinToString("") { "%02x".format(it) }
         tokens.add(PairedSender(token, sender, now))
-        lockMs = LOCK_FIRST_MS
+        from?.let { attempts.remove(it) }
         rotate()
         return Result.Ok(token)
+    }
+
+    private fun trimAttempts() {
+        while (attempts.size > MAX_TRACKED) attempts.remove(attempts.keys.first())
     }
 
     fun isValid(token: String?): Boolean = token != null && tokens.all().any { constantTimeEquals(it.token, token) }
@@ -57,7 +67,6 @@ class Pairing(
 
     @Synchronized
     private fun rotate() {
-        failures = 0
         pin = newPin()
         onPinChanged(pin)
     }
@@ -73,6 +82,9 @@ class Pairing(
         const val MAX_FAILURES = 5
         const val LOCK_FIRST_MS = 30_000L
         const val LOCK_MAX_MS = 10 * 60_000L
+        /** Сколько адресов помнится: старые забываются, память не растёт от перебора адресов. */
+        private const val MAX_TRACKED = 256
+        private val LOOPBACK_ADDRESSES = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")
     }
 }
 

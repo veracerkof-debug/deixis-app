@@ -8,7 +8,19 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+private const val IP = "192.168.1.20"
+
 class PairingTest {
+    @Test
+    fun lockoutIsPerAddress() {
+        val p = Pairing(MemoryTokenStore(), clock = { 1_000_000L })
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", IP) }
+        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x", IP))
+        // Чужой перебор не закрывает сопряжение настоящему пульту и этому же компьютеру.
+        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "телефон", "192.168.1.30"))
+        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "компьютер", "127.0.0.1"))
+    }
+
     @Test
     fun correctPinGivesTokenAndRotatesPin() {
         val p = Pairing(MemoryTokenStore())
@@ -25,8 +37,8 @@ class PairingTest {
         val p = Pairing(MemoryTokenStore())
         val pin = p.pin
         val wrong = if (pin == "1000") "1001" else "1000"
-        repeat(4) { assertEquals(Pairing.Result.Denied(DenyReason.WRONG_PIN), p.pair(wrong, "x")) }
-        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(wrong, "x"))
+        repeat(4) { assertEquals(Pairing.Result.Denied(DenyReason.WRONG_PIN), p.pair(wrong, "x", IP)) }
+        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(wrong, "x", IP))
         assertNotEquals(pin, p.pin)
     }
 
@@ -34,24 +46,24 @@ class PairingTest {
     fun attemptsAreLockedOutAfterFiveWrongPins() {
         var now = 1_000_000L
         val p = Pairing(MemoryTokenStore(), clock = { now })
-        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", IP) }
         // Даже верный PIN не принимается до конца паузы: перебор из сети упирается во время.
-        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x"))
+        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x", IP))
         now += Pairing.LOCK_FIRST_MS + 1
-        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "x"))
+        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "x", IP))
     }
 
     @Test
     fun lockoutGrowsWithRepeatedBruteForce() {
         var now = 1_000_000L
         val p = Pairing(MemoryTokenStore(), clock = { now })
-        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", IP) }
         now += Pairing.LOCK_FIRST_MS + 1
-        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", IP) }
         now += Pairing.LOCK_FIRST_MS + 1
-        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x"), "вторая пауза вдвое дольше")
+        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x", IP), "вторая пауза вдвое дольше")
         now += Pairing.LOCK_FIRST_MS
-        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "x"))
+        assertIs<Pairing.Result.Ok>(p.pair(p.pin, "x", IP))
     }
 
     @Test

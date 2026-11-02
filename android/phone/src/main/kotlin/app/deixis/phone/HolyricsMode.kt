@@ -172,7 +172,7 @@ private fun HolyricsAddSheet(h: HolyricsSource) {
     Note("Новые песни в саму базу Holyrics с телефона не записать: Holyrics разрешает это только с подпиской Holyrics Plan.")
 }
 
-/** Кнопки пульта Holyrics: назад, дальше, F8 обои, F9 пустой, F10 чёрный. */
+/** Кнопки пульта Holyrics: F10 чёрный, назад, дальше, F8 обои, F9 пустой. */
 @Composable
 fun HolyricsKeys(h: HolyricsSource) {
     val p = P.current
@@ -181,11 +181,12 @@ fun HolyricsKeys(h: HolyricsSource) {
     Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
         Row(Modifier.padding(horizontal = T.gapS, vertical = T.gapXs), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
+            // «Чёрный» — первым, как в режиме Deixis: аварийная кнопка всегда на одном месте под пальцем.
+            Key("black", "F10 — чёрный экран", HolyricsKey.F10 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F10) }
             Key("prev", "Назад", false, Modifier.weight(1f)) { h.previous() }
             Key("next", "Дальше", false, Modifier.weight(1f)) { h.next() }
             Key("photo", "F8 — обои", HolyricsKey.F8 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F8) }
             Key("clear", "F9 — пустой экран", HolyricsKey.F9 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F9) }
-            Key("black", "F10 — чёрный экран", HolyricsKey.F10 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F10) }
             Key("more", "Ещё: текст, отсчёт, объявления", false, Modifier.weight(1f)) { ui.sheet("Ещё в Holyrics") { HolyricsExtrasSheet(h, ui) } }
         }
     }

@@ -77,6 +77,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.deixis.core.Mode
+import app.deixis.core.HolyricsKey
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.selection.selectable
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -175,9 +181,9 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
             if (rail) Row(Modifier.fillMaxSize()) {
                 Tabs(ui, tabs, pager, vertical = true)
                 Box(Modifier.width(T.hair).fillMaxHeight().background(p.sep))
-                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager) }
+                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager); HallBlack(c, h, ui, holyricsMode) }
             } else Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager) }
+                Box(Modifier.weight(1f)) { Pages(c, h, ui, tabs, pager); HallBlack(c, h, ui, holyricsMode) }
                 Tabs(ui, tabs, pager, vertical = false)
             }
         }
@@ -190,6 +196,29 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     BackHandler(enabled = ui.sheet != null || ui.full != null) {
         if (ui.sheet != null) ui.close() else ui.full = null
     }
+}
+
+/**
+ * «Чёрный экран» с любой вкладки (DESIGN.md: аварийное действие доступно с любого экрана пульта). На «Показе» и
+ * в «Библии» он в своей полосе; на остальных вкладках — круглой кнопкой в углу, пока есть куда показывать.
+ */
+@Composable
+private fun BoxScope.HallBlack(c: Controller, h: HolyricsSource, ui: Ui, holyricsMode: Boolean) {
+    if (ui.tab == AppTab.SHOW || ui.tab == AppTab.BIBLE) return
+    val p = P.current
+    val outputs by c.outputs.collectAsState()
+    val mode by c.mode.collectAsState()
+    val keys by h.keys.collectAsState()
+    val holyricsOn = h.status.collectAsState().value is HolyricsStatus.On
+    if (if (holyricsMode) !holyricsOn else outputs.isEmpty()) return
+    val on = if (holyricsMode) HolyricsKey.F10 in keys else mode == Mode.BLACK
+    Box(
+        Modifier.align(Alignment.BottomEnd).padding(T.gutter).size(T.barKey).clip(RoundedCornerShape(T.rPill))
+            .background(if (on) p.tint else p.cell).border(T.hair, p.sep, RoundedCornerShape(T.rPill))
+            .press(label = if (holyricsMode) "F10 — чёрный экран" else "Чёрный экран") { if (holyricsMode) h.toggleKey(HolyricsKey.F10) else c.mode(Mode.BLACK) }
+            .semantics { selected = on },
+        contentAlignment = Alignment.Center,
+    ) { Icon("black", if (on) p.onTint else p.ink, T.barIcon) }
 }
 
 /**

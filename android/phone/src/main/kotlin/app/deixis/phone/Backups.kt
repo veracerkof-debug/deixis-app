@@ -90,7 +90,7 @@ class Backups(
 
     private fun info(name: String, external: Boolean, uri: Uri?, text: () -> String): BackupInfo? {
         val m = nameRe.find(name) ?: return null
-        val d = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), text()) }.getOrNull() ?: return null
+        val d = runCatching { StoreRead.read(text())?.data }.getOrNull() ?: return null
         val at = runCatching { LocalDateTime.parse(m.groupValues[1], STAMP).format(SHOW) }.getOrDefault(m.groupValues[1])
         return BackupInfo(name, at, m.groupValues[2], d.items.size, d.setlists.size, external, uri)
     }
@@ -116,11 +116,12 @@ class Backups(
     /** Данные копии; бросает, если файл не читается. */
     fun load(b: BackupInfo): StoreData {
         val text = if (b.uri != null) read(b.uri) else File(dir, b.name).readText()
-        return DeixisJson.decodeFromString(StoreData.serializer(), text)
+        // Копия с более новой версии читается по частям, а не отвергается целиком.
+        return StoreRead.read(text)?.data ?: error("Это не копия Deixis")
     }
 
     /** Данные из любого файла копии (перенос на новый телефон). */
-    fun loadFile(uri: Uri): StoreData = DeixisJson.decodeFromString(StoreData.serializer(), read(uri))
+    fun loadFile(uri: Uri): StoreData = StoreRead.read(read(uri))?.data ?: error("Это не копия Deixis")
 
     /** Самая свежая читаемая копия — на случай, если основной файл испорчен. */
     fun newest(): StoreData? = list().firstNotNullOfOrNull { runCatching { load(it) }.getOrNull() }

@@ -373,6 +373,7 @@ class Controller(private val app: Application) {
         scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
         watchCountdown()
         if (store.recovered) scope.launch { messages.emit("Файл библиотеки был испорчен: она восстановлена из последней резервной копии") }
+        if (store.skippedNewer > 0) scope.launch { messages.emit("Библиотека записана более новой версией Deixis: ${store.skippedNewer} непонятных записей пропущено, всё остальное открыто. Исходный файл сохранён рядом без изменений.") }
         // Ежедневная резервная копия при запуске.
         scope.launch(Dispatchers.IO) { runCatching { backups.daily(store.data) } }
         seedDemo()

@@ -239,6 +239,10 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
     var recovered = false
         private set
 
+    /** Файл записан более новой версией Deixis: столько непонятного пропущено (сам файл сохранён рядом). */
+    var skippedNewer = 0
+        private set
+
     var data: StoreData = run { StoreWriter.flush(); load() }
         private set
 
@@ -248,8 +252,16 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
      */
     private fun load(): StoreData {
         if (!file.isFile) return firstRun()
-        val saved = runCatching { DeixisJson.decodeFromString(StoreData.serializer(), file.readText()) }.getOrNull()
-        if (saved != null) return migrateBibleBooks(saved)
+        val text = runCatching { file.readText() }.getOrNull()
+        val read = text?.let { StoreRead.read(it) }
+        if (read != null) {
+            if (read.skipped > 0) {
+                // Прочитано не всё (файл новой версии): оригинал остаётся рядом — вернуться к новой версии без потерь.
+                skippedNewer = read.skipped
+                runCatching { file.copyTo(File(file.parentFile, "library.newer-${System.currentTimeMillis()}.json"), overwrite = true) }
+            }
+            return migrateBibleBooks(read.data)
+        }
         runCatching { file.copyTo(File(file.parentFile, "library.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
         val backup = runCatching { backups.newest() }.getOrNull()
         recovered = backup != null
