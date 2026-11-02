@@ -217,3 +217,12 @@
 - Хранение (прогон 7): AtomicFile (androidx.core) — принцип взят (своя запись с fsync); DataStore, Room (Apache-2.0); версии схемы и цепочка миграций для kotlinx.serialization; java.util.zip с защитой от zip slip и zip-бомб (импорт сейчас — только JSON, не нужно); Apache Commons Compress — не нужна; androidx.security-crypto устарела, Tink (Apache-2.0); FreeShow — папка данных с кнопкой «копия всего», OpenLP — SQLite по разделам.
 - Дизайн и переводы (прогон 8): compose-resources (Apache-2.0, Weblate понимает формат), strings.xml + generateLocaleConfig + values-b+uz+Latn, Lyricist (MIT) и moko-resources — не рекомендованы, Weblate (GPL, хостинг Libre бесплатно), Crowdin — закрытый, нельзя; ATF/enableAccessibilityChecks, compose-lints, Roborazzi, Paparazzi (Apache-2.0); контраст WCAG — своя формула (встроено тестом), Color.js (MIT) для CSS, apca-w3 — не открытая лицензия, нельзя; Style Dictionary (Apache-2.0, формат DTCG).
 - Производительность (прогон 9): androidx.profileinstaller / Baseline Profiles / Macrobenchmark (Apache-2.0), отчёты Compose compiler и файл стабильности, LeakCanary, JankStats, Perfetto, androidx.tracing (Apache-2.0); R8 full mode; Coil 3 (Apache-2.0) или своё LruCache + inSampleSize (уже есть); SurfaceView вместо TextureView на ТВ; AppCDS / AOT-кэш JDK для компьютера; ZGC — после замера; GraalVM native-image — нет (vlcj, JavaCPP, Swing).
+
+## После отчёта: сделано по решению автора (0.10.22)
+- Шифрование пульт ↔ экран (TLS со своим сертификатом экрана и проверкой отпечатка), без отката на HTTP.
+- Чтение библиотеки новой версии по частям.
+- Переводы телефона: русский, узбекский, английский; выбор языка.
+- «Чёрный экран» на всех вкладках, первым в Holyrics.
+- Пауза PIN по адресу.
+- Безопасность: cookie сеанса веб-пульта, лимиты соединений, ключ зрителей за постоянное время, защита потока для VLC, правила переноса данных Android.
+- Осталось на решение: подпись установщиков компьютера своим ключом (нужен секрет в репозитории).
