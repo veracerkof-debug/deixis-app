@@ -697,9 +697,9 @@ class Controller(private val app: Application) {
     private fun watchCountdown() = scope.launch {
         while (true) {
             // Без идущего отсчёта ждать его появления, а не просыпаться пять раз в секунду весь день.
-            if (timer.value == null) timer.first { it != null }
+            // Пауза — первой: цикл запускается из конструктора раньше, чем объявлен `timer`.
             kotlinx.coroutines.delay(200)
-            val r = timer.value ?: continue
+            val r = timer.value ?: run { timer.first { it != null }; null } ?: continue
             if (r.spec.afterZero != AfterZero.NEXT || r.left() > 0 || advancedFor == r.itemId) continue
             val cue = live.value?.takeIf { it.source.itemId == r.itemId } ?: continue
             advancedFor = r.itemId
