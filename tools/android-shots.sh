@@ -15,14 +15,15 @@ tap() {
   xy=$(python3 - "$1" "${2:-1}" shots/ui.xml <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
-want, nth, path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+sys.path.insert(0, "tools"); import ui_names
+wants, nth, path = ui_names.names(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
 try:
     root = ET.parse(path).getroot()
 except Exception:
     sys.exit(0)
 k = 0
 for n in root.iter("node"):
-    if want in (n.get("text"), n.get("content-desc")) or (n.get("content-desc") or "").startswith(want + ":"):
+    if n.get("text") in wants or n.get("content-desc") in wants or any((n.get("content-desc") or "").startswith(w + ":") for w in wants):
         k += 1
         if k == nth:
             x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
@@ -42,13 +43,14 @@ find_xy() {
   python3 - "$1" shots/ui.xml <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
-want, path = sys.argv[1], sys.argv[2]
+sys.path.insert(0, "tools"); import ui_names
+wants, path = ui_names.names(sys.argv[1]), sys.argv[2]
 try:
     root = ET.parse(path).getroot()
 except Exception:
     sys.exit(0)
 for n in root.iter("node"):
-    if want in (n.get("text"), n.get("content-desc")):
+    if n.get("text") in wants or n.get("content-desc") in wants:
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         break
@@ -79,10 +81,11 @@ tap_xy() {
   xy=$(python3 - "$1" shots/ui.xml <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
-want, path = sys.argv[1], sys.argv[2]
+sys.path.insert(0, "tools"); import ui_names
+wants, path = ui_names.names(sys.argv[1]), sys.argv[2]
 root = ET.parse(path).getroot()
 for n in root.iter("node"):
-    if want in (n.get("text"), n.get("content-desc")):
+    if n.get("text") in wants or n.get("content-desc") in wants:
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         break

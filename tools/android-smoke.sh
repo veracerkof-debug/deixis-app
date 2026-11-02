@@ -23,13 +23,15 @@ tap() {
   xy=$(python3 - "$1" smoke/ui.xml <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
-want, path = sys.argv[1], sys.argv[2]
+# Названия на любом из языков пульта (эмулятор может быть на английском): переводы — из Strings.kt.
+sys.path.insert(0, "tools"); import ui_names
+wants, path = ui_names.names(sys.argv[1]), sys.argv[2]
 try:
     root = ET.parse(path).getroot()
 except Exception:
     sys.exit(0)
 for n in root.iter("node"):
-    if want in (n.get("text"), n.get("content-desc")):
+    if n.get("text") in wants or n.get("content-desc") in wants:
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", n.get("bounds")))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         break
