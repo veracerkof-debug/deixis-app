@@ -61,7 +61,10 @@ import app.deixis.core.holyricsColor
 import app.deixis.core.backgroundImageName
 import app.deixis.core.qrMatrix
 
-private enum class Tab(val title: String) { PLAYLIST("Плейлист"), SONGS("Песни"), TEXTS("Тексты"), IMAGES("Фото"), VIDEOS("Видео"), THEMES("Темы") }
+private enum class Tab {
+    PLAYLIST, SONGS, TEXTS, IMAGES, VIDEOS, THEMES;
+    val title: String get() = when (this) { PLAYLIST -> L.playlist; SONGS -> L.pSong; TEXTS -> L.pText; IMAGES -> L.tPhoto; VIDEOS -> L.tVideo; THEMES -> L.themes }
+}
 
 /** Окно Holyrics: подключение, библиотека, темы и пульт. */
 @Composable
@@ -75,9 +78,9 @@ fun HolyricsDialog(h: HolyricsSource, onDismiss: () -> Unit) {
                 Spacer(Modifier.weight(1f))
                 BasicText(
                     when (val s = status) {
-                        is HolyricsStatus.On -> if (s.version.isBlank()) "подключён" else "подключён · ${s.version}"
-                        HolyricsStatus.Connecting -> "подключение…"
-                        is HolyricsStatus.Failed -> "нет связи"
+                        is HolyricsStatus.On -> if (s.version.isBlank()) L.connectedLower else L.connectedLower + " · ${s.version}"
+                        HolyricsStatus.Connecting -> L.stConnecting
+                        is HolyricsStatus.Failed -> L.stOffline
                         HolyricsStatus.Off -> ""
                     },
                     style = TextStyle(fontSize = 13.sp, color = p.l2),
@@ -90,7 +93,7 @@ fun HolyricsDialog(h: HolyricsSource, onDismiss: () -> Unit) {
                 else -> ConnectForm(h, (s as? HolyricsStatus.Failed)?.reason)
             }
             Spacer(Modifier.height(10.dp))
-            PlainButton("Закрыть", onDismiss)
+            PlainButton(L.close, onDismiss)
         }
     }
 }
@@ -102,14 +105,14 @@ private fun MissingRights(h: HolyricsSource) {
     val m by h.missing.collectAsState()
     val miss = m ?: return
     Column(Modifier.fillMaxWidth().padding(bottom = T.gap).clip(RoundedCornerShape(T.rCard)).background(p.cell).padding(T.gap), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Txt("Не хватает прав у токена", T.fBody, p.ink, FontWeight.SemiBold)
+        Txt(L.missingRights, T.fBody, p.ink, FontWeight.SemiBold)
         Txt(
-            (if (miss.request == "pending") "На компьютере Holyrics показал уведомление — там нужно «Разрешить». "
-            else "В Holyrics: Файл → Настройки → API Server → Управление правами — для этого токена отметить всё. ") +
-                "Сейчас не разрешено: ${miss.missing.joinToString(", ")}.",
+            (if (miss.request == "pending") L.rightsPending
+            else L.rightsManual) +
+                L.notAllowedNow(miss.missing.joinToString(", ")),
             T.fSub, p.l2,
         )
-        Btn("Проверить снова", kind = BtnKind.TINT) { h.recheckRights() }
+        Btn(L.checkAgain, kind = BtnKind.TINT) { h.recheckRights() }
     }
 }
 
@@ -122,17 +125,17 @@ private fun ConnectForm(h: HolyricsSource, error: String?) {
     val found by h.found.collectAsState()
     val searching by h.searching.collectAsState()
     BasicText(
-        "Проще всего — QR-код: в Deixis для компьютера рядом с Holyrics — «Holyrics → Телефон по QR», и камеру телефона на код. " +
-            "Или вручную: в Holyrics «Файл → Настройки → API Server» — доступ по локальной сети, новый токен и права для него.",
+        L.qrHowto +
+            L.manualHowto,
         style = TextStyle(fontSize = 14.sp, color = p.l2),
     )
     Spacer(Modifier.height(10.dp))
     // Holyrics в своей сети: опрос по нажатию, адрес подставляется касанием.
-    PlainButton(if (searching) "Ищем Holyrics в сети…" else "Найти Holyrics в сети") { if (!searching) h.find() }
+    PlainButton(if (searching) L.searchingHolyrics else L.findHolyrics) { if (!searching) h.find() }
     found?.let { list ->
         Spacer(Modifier.height(8.dp))
         if (list.isEmpty()) BasicText(
-            "Holyrics не найден. Нужны API Server и доступ по локальной сети в Holyrics; телефон и компьютер — в одной сети Wi-Fi.",
+            L.holyricsNotFound,
             style = TextStyle(fontSize = 13.sp, color = p.l2),
         )
         else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -140,16 +143,16 @@ private fun ConnectForm(h: HolyricsSource, error: String?) {
         }
     }
     Spacer(Modifier.height(10.dp))
-    Field("Адрес компьютера или ссылка deixis-holyrics://", host, KeyboardType.Uri) { host = it }
+    Field(L.holyricsAddress, host, KeyboardType.Uri) { host = it }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { Field("Порт", port, KeyboardType.Number) { port = it } }
-        Box(Modifier.weight(2f)) { Field("Токен", token, KeyboardType.Password) { token = it } }
+        Box(Modifier.weight(1f)) { Field(L.port, port, KeyboardType.Number) { port = it } }
+        Box(Modifier.weight(2f)) { Field(L.token, token, KeyboardType.Password) { token = it } }
     }
     error?.let { BasicText(it, style = TextStyle(fontSize = 13.sp, color = p.red)) }
     Spacer(Modifier.height(10.dp))
     val link = HolyricsLink.parse(host) ?: host.trim().takeIf { it.isNotEmpty() && token.isNotBlank() }
         ?.let { HolyricsLink(it.substringBefore(':'), port.toIntOrNull() ?: HolyricsClient.DEFAULT_PORT, token.trim()) }
-    PrimaryButton("Подключить", enabled = link != null) { link?.let { h.connect(it) } }
+    PrimaryButton(L.connect, enabled = link != null) { link?.let { h.connect(it) } }
 }
 
 @Composable
@@ -164,7 +167,7 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
         items(Tab.entries.toList()) { t -> SmallChip(t.title, t == tab) { tab = t } }
     }
     Spacer(Modifier.height(8.dp))
-    if (tab != Tab.THEMES) Field("Поиск", query, KeyboardType.Text) { query = it }
+    if (tab != Tab.THEMES) Field(L.search, query, KeyboardType.Text) { query = it }
     val q = query.trim().lowercase()
     Box(Modifier.heightIn(max = 380.dp)) {
         when (tab) {
@@ -188,7 +191,7 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
             Tab.THEMES -> {
                 val list by h.themes.collectAsState()
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item { ThemeRow("Как в песне или тексте", null, themeId == null) { h.selectTheme(null) } }
+                    item { ThemeRow(L.likeInSong, null, themeId == null) { h.selectTheme(null) } }
                     items(list, key = { it.id }) { t ->
                         ThemeRow(t.name.ifBlank { t.id }, t, themeId == t.id) { h.selectTheme(t.id) }
                     }
@@ -199,27 +202,27 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
     Spacer(Modifier.height(10.dp))
     // Всё из Holyrics — своим в Deixis: песни, тексты, темы, плейлист. Повторно — обновит, без копий.
     val importing by h.importing.collectAsState()
-    PrimaryButton(importing ?: "Перенести всё в Deixis", enabled = importing == null) { h.importAll() }
+    PrimaryButton(importing ?: L.importAll, enabled = importing == null) { h.importAll() }
     BasicText(
-        "Песни, тексты, темы и плейлист станут своими в библиотеке Deixis и останутся без Holyrics. Повторный перенос обновит их, а не добавит копии.",
+        L.importNote,
         style = TextStyle(fontSize = 13.sp, color = p.l2),
         modifier = Modifier.padding(top = 6.dp),
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // Режим работы («Deixis» / «Пульт Holyrics») меняется только в «Устройствах»: здесь его не переключить случайно.
-        Box(Modifier.weight(1f)) { PlainButton("Обновить") { h.refresh() } }
+        Box(Modifier.weight(1f)) { PlainButton(L.update) { h.refresh() } }
     }
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f)) { PlainButton("QR для телефона") { showQr = !showQr } }
-        Box(Modifier.weight(1f)) { PlainButton("Отключить") { h.disconnect() } }
+        Box(Modifier.weight(1f)) { PlainButton(L.qrForPhone) { showQr = !showQr } }
+        Box(Modifier.weight(1f)) { PlainButton(L.disconnect) { h.disconnect() } }
     }
     if (showQr) {
         Spacer(Modifier.height(10.dp))
         LinkQr(link.toUri())
         BasicText(
-            "Камера второго телефона с Deixis — на этот код. Он даёт управление Holyrics: только для своих.",
+            L.qrNote,
             style = TextStyle(fontSize = 13.sp, color = p.l2, textAlign = TextAlign.Center),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -234,18 +237,18 @@ private fun Actions(toDeixis: () -> Unit, toHolyrics: () -> Unit) = ItemActions(
 @Composable
 private fun <T> Items(list: List<T>, title: (T) -> String, subtitle: (T) -> String, actions: (T) -> ItemActions) {
     val p = P.current
-    if (list.isEmpty()) return BasicText("Пусто", style = TextStyle(fontSize = 14.sp, color = p.l2))
+    if (list.isEmpty()) return BasicText(L.empty, style = TextStyle(fontSize = 14.sp, color = p.l2))
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(list) { x ->
             val a = actions(x)
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(p.cell).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    BasicText(title(x).ifBlank { "Без названия" }, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = p.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    BasicText(title(x).ifBlank { L.untitled }, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = p.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     subtitle(x).takeIf { it.isNotBlank() }?.let { BasicText(it, style = TextStyle(fontSize = 13.sp, color = p.l2), maxLines = 1) }
                 }
-                SmallChip("На экран", false, a.toDeixis)
+                SmallChip(L.toScreen, false, a.toDeixis)
                 Spacer(Modifier.width(6.dp))
-                SmallChip("В Holyrics", false, a.toHolyrics)
+                SmallChip(L.toHolyrics, false, a.toHolyrics)
             }
         }
     }
@@ -254,7 +257,7 @@ private fun <T> Items(list: List<T>, title: (T) -> String, subtitle: (T) -> Stri
 @Composable
 private fun MediaItems(list: List<HolyricsFile>, onPick: (HolyricsFile) -> Unit) {
     val p = P.current
-    if (list.isEmpty()) return BasicText("Пусто", style = TextStyle(fontSize = 14.sp, color = p.l2))
+    if (list.isEmpty()) return BasicText(L.empty, style = TextStyle(fontSize = 14.sp, color = p.l2))
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(list, key = { it.name }) { f ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(p.cell).clickable { onPick(f) }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -293,11 +296,11 @@ private fun ThemeRow(title: String, theme: app.deixis.core.HolyricsTheme?, selec
                 .background(theme?.let { Color(if (it.background.type == "color") holyricsColor(it.background.id, 0xFF000000) else 0xFF303030) } ?: p.fill),
             contentAlignment = Alignment.Center,
         ) {
-            theme?.let { BasicText("Аа", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(holyricsColor(it.font.color, 0xFFFFFFFF)))) }
+            theme?.let { BasicText(L.sampleAa, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(holyricsColor(it.font.color, 0xFFFFFFFF)))) }
         }
         Spacer(Modifier.width(10.dp))
         BasicText(title, style = TextStyle(fontSize = 15.sp, color = p.ink), modifier = Modifier.weight(1f))
-        if (theme?.backgroundImageName != null) BasicText("фон-фото", style = TextStyle(fontSize = 12.sp, color = p.l2))
+        if (theme?.backgroundImageName != null) BasicText(L.bgPhotoLower, style = TextStyle(fontSize = 12.sp, color = p.l2))
     }
 }
 
@@ -319,12 +322,12 @@ fun HolyricsLiveCard(h: HolyricsSource) {
                 cur.slides?.firstOrNull { it.number == cur.slideNumber }?.text?.ifBlank { null } ?: cur.name,
                 Modifier.padding(16.dp), style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White, textAlign = TextAlign.Center),
             )
-            else -> BasicText("В Holyrics ничего не показано", style = TextStyle(fontSize = 15.sp, color = Color.White))
+            else -> BasicText(L.nothingInHolyrics, style = TextStyle(fontSize = 15.sp, color = Color.White))
         }
     }
     cur?.let { c ->
         BasicText(
-            "Holyrics · ${c.name} · слайд ${c.slideNumber} из ${c.totalSlides}",
+            "Holyrics · ${c.name} · " + L.slideNofM(c.slideNumber, c.totalSlides),
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = TextStyle(fontSize = 13.sp, color = p.l2), maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

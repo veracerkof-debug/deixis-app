@@ -146,9 +146,9 @@ class DlnaOutput(private val app: Application) {
     }
 
     private suspend fun render() = withContext(Dispatchers.IO) {
-        val t = tv ?: throw IOException("Телевизор не выбран")
-        val s = server ?: throw IOException("Телевизор не выбран")
-        val address = Discovery.localAddress()?.hostAddress ?: throw IOException("Телефон не в сети Wi-Fi")
+        val t = tv ?: throw IOException(L.tvNotPicked)
+        val s = server ?: throw IOException(L.tvNotPicked)
+        val address = Discovery.localAddress()?.hostAddress ?: throw IOException(L.phoneNoWifi)
         val c = shown
         // «Уйти с экранов»: телевизор перестаёт играть то, что дал Deixis, и возвращается к своему.
         if (mode == Mode.AWAY) { t.stop(); return@withContext }
@@ -159,11 +159,11 @@ class DlnaOutput(private val app: Application) {
             mode != Mode.NORMAL || c == null -> picture(t, s, address, renderSlideBitmap(app, c, if (c == null) Mode.BLACK else mode, logo = logo, logoPicture = picture))
             c is ImageContent || c is VideoContent -> {
                 val ref = if (c is ImageContent) c.file else (c as VideoContent).file
-                val src = sources[ref.sha256] ?: throw IOException("Файл «${ref.name}» не найден на телефоне")
+                val src = sources[ref.sha256] ?: throw IOException(L.fileNotOnPhone(ref.name))
                 t.play(s.share(src, address), ref.name.substringBeforeLast('.'), src.mime)
             }
             c is PdfContent -> picture(t, s, address, pdfPage(c))
-            c is ScreenContent -> throw IOException("Демонстрация экрана на DLNA-телевизор не идёт: нужен экран Deixis")
+            c is ScreenContent -> throw IOException(L.dlnaNoScreen)
             else -> picture(t, s, address, renderSlideBitmap(app, c, Mode.NORMAL))
         }
         s.forgetAllBut(2)
@@ -182,7 +182,7 @@ class DlnaOutput(private val app: Application) {
 
     /** Страница PDF на чёрном кадре 1920×1080. PdfRenderer нужен файл, поэтому PDF один раз копируется в кэш. */
     private fun pdfPage(c: PdfContent): Bitmap {
-        val src = sources[c.file.sha256] ?: throw IOException("Файл «${c.file.name}» не найден на телефоне")
+        val src = sources[c.file.sha256] ?: throw IOException(L.fileNotOnPhone(c.file.name))
         val file = File(app.cacheDir, "dlna-${c.file.sha256}.pdf")
         if (!file.isFile) src.open().use { input -> file.outputStream().use { input.copyTo(it) } }
         val page = renderPdfPage(file, c.page, 1920, 1080)

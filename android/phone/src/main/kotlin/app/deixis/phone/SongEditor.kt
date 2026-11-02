@@ -56,14 +56,14 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
     val current = { if (asText) SongText.parse(whole.text) else slides.map { it.slide } }
 
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        if (!quick || save) Field(title, if (kind == Kind.SONG) "Название песни" else "Название") { title = it }
-        Seg(listOf("Слайды", "Одним текстом"), if (asText) 1 else 0, Modifier.fillMaxWidth()) { i ->
+        if (!quick || save) Field(title, if (kind == Kind.SONG) L.songTitle else L.title) { title = it }
+        Seg(listOf(L.slidesMode, L.wholeText), if (asText) 1 else 0, Modifier.fillMaxWidth()) { i ->
             if (i == 1 && !asText) { whole = TextFieldValue(SongText.format(slides.map { it.slide })); asText = true }
             if (i == 0 && asText) { set(SongText.parse(whole.text).ifEmpty { listOf(SongSlide()) }); asText = false }
         }
         if (asText) {
-            EditorField(whole, "Куплеты и припев.\nПустая строка — новый слайд, [Припев] — подпись слайда", minLines = 10) { whole = it }
-            Note("Пустая строка между строками — новый слайд. Строка в квадратных скобках над слайдом — его подпись: [Куплет 1], [Припев].")
+            EditorField(whole, L.songHint, minLines = 10) { whole = it }
+            Note(L.songNote)
         } else {
             slides.forEachIndexed { i, s ->
                 SlideCard(
@@ -78,15 +78,15 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-                Pill("Слайд", "plus") { slides = slides + ed(SongSlide()) }
-                Pill("По 2 строки") { set(SongText.rechunk(slides.map { it.slide }, 2)) }
-                Pill("По 4 строки") { set(SongText.rechunk(slides.map { it.slide }, 4)) }
+                Pill(L.slide, "plus") { slides = slides + ed(SongSlide()) }
+                Pill(L.by2) { set(SongText.rechunk(slides.map { it.slide }, 2)) }
+                Pill(L.by4) { set(SongText.rechunk(slides.map { it.slide }, 4)) }
             }
-            Note("Курсор в тексте и «Разделить» — новый слайд с этого места. Подпись — касанием по ней.")
+            Note(L.splitNote)
         }
         val result = current().filter { it.text.isNotBlank() }
-        Note(if (result.isEmpty()) "Пока пусто" else slidesText(result.size))
-        if (quick) Group { SwitchRow("Сохранить в библиотеку", save) { save = it } }
+        Note(if (result.isEmpty()) L.emptyYet else slidesText(result.size))
+        if (quick) Group { SwitchRow(L.saveToLib, save) { save = it } }
         val keep = {
             val name = title.ifBlank { result.firstOrNull()?.text?.lineSequence()?.first()?.take(40) ?: kind.title }
             val saved = (item ?: LibItem(Store.newId(), kind, name)).copy(title = name, slides = result.map { it.text }, labels = result.map { it.label })
@@ -96,16 +96,16 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
         if (quick) {
             val go = { live: Boolean ->
                 val source = if (save) c.sourceOf(keep())
-                else Source(null, title.ifBlank { "Текст" }, kind, result.map { Slide.Text(it.text, it.label) })
+                else Source(null, title.ifBlank { L.tText }, kind, result.map { Slide.Text(it.text, it.label) })
                 ui.closeAll()
-                if (live) { c.goLive(Cue(source, 0)); ui.toast("В зале") } else c.toPreview(Cue(source, 0))
+                if (live) { c.goLive(Cue(source, 0)); ui.toast(L.inHall) } else c.toPreview(Cue(source, 0))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                Btn("В предпросмотр", Modifier.weight(1f), enabled = result.isNotEmpty()) { go(false) }
-                Btn("В зал", Modifier.weight(1f), kind = BtnKind.TINT, enabled = result.isNotEmpty()) { go(true) }
+                Btn(L.toPreview, Modifier.weight(1f), enabled = result.isNotEmpty()) { go(false) }
+                Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT, enabled = result.isNotEmpty()) { go(true) }
             }
         } else {
-            Btn("Сохранить", kind = BtnKind.TINT, enabled = result.isNotEmpty()) { keep(); ui.closeAll(); ui.toast("Сохранено") }
+            Btn(L.save, kind = BtnKind.TINT, enabled = result.isNotEmpty()) { keep(); ui.closeAll(); ui.toast(L.saved) }
         }
     }
 }
@@ -123,20 +123,20 @@ private fun SlideCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
             Txt("${index + 1}", T.fLabel, p.l2, FontWeight.SemiBold)
-            Pill(s.label ?: "Подпись", tint = s.label != null, label = "Подпись слайда ${index + 1}") {
-                ui.push("Подпись слайда ${index + 1}") { LabelPicker(ui, s.label, onLabel) }
+            Pill(s.label ?: L.label, tint = s.label != null, label = L.slideLabelN(index + 1)) {
+                ui.push(L.slideLabelN(index + 1)) { LabelPicker(ui, s.label, onLabel) }
             }
             Box(Modifier.weight(1f))
-            onUp?.let { IconBtn("up", "Выше", onClick = it) }
-            onDown?.let { IconBtn("down", "Ниже", onClick = it) }
-            onDelete?.let { IconBtn("trash", "Удалить слайд", p.red, onClick = it) }
+            onUp?.let { IconBtn("up", L.up, onClick = it) }
+            onDown?.let { IconBtn("down", L.down, onClick = it) }
+            onDelete?.let { IconBtn("trash", L.deleteSlide, p.red, onClick = it) }
         }
         // Превью в оформлении зала: видно, как слайд ляжет на экран, пока его правят.
         SlideView(Slide.Text(s.value.text, s.label), null, style)
-        EditorField(s.value, "Строки слайда", minLines = 3, onChange = onChange)
+        EditorField(s.value, L.slideLines, minLines = 3, onChange = onChange)
         Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-            Pill("Разделить по курсору", "edit", label = "Разделить слайд ${index + 1} по курсору", onClick = onSplit)
-            onMerge?.let { Pill("С предыдущим", "up", label = "Объединить слайд ${index + 1} с предыдущим", onClick = it) }
+            Pill(L.splitAtCursor, "edit", label = L.splitSlideN(index + 1), onClick = onSplit)
+            onMerge?.let { Pill(L.withPrevious, "up", label = L.mergeSlideN(index + 1), onClick = it) }
         }
     }
 }
@@ -146,14 +146,14 @@ private fun SlideCard(
 private fun LabelPicker(ui: Ui, current: String?, onPick: (String?) -> Unit) {
     var own by remember { mutableStateOf(current?.takeIf { it !in SongText.LABELS }.orEmpty()) }
     Group {
-        Cell("Без подписи", chevron = null, onClick = { onPick(null); ui.close() })
+        Cell(L.noLabel, chevron = null, onClick = { onPick(null); ui.close() })
         SongText.LABELS.forEach { l ->
             Sep(T.gutter)
             Cell(l, chevron = null, open = l == current, onClick = { onPick(l); ui.close() })
         }
     }
-    Field(own, "Своя подпись", Modifier.padding(top = T.gap)) { own = it }
-    Btn("Поставить свою", Modifier.padding(top = T.gapS), enabled = own.isNotBlank()) { onPick(own.trim()); ui.close() }
+    Field(own, L.ownLabel, Modifier.padding(top = T.gap)) { own = it }
+    Btn(L.setOwnLabel, Modifier.padding(top = T.gapS), enabled = own.isNotBlank()) { onPick(own.trim()); ui.close() }
 }
 
 /** Многострочное поле с курсором: по нему слайд делится на два. */

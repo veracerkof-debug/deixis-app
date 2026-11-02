@@ -46,7 +46,7 @@ class Backups(
         val stamp = LocalDateTime.now().format(STAMP)
         val name = "$prefix$stamp-$reason.json"
         val json = DeixisJson.encodeToString(StoreData.serializer(), data)
-        if (!writeDurably(File(dir, name), json)) throw java.io.IOException("Копия не записалась: мало места на телефоне")
+        if (!writeDurably(File(dir, name), json)) throw java.io.IOException(L.backupNoSpace)
         val local = dir.listFiles().orEmpty().filter { it.name.endsWith(".json") }.sortedBy { it.name }
         // Одна копия постарше (не новее трёх дней до последней) не вытесняется: семь копий подряд после
         // случайного удаления не стирают последнюю хорошую.
@@ -98,9 +98,9 @@ class Backups(
     private fun read(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { input ->
         // Случайно выбранный огромный файл не роняет приложение нехваткой памяти.
         val bytes = input.readNBytesCompat(MAX_BACKUP_BYTES + 1)
-        if (bytes.size > MAX_BACKUP_BYTES) error("Это не копия Deixis: файл слишком большой")
+        if (bytes.size > MAX_BACKUP_BYTES) error(L.notBackupTooBig)
         bytes.decodeToString()
-    } ?: error("Копия не читается")
+    } ?: error(L.backupUnreadable)
 
     private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
         val out = java.io.ByteArrayOutputStream()
@@ -117,11 +117,11 @@ class Backups(
     fun load(b: BackupInfo): StoreData {
         val text = if (b.uri != null) read(b.uri) else File(dir, b.name).readText()
         // Копия с более новой версии читается по частям, а не отвергается целиком.
-        return StoreRead.read(text)?.data ?: error("Это не копия Deixis")
+        return StoreRead.read(text)?.data ?: error(L.notBackup)
     }
 
     /** Данные из любого файла копии (перенос на новый телефон). */
-    fun loadFile(uri: Uri): StoreData = StoreRead.read(read(uri))?.data ?: error("Это не копия Deixis")
+    fun loadFile(uri: Uri): StoreData = StoreRead.read(read(uri))?.data ?: error(L.notBackup)
 
     /** Самая свежая читаемая копия — на случай, если основной файл испорчен. */
     fun newest(): StoreData? = list().firstNotNullOfOrNull { runCatching { load(it) }.getOrNull() }
@@ -137,14 +137,14 @@ class Backups(
         private const val ANCHOR_AGE_MS = 3 * DAY_MS
         private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
         private val STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-        private val SHOW = DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
+        private val SHOW: DateTimeFormatter get() = DateTimeFormatter.ofPattern("d MMMM, HH:mm", I18n.locale)
 
         fun reasonText(r: String): String = when {
-            r == "daily" -> "ежедневная"
-            r == "manual" -> "вручную"
-            r == "before-restore" -> "перед восстановлением"
-            r == "broken" -> "испорченный файл"
-            r.startsWith("before-update-") -> "перед обновлением до ${r.removePrefix("before-update-")}"
+            r == "daily" -> L.bkDaily
+            r == "manual" -> L.bkManual
+            r == "before-restore" -> L.bkBeforeRestore
+            r == "broken" -> L.bkBroken
+            r.startsWith("before-update-") -> L.beforeUpdate(r.removePrefix("before-update-"))
             else -> r
         }
     }

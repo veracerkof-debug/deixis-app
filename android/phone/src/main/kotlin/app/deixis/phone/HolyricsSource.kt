@@ -113,8 +113,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
             throw e
         } catch (e: Exception) {
             c.close()
-            status.value = HolyricsStatus.Failed(e.message ?: "Нет связи с Holyrics")
-            if (!quiet) controller.messages.emit("Holyrics: ${e.message ?: "нет связи"}")
+            status.value = HolyricsStatus.Failed(e.message ?: L.noLinkHolyrics)
+            if (!quiet) controller.messages.emit("Holyrics: ${e.message ?: L.stOffline}")
         }
     }
 
@@ -130,8 +130,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         missing.value = p.takeIf { !it.ok }
         if (p.ok || quiet) return
         controller.messages.emit(
-            if (p.request == "pending") "Holyrics просит подтвердить права для Deixis: «Разрешить» в уведомлении на компьютере"
-            else "У токена Holyrics не хватает прав (${p.missing.size}). Права добавляются в Holyrics: Файл → Настройки → API Server → Управление правами",
+            if (p.request == "pending") L.rightsAsk
+            else L.tokenMissing(p.missing.size),
         )
     }
 
@@ -159,22 +159,22 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun importAll() {
         if (importing.value != null) return
         io { c ->
-            importing.value = "Подготовка…"
+            importing.value = L.preparing
             try {
                 val songList = c.songs()
                 val songs = songList.mapIndexedNotNull { i, s ->
-                    importing.value = "Песни: ${i + 1} из ${songList.size}"
+                    importing.value = L.importSongs(i + 1, songList.size)
                     val full = runCatching { c.song(s.id) }.getOrNull() ?: return@mapIndexedNotNull null
                     val slides = full.orderedSlides()
                     LibItem(HolyricsImport.songId(s.id), Kind.SONG, full.title.ifBlank { s.title }, slides.map { it.text }, slides.map { it.description?.takeIf { d -> d.isNotBlank() } })
                 }
                 val textList = c.texts()
                 val texts = textList.mapIndexedNotNull { i, t ->
-                    importing.value = "Тексты: ${i + 1} из ${textList.size}"
+                    importing.value = L.importTexts(i + 1, textList.size)
                     val full = runCatching { c.text(t.id) }.getOrNull() ?: return@mapIndexedNotNull null
                     LibItem(HolyricsImport.textId(t.id), Kind.TEXT, full.title.ifBlank { t.title }, full.slides.map { it.text })
                 }
-                importing.value = "Темы и плейлист…"
+                importing.value = L.themesPlaylist
                 val themes = runCatching { c.themes() }.getOrDefault(emptyList()).map { t ->
                     val name = t.name.ifBlank { "Holyrics ${t.id}" }
                     Theme(HolyricsImport.themeId(t.id), name, t.toTextStyle().copy(name = name))
@@ -182,8 +182,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
                 val playlist = runCatching { c.songPlaylist() }.getOrNull()?.map { HolyricsImport.songId(it.id) }
                 withContext(Dispatchers.Main) { controller.importHolyrics(HolyricsHaul(songs + texts, themes, playlist)) }
                 controller.messages.emit(
-                    "Из Holyrics в Deixis: песен ${songs.size}, текстов ${texts.size}, тем ${themes.size}" +
-                        if (playlist != null) ", плейлист — сетлист «Плейлист Holyrics»" else "",
+                    L.importDone(songs.size, texts.size, themes.size) +
+                        if (playlist != null) L.importPlaylistSuffix else "",
                 )
             } finally {
                 importing.value = null
@@ -198,7 +198,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     /** «Найти»: опрос своей сети Wi-Fi на порту API Server Holyrics — только по нажатию. */
     fun find() = scope.launch {
         val local = Discovery.localAddress() as? java.net.Inet4Address
-        if (local == null) { controller.messages.emit("Телефон не в сети Wi-Fi: Holyrics ищется в той же сети"); return@launch }
+        if (local == null) { controller.messages.emit(L.phoneNoWifiHolyrics); return@launch }
         searching.value = true
         try {
             val hosts = HolyricsDiscovery.scan(HolyricsDiscovery.neighbours(local))
@@ -230,14 +230,14 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     /** Песня на экран Deixis: слайды в порядке исполнения, тема Holyrics. */
     fun showSong(id: String) = io { c ->
-        val song = c.song(id) ?: return@io controller.messages.emit("Песня не найдена в Holyrics")
+        val song = c.song(id) ?: return@io controller.messages.emit(L.songNotFoundHolyrics)
         val slides = song.orderedSlides()
         val style = styleFor(song.theme)
         withContext(Dispatchers.Main) { controller.showSlides(song.title, slides.map { it.text }, style, slides.map { it.description }) }
     }
 
     fun showText(id: String) = io { c ->
-        val text = c.text(id) ?: return@io controller.messages.emit("Текст не найден в Holyrics")
+        val text = c.text(id) ?: return@io controller.messages.emit(L.textNotFoundHolyrics)
         val style = styleFor(text.theme)
         withContext(Dispatchers.Main) { controller.showSlides(text.title, text.slides.map { it.text }, style) }
     }
@@ -246,13 +246,13 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun showMedia(kind: HolyricsMedia, file: HolyricsFile) = io { c ->
         val link = link() ?: return@io
         val ref = runCatching { controller.importFromHolyrics(HolyricsMediaRequest(link.port, link.token, kind, file.name)) }
-            .onFailure { controller.messages.emit(it.message ?: "Не удалось взять файл из Holyrics") }
+            .onFailure { controller.messages.emit(it.message ?: L.cantTakeFile) }
             .getOrNull()
         if (ref != null) {
             withContext(Dispatchers.Main) { if (kind == HolyricsMedia.VIDEO) controller.showVideo(ref) else controller.showImage(ref) }
         } else {
             if (kind == HolyricsMedia.VIDEO) c.playVideo(file.name) else c.showImage(file.name)
-            controller.messages.emit("Показано в Holyrics. На экран Deixis фото и видео Holyrics попадают через Deixis для компьютера рядом с Holyrics")
+            controller.messages.emit(L.shownInHolyrics)
         }
     }
 
@@ -400,7 +400,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun playAutomatic(file: String) = io { c -> c.playAutomaticPresentation(file, mix.value) }
     fun runFavorite(f: HolyricsFavorite) = io { c -> c.runFavorite(f.id) }
     fun playAudio(f: HolyricsFile) = io { c -> c.playAudio(f.name) }
-    fun openFile(f: HolyricsFile) = io { c -> c.executeFile(f.name); controller.messages.emit("«${f.name}» открыт в Holyrics") }
+    fun openFile(f: HolyricsFile) = io { c -> c.executeFile(f.name); controller.messages.emit(L.openedInHolyrics(f.name)) }
     fun alert(text: String, show: Boolean) = io { c -> c.alert(text, show) }
     fun stageCountdown(minutes: Int, text: String) = io { c -> c.stageCountdown(minutes, 0, text) }
     fun stopStageCountdown() = io { c -> c.stopStageCountdown() }
@@ -408,7 +408,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun addToPlaylist(song: HolyricsSong) = io { c ->
         c.addToPlaylist(song.id)
         playlist.value = runCatching { c.songPlaylist() }.getOrDefault(playlist.value)
-        controller.messages.emit("«${song.title}» — в плейлисте Holyrics")
+        controller.messages.emit(L.inHolyricsPlaylist(song.title))
     }
 
     fun removeFromPlaylist(index: Int) = io { c ->
@@ -422,7 +422,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun loadPlaylist(name: String, merge: Boolean) = io { c ->
         c.loadSavedPlaylist(name, merge)
         playlist.value = runCatching { c.songPlaylist() }.getOrDefault(playlist.value)
-        controller.messages.emit(if (merge) "«$name» добавлен в плейлист Holyrics" else "В Holyrics открыт плейлист «$name»")
+        controller.messages.emit(if (merge) L.playlistMerged(name) else L.playlistOpened(name))
     }
 
     /** F8/F9/F10: повторное нажатие выключает, как в Holyrics. */
@@ -468,7 +468,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun showBible(p: BiblePick, onShown: () -> Unit = {}) = io { c ->
         if (bibleVersions.value.isEmpty()) bibleVersions.value = runCatching { c.bibleVersions() }.getOrDefault(emptyList())
         val ids = HolyricsBible.verseIds(p.book, p.chapter, p.from, p.to)
-        if (ids.isEmpty()) return@io controller.messages.emit("Этой книги нет в Библии Holyrics")
+        if (ids.isEmpty()) return@io controller.messages.emit(L.noBookInHolyrics)
         val tabs = p.modules.mapNotNull { versionFor(it)?.id }.distinct()
         if (tabs.isNotEmpty() && tabs != syncedTabs) {
             runCatching { c.setBibleTabs(tabs) }.onSuccess { syncedTabs = tabs }
@@ -483,20 +483,20 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         if (bibleVersions.value.isEmpty()) bibleVersions.value = c.bibleVersions()
         val tabs = c.bibleTabs().filter { it.isNotBlank() }
         val files = tabs.mapNotNull { v -> controller.bibleModules.value.firstOrNull { versionFor(it.fileName)?.id == v }?.fileName }
-        if (files.isEmpty()) return@io controller.messages.emit("Для переводов Holyrics (${tabs.joinToString()}) в Deixis нет модулей: они добавляются в «Переводы Библии»")
+        if (files.isEmpty()) return@io controller.messages.emit(L.noModulesFor(tabs.joinToString()))
         withContext(Dispatchers.Main) { controller.desk.choose(files) }
         syncedTabs = tabs
-        controller.messages.emit("Переводы как в Holyrics: ${tabs.joinToString()}")
+        controller.messages.emit(L.translationsLikeHolyrics(tabs.joinToString()))
     }
 
     /** Переводы, выбранные в Deixis, — во вкладки Библии Holyrics. */
     fun pushBibleTabs(files: List<String>) = io { c ->
         if (bibleVersions.value.isEmpty()) bibleVersions.value = c.bibleVersions()
         val tabs = files.mapNotNull { versionFor(it)?.id }.distinct()
-        if (tabs.isEmpty()) return@io controller.messages.emit("Для этих модулей в Holyrics нет переводов")
+        if (tabs.isEmpty()) return@io controller.messages.emit(L.noTabsForModules)
         c.setBibleTabs(tabs)
         syncedTabs = tabs
-        controller.messages.emit("В Holyrics: ${tabs.joinToString()}")
+        controller.messages.emit(L.inHolyricsColon(tabs.joinToString()))
     }
 
     fun next() = io { it.next() }
@@ -509,11 +509,11 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     }.getOrNull()
 
     private fun io(block: suspend (HolyricsClient) -> Unit) = scope.launch {
-        val c = client ?: return@launch controller.messages.emit("Сначала нужна связь с Holyrics")
+        val c = client ?: return@launch controller.messages.emit(L.needHolyricsLink)
         try {
             withContext(Dispatchers.IO) { block(c) }
         } catch (e: Exception) {
-            controller.messages.emit("Holyrics: ${e.message ?: "ошибка"}")
+            controller.messages.emit("Holyrics: ${e.message ?: L.errorLower}")
         }
     }
 

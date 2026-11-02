@@ -36,7 +36,7 @@ private fun themeChoices(c: Controller, h: HolyricsSource, ui: Ui): List<ThemeCh
     val holyrics by h.themes.collectAsState()
     return themes.map { t ->
         ThemeChoice("d:${t.id}", t.name, t.style, { c.applyTheme(t.style) }) {
-            ui.sheet(if (t.builtIn) "Новая тема" else "Тема «${t.name}»") { ThemeEditor(c, ui, t) }
+            ui.sheet(if (t.builtIn) L.newTheme else L.themeNamed(t.name)) { ThemeEditor(c, ui, t) }
         }
     } + holyrics.map { t ->
         ThemeChoice("h:${t.id}", t.name.ifBlank { "Holyrics" }, t.toTextStyle(), { h.applyTheme(t) }, null)
@@ -61,11 +61,11 @@ private fun ThemeTile(t: ThemeChoice, on: Boolean, drag: ThemeDrag, modifier: Mo
     Column(
         // Касание — тема в зал; зажать и перенести — на песню, слайд или «Сейчас»; зажать и отпустить — изменить.
         modifier.clickable(onClick = t.apply).themeSource(drag, t.name, t.style.copy(name = t.name), t.edit)
-            .semantics { contentDescription = "Тема «${t.name}»" },
+            .semantics { contentDescription = L.themeNamed(t.name) },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // «Аа» во всю плитку: цвет и начертание темы видны и в узкой полосе.
-        SlideView(Slide.Text("Аа"), null, t.style.copy(sizePercent = T.sampleSize), frame = if (on) Frame.PREVIEW_TINT else Frame.NONE)
+        SlideView(Slide.Text(L.sampleAa), null, t.style.copy(sizePercent = T.sampleSize), frame = if (on) Frame.PREVIEW_TINT else Frame.NONE)
         Txt(t.name, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, Modifier.padding(top = T.themeLabelGap), lines = 1)
     }
 }
@@ -73,9 +73,9 @@ private fun ThemeTile(t: ThemeChoice, on: Boolean, drag: ThemeDrag, modifier: Mo
 /** Кнопки вида панели: спрятать в значок, узкая полоса, на всё место. */
 @Composable
 private fun PanelButtons(c: Controller, mode: ThemePanel) {
-    if (mode != ThemePanel.HIDDEN) IconBtn("close", "Спрятать темы") { c.setSettings { it.copy(themePanel = ThemePanel.HIDDEN) } }
-    if (mode == ThemePanel.FULL) IconBtn("next", "Темы узкой полосой") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
-    if (mode == ThemePanel.STRIP) IconBtn("prev", "Темы на всё место") { c.setSettings { it.copy(themePanel = ThemePanel.FULL) } }
+    if (mode != ThemePanel.HIDDEN) IconBtn("close", L.hideThemes) { c.setSettings { it.copy(themePanel = ThemePanel.HIDDEN) } }
+    if (mode == ThemePanel.FULL) IconBtn("next", L.themesStrip) { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
+    if (mode == ThemePanel.STRIP) IconBtn("prev", L.themesFull) { c.setSettings { it.copy(themePanel = ThemePanel.FULL) } }
 }
 
 /**
@@ -103,7 +103,7 @@ fun ThemeGrid(c: Controller, h: HolyricsSource, ui: Ui) {
     val cur = currentStyle(c)
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = T.gutter, end = 8.dp, bottom = T.gapS), verticalAlignment = Alignment.CenterVertically) {
-            Txt("Темы", T.fBody, weight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Txt(L.themes, T.fBody, weight = FontWeight.Bold, modifier = Modifier.weight(1f))
             PanelButtons(c, ThemePanel.FULL)
         }
         LazyColumn(Modifier.weight(1f).padding(horizontal = T.gutter), verticalArrangement = Arrangement.spacedBy(T.gap)) {
@@ -114,7 +114,7 @@ fun ThemeGrid(c: Controller, h: HolyricsSource, ui: Ui) {
                     repeat(GRID_COLS - rows[r].size) { Box(Modifier.weight(1f)) }
                 }
             }
-            item("note") { Note("Касание — тема сразу в зал и остаётся у песни или документа. Зажать и перенести на песню или слайд в сетлисте — тема им. Зажать и отпустить — изменить.") }
+            item("note") { Note(L.themePanelNote) }
         }
     }
 }

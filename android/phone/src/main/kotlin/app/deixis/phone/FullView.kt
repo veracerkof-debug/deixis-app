@@ -97,8 +97,8 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
             is FullSpec.Local -> local?.let { l ->
                 val item = c.item(l.source.itemId)
                 val big = item?.let { c.largeFor(it) }
-                if (big != null) ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }
-                else { c.goLive(l); ui.toast("В зале") }
+                if (big != null) ui.sheet(L.fileOver1Gb) { LargeSheet(c, ui, big) }
+                else { c.goLive(l); ui.toast(L.inHall) }
             }
             FullSpec.Live, is FullSpec.Video -> {}
         }
@@ -113,10 +113,10 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
         Modifier.fillMaxSize().background(F.bg).clickable(remember { MutableInteractionSource() }, null) {}.safeDrawingPadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconBtn("down", "Закрыть", F.ink) { close() }
-            Txt(cue?.source?.title ?: "Сейчас", T.fBody, F.ink, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
+            IconBtn("down", L.close, F.ink) { close() }
+            Txt(cue?.source?.title ?: L.now, T.fBody, F.ink, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
             if (spec == FullSpec.Live) Box(Modifier.clip(RoundedCornerShape(T.rPill)).background(F.live).padding(horizontal = 8.dp, vertical = T.gapXs)) {
-                Txt("В зале", T.fTag, F.ink, FontWeight.SemiBold)
+                Txt(L.inHall, T.fTag, F.ink, FontWeight.SemiBold)
             }
             cue?.let { Txt("${it.index + 1} / ${it.source.slides.size}", T.fSub, F.ink.copy(alpha = F.dim)) }
         }
@@ -130,19 +130,19 @@ private fun FullView(c: Controller, ui: Ui, spec: FullSpec) {
         }
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = T.gap, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (spec == FullSpec.Live) {
-                FullBtn("Назад", "prev", Modifier.weight(1f)) { move(-1) }
-                FullBtn("Дальше", "next", Modifier.weight(1f)) { move(1) }
+                FullBtn(L.prev, "prev", Modifier.weight(1f)) { move(-1) }
+                FullBtn(L.next, "next", Modifier.weight(1f)) { move(1) }
             } else {
-                FullBtn("В зал", "up", Modifier.weight(1f), F.go) { go() }
-                FullBtn("Вид", "brush", Modifier.weight(1f)) {
+                FullBtn(L.toHall, "up", Modifier.weight(1f), F.go) { go() }
+                FullBtn(L.look, "brush", Modifier.weight(1f)) {
                     if (spec is FullSpec.Local) local?.let { c.toPreview(it) }
                     ui.full = null
                     ui.tab = AppTab.SHOW
                     openStyle(c, ui)
                 }
                 val id = cue?.source?.itemId
-                if (id != null && set?.items?.contains(id) != true) FullBtn("В сетлист", "plus", Modifier.weight(1f)) {
-                    c.addToSet(id); ui.toast("Добавлено в сетлист")
+                if (id != null && set?.items?.contains(id) != true) FullBtn(L.toSet, "plus", Modifier.weight(1f)) {
+                    c.addToSet(id); ui.toast(L.addedToSet)
                 }
             }
         }

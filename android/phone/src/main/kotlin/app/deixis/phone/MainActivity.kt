@@ -158,9 +158,9 @@ private fun CrashScreen(text: String, onContinue: () -> Unit) {
         androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black).safeDrawingPadding()
             .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp),
     ) {
-        androidx.compose.foundation.text.BasicText("Deixis закрылся из-за ошибки", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 22.sp))
+        androidx.compose.foundation.text.BasicText(L.crashed, style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 22.sp))
         androidx.compose.foundation.text.BasicText(
-            "Отчёт уже заполнен: его можно отправить одним касанием.",
+            L.crashNote,
             androidx.compose.ui.Modifier.padding(top = 8.dp), style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f), fontSize = 15.sp),
         )
         androidx.compose.foundation.text.BasicText(text, androidx.compose.ui.Modifier.padding(top = 16.dp), style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f), fontSize = 12.sp))
@@ -169,12 +169,12 @@ private fun CrashScreen(text: String, onContinue: () -> Unit) {
             androidx.compose.ui.Modifier.padding(top = 20.dp).fillMaxWidth().height(50.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                 .background(androidx.compose.ui.graphics.Color.White).clickable { Feedback.crash(context, text) },
             contentAlignment = androidx.compose.ui.Alignment.Center,
-        ) { androidx.compose.foundation.text.BasicText("Отправить отчёт", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.Black, fontSize = 17.sp)) }
+        ) { androidx.compose.foundation.text.BasicText(L.sendReport, style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.Black, fontSize = 17.sp)) }
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.padding(top = 12.dp).fillMaxWidth().height(50.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                 .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f)).clickable(onClick = onContinue),
             contentAlignment = androidx.compose.ui.Alignment.Center,
-        ) { androidx.compose.foundation.text.BasicText("Продолжить", style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 17.sp)) }
+        ) { androidx.compose.foundation.text.BasicText(L.continueAction, style = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 17.sp)) }
     }
 }
 

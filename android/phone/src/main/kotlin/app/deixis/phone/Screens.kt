@@ -38,7 +38,7 @@ fun Header(title: String, actions: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun Gear(c: Controller, ui: Ui) = IconBtn("gear", "Настройки") { ui.sheet("Настройки") { SettingsSheet(c) } }
+private fun Gear(c: Controller, ui: Ui) = IconBtn("gear", L.settings) { ui.sheet(L.settings) { SettingsSheet(c) } }
 
 private val wide = Modifier.widthIn(max = 900.dp)
 
@@ -60,24 +60,24 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
         Kind.entries.mapNotNull { k -> items.filter { it.kind == k }.takeIf { it.isNotEmpty() }?.let { k to it } }
     }
     Column(Modifier.fillMaxSize()) {
-        Header("Библиотека") {
-            IconBtn("plus", "Добавить") { ui.sheet("Добавить") { AddSheet(c, ui) } }
+        Header(L.tabLibrary) {
+            IconBtn("plus", L.add) { ui.sheet(L.add) { AddSheet(c, ui) } }
             Gear(c, ui)
         }
         LazyColumn(wide.fillMaxSize()) {
             item("search") {
                 Column(Modifier.padding(horizontal = T.gutter)) {
-                    SearchField(ui.libQuery, "Поиск по названию и тексту", Modifier.padding(bottom = T.gap)) { ui.libQuery = it }
+                    SearchField(ui.libQuery, L.libSearch, Modifier.padding(bottom = T.gap)) { ui.libQuery = it }
                     Seg(
-                        segs.map { it?.plural ?: "Все" }, segs.indexOf(ui.libSeg).coerceAtLeast(0),
+                        segs.map { it?.plural ?: L.all }, segs.indexOf(ui.libSeg).coerceAtLeast(0),
                         Modifier.fillMaxWidth().padding(bottom = 18.dp), scroll = true,
                     ) { ui.libSeg = segs[it] }
                 }
             }
             if (groups.isEmpty()) item("empty") {
                 Note(
-                    if (data.items.isEmpty()) "Библиотека пуста. «+» добавляет песни, тексты, места из Библии и файлы телефона: презентации, видео, фото."
-                    else "Ничего не найдено.",
+                    if (data.items.isEmpty()) L.libEmpty
+                    else L.nothingFoundDot,
                     Modifier.padding(horizontal = T.gutter),
                 )
             }
@@ -97,7 +97,7 @@ fun LibraryScreen(c: Controller, @Suppress("UNUSED_PARAMETER") h: HolyricsSource
                 }
                 item("g:$k") { Spacer(Modifier.height(20.dp)) }
             }
-            item("note") { Note("Удержание элемента — править, удалить, в сетлист. Значок экрана со стрелкой — отправить файл на экраны заранее: в зале ничего не меняется.", Modifier.padding(horizontal = T.gutter)) }
+            item("note") { Note(L.libNote, Modifier.padding(horizontal = T.gutter)) }
         }
     }
 }
@@ -117,21 +117,21 @@ fun FileBadge(c: Controller, ui: Ui, item: LibItem) {
     val p = P.current
     val t = st.transfer
     when {
-        t != null -> Txt(if (t.queued) "в очереди" else if (t.preparing) "готовится" else "${t.percent} %", T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
+        t != null -> Txt(if (t.queued) L.queued else if (t.preparing) L.preparingLower else "${t.percent} %", T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
         st.done == st.screens -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Icon("onscreen", p.tintText, T.iconS)
-            Txt(if (st.screens == 1) "на экране" else "на всех", T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
+            Txt(if (st.screens == 1) L.onScreen else L.onAll, T.fTag, p.tintText, FontWeight.SemiBold, lines = 1)
         }
         else -> Row(
-            Modifier.press(label = "Отправить «${item.title}» на экраны заранее") {
-                ui.toast(if (c.sendAhead(item) > 0) "Передаётся в фоне: в зале ничего не меняется" else "Нет подключённых экранов")
+            Modifier.press(label = L.sendAheadOf(item.title)) {
+                ui.toast(if (c.sendAhead(item) > 0) L.sendingBackground else L.noScreens)
             }.padding(4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Просто значок: название файла важнее. Частично отправленный — с подписью.
             Icon("send", p.l2, T.icon)
-            if (st.done > 0) Txt("${st.done} из ${st.screens}", T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
-            else if (st.partial) Txt("дослать", T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
+            if (st.done > 0) Txt(L.nOfM(st.done, st.screens), T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
+            else if (st.partial) Txt(L.resend, T.fTag, p.l2, FontWeight.SemiBold, lines = 1)
         }
     }
 }
@@ -144,14 +144,14 @@ fun SetlistsScreen(c: Controller, ui: Ui) {
     val up = data.setlists.filter { !it.past }.sortedBy { it.date }
     val past = data.setlists.filter { it.past }.sortedByDescending { it.date }
     Column(Modifier.fillMaxSize()) {
-        Header("Сетлисты") {
-            IconBtn("plus", "Новый сетлист") { ui.sheet("Новый сетлист") { NewSetSheet(c, ui) } }
+        Header(L.tabSets) {
+            IconBtn("plus", L.newSet) { ui.sheet(L.newSet) { NewSetSheet(c, ui) } }
             Gear(c, ui)
         }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
-            if (up.isNotEmpty()) { GHead("Ближайшие"); SetGroup(c, ui, up, data) }
-            if (past.isNotEmpty()) { GHead("Прошедшие"); SetGroup(c, ui, past, data) }
-            Note("Прошлое служение удобно дублировать: оно становится основой следующего.")
+            if (up.isNotEmpty()) { GHead(L.upcoming); SetGroup(c, ui, up, data) }
+            if (past.isNotEmpty()) { GHead(L.past); SetGroup(c, ui, past, data) }
+            Note(L.dupHint)
         }
     }
 }
@@ -162,12 +162,12 @@ private fun SetGroup(c: Controller, ui: Ui, sets: List<Setlist>, data: StoreData
         sets.forEachIndexed { i, s ->
             if (i > 0) Sep(T.gutter)
             val names = s.items.take(3).mapNotNull { id -> data.items.firstOrNull { it.id == id }?.title }.joinToString(", ")
-            Cell("${s.title}, ${s.dateText}", "${s.items.size} элем." + if (names.isNotEmpty()) " · $names" else "", chevron = null, onClick = {
+            Cell("${s.title}, ${s.dateText}", L.itemsShort(s.items.size) + if (names.isNotEmpty()) " · $names" else "", chevron = null, onClick = {
                 c.pickSet(s.id); ui.open = s.items.firstOrNull(); ui.listSeg = 0; ui.tab = AppTab.SHOW
-                ui.toast("На главном: ${s.title}, ${s.dateText}")
+                ui.toast(L.onMainSet("${s.title}, ${s.dateText}"))
             }) {
-                if (s.id == data.active) Tag("На главном", false)
-                IconBtn("more", "Действия") { ui.sheet("${s.title}, ${s.dateText}") { SetMenu(c, ui, s) } }
+                if (s.id == data.active) Tag(L.onMain, false)
+                IconBtn("more", L.actions) { ui.sheet("${s.title}, ${s.dateText}") { SetMenu(c, ui, s) } }
             }
         }
     }
@@ -176,17 +176,17 @@ private fun SetGroup(c: Controller, ui: Ui, sets: List<Setlist>, data: StoreData
 @Composable
 private fun SetMenu(c: Controller, ui: Ui, s: Setlist) {
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Btn("На главный") { c.pickSet(s.id); ui.closeAll(); ui.tab = AppTab.SHOW; ui.toast("На главном: ${s.title}, ${s.dateText}") }
-        Btn("Дублировать") { ui.push("Дублировать") { NewSetSheet(c, ui, copyOf = s) } }
-        Btn("Переименовать") {
-            ui.push("Переименовать") {
+        Btn(L.toMain) { c.pickSet(s.id); ui.closeAll(); ui.tab = AppTab.SHOW; ui.toast(L.onMainSet("${s.title}, ${s.dateText}")) }
+        Btn(L.duplicate) { ui.push(L.duplicate) { NewSetSheet(c, ui, copyOf = s) } }
+        Btn(L.rename) {
+            ui.push(L.rename) {
                 var name by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(s.title) }
-                Field(name, "Название") { name = it }
+                Field(name, L.title) { name = it }
                 Spacer(Modifier.height(12.dp))
-                Btn("Сохранить", kind = BtnKind.TINT, enabled = name.isNotBlank()) { c.saveSet(s.copy(title = name.trim())); ui.closeAll() }
+                Btn(L.save, kind = BtnKind.TINT, enabled = name.isNotBlank()) { c.saveSet(s.copy(title = name.trim())); ui.closeAll() }
             }
         }
-        Btn("Удалить", kind = BtnKind.RED) { ui.push("Удалить сетлист") { DeleteSetSheet(c, ui, s) } }
+        Btn(L.delete, kind = BtnKind.RED) { ui.push(L.deleteSet) { DeleteSetSheet(c, ui, s) } }
     }
 }
 
@@ -200,47 +200,47 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     val holyrics by h.status.collectAsState()
     val context = LocalContext.current
     Column(Modifier.fillMaxSize()) {
-        Header("Устройства") { Gear(c, ui) }
+        Header(L.tabDevices) { Gear(c, ui) }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
             if (st.church) WorkModeSwitch(c, ui, h)
-            GHead("Экраны")
+            GHead(L.screens)
             Group {
                 outputs.forEachIndexed { i, o ->
                     if (i > 0) Sep()
                     OutputCell(c, o)
                 }
                 if (outputs.isNotEmpty()) Sep()
-                Cell("Подключить экран", kind = "plus", onClick = { ui.sheet("Подключить") { ConnectSheet(c, ui) } })
+                Cell(L.connectScreen, kind = "plus", onClick = { ui.sheet(L.connect) { ConnectSheet(c, ui) } })
                 Sep()
-                Cell("Проверка перед началом", kind = "show", onClick = { ui.toast(c.check()) })
+                Cell(L.preflight, kind = "show", onClick = { ui.toast(c.check()) })
             }
-            GHead("Зрители")
+            GHead(L.viewers)
             ViewersBlock(c)
             val free = targets.filter { t -> outputs.none { c.sameScreen(t, it) } }
             if (free.isNotEmpty()) {
-                GHead("Рядом в сети")
+                GHead(L.nearby)
                 Group {
                     free.forEachIndexed { i, t ->
                         if (i > 0) Sep()
                         Cell(t.name, t.via + if (t.kind == Target.Kind.NETWORK) " · ${t.host}" else "", t.icon, chevron = null) {
-                            Pill("Подключить", tint = true) { c.connect(t) }
+                            Pill(L.connect, tint = true) { c.connect(t) }
                         }
                     }
                 }
             }
-            GHead("Этот телефон")
+            GHead(L.thisPhone)
             Group {
-                Cell("Стать экраном", "Телефон или планшет показывает сам: для проектора, доски, запасного экрана", "tv", onClick = {
+                Cell(L.becomeScreen, L.becomeScreenSub, "tv", onClick = {
                     context.startActivity(Intent(context, ScreenActivity::class.java))
                 })
                 if (st.church) {
                     Sep()
-                    Cell("Holyrics", if (holyrics is HolyricsStatus.On) "Подключено" else "Песни, темы и показ из Holyrics на компьютере", "song", onClick = { ui.holyrics = true })
+                    Cell("Holyrics", if (holyrics is HolyricsStatus.On) L.connectedState else L.hlAbout, "song", onClick = { ui.holyrics = true })
                     Sep()
-                    Cell("Переводы Библии", "Синодальный, King James и модули MyBible", "bible", onClick = { ui.sheet("Переводы Библии") { BibleModulesSheet(c) } })
+                    Cell(L.modules, L.modulesAbout, "bible", onClick = { ui.sheet(L.modules) { BibleModulesSheet(c) } })
                 }
             }
-            Note("Кабель HDMI и беспроводной дисплей (Миракаст) появляются в «Экранах» сами, как только телефон их видит.")
+            Note(L.cableNote)
         }
     }
 }

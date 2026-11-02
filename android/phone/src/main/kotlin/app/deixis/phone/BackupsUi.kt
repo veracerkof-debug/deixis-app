@@ -22,59 +22,59 @@ fun BackupsSection(c: Controller, ui: Ui) {
     val folderPick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
             c.backups.takeFolder(it)
-            runCatching { c.backupNow() }.onSuccess { ui.toast("Копия сохранена и в выбранную папку") }.onFailure { e -> ui.toast(e.message ?: "Папка недоступна") }
+            runCatching { c.backupNow() }.onSuccess { ui.toast(L.backupFolderSaved) }.onFailure { e -> ui.toast(e.message ?: L.folderUnavailable) }
             tick++
         }
     }
     val filePick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { u ->
             runCatching { c.backups.loadFile(u) }
-                .onSuccess { d -> ui.push("Восстановить из файла") { RestoreConfirm(c, ui, d, "файл") } }
-                .onFailure { ui.toast("Это не копия Deixis или файл испорчен") }
+                .onSuccess { d -> ui.push(L.restoreFromFile) { RestoreConfirm(c, ui, d, L.fileLower) } }
+                .onFailure { ui.toast(L.notBackupOrBroken) }
         }
     }
     // Перечитать после копии или выбора папки.
     val last = remember(tick) { c.backups.lastAt() }
     val folder = remember(tick) { c.backups.folder }
-    GHead("Резервные копии")
+    GHead(L.backups)
     Group {
         Cell(
-            if (last == 0L) "Копий ещё нет" else "Последняя: " + Instant.ofEpochMilli(last).atZone(ZoneId.systemDefault()).format(SHOWN),
-            "Сами раз в сутки и перед каждым обновлением, хранятся последние ${Backups.KEEP}",
+            if (last == 0L) L.noBackupsYet else L.lastBackup + Instant.ofEpochMilli(last).atZone(ZoneId.systemDefault()).format(SHOWN),
+            L.backupsAuto(Backups.KEEP),
             "file", chevron = null,
         )
         Sep(T.gutter)
         Cell(
-            if (folder == null) "Копия вне телефона" else "Копия вне телефона: включена",
-            if (folder == null) "Папка на флешке, в Google Диске или «Документах»: переживёт потерю телефона" else "Касание — выбрать другую папку",
+            if (folder == null) L.offPhone else L.offPhoneOn,
+            if (folder == null) L.offPhoneSub else L.pickOtherFolder,
             onClick = { folderPick.launch(null) },
         )
         Sep(T.gutter)
-        Cell("Восстановить из копии", onClick = { ui.push("Резервные копии") { BackupsList(c, ui) } })
+        Cell(L.restoreFromBackup, onClick = { ui.push(L.backups) { BackupsList(c, ui) } })
         Sep(T.gutter)
-        Cell("Восстановить из файла…", "С другого телефона или из папки", onClick = { filePick.launch(arrayOf("application/json", "application/octet-stream", "*/*")) })
+        Cell(L.restoreFromFileDots, L.restoreFromFileSub, onClick = { filePick.launch(arrayOf("application/json", "application/octet-stream", "*/*")) })
     }
-    Btn("Сделать копию сейчас", Modifier.fillMaxWidth().padding(top = T.gap)) {
-        runCatching { c.backupNow() }.onSuccess { ui.toast("Копия сохранена") }.onFailure { e -> ui.toast(e.message ?: "Копия не сохранилась") }
+    Btn(L.backupNow, Modifier.fillMaxWidth().padding(top = T.gap)) {
+        runCatching { c.backupNow() }.onSuccess { ui.toast(L.backupSaved) }.onFailure { e -> ui.toast(e.message ?: L.backupNotSaved) }
         tick++
     }
-    Note("В копии — библиотека, сетлисты, тексты песен, темы и настройки. Видео и фото не копируются: после восстановления на новом телефоне их нужно выбрать заново.")
+    Note(L.backupNote)
 }
 
 @Composable
 private fun BackupsList(c: Controller, ui: Ui) {
     val list = remember { runCatching { c.backups.list() }.getOrDefault(emptyList()) }
-    if (list.isEmpty()) { Note("Копий пока нет."); return }
+    if (list.isEmpty()) { Note(L.noBackups); return }
     Group {
         list.forEachIndexed { i, b ->
             if (i > 0) Sep(T.gutter)
             Cell(
-                b.at + if (b.external) " · в папке" else "",
-                "${Backups.reasonText(b.reason)} · материалов ${b.items}, сетлистов ${b.setlists}",
+                b.at + if (b.external) L.inFolderSuffix else "",
+                Backups.reasonText(b.reason) + " · " + L.itemsSetlists(b.items, b.setlists),
                 onClick = {
                     runCatching { c.backups.load(b) }
-                        .onSuccess { d -> ui.push("Восстановить") { RestoreConfirm(c, ui, d, b.at) } }
-                        .onFailure { ui.toast("Копия не читается") }
+                        .onSuccess { d -> ui.push(L.restore) { RestoreConfirm(c, ui, d, b.at) } }
+                        .onFailure { ui.toast(L.backupUnreadable) }
                 },
             )
         }
@@ -84,13 +84,13 @@ private fun BackupsList(c: Controller, ui: Ui) {
 @Composable
 private fun RestoreConfirm(c: Controller, ui: Ui, d: StoreData, from: String) {
     var done by remember { mutableStateOf(false) }
-    Note("Библиотека заменится копией «$from»: материалов ${d.items.size}, сетлистов ${d.setlists.size}. Нынешняя библиотека сначала сохранится копией — её можно будет вернуть.")
-    Btn("Восстановить", Modifier.fillMaxWidth().padding(top = T.gap), kind = BtnKind.TINT, enabled = !done) {
+    Note(L.restoreNote(from, d.items.size, d.setlists.size))
+    Btn(L.restore, Modifier.fillMaxWidth().padding(top = T.gap), kind = BtnKind.TINT, enabled = !done) {
         done = true
         c.restore(d)
         ui.closeAll()
-        ui.toast("Библиотека восстановлена")
+        ui.toast(L.libraryRestored)
     }
 }
 
-private val SHOWN = DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru"))
+private val SHOWN: DateTimeFormatter get() = DateTimeFormatter.ofPattern("d MMMM, HH:mm", I18n.locale)

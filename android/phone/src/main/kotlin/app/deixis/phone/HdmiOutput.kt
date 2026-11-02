@@ -102,7 +102,7 @@ class CastOutput(private val app: Application, private val controller: () -> Con
             runtime?.stop()
             wireless = isWireless
             runtimeSize = size
-            runtime = ReceiverRuntime(app, if (isWireless) "Беспроводной дисплей" else "Кабель HDMI", "android-hdmi", File(app.filesDir, "hdmi"), port = 0, loopbackOnly = true, screen = size)
+            runtime = ReceiverRuntime(app, if (isWireless) L.wirelessDisplay else L.cableHdmi, "android-hdmi", File(app.filesDir, "hdmi"), port = 0, loopbackOnly = true, screen = size)
             away = false
             awayJob?.cancel()
             // Пульт сказал «Уйти» — окно на втором экране закрывается; показал что-то снова — открывается.
@@ -121,10 +121,10 @@ class CastOutput(private val app: Application, private val controller: () -> Con
             val c = controller()
             val saved = c.cableToken()
             val token = if (saved != null && rt.core.pairing.isValid(saved)) saved
-            else (rt.core.pairing.pair(rt.core.pairing.pin, "Этот телефон") as Pairing.Result.Ok).token
+            else (rt.core.pairing.pair(rt.core.pairing.pin, L.thisPhone) as Pairing.Result.Ok).token
             // Миракаст — тот же второй экран, но без провода: так и подписывается.
-            val target = if (isWireless) Target("cable", display.name?.takeIf { it.isNotBlank() } ?: "Беспроводной дисплей", "127.0.0.1", rt.actualPort, Target.Kind.MIRACAST)
-            else Target("cable", "Кабель HDMI", "127.0.0.1", rt.actualPort, Target.Kind.CABLE)
+            val target = if (isWireless) Target("cable", display.name?.takeIf { it.isNotBlank() } ?: L.wirelessDisplay, "127.0.0.1", rt.actualPort, Target.Kind.MIRACAST)
+            else Target("cable", L.cableHdmi, "127.0.0.1", rt.actualPort, Target.Kind.CABLE)
             c.setCable(target, token)
         }
         open(display)

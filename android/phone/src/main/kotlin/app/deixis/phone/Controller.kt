@@ -92,11 +92,11 @@ data class Target(val id: String, val name: String, val host: String, val port: 
     /** Как экран подключён — подпись в списке устройств. */
     val via: String
         get() = when {
-            kind == Kind.CABLE -> "Кабель HDMI"
-            kind == Kind.MIRACAST -> "Миракаст"
+            kind == Kind.CABLE -> L.cableHdmi
+            kind == Kind.MIRACAST -> L.miracast
             kind == Kind.DLNA -> "DLNA"
-            platform.startsWith("desktop") -> "Deixis для компьютера"
-            platform == "android-screen" -> "Deixis на телефоне или доске"
+            platform.startsWith("desktop") -> L.deixisDesktop
+            platform == "android-screen" -> L.deixisPhoneBoard
             platform == "android-tv" -> "Deixis TV"
             else -> "Deixis"
         }
@@ -112,7 +112,10 @@ data class Target(val id: String, val name: String, val host: String, val port: 
 }
 
 /** Состояние экрана для полосы на главном и раздела «Устройства». */
-enum class OutState(val text: String) { ONLINE("на связи"), SYNC("доставляются файлы"), CONNECTING("подключение…"), OFFLINE("нет связи"), PIN("нужен PIN") }
+enum class OutState {
+    ONLINE, SYNC, CONNECTING, OFFLINE, PIN;
+    val text: String get() = when (this) { ONLINE -> L.stOnline; SYNC -> L.stSync; CONNECTING -> L.stConnecting; OFFLINE -> L.stOffline; PIN -> L.stPin }
+}
 
 data class OutputView(val target: Target, val state: OutState, val info: ReceiverInfo?)
 
@@ -138,9 +141,9 @@ data class OnScreens(val screens: Int, val done: Int, val transfer: Controller.T
 fun mb(bytes: Long): String {
     val m = bytes / 1_048_576.0
     return when {
-        m >= 1024 -> "%.1f ГБ".format(m / 1024)
-        m >= 10 -> "%.0f МБ".format(m)
-        else -> "%.1f МБ".format(m)
+        m >= 1024 -> "%.1f ${L.gb}".format(m / 1024)
+        m >= 10 -> "%.0f ${L.mb}".format(m)
+        else -> "%.1f ${L.mb}".format(m)
     }
 }
 
@@ -174,7 +177,7 @@ class Controller(private val app: Application) {
             val now = System.currentTimeMillis()
             if (now - lastSaveWarning > SAVE_WARNING_MS) {
                 lastSaveWarning = now
-                scope.launch { messages.emit("Изменения не сохраняются: мало места на телефоне") }
+                scope.launch { messages.emit(L.noSpace) }
             }
         }
     }
@@ -206,16 +209,18 @@ class Controller(private val app: Application) {
         draft.value = null
         profiles.value = profileStore.save(book.copy(active = id))
         data.value = s.data
+        // Язык — из настроек нового профиля.
+        I18n.apply(s.data.settings.lang)
         if (!onAir.isEmpty) edit { it.copy(overlays = onAir) }
         // Заставка «Логотип» в зале — логотипом нового профиля.
         if (s.data.settings.logo to s.data.settings.logoImage != logoBefore && mode.value == Mode.LOGO) outs.value.forEach { sendMode(it, Mode.LOGO) }
         scope.launch(Dispatchers.IO) { runCatching { b.daily(s.data) } }
-        scope.launch { messages.emit("Профиль «${profiles.value.current.name}»") }
+        scope.launch { messages.emit(L.profileNamed(profiles.value.current.name)) }
     }
 
     fun createProfile(name: String, kind: ProfileKind, accent: Accent) {
-        val (book, p) = try { profileStore.create(profiles.value, name, kind, accent) } catch (e: java.io.IOException) {
-            scope.launch { messages.emit(e.message ?: "Не удалось создать профиль") }
+        val (book, p) = try { profileStore.create(profiles.value, name, kind, accent, data.value.settings.lang) } catch (e: java.io.IOException) {
+            scope.launch { messages.emit(e.message ?: L.profileCreateFailed) }
             return
         }
         profiles.value = book
@@ -235,7 +240,7 @@ class Controller(private val app: Application) {
     fun restore(d: StoreData) {
         // Без копии текущей библиотеки восстановление не идёт: обещание «прежнее сохранится копией» держится.
         if (runCatching { backups.save(store.data, "before-restore") }.isFailure) {
-            scope.launch { messages.emit("Не удалось сохранить копию текущей библиотеки — восстановление отменено. Мало места на телефоне?") }
+            scope.launch { messages.emit(L.restoreAborted) }
             return
         }
         data.value = store.replace(d)
@@ -246,6 +251,8 @@ class Controller(private val app: Application) {
     fun setSettings(change: (AppSettings) -> AppSettings) {
         val before = settings.value.logo to settings.value.logoImage
         edit { it.copy(settings = change(it.settings)) }
+        // Язык пульта меняется сразу: корень интерфейса пересоздаётся по I18n.flow.
+        I18n.apply(data.value.settings.lang)
         // Другой вид «Логотипа» или своя картинка видны сразу, если логотип сейчас в зале.
         if (settings.value.logo to settings.value.logoImage != before && mode.value == Mode.LOGO) outs.value.forEach { sendMode(it, Mode.LOGO) }
         // Регистр меняется сразу и в зале.
@@ -370,10 +377,13 @@ class Controller(private val app: Application) {
     private var multicastLock: WifiManager.MulticastLock? = null
 
     init {
+        // Язык пульта — до первых сообщений; дальше следует за настройками (восстановление копии, другой профиль).
+        I18n.apply(store.data.settings.lang)
+        scope.launch { settings.collect { I18n.apply(it.lang) } }
         scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
         watchCountdown()
-        if (store.recovered) scope.launch { messages.emit("Файл библиотеки был испорчен: она восстановлена из последней резервной копии") }
-        if (store.skippedNewer > 0) scope.launch { messages.emit("Библиотека записана более новой версией Deixis: ${store.skippedNewer} непонятных записей пропущено, всё остальное открыто. Исходный файл сохранён рядом без изменений.") }
+        if (store.recovered) scope.launch { messages.emit(L.libRecovered) }
+        if (store.skippedNewer > 0) scope.launch { messages.emit(L.libNewer(store.skippedNewer)) }
         // Ежедневная резервная копия при запуске.
         scope.launch(Dispatchers.IO) { runCatching { backups.daily(store.data) } }
         seedDemo()
@@ -469,19 +479,19 @@ class Controller(private val app: Application) {
             prefs.edit().putString(key(t), token).apply()
             needPin.value = null
             open(t, token)
-            messages.emit("${t.name}: подключено")
+            messages.emit(L.connectedTo(t.name))
         } catch (e: PairingException) {
             messages.emit(
                 when (e.reason) {
-                    DenyReason.WRONG_PIN -> "Неверный PIN"
-                    DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
-                    DenyReason.INCOMPATIBLE_VERSION -> "Версии Deixis не совпадают: нужно обновить приложения"
-                    DenyReason.UNKNOWN_TOKEN -> "Приёмник не узнал телефон"
-                    DenyReason.UNTRUSTED_SCREEN -> UNTRUSTED.format(t.name)
+                    DenyReason.WRONG_PIN -> L.wrongPin
+                    DenyReason.TOO_MANY_ATTEMPTS -> L.tooMany
+                    DenyReason.INCOMPATIBLE_VERSION -> L.oldVersion
+                    DenyReason.UNKNOWN_TOKEN -> L.unknownToken
+                    DenyReason.UNTRUSTED_SCREEN -> L.untrustedScreen(t.name)
                 },
             )
         } catch (e: Exception) {
-            messages.emit("Нет связи с «${t.name}»")
+            messages.emit(L.noLinkWith(t.name))
         } finally {
             c.close()
         }
@@ -508,7 +518,7 @@ class Controller(private val app: Application) {
             val info = try { probe.info() } catch (e: Exception) { null } finally { probe.close() }
             val t = if (info != null) Target(info.id, info.name, host, port, Target.Kind.MANUAL, info.platform)
             else Target("$host:$port", host, host, port, Target.Kind.MANUAL)
-            if (isConnected(t)) { messages.emit("«${t.name}» уже подключён"); return@launch }
+            if (isConnected(t)) { messages.emit(L.alreadyConnected(t.name)); return@launch }
             manual.value = manual.value.filter { it.id != t.id } + t
             connect(t)
         }
@@ -549,7 +559,7 @@ class Controller(private val app: Application) {
                     if (it is Connection.Denied && it.reason == DenyReason.UNTRUSTED_SCREEN) {
                         // По адресу экрана отвечает другой сертификат: токен туда не отправляется. Подключение заново —
                         // только по QR-коду с экрана (в нём настоящий отпечаток), а не по PIN, который ушёл бы чужому.
-                        messages.emit(UNTRUSTED.format(t.name))
+                        messages.emit(L.untrustedScreen(t.name))
                     }
                     if (it is Connection.Denied && it.reason == DenyReason.UNKNOWN_TOKEN) {
                         // Приёмник забыл телефон (сброс, переустановка): спрашиваем PIN заново.
@@ -633,7 +643,7 @@ class Controller(private val app: Application) {
     fun previewToLive() {
         // Правка сохраняется без повторной отправки прежнего слайда: в зал сразу идёт новый (без мигания).
         draft.value?.let { applyDraft(draftScope, deliverLive = false) }
-        preview.value?.let { goLive(it); messages.tryEmit("В зале") }
+        preview.value?.let { goLive(it); messages.tryEmit(L.inHall) }
     }
 
     /** Видео в зал с позиции предпросмотра. */
@@ -853,7 +863,7 @@ class Controller(private val app: Application) {
     private fun deliver(cue: Cue) {
         outs.value.forEach { deliverTo(it, cue) }
         if (dlnaTarget.value != null) scope.launch {
-            runCatching { contentForDlna(cue)?.let { dlna.show(it) } }.onFailure { messages.emit(it.message ?: "Телевизор не ответил") }
+            runCatching { contentForDlna(cue)?.let { dlna.show(it) } }.onFailure { messages.emit(it.message ?: L.tvNoAnswer) }
         }
     }
 
@@ -866,7 +876,7 @@ class Controller(private val app: Application) {
                 if (o.client.show(content, nextFor(o, cue))) o.lastShown = cue to content
             }
         } catch (e: Exception) {
-            messages.emit("«${o.target.name}»: ${e.message ?: "не удалось показать"}")
+            messages.emit("«${o.target.name}»: ${e.message ?: L.showFailedLower}")
         }
     }
 
@@ -915,13 +925,13 @@ class Controller(private val app: Application) {
                 override val name = ref.name
                 override val size = ref.size
                 override val mime = ref.mime
-                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error("Фон темы недоступен")
+                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error(L.themeBgUnavailable)
             }
             o.client.upload(src, sha256 = ref.sha256)
             o.delivered += ref.sha256
             st
         } catch (e: Exception) {
-            messages.emit("Фон темы не передан: ${e.message}")
+            messages.emit(L.themeBgNotSent(e.message))
             st.copy(backgroundImage = null)
         }
     }
@@ -935,12 +945,12 @@ class Controller(private val app: Application) {
                 override val name = ref.name
                 override val size = ref.size
                 override val mime = ref.mime
-                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error("Файл фона недоступен")
+                override fun open(): InputStream = app.contentResolver.openInputStream(Uri.parse(uri)) ?: error(L.bgFileUnavailable)
             }, sha256 = ref.sha256)
             o.delivered += ref.sha256
             true
         } catch (e: Exception) {
-            messages.emit("Файл «${ref.name}» не передан: ${e.message}")
+            messages.emit(L.fileNotSent(ref.name, e.message))
             false
         }
     }
@@ -999,7 +1009,8 @@ class Controller(private val app: Application) {
 
     // ——— Темы ———
 
-    val themes: StateFlow<List<Theme>> = data.map { BUILT_IN_THEMES + it.themes }.stateIn(scope, SharingStarted.Eagerly, BUILT_IN_THEMES + store.data.themes)
+    // Встроенные темы — на языке пульта: список пересобирается и при смене языка.
+    val themes: StateFlow<List<Theme>> = combine(data, I18n.flow) { d, _ -> BUILT_IN_THEMES + d.themes }.stateIn(scope, SharingStarted.Eagerly, BUILT_IN_THEMES + store.data.themes)
 
     fun saveTheme(t: Theme) = edit { d ->
         val own = t.copy(builtIn = false)
@@ -1029,7 +1040,7 @@ class Controller(private val app: Application) {
         val conv = data.value.conversions[item.id] ?: return null
         // Переведённый PDF лежит на том компьютере, который переводил.
         return if (conv.output == o.target.id) PdfContent(conv.pdf, page) else null.also {
-            messages.emit("«${item.title}» показывается на «${outs.value.firstOrNull { it.target.id == conv.output }?.target?.name ?: "компьютере"}»: другие экраны получают её как PDF")
+            messages.emit(L.convertedOn(item.title, outs.value.firstOrNull { it.target.id == conv.output }?.target?.name ?: L.computerLoc))
         }
     }
 
@@ -1039,13 +1050,13 @@ class Controller(private val app: Application) {
         val doc = mediaKindOf(item.title) == MediaKind.DOCUMENT
         if (!info.convert || (doc && !info.documents)) {
             if (outs.value.none { (it.client.connection.value as? Connection.Connected)?.receiver?.convert == true }) {
-                messages.emit(if (doc) "Документы переводит компьютер с Microsoft Office или LibreOffice: нужен файл PDF"
-                else "Этот экран не переводит презентации: нужен файл PDF или подключённый компьютер")
+                messages.emit(if (doc) L.docsNeedPdf
+                else L.pptxNeedPdf)
             }
             return null
         }
         val ref = fileOn(o, item)
-        progress.value = "«${item.title}»: перевод в PDF…"
+        progress.value = L.convertingPdf(item.title)
         val conv = try { o.client.convert(ref) } finally { progress.value = null }
         conv.warning?.let { messages.emit(it) }
         edit { d -> d.copy(conversions = d.conversions + (item.id to Conversion(o.target.id, conv.file, conv.pages))) }
@@ -1118,7 +1129,7 @@ class Controller(private val app: Application) {
     }
 
     private suspend fun sendFile(o: Output, item: LibItem): FileRef {
-        val uri = Uri.parse(item.uri ?: error("Файл «${item.title}» не найден"))
+        val uri = Uri.parse(item.uri ?: error(L.fileNotFound(item.title)))
         val known = data.value.hashes[item.id]
         val source = sourceFor(uri, item)
         val key = "${o.target.id}/${item.id}"
@@ -1169,9 +1180,9 @@ class Controller(private val app: Application) {
 
         /** ««Maus.pdf» → ADT-3: 37 % · 120 из 320 МБ». */
         val text: String get() = when {
-            queued -> "«$title» → $screen: в очереди"
-            preparing -> "«$title»: подготовка $percent %"
-            else -> "«$title» → $screen: $percent % · ${mb(sent)} из ${mb(total)}"
+            queued -> L.transferQueued(title, screen)
+            preparing -> L.transferPreparing(title, percent)
+            else -> L.transferSending(title, screen, percent, mb(sent), mb(total))
         }
     }
 
@@ -1238,9 +1249,9 @@ class Controller(private val app: Application) {
         return when (val s = cue.slide) {
             is Slide.Text -> TextContent(s.text, style = styleFor(cue))
             is Slide.Scripture -> s.content.copy(style = styleFor(cue))
-            is Slide.Picture -> item?.let { ImageContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error("Файл «${it.title}» не найден")), it))) }
-            is Slide.Movie -> item?.let { VideoContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error("Файл «${it.title}» не найден")), it))) }
-            is Slide.Page -> item?.takeIf { it.mime == "application/pdf" }?.let { PdfContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error("Файл «${it.title}» не найден")), it)), s.index) }
+            is Slide.Picture -> item?.let { ImageContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error(L.fileNotFound(it.title))), it))) }
+            is Slide.Movie -> item?.let { VideoContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error(L.fileNotFound(it.title))), it))) }
+            is Slide.Page -> item?.takeIf { it.mime == "application/pdf" }?.let { PdfContent(dlna.register(sourceFor(Uri.parse(it.uri ?: error(L.fileNotFound(it.title))), it)), s.index) }
             else -> null
         }
     }
@@ -1253,7 +1264,7 @@ class Controller(private val app: Application) {
             override val name = name
             override val size = item.size
             override val mime = item.mime ?: mimeOf(name)
-            override fun open(): InputStream = app.contentResolver.openInputStream(uri) ?: error("Файл «$name» недоступен")
+            override fun open(): InputStream = app.contentResolver.openInputStream(uri) ?: error(L.fileUnavailable(name))
         } else {
             val tmp = File(app.cacheDir, "upload-" + name.replace('/', '_'))
             app.contentResolver.openInputStream(uri)!!.use { input -> tmp.outputStream().use { input.copyTo(it) } }
@@ -1270,12 +1281,12 @@ class Controller(private val app: Application) {
         for (uri in uris) {
             try {
                 val item = withContext(Dispatchers.IO) { describe(uri, preferPresentation) }
-                if (item == null) { messages.emit("Этот формат не поддерживается"); continue }
+                if (item == null) { messages.emit(L.unsupported); continue }
                 if (target != profiles.value.active) { editIn(target) { d -> d.copy(items = listOf(item) + d.items) }; continue }
                 edit { d -> d.copy(items = listOf(item) + d.items) }
                 then(item)
             } catch (e: Exception) {
-                messages.emit(e.message ?: "Не удалось открыть файл")
+                messages.emit(e.message ?: L.cantOpenFile)
             }
         }
     }
@@ -1300,6 +1311,7 @@ class Controller(private val app: Application) {
                 }.getOrNull()
             }
         }
+        // i18n:off — содержимое демо-набора (песни, тексты, имена файлов и тем), а не интерфейс.
         val star = LibItem(Store.newId(), Kind.SONG, "Коль славен наш Господь в Сионе", slides = listOf(
             "Коль славен наш Господь в Сионе,\nНе может изъяснить язык.\nВелик Он в небесах на троне,\nВ былинках на земле велик.",
             "Везде, Господь, везде Ты славен,\nВо дни, в нощи сияньем равен.",
@@ -1345,6 +1357,7 @@ class Controller(private val app: Application) {
         fun file(prefix: String) = files.firstOrNull { it.title.startsWith(prefix) }
         val order = listOfNotNull(news, star, john, grace, psalm, file("Лекция"), file("Город"), file("Конспект"),
             file("Горы на закате"), file("Звёздная ночь"), file("Утро"), file("Тёплые"), file("Огни"))
+        // i18n:on
         val all = texts + files
         val demo = Setlist(Store.newId(), DEMO_SET, LocalDate.now().toString(), (order + all).map { it.id }.distinct())
         edit { d ->
@@ -1418,7 +1431,7 @@ class Controller(private val app: Application) {
 
     /** Перевод презентации или документа Word в PDF на самом телефоне; элемент библиотеки — уже PDF. */
     private fun convertHere(id: String, name: String, uri: Uri, kind: Kind): LibItem {
-        progress.value = "«$name»: перевод в PDF…"
+        progress.value = L.convertingPdf(name)
         try {
             val ext = name.substringAfterLast('.', "").lowercase()
             val src = File(app.cacheDir, "convert-$id.$ext")
@@ -1486,7 +1499,7 @@ class Controller(private val app: Application) {
     fun pickSet(id: String) = edit { it.copy(active = id) }
 
     fun newSet(title: String, date: LocalDate): Setlist {
-        val s = Setlist(Store.newId(), title.ifBlank { "Новый сетлист" }, date.toString())
+        val s = Setlist(Store.newId(), title.ifBlank { L.newSet }, date.toString())
         edit { d -> d.copy(setlists = listOf(s) + d.setlists, active = s.id) }
         return s
     }
@@ -1584,7 +1597,7 @@ class Controller(private val app: Application) {
         // Нет выбранного сетлиста — тот, что на главном (первый), а нет ни одного — новый на сегодня.
         val a = d.active?.takeIf { a -> d.setlists.any { it.id == a } } ?: d.setlists.firstOrNull()?.id
         if (a == null) {
-            val set = Setlist(Store.newId(), "Сегодня", LocalDate.now().toString(), listOf(itemId))
+            val set = Setlist(Store.newId(), L.today, LocalDate.now().toString(), listOf(itemId))
             return@edit d.copy(setlists = d.setlists + set, active = set.id)
         }
         d.copy(active = a, setlists = d.setlists.map { if (it.id == a && itemId !in it.items) it.copy(items = it.items + itemId) else it })
@@ -1606,7 +1619,7 @@ class Controller(private val app: Application) {
     }
 
     // ——— Разовые показы: текст, Писание, Holyrics ———
-    fun textSource(text: String, title: String = "Текст"): Source? {
+    fun textSource(text: String, title: String = L.tText): Source? {
         val slides = splitIntoSlides(text)
         return if (slides.isEmpty()) null else Source(null, title, Kind.TEXT, slides.map { Slide.Text(it) })
     }
@@ -1630,7 +1643,7 @@ class Controller(private val app: Application) {
 
     suspend fun importFromHolyrics(req: app.deixis.core.HolyricsMediaRequest): FileRef? {
         val o = outs.value.firstOrNull { (it.client.connection.value as? Connection.Connected)?.receiver?.holyrics == true } ?: return null
-        progress.value = "«${req.name}»: из Holyrics"
+        progress.value = L.fromHolyrics(req.name)
         return try { o.client.importFromHolyrics(req) } finally { progress.value = null }
     }
 
@@ -1639,9 +1652,9 @@ class Controller(private val app: Application) {
             val m = withContext(Dispatchers.IO) { bible.import(uri) }
             bibleModules.value = withContext(Dispatchers.IO) { bible.modules() }
             scriptureCache.clear()
-            messages.emit("Добавлен перевод «${m.title}»")
+            messages.emit(L.translationAdded(m.title))
         } catch (e: Exception) {
-            messages.emit(e.message ?: "Не удалось добавить модуль")
+            messages.emit(e.message ?: L.cantAddModule)
         }
     }
 
@@ -1672,16 +1685,16 @@ class Controller(private val app: Application) {
         // Экран старой версии звука не принимает: картинка идёт, а звук — нет. Подсказать один раз.
         scope.launch {
             kotlinx.coroutines.delay(SOUND_CHECK_MS)
-            if (a.unsupported && screenAudio === a) messages.emit("Экран не принимает звук (нужен новый Deixis на экране): картинка идёт без звука")
+            if (a.unsupported && screenAudio === a) messages.emit(L.screenNoAudio)
         }
         return a
     }
 
-    fun soundFailed(reason: String?) = scope.launch { messages.emit("Трансляция без звука: ${reason ?: "звук телефона недоступен"}") }
+    fun soundFailed(reason: String?) = scope.launch { messages.emit(L.noSoundBecause(reason ?: L.phoneSoundNA)) }
 
     fun showScreen(width: Int, height: Int) = scope.launch {
         sharing.value = true
-        val cue = Cue(Source(null, "Экран телефона", null, listOf(Slide.Screen(width, height))), 0)
+        val cue = Cue(Source(null, L.screenShare, null, listOf(Slide.Screen(width, height))), 0)
         live.value = cue
         primary.value?.client?.show(ScreenContent(width, height))
     }
@@ -1704,9 +1717,9 @@ class Controller(private val app: Application) {
     /** Проверка перед началом: какие экраны требуют внимания. */
     fun check(): String {
         val list = outputs.value
-        if (list.isEmpty()) return "Ни один экран не подключён"
+        if (list.isEmpty()) return L.noneConnected
         val bad = list.filter { it.state != OutState.ONLINE }
-        return if (bad.isEmpty()) "Все экраны готовы" else "Требует внимания: " + bad.joinToString { "${it.target.name} (${it.state.text})" }
+        return if (bad.isEmpty()) L.allReady else L.needsAttention + bad.joinToString { "${it.target.name} (${it.state.text})" }
     }
 
     /** Большой файл: не передаётся, показывается демонстрацией экрана. */
@@ -1724,7 +1737,7 @@ class Controller(private val app: Application) {
                 }
             }
         } else {
-            app.contentResolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it) } ?: error("Не удалось прочитать «$name»")
+            app.contentResolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it) } ?: error(L.cantRead(name))
         }
         val jpegName = name.substringBeforeLast('.') + ".jpg"
         val tmp = File(app.cacheDir, "upload-$jpegName")
@@ -1761,14 +1774,14 @@ private const val DEMO_SET = "Демо"
 private const val SOUND_CHECK_MS = 4_000L
 /** Предупреждение «не сохраняется» — не чаще раза в 30 секунд, а не на каждое изменение. */
 private const val SAVE_WARNING_MS = 30_000L
-/** Сертификат экрана не совпал с запомненным. */
-private const val UNTRUSTED = "«%s»: по этому адресу отвечает другое устройство. Если экран переустановлен — подключение заново по QR-коду с экрана"
 /** Фото для экрана — не больше 4K по длинной стороне: больше зал не покажет. */
 private const val PHOTO_MAX_SIDE = 3840
 /** Начало первого слайда демо-песен и текстов старых наборов (до метки demo). */
+// i18n:off — названия демо-набора: по ним узнаются его старые элементы, это данные, а не интерфейс.
 private val DEMO_STARTS = mapOf(
     "Коль славен наш Господь в Сионе" to "Коль славен наш Господь в Сионе",
     "Amazing Grace" to "Amazing grace! How sweet the sound",
     "Объявления" to "Добро пожаловать!",
 )
 private val DEMO_TITLES = setOf("Коль славен наш Господь в Сионе", "Amazing Grace", "Объявления", "Ин 3:16–17", "Пс 22:1–4")
+// i18n:on

@@ -12,20 +12,16 @@ import kotlinx.serialization.Serializable
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 
 /** Вид элемента библиотеки: от него зависят значок, раздел и то, как элемент показывается. */
 @Serializable
-enum class Kind(val title: String, val plural: String) {
-    PRESENTATION("Презентация", "Презентации"),
-    VIDEO("Видео", "Видео"),
-    PHOTO("Фото", "Фото"),
-    FILE("Файл", "Файлы"),
-    SONG("Песня", "Песни"),
-    TEXT("Текст", "Тексты"),
-    BIBLE("Библия", "Библия"),
-    COUNTDOWN("Отсчёт", "Отсчёты"),
+enum class Kind {
+    PRESENTATION, VIDEO, PHOTO, FILE, SONG, TEXT, BIBLE, COUNTDOWN;
+
+    /** Название вида на языке пульта. */
+    val title: String get() = L.kindTitle(this)
+    val plural: String get() = L.kindPlural(this)
 }
 
 /**
@@ -37,7 +33,7 @@ data class CountdownSpec(
     val durationMs: Long = 5 * 60_000L,
     /** «18:30» — до этого времени (ближайшего: сегодня или завтра); null — длительность. */
     val until: String? = null,
-    val label: String? = "До начала",
+    val label: String? = L.untilStart,
     val labelPosition: app.deixis.core.LabelPosition = app.deixis.core.LabelPosition.ABOVE,
     val format: app.deixis.core.CountdownFormat = app.deixis.core.CountdownFormat.AUTO,
     val decimals: Int = 0,
@@ -57,7 +53,7 @@ data class CountdownSpec(
     }
 
     val title: String
-        get() = until?.let { "До $it" } ?: app.deixis.core.formatCountdown(durationMs, app.deixis.core.CountdownFormat.AUTO)
+        get() = until?.let { L.untilTime(it) } ?: app.deixis.core.formatCountdown(durationMs, app.deixis.core.CountdownFormat.AUTO)
 }
 
 /** Место Писания, сохранённое в библиотеке: книга, глава, стихи и переводы. */
@@ -106,7 +102,7 @@ data class LibItem(
 data class Setlist(val id: String, val title: String, val date: String, val items: List<String> = emptyList()) {
     val day: LocalDate get() = runCatching { LocalDate.parse(date) }.getOrDefault(LocalDate.now())
     val past: Boolean get() = day.isBefore(LocalDate.now())
-    val dateText: String get() = day.format(DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru")))
+    val dateText: String get() = day.format(DateTimeFormatter.ofPattern("d MMMM", I18n.locale))
 }
 
 /** Настройки приложения из шторки «Настройки». */
@@ -133,6 +129,8 @@ data class AppSettings(
     val workMode: WorkMode = WorkMode.DEIXIS,
     /** Трансляция экрана со звуком приложений телефона (Android 10+). */
     val shareSound: Boolean = true,
+    /** Язык пульта: «ru», «uz», «en»; null — как в системе. */
+    val lang: String? = null,
 )
 
 /**
@@ -277,7 +275,7 @@ class Store(private val context: Context, dir: File = context.filesDir, private 
 
     /** Первый запуск: пустой сетлист на сегодня, чтобы на главном было куда добавлять. */
     private fun firstRun(): StoreData {
-        val set = Setlist(newId(), "Сегодня", LocalDate.now().toString())
+        val set = Setlist(newId(), L.today, LocalDate.now().toString())
         return StoreData(setlists = listOf(set), active = set.id, bibleBooksV2 = true)
     }
 

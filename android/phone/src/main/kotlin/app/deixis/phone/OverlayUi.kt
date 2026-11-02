@@ -25,7 +25,7 @@ import app.deixis.core.Ticker
 import kotlinx.coroutines.launch
 
 private val CORNERS = listOf(Corner.TOP_LEFT, Corner.TOP_RIGHT, Corner.BOTTOM_LEFT, Corner.BOTTOM_RIGHT)
-private val CORNER_NAMES = listOf("Слева вверху", "Справа вверху", "Слева внизу", "Справа внизу")
+private val CORNER_NAMES: List<String> get() = listOf(L.cornerTL, L.cornerTR, L.cornerBL, L.cornerBR)
 private val SPEEDS = listOf(6f, 10f, 16f)
 
 /**
@@ -45,14 +45,14 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             scope.launch {
                 runCatching { c.backgroundFrom(it) }
                     .onSuccess { ref -> c.setOverlays(c.overlays.value.copy(logo = (c.overlays.value.logo ?: drafts.logo ?: LogoOverlay(ref)).copy(file = ref))) }
-                    .onFailure { e -> ui.toast(e.message ?: "Картинка не открылась") }
+                    .onFailure { e -> ui.toast(e.message ?: L.pictureNotOpened) }
             }
         }
     }
     val samples by produceState(emptyList<OverlaySample>()) { value = runCatching { c.overlaySamples() }.getOrDefault(emptyList()) }
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        GHead("Примеры")
-        Note("Готовые слои, чтобы посмотреть, как они появляются и уходят. Касание — сразу в зал.")
+        GHead(L.examples)
+        Note(L.examplesNote)
         Group {
             samples.forEachIndexed { i, smp ->
                 if (i > 0) Sep(T.gutter)
@@ -65,15 +65,15 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             }
         }
 
-        GHead("Плашка с именем")
-        Field(title, "Имя: «Анна Иванова»") { title = it }
-        Field(subtitle, "Подпись: «Тема: весна»") { subtitle = it }
+        GHead(L.lowerThird)
+        Field(title, L.nameHint) { title = it }
+        Field(subtitle, L.subtitleHint) { subtitle = it }
         Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-            if (o.lowerThird == null) Pill("Показать", tint = true) {
-                if (title.isBlank()) ui.toast("Нужно имя") else c.setOverlays(o.copy(lowerThird = LowerThird(title.trim(), subtitle.trim().ifBlank { null })))
+            if (o.lowerThird == null) Pill(L.show, tint = true) {
+                if (title.isBlank()) ui.toast(L.needName) else c.setOverlays(o.copy(lowerThird = LowerThird(title.trim(), subtitle.trim().ifBlank { null })))
             } else {
-                Pill("Обновить", tint = true) { if (title.isNotBlank()) c.setOverlays(o.copy(lowerThird = o.lowerThird!!.copy(title = title.trim(), subtitle = subtitle.trim().ifBlank { null }))) }
-                Pill("Убрать") { c.setOverlays(o.copy(lowerThird = null)) }
+                Pill(L.update, tint = true) { if (title.isNotBlank()) c.setOverlays(o.copy(lowerThird = o.lowerThird!!.copy(title = title.trim(), subtitle = subtitle.trim().ifBlank { null }))) }
+                Pill(L.remove) { c.setOverlays(o.copy(lowerThird = null)) }
             }
         }
         if (drafts.lowerThirds.isNotEmpty()) Group {
@@ -85,19 +85,19 @@ fun OverlaySheet(c: Controller, ui: Ui) {
                 })
             }
         }
-        if (drafts.lowerThirds.isNotEmpty()) Note("Касание — сразу в зал. Долгое нажатие — убрать из списка.")
+        if (drafts.lowerThirds.isNotEmpty()) Note(L.draftsNote)
 
-        GHead("Бегущая строка")
-        Field(ticker, "Объявление: «Сбор в 18:00 у входа»", single = false) { ticker = it }
-        Seg(listOf("Медленно", "Обычно", "Быстро"), SPEEDS.indexOf(o.ticker?.speedPercent ?: 10f).coerceAtLeast(0), Modifier.fillMaxWidth()) { i ->
+        GHead(L.ticker)
+        Field(ticker, L.tickerHint, single = false) { ticker = it }
+        Seg(listOf(L.slow, L.normal, L.fast), SPEEDS.indexOf(o.ticker?.speedPercent ?: 10f).coerceAtLeast(0), Modifier.fillMaxWidth()) { i ->
             o.ticker?.let { c.setOverlays(o.copy(ticker = it.copy(speedPercent = SPEEDS[i]))) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) {
-            if (o.ticker == null) Pill("Запустить", tint = true) {
-                if (ticker.isBlank()) ui.toast("Нужен текст") else c.setOverlays(o.copy(ticker = Ticker(ticker.trim())))
+            if (o.ticker == null) Pill(L.launch, tint = true) {
+                if (ticker.isBlank()) ui.toast(L.needText) else c.setOverlays(o.copy(ticker = Ticker(ticker.trim())))
             } else {
-                Pill("Обновить", tint = true) { if (ticker.isNotBlank()) c.setOverlays(o.copy(ticker = o.ticker!!.copy(text = ticker.trim()))) }
-                Pill("Убрать") { c.setOverlays(o.copy(ticker = null)) }
+                Pill(L.update, tint = true) { if (ticker.isNotBlank()) c.setOverlays(o.copy(ticker = o.ticker!!.copy(text = ticker.trim()))) }
+                Pill(L.remove) { c.setOverlays(o.copy(ticker = null)) }
             }
         }
         if (drafts.tickers.isNotEmpty()) Group {
@@ -110,12 +110,12 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             }
         }
 
-        GHead("Часы")
+        GHead(L.clock)
         Group {
-            SwitchRow("Часы в углу", o.clock != null) { on -> c.setOverlays(o.copy(clock = if (on) ClockOverlay() else null)) }
+            SwitchRow(L.clockCorner, o.clock != null) { on -> c.setOverlays(o.copy(clock = if (on) ClockOverlay() else null)) }
             o.clock?.let { clock ->
                 Sep(T.gutter)
-                SwitchRow("С секундами", clock.seconds) { c.setOverlays(o.copy(clock = clock.copy(seconds = it))) }
+                SwitchRow(L.withSeconds, clock.seconds) { c.setOverlays(o.copy(clock = clock.copy(seconds = it))) }
             }
         }
         o.clock?.let { clock ->
@@ -124,10 +124,10 @@ fun OverlaySheet(c: Controller, ui: Ui) {
             }
         }
 
-        GHead("Логотип")
+        GHead(L.logo)
         val logo = o.logo
         Group {
-            SwitchRow("Логотип в углу", logo != null, sub = if (logo == null && drafts.logo == null) "Картинка PNG с прозрачным фоном" else (logo ?: drafts.logo)?.file?.name) { on ->
+            SwitchRow(L.logoCorner, logo != null, sub = if (logo == null && drafts.logo == null) L.logoCornerSub else (logo ?: drafts.logo)?.file?.name) { on ->
                 when {
                     !on -> c.setOverlays(o.copy(logo = null))
                     drafts.logo != null -> c.setOverlays(o.copy(logo = drafts.logo))
@@ -135,28 +135,28 @@ fun OverlaySheet(c: Controller, ui: Ui) {
                 }
             }
             Sep(T.gutter)
-            Cell("Выбрать картинку", onClick = { logoPick.launch(arrayOf("image/*")) })
+            Cell(L.pickPicture, onClick = { logoPick.launch(arrayOf("image/*")) })
         }
         logo?.let { l ->
             Seg(CORNER_NAMES, CORNERS.indexOf(l.corner), Modifier.fillMaxWidth(), scroll = true) { i ->
                 c.setOverlays(o.copy(logo = l.copy(corner = CORNERS[i])))
             }
             Group {
-                Cell("Размер", chevron = null) {
+                Cell(L.size, chevron = null) {
                     Stepper("${l.sizePercent.toInt()}", { c.setOverlays(o.copy(logo = l.copy(sizePercent = (l.sizePercent - 2).coerceAtLeast(4f)))) },
                         { c.setOverlays(o.copy(logo = l.copy(sizePercent = (l.sizePercent + 2).coerceAtMost(30f)))) })
                 }
             }
         }
-        if (!o.isEmpty) Pill("Убрать всё") { c.setOverlays(Overlays()) }
-        Note("Слой виден поверх слайдов, фото и видео; «Чёрный» и «Логотип» убирают и его. Зрители в браузере видят его тоже.")
+        if (!o.isEmpty) Pill(L.removeAll) { c.setOverlays(Overlays()) }
+        Note(L.overlayNote)
     }
 }
 
 /** Из чего состоит пример: «плашка: Анна Иванова · часы». */
 private fun sampleParts(o: Overlays): String = listOfNotNull(
-    o.lowerThird?.let { "плашка: ${it.title}" },
-    o.ticker?.let { "строка" },
-    o.clock?.let { "часы" },
-    o.logo?.let { "логотип" },
+    o.lowerThird?.let { L.lowerThirdColon(it.title) },
+    o.ticker?.let { L.tickerLower },
+    o.clock?.let { L.clockLower },
+    o.logo?.let { L.logoLower },
 ).joinToString(" · ")

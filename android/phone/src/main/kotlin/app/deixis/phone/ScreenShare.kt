@@ -69,13 +69,13 @@ class ScreenShareService : Service() {
         projection = null
         val stream = controller.openScreenStream()
         if (data == null || stream == null) {
-            controller.screenStopped("Нет связи с экраном")
+            controller.screenStopped(L.noLinkScreen)
             stopSelf()
             return START_NOT_STICKY
         }
         try {
             val mpm = getSystemService(MediaProjectionManager::class.java)
-            val p = mpm.getMediaProjection(code, data) ?: error("Нет разрешения на захват экрана")
+            val p = mpm.getMediaProjection(code, data) ?: error(L.noCapturePermission)
             projection = p
             val c = ScreenCapture(this, p, stream, onSize = { w, h -> controller.showScreen(w, h) }) { reason ->
                 // Кодировщик остановился (его забрало другое приложение, сбой медиасервера): трансляция
@@ -94,7 +94,7 @@ class ScreenShareService : Service() {
             capture?.stop()
             capture = null
             stream.close()
-            controller.screenStopped(e.message ?: "Не удалось начать трансляцию экрана")
+            controller.screenStopped(e.message ?: L.shareFailed)
             stopSelf()
         }
         return START_NOT_STICKY
@@ -113,7 +113,7 @@ class ScreenShareService : Service() {
 
     private fun notification(sound: Boolean): Notification {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Трансляция экрана", NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, L.shareChannel, NotificationManager.IMPORTANCE_LOW))
         val stop = PendingIntent.getService(
             this, 0, Intent(this, ScreenShareService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -121,11 +121,11 @@ class ScreenShareService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_slideshow)
-            .setContentTitle("Экран транслируется")
-            .setContentText(if (sound) "Экран и звук телефона — в зале" else "Всё, что на экране телефона, видно в зале")
+            .setContentTitle(L.sharing)
+            .setContentText(if (sound) L.sharingSound else L.sharingNoSound)
             .setContentIntent(open)
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, "Остановить", stop).build())
+            .addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, L.stopAction, stop).build())
             .build()
     }
 
@@ -239,7 +239,7 @@ private class ScreenCapture(
     private companion object {
         const val MAX_LONG = 1920.0
         const val MAX_SHORT = 1080.0
-        const val ENCODER_STOPPED = "Трансляция остановилась: кодировщик видео телефона занят или дал сбой"
+        val ENCODER_STOPPED: String get() = L.encoderStopped
     }
 }
 
@@ -359,7 +359,7 @@ private class SoundCapture(projection: MediaProjection, private val out: app.dei
             .setBufferSizeInBytes(maxOf(min, app.deixis.core.AudioFormat.CHUNK_BYTES * 4))
             .setAudioPlaybackCaptureConfig(cfg)
             .build()
-        check(record.state == android.media.AudioRecord.STATE_INITIALIZED) { "Звук телефона недоступен для трансляции" }
+        check(record.state == android.media.AudioRecord.STATE_INITIALIZED) { L.soundNA }
         thread = Thread({ loop() }, "deixis-sound")
     }
 

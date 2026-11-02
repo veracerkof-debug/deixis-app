@@ -541,9 +541,9 @@ fun SwitchRow(title: String, on: Boolean, sub: String? = null, onChange: (Boolea
 fun Stepper(value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     val p = P.current
     Row(Modifier.clip(RoundedCornerShape(T.rSeg)).background(p.fill), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(T.stepperW, T.segMin).press(label = "Меньше", onClick = onMinus), contentAlignment = Alignment.Center) { Txt("−", T.fSheet) }
+        Box(Modifier.size(T.stepperW, T.segMin).press(label = L.smaller, onClick = onMinus), contentAlignment = Alignment.Center) { Txt("−", T.fSheet) }
         Box(Modifier.width(T.segMin), contentAlignment = Alignment.Center) { Txt(value, T.fPill) }
-        Box(Modifier.size(T.stepperW, T.segMin).press(label = "Больше", onClick = onPlus), contentAlignment = Alignment.Center) { Txt("+", T.fSheet) }
+        Box(Modifier.size(T.stepperW, T.segMin).press(label = L.bigger, onClick = onPlus), contentAlignment = Alignment.Center) { Txt("+", T.fSheet) }
     }
 }
 

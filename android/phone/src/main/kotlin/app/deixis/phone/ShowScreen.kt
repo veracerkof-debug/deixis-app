@@ -78,17 +78,7 @@ fun clock(ms: Long): String {
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
 }
 
-private fun plural(n: Int, one: String, few: String, many: String): String {
-    val m10 = n % 10
-    val m100 = n % 100
-    return when {
-        m10 == 1 && m100 != 11 -> one
-        m10 in 2..4 && m100 !in 12..14 -> few
-        else -> many
-    }
-}
-
-fun slidesText(n: Int) = "$n " + plural(n, "слайд", "слайда", "слайдов")
+fun slidesText(n: Int) = L.slidesN(n)
 
 /** Подпись элемента: первая строка песни, число слайдов, длительность. */
 fun subOf(c: Controller, it: LibItem): String = when (it.kind) {
@@ -97,14 +87,14 @@ fun subOf(c: Controller, it: LibItem): String = when (it.kind) {
     Kind.PRESENTATION, Kind.FILE -> {
         val pages = if (it.mime == "application/pdf") it.pages else c.data.value.conversions[it.id]?.pages ?: 0
         when {
-            pages > 0 && it.kind == Kind.FILE -> "$pages стр."
+            pages > 0 && it.kind == Kind.FILE -> L.pagesN(pages)
             pages > 0 -> slidesText(pages)
-            else -> "Переведёт компьютер при показе"
+            else -> L.convertOnShow
         }
     }
-    Kind.VIDEO -> if (it.durationMs > 0) clock(it.durationMs) else "Видео"
+    Kind.VIDEO -> if (it.durationMs > 0) clock(it.durationMs) else L.tVideo
     Kind.COUNTDOWN -> it.countdown?.let { s -> listOfNotNull(s.title, s.label).joinToString(" · ") }.orEmpty()
-    Kind.PHOTO -> if (it.title.lowercase().let { t -> t.endsWith(".heic") || t.endsWith(".heif") }) "HEIC → JPEG при отправке" else "Фото"
+    Kind.PHOTO -> if (it.title.lowercase().let { t -> t.endsWith(".heic") || t.endsWith(".heif") }) L.heicNote else L.tPhoto
 }
 
 @Composable
@@ -168,19 +158,19 @@ private fun TopBar(c: Controller, ui: Ui) {
         if (book.list.size > 1) Txt(
             book.current.name, T.fSub, P.current.tintText, FontWeight.SemiBold, lines = 1,
             modifier = Modifier.widthIn(max = T.profileMax).clip(RoundedCornerShape(T.rPill)).background(P.current.tint.copy(alpha = T.devFill))
-                .press(label = "Профиль «${book.current.name}»", onClick = { ui.sheet("Профили") { ProfilesSheet(c, ui) } })
+                .press(label = L.profileNamed(book.current.name), onClick = { ui.sheet(L.profiles) { ProfilesSheet(c, ui) } })
                 .padding(horizontal = T.gap, vertical = T.gapXs),
         )
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(T.gapXs, Alignment.End)) {
             val live by c.live.collectAsState()
             val mode by c.mode.collectAsState()
             val onAir = live != null && mode == Mode.NORMAL
-            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}" + if (onAir && o.state == OutState.ONLINE) ", идёт показ" else "", onAir = onAir) { ui.tab = AppTab.DEVICES } }
-            if (viewUrl != null) Dev("people", OutState.ONLINE, "Зрители: ${state?.viewers ?: 0}", count = state?.viewers ?: 0) { ui.tab = AppTab.DEVICES }
+            outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}" + if (onAir && o.state == OutState.ONLINE) L.showingSuffix else "", onAir = onAir) { ui.tab = AppTab.DEVICES } }
+            if (viewUrl != null) Dev("people", OutState.ONLINE, L.viewersN(state?.viewers ?: 0), count = state?.viewers ?: 0) { ui.tab = AppTab.DEVICES }
         }
         // С меткой профиля места мало: «Подключить» — одним значком, иначе он вытесняет «Настройки» за край.
-        Pill(if (outputs.isEmpty() && book.list.size <= 1) "Подключить" else "", "wifi", tint = true, label = "Подключить") { ui.sheet("Подключить") { ConnectSheet(c, ui) } }
-        IconBtn("gear", "Настройки") { ui.sheet("Настройки") { SettingsSheet(c) } }
+        Pill(if (outputs.isEmpty() && book.list.size <= 1) L.connect else "", "wifi", tint = true, label = L.connect) { ui.sheet(L.connect) { ConnectSheet(c, ui) } }
+        IconBtn("gear", L.settings) { ui.sheet(L.settings) { SettingsSheet(c) } }
     }
 }
 
@@ -227,28 +217,28 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     val shownPre = preview ?: if (draft != null) live else null
     val preStyle = remember(shownPre, data, settings, draft) { c.styleFor(shownPre, withDraft = true) }
     val liveName = when (mode) {
-        Mode.BLACK -> "Чёрный экран"
-        Mode.LOGO -> "Логотип"
-        Mode.CLEAR -> "Очищено"
-        Mode.AWAY -> "Deixis ушёл с экранов"
-        Mode.NORMAL -> live?.let { l -> if (l.source.slides.size > 1) "${l.source.title} · ${l.index + 1}/${l.source.slides.size}" else l.source.title } ?: "Пусто"
+        Mode.BLACK -> L.blackScreen
+        Mode.LOGO -> L.logo
+        Mode.CLEAR -> L.cleared
+        Mode.AWAY -> L.awayNow
+        Mode.NORMAL -> live?.let { l -> if (l.source.slides.size > 1) "${l.source.title} · ${l.index + 1}/${l.source.slides.size}" else l.source.title } ?: L.empty
     }
     val video = state?.video?.takeIf { live?.slide is Slide.Movie }
-    val liveHint = progress ?: (liveName + (video?.let { " · ${clock(it.positionMs)}" + if (it.playing) "" else " · пауза" } ?: ""))
-    val preName = preview?.let { "${it.source.title} · ${it.index + 1}/${it.source.slides.size}" } ?: if (draft != null) "Новое оформление" else "Слайд не выбран"
+    val liveHint = progress ?: (liveName + (video?.let { " · ${clock(it.positionMs)}" + if (it.playing) "" else L.pausedSuffix } ?: ""))
+    val preName = preview?.let { "${it.source.title} · ${it.index + 1}/${it.source.slides.size}" } ?: if (draft != null) L.newStyle else L.noSlide
 
     val now: @Composable (Modifier) -> Unit = { m ->
         Column(m, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
             Row(Modifier.heightIn(min = 26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(T.rPill)).background(p.live))
-                Txt("Сейчас", T.fLabel, p.l2, FontWeight.SemiBold)
+                Txt(L.now, T.fLabel, p.l2, FontWeight.SemiBold)
             }
             Box(contentAlignment = Alignment.Center) {
                 CueView(
                     c, live, liveStyle,
                     // Тема на окно «Сейчас» — тому, что в зале.
-                    Modifier.themeTarget(ui.themeDrag, "live") { st -> c.applyTheme(st); ui.toast("Тема «${st.name ?: "своя"}» — в зале") }
-                        .semantics { contentDescription = "Сейчас в зале: $liveName" }
+                    Modifier.themeTarget(ui.themeDrag, "live") { st -> c.applyTheme(st); ui.toast(L.themeLive(st.name ?: L.own)) }
+                        .semantics { contentDescription = L.liveNow(liveName) }
                         .swipes(onTap = { ui.full = FullSpec.Live }, onLeft = { c.step(1) }, onRight = { c.step(-1) }),
                     mode = mode, frame = Frame.LIVE,
                 )
@@ -261,26 +251,26 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     val pre: @Composable (Modifier) -> Unit = { m ->
         Column(m, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
             Row(Modifier.heightIn(min = 26.dp), verticalAlignment = Alignment.CenterVertically) {
-                Txt("Предпросмотр", T.fLabel, p.l2, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
+                Txt(L.preview, T.fLabel, p.l2, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
                 val can = preview != null || draft != null
                 // Пустому предпросмотру нечего отправлять в зал: кнопка появляется вместе со слайдом.
                 if (can) Box(
                     Modifier.height(26.dp).clip(RoundedCornerShape(T.rPill)).background(if (can) p.tint else p.fill)
-                        .press(enabled = can, label = "В зал") { c.previewToLive() }.padding(horizontal = T.gap),
+                        .press(enabled = can, label = L.toHall) { c.previewToLive() }.padding(horizontal = T.gap),
                     contentAlignment = Alignment.Center,
-                ) { Txt("В зал", T.fLabel, if (can) Color.White else p.l3, FontWeight.SemiBold) }
+                ) { Txt(L.toHall, T.fLabel, if (can) Color.White else p.l3, FontWeight.SemiBold) }
             }
             val shown = preview ?: if (draft != null) live else null
             CueView(
                 c, shown, preStyle,
-                Modifier.semantics { contentDescription = "Предпросмотр: $preName" }
+                Modifier.semantics { contentDescription = L.previewOf(preName) }
                     .swipes(
                         onTap = { preview?.let { pv -> ui.full = if (pv.slide is Slide.Movie) FullSpec.Video(pv) else FullSpec.Preview } },
                         onUp = { c.previewToLive() },
                     ),
                 frame = Frame.PREVIEW,
             )
-            Txt(preName + if (draft != null && preview != null) " · новое оформление" else "", T.fTag, if (draft != null) p.tintText else p.l2, lines = 1)
+            Txt(preName + if (draft != null && preview != null) L.newStyleSuffix else "", T.fTag, if (draft != null) p.tintText else p.l2, lines = 1)
         }
     }
     if (stacked) Column(Modifier.padding(start = T.gutter, end = T.gutter, top = 4.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -306,7 +296,7 @@ private fun BoxScope.Loading(text: String) {
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Canvas(Modifier.size(28.dp).rotate(a)) { drawArc(p.tint, 0f, 270f, false, style = Stroke(3.dp.toPx())) }
-        Txt(percent?.let { "$it%" } ?: "Подготовка…", T.fLabel, Color.White, FontWeight.SemiBold, Modifier.padding(top = 4.dp))
+        Txt(percent?.let { "$it%" } ?: L.preparing, T.fLabel, Color.White, FontWeight.SemiBold, Modifier.padding(top = 4.dp))
     }
 }
 
@@ -325,28 +315,28 @@ private fun ShowMenu(c: Controller, ui: Ui) {
     val settings by c.settings.collectAsState()
     val sharing by c.sharing.collectAsState()
     val tiles = buildList {
-        add(TileSpec("Презентация", "pres") { ui.sheet("Презентация") { PickSheet(c, ui, PickKind.PRESENTATION) } })
-        add(TileSpec("Видео", "media") { ui.sheet("Видео") { PickSheet(c, ui, PickKind.VIDEO) } })
-        add(TileSpec("Фото", "photo") { ui.sheet("Фото") { PickSheet(c, ui, PickKind.PHOTO) } })
-        add(TileSpec("Текст", "text") { ui.sheet("Текст") { TextSheet(c, ui) } })
-        add(TileSpec("Отсчёт", "clock") { ui.sheet("Обратный отсчёт") { CountdownSheet(c, ui) } })
-        add(TileSpec("Поверх", "layers") { ui.sheet("Поверх показа") { OverlaySheet(c, ui) } })
-        add(TileSpec(if (sharing) "Остановить экран" else "Экран телефона", "phone") {
-            if (sharing) { ui.closeAll(); ScreenShareService.stop(context) } else ui.sheet("Экран телефона") { MirrorSheet(c, ui) }
+        add(TileSpec(L.tPres, "pres") { ui.sheet(L.tPres) { PickSheet(c, ui, PickKind.PRESENTATION) } })
+        add(TileSpec(L.tVideo, "media") { ui.sheet(L.tVideo) { PickSheet(c, ui, PickKind.VIDEO) } })
+        add(TileSpec(L.tPhoto, "photo") { ui.sheet(L.tPhoto) { PickSheet(c, ui, PickKind.PHOTO) } })
+        add(TileSpec(L.tText, "text") { ui.sheet(L.tText) { TextSheet(c, ui) } })
+        add(TileSpec(L.tCountdown, "clock") { ui.sheet(L.countdown) { CountdownSheet(c, ui) } })
+        add(TileSpec(L.overlay, "layers") { ui.sheet(L.overlayTitle) { OverlaySheet(c, ui) } })
+        add(TileSpec(if (sharing) L.stopScreen else L.screenShare, "phone") {
+            if (sharing) { ui.closeAll(); ScreenShareService.stop(context) } else ui.sheet(L.screenShare) { MirrorSheet(c, ui) }
         })
-        add(TileSpec("Файл", "file") { ui.sheet("Файл") { PickSheet(c, ui, PickKind.FILE) } })
+        add(TileSpec(L.tFile, "file") { ui.sheet(L.tFile) { PickSheet(c, ui, PickKind.FILE) } })
         // Тяжёлые файлы службы — на экраны заранее, пока в зале идёт другое.
-        add(TileSpec("Файлы сетлиста — на экраны заранее", "send") {
+        add(TileSpec(L.sendSetAhead, "send") {
             ui.closeAll()
             val n = c.sendSetAhead()
-            ui.toast(when { n < 0 -> "Нет подключённых экранов"; n == 0 -> "В сетлисте нет фото, видео и PDF"; else -> "Передаются в фоне: $n, в зале ничего не меняется" })
+            ui.toast(when { n < 0 -> L.noScreens; n == 0 -> L.noHeavyFiles; else -> L.sendingAheadN(n) })
         })
         // Церковный раздел: Библия и Holyrics. Выключается в настройках.
         if (settings.church) {
-            add(TileSpec("Библия", "bible") { ui.closeAll(); ui.tab = AppTab.BIBLE })
+            add(TileSpec(L.tabBible, "bible") { ui.closeAll(); ui.tab = AppTab.BIBLE })
             add(TileSpec("Holyrics", "song") { ui.closeAll(); acts.holyrics() })
         }
-        add(TileSpec("Стать экраном", "tv") { ui.closeAll(); context.startActivity(Intent(context, ScreenActivity::class.java)) })
+        add(TileSpec(L.becomeScreen, "tv") { ui.closeAll(); context.startActivity(Intent(context, ScreenActivity::class.java)) })
     }
     Group {
         tiles.forEachIndexed { i, t ->
@@ -384,11 +374,11 @@ private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? =
     // Строка «Сетлист / Недавнее» — на всю ширину; панель тем, если есть, — справа под ней, до низа.
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(start = T.gutter, end = 8.dp, bottom = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Seg(listOf("Сетлист", "Недавнее"), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
-            IconBtn("plus", "Показать") { ui.sheet("Показать") { ShowMenu(c, ui) } }
-            IconBtn("search", "Найти") { ui.sheet("Найти") { FindSheet(c, ui) } }
+            Seg(listOf(L.setlist, L.recent), ui.listSeg, Modifier.weight(1f)) { ui.listSeg = it }
+            IconBtn("plus", L.show) { ui.sheet(L.show) { ShowMenu(c, ui) } }
+            IconBtn("search", L.find) { ui.sheet(L.find) { FindSheet(c, ui) } }
             // Панель тем спрятана — значок возвращает её.
-            if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", "Темы") { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
+            if (st.themePanel == ThemePanel.HIDDEN) IconBtn("themes", L.themes) { c.setSettings { it.copy(themePanel = ThemePanel.STRIP) } }
         }
         Row(Modifier.weight(1f)) {
             // На широком экране сетлист не растягивается: строки читаются, справа нет пустоты внутри строки.
@@ -397,18 +387,18 @@ private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? =
                 if (ui.listSeg == 0) item("pick") {
                     Row(
                         Modifier.padding(start = T.gutter + 4.dp, end = T.gutter, bottom = T.gapS).heightIn(min = T.rowMin)
-                            .press(label = "Выбрать сетлист") { ui.sheet("Сетлист") { SetPickSheet(c, ui) } },
+                            .press(label = L.pickSet) { ui.sheet(L.setlist) { SetPickSheet(c, ui) } },
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Icon("list")
-                        Txt(set?.let { "${it.title}, ${it.dateText}" } ?: "Сетлист", T.fBody, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
+                        Txt(set?.let { "${it.title}, ${it.dateText}" } ?: L.setlist, T.fBody, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
                         Icon("down")
                     }
                 }
                 if (items.isEmpty()) item("empty") {
                     Box(Modifier.fillMaxWidth().groupCell(true, true).padding(horizontal = T.gutter, vertical = T.rowPadV)) {
                         Txt(
-                            if (ui.listSeg == 0) "Пусто. Элементы добавляются через «Найти» или плитки «Показать»." else "Здесь появится то, что показывали.",
+                            if (ui.listSeg == 0) L.setEmptyHint else L.recentEmpty,
                             T.fSub, p.l2,
                         )
                     }
@@ -440,8 +430,8 @@ private fun LazyListScope.setRow(
         // Состояние — полоской слева и подписью, а не плашками: название песни остаётся целиком.
         val count = c.slidesOf(it).size
         val sub = when {
-            isLive -> "В зале" + if (count > 1) " · ${live!!.index + 1} из $count" else ""
-            isPre -> "Предпросмотр" + if (count > 1) " · ${preview!!.index + 1} из $count" else ""
+            isLive -> L.inHall + if (count > 1) " · " + L.nOfM(live!!.index + 1, count) else ""
+            isPre -> L.preview + if (count > 1) " · " + L.nOfM(preview!!.index + 1, count) else ""
             else -> subOf(c, it)
         }
         val p = P.current
@@ -473,7 +463,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                     TextSlideRow(
                         i + 1, s, if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                         Modifier.themeTarget(ui.themeDrag, "slide:${it.id}:$i") { st -> dropped(c, ui, it.id, i, st, it.title) }
-                            .semantics { contentDescription = "Слайд ${i + 1}" }
+                            .semantics { contentDescription = L.slideN(i + 1) }
                             .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                     )
                 }
@@ -498,7 +488,7 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
                         slides[i], it, c.styleFor(cue),
                         Modifier.weight(1f).padding(T.gapXs)
                             .themeTarget(ui.themeDrag, "slide:${it.id}:$i") { st -> dropped(c, ui, it.id, i, st, it.title) }
-                            .semantics { contentDescription = "Слайд ${i + 1}" }
+                            .semantics { contentDescription = L.slideN(i + 1) }
                             .combinedClick(onClick = { tapSlide(c, ui, it, i) }, onDouble = { liveSlide(c, ui, it, i) }),
                         num = i + 1, frame = if (isLive) Frame.LIVE else if (isPre) Frame.PREVIEW_TINT else Frame.NONE,
                     )
@@ -512,8 +502,8 @@ private fun LazyListScope.slideGrid(c: Controller, ui: Ui, it: LibItem, live: Cu
 /** Тема брошена на песню (index = null) или на слайд: остаётся у них, а если они в зале — сразу там. */
 private fun dropped(c: Controller, ui: Ui, itemId: String, index: Int?, st: app.deixis.core.TextStyle, title: String) {
     c.applyThemeTo(itemId, index, st)
-    val name = st.name ?: "своя"
-    ui.toast(if (index == null) "Тема «$name» — «$title»" else "Тема «$name» — слайду ${index + 1}")
+    val name = st.name ?: L.own
+    ui.toast(if (index == null) L.themeToItem(name, title) else L.themeToSlide(name, index + 1))
 }
 
 /** Текстовый слайд строкой: номер, подпись («Припев») и текст; в зале — рамкой «в зале», в предпросмотре — акцентом. */
@@ -535,7 +525,7 @@ private fun TextSlideRow(num: Int, slide: Slide, frame: Frame, modifier: Modifie
         Txt("$num", T.fLabel, if (border != null) border else p.l2, FontWeight.SemiBold, Modifier.width(T.numCol))
         Column(Modifier.weight(1f)) {
             label?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fTag, p.tintText, FontWeight.SemiBold, lines = 1) }
-            Txt(text.ifBlank { "Пустой слайд" }, T.fSub, if (text.isBlank()) p.l3 else p.ink, lines = 4)
+            Txt(text.ifBlank { L.emptySlide }, T.fSub, if (text.isBlank()) p.l3 else p.ink, lines = 4)
         }
     }
 }
@@ -546,7 +536,7 @@ private fun TextSlideRow(num: Int, slide: Slide, frame: Frame, modifier: Modifie
  */
 fun tapSlide(c: Controller, ui: Ui, item: LibItem, index: Int) {
     val big = c.largeFor(item)
-    if (big != null) { ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }; return }
+    if (big != null) { ui.sheet(L.fileOver1Gb) { LargeSheet(c, ui, big) }; return }
     val cue = Cue(c.sourceOf(item), index)
     if (cue.slide is Slide.Movie) { c.toPreview(cue); ui.full = FullSpec.Video(cue); return }
     c.tap(cue)
@@ -555,9 +545,9 @@ fun tapSlide(c: Controller, ui: Ui, item: LibItem, index: Int) {
 /** Двойное касание: сразу в зал. */
 fun liveSlide(c: Controller, ui: Ui, item: LibItem, index: Int) {
     val big = c.largeFor(item)
-    if (big != null) { ui.sheet("Файл больше 1 ГБ") { LargeSheet(c, ui, big) }; return }
+    if (big != null) { ui.sheet(L.fileOver1Gb) { LargeSheet(c, ui, big) }; return }
     c.goLive(Cue(c.sourceOf(item), index))
-    ui.toast("В зале")
+    ui.toast(L.inHall)
 }
 
 // ——— Полоса кнопок показа ———
@@ -573,7 +563,7 @@ fun ControlBar(c: Controller, ui: Ui) {
     Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
         Column(Modifier.padding(horizontal = T.gapS, vertical = T.gapXs), verticalArrangement = Arrangement.spacedBy(T.gapXs)) {
-            val black: @Composable RowScope.() -> Unit = { BarBtn("black", "Чёрный", mode == Mode.BLACK) { c.mode(Mode.BLACK) } }
+            val black: @Composable RowScope.() -> Unit = { BarBtn("black", L.black, mode == Mode.BLACK) { c.mode(Mode.BLACK) } }
             when (slide) {
                 is Slide.Movie -> {
                     val v = state?.video
@@ -581,18 +571,18 @@ fun ControlBar(c: Controller, ui: Ui) {
                     VideoSeek(v?.positionMs ?: 0L, dur) { c.video(VideoAction.SEEK, positionMs = it) }
                     Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                         black()
-                        BarBtn("back10", "−10 с") { c.video(VideoAction.SEEK, deltaMs = -10_000) }
+                        BarBtn("back10", L.back10) { c.video(VideoAction.SEEK, deltaMs = -10_000) }
                         val playing = v?.playing ?: true
-                        BarBtn(if (playing) "pause" else "play", if (playing) "Пауза" else "Пуск") { c.video(if (playing) VideoAction.PAUSE else VideoAction.PLAY) }
-                        BarBtn("fwd10", "+10 с") { c.video(VideoAction.SEEK, deltaMs = 10_000) }
-                        BarBtn("loop", "Повтор", v?.loop == true) { c.video(VideoAction.LOOP) }
+                        BarBtn(if (playing) "pause" else "play", if (playing) L.pause else L.play) { c.video(if (playing) VideoAction.PAUSE else VideoAction.PLAY) }
+                        BarBtn("fwd10", L.fwd10) { c.video(VideoAction.SEEK, deltaMs = 10_000) }
+                        BarBtn("loop", L.loop, v?.loop == true) { c.video(VideoAction.LOOP) }
                         val vol = v?.volume ?: 100
                         BarBtn("vol", "$vol%") { c.video(VideoAction.VOLUME, volume = if (vol >= 100) 0 else (vol + 20).coerceAtMost(100)) }
                     }
                 }
                 is Slide.Screen -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()
-                    BarBtn("stop", "Остановить трансляцию", weight = 2f) { ScreenShareService.stop(context) }
+                    BarBtn("stop", L.stopShare, weight = 2f) { ScreenShareService.stop(context) }
                 }
                 // Отсчёт в зале: пауза, ±1 мин, заново — на всех экранах сразу.
                 is Slide.Countdown -> {
@@ -602,27 +592,27 @@ fun ControlBar(c: Controller, ui: Ui) {
                     Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                         black()
                         val running = run?.running ?: true
-                        BarBtn(if (running) "pause" else "play", if (running) "Пауза" else "Пуск") { c.timerToggle() }
-                        BarBtn("back10", "−1 мин") { c.timerAdd(-60_000) }
-                        BarBtn("fwd10", "+1 мин") { c.timerAdd(60_000) }
-                        BarBtn("restart", "Заново") { c.timerRestart() }
-                        BarBtn("stop", "Убрать") { c.timerStop() }
+                        BarBtn(if (running) "pause" else "play", if (running) L.pause else L.play) { c.timerToggle() }
+                        BarBtn("back10", L.back1m) { c.timerAdd(-60_000) }
+                        BarBtn("fwd10", L.fwd1m) { c.timerAdd(60_000) }
+                        BarBtn("restart", L.again) { c.timerRestart() }
+                        BarBtn("stop", L.remove) { c.timerStop() }
                     }
                 }
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()
-                    BarBtn("logo", "Логотип", mode == Mode.LOGO) { c.mode(Mode.LOGO) }
+                    BarBtn("logo", L.logo, mode == Mode.LOGO) { c.mode(Mode.LOGO) }
                     // Слои поверх показа: что в эфире — видно акцентом, касание — поправить, добавить, убрать.
                     val layers by c.overlays.collectAsState()
-                    BarBtn("layers", "Слои", !layers.isEmpty) { ui.sheet("Поверх показа") { OverlaySheet(c, ui) } }
-                    BarBtn("prev", "Назад") { c.step(-1) }
-                    BarBtn("next", "Дальше") { c.step(1) }
-                    BarBtn("brush", "Вид") { openStyle(c, ui) }
+                    BarBtn("layers", L.layers, !layers.isEmpty) { ui.sheet(L.overlayTitle) { OverlaySheet(c, ui) } }
+                    BarBtn("prev", L.prev) { c.step(-1) }
+                    BarBtn("next", L.next) { c.step(1) }
+                    BarBtn("brush", L.look) { openStyle(c, ui) }
                     // Уйти с экранов: окна Deixis прячутся, на экранах то, что было до него; ещё раз — вернуться.
-                    BarBtn("away", "Уйти с экранов", mode == Mode.AWAY) {
+                    BarBtn("away", L.awayLong, mode == Mode.AWAY) {
                         val back = mode == Mode.AWAY
                         c.mode(Mode.AWAY)
-                        ui.toast(if (back) "Deixis снова на экранах" else "Deixis ушёл с экранов: любой показ вернёт его")
+                        ui.toast(if (back) L.awayBack else L.awayToast)
                     }
                 }
             }
@@ -632,7 +622,7 @@ fun ControlBar(c: Controller, ui: Ui) {
 
 fun openStyle(c: Controller, ui: Ui) {
     c.startDraft()
-    ui.sheet("Оформление") { StyleSheet(c, ui) }
+    ui.sheet(L.style) { StyleSheet(c, ui) }
 }
 
 /**
@@ -675,7 +665,7 @@ private fun VideoSeek(position: Long, duration: Long, onSeek: (Long) -> Unit) {
                         onDragCancel = { drag = null },
                     ) { ch, _ -> drag = (ch.position.x / size.width).coerceIn(0f, 1f) }
                 }
-                .semantics { contentDescription = "Перемотка" },
+                .semantics { contentDescription = L.seek },
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(T.rPill)).background(p.fill2))

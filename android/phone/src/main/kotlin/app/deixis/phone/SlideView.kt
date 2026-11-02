@@ -193,7 +193,7 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
         }
         is Slide.Pending -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
             Icon("pres", Color.White, T.icon)
-            Txt("Переведётся при показе", T.fTag, Color.White.copy(alpha = 0.75f))
+            Txt(L.convertsOnShow, T.fTag, Color.White.copy(alpha = 0.75f))
         }
         is Slide.Screen -> Icon("phone", Color.White, T.icon)
         // Превью отсчёта: сколько он будет идти, в оформлении зала.

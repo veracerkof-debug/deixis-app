@@ -55,16 +55,16 @@ import app.deixis.core.HolyricsSong
 fun WorkModeSwitch(c: Controller, ui: Ui, h: HolyricsSource) {
     val st by c.settings.collectAsState()
     val status by h.status.collectAsState()
-    GHead("Режим работы")
-    Seg(listOf("Deixis", "Пульт Holyrics"), if (st.workMode == WorkMode.HOLYRICS) 1 else 0, Modifier.fillMaxWidth()) { i ->
+    GHead(L.workMode)
+    Seg(listOf("Deixis", L.holyricsRemote), if (st.workMode == WorkMode.HOLYRICS) 1 else 0, Modifier.fillMaxWidth()) { i ->
         val mode = if (i == 1) WorkMode.HOLYRICS else WorkMode.DEIXIS
         c.setSettings { it.copy(workMode = mode) }
         // Пульт Holyrics без связи с Holyrics бесполезен: сразу окно подключения.
         if (mode == WorkMode.HOLYRICS && status !is HolyricsStatus.On) ui.holyrics = true
     }
     Note(
-        if (st.workMode == WorkMode.HOLYRICS) "Пульт Holyrics: показ, плейлист и база — в Holyrics на компьютере. Своя библиотека Deixis ждёт в режиме «Deixis»."
-        else "Deixis: своя библиотека, сетлисты и экраны. Песни Holyrics можно перенести в библиотеку в окне Holyrics.",
+        if (st.workMode == WorkMode.HOLYRICS) L.holyricsModeNote
+        else L.deixisModeNote,
         Modifier.padding(top = T.gapS),
     )
 }
@@ -73,8 +73,8 @@ fun WorkModeSwitch(c: Controller, ui: Ui, h: HolyricsSource) {
 @Composable
 private fun NeedHolyrics(ui: Ui) {
     Column(Modifier.fillMaxWidth().padding(T.gutter), verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Note("Пульт Holyrics: связь с Holyrics на компьютере — поиском в сети или по QR-коду в Deixis для компьютера.")
-        Btn("Подключить Holyrics", kind = BtnKind.TINT, icon = "song") { ui.holyrics = true }
+        Note(L.holyricsConnectNote)
+        Btn(L.connectHolyrics, kind = BtnKind.TINT, icon = "song") { ui.holyrics = true }
     }
 }
 
@@ -92,14 +92,14 @@ fun HolyricsPlaylistPane(h: HolyricsSource, ui: Ui) {
     Column(Modifier.fillMaxSize()) {
         HolyricsThemeStrip(h)
         Row(Modifier.padding(start = T.gutter, end = T.gapS, top = T.gapS, bottom = T.gap), verticalAlignment = Alignment.CenterVertically) {
-            Txt("Плейлист Holyrics", T.fBody, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
-            IconBtn("plus", "Песню в плейлист") { ui.sheet("В плейлист Holyrics") { HolyricsAddSheet(h) } }
-            IconBtn("loop", "Обновить") { h.refresh() }
+            Txt(L.holyricsPlaylist, T.fBody, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
+            IconBtn("plus", L.songToPlaylist) { ui.sheet(L.toHolyricsPlaylist) { HolyricsAddSheet(h) } }
+            IconBtn("loop", L.update) { h.refresh() }
         }
         LazyColumn(Modifier.weight(1f)) {
             if (list.isEmpty()) item("empty") {
                 Box(Modifier.fillMaxWidth().groupCell(true, true).padding(horizontal = T.gutter, vertical = T.rowPadV)) {
-                    Txt("Плейлист Holyrics пуст. Плюс — добавить песню из базы Holyrics.", T.fSub, p.l2)
+                    Txt(L.playlistEmpty, T.fSub, p.l2)
                 }
             }
             itemsIndexed(list, key = { i, s -> "$i:${s.id}" }) { i, s ->
@@ -107,7 +107,7 @@ fun HolyricsPlaylistPane(h: HolyricsSource, ui: Ui) {
                 Column(Modifier.animateItem().fillMaxWidth().groupCell(i == 0, i == list.lastIndex && open != i)) {
                     if (i > 0) Sep()
                     Cell(
-                        s.title, if (isLive) "В Holyrics · слайд ${cur!!.slideNumber} из ${cur.totalSlides}" else s.artist.ifBlank { s.key },
+                        s.title, if (isLive) L.inHolyricsSlide(cur!!.slideNumber, cur.totalSlides) else s.artist.ifBlank { s.key },
                         "song", open = open == i, chevron = if (open == i) "down" else "chev", mark = if (isLive) p.live else null,
                         onLong = { ui.sheet(s.title) { PlaylistItemMenu(h, ui, s, i) } },
                         onClick = { open = if (open == i) null else i },
@@ -127,7 +127,7 @@ private fun SongRows(h: HolyricsSource, s: HolyricsSong, liveIndex: Int?) {
     val song by produceState<HolyricsSong?>(null, s.id) { value = h.song(s.id) }
     val slides = song?.orderedSlides()
     Column(Modifier.fillMaxWidth().background(p.fill).padding(horizontal = T.gutter, vertical = T.gapS), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
-        if (slides == null) Txt("Слайды загружаются…", T.fSub, p.l2)
+        if (slides == null) Txt(L.slidesLoading, T.fSub, p.l2)
         slides?.forEachIndexed { i, sl ->
             val on = i == liveIndex
             Row(
@@ -139,7 +139,7 @@ private fun SongRows(h: HolyricsSource, s: HolyricsSong, liveIndex: Int?) {
                 Txt("${i + 1}", T.fLabel, if (on) p.live else p.l2, FontWeight.SemiBold, Modifier.width(T.numCol))
                 Column(Modifier.weight(1f)) {
                     sl.description?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fTag, p.tintText, FontWeight.SemiBold, lines = 1) }
-                    Txt(sl.text.ifBlank { "Пустой слайд" }, T.fSub, if (sl.text.isBlank()) p.l3 else p.ink, lines = 4)
+                    Txt(sl.text.ifBlank { L.emptySlide }, T.fSub, if (sl.text.isBlank()) p.l3 else p.ink, lines = 4)
                 }
             }
         }
@@ -149,9 +149,9 @@ private fun SongRows(h: HolyricsSource, s: HolyricsSong, liveIndex: Int?) {
 @Composable
 private fun PlaylistItemMenu(h: HolyricsSource, ui: Ui, s: HolyricsSong, index: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Btn("Показать в Holyrics", icon = "up") { ui.closeAll(); h.showSongAt(s.id, 0) }
-        Btn("Убрать из плейлиста", kind = BtnKind.RED) { ui.closeAll(); h.removeFromPlaylist(index) }
-        Note("Песня останется в базе Holyrics: убирается только из плейлиста.")
+        Btn(L.showInHolyrics, icon = "up") { ui.closeAll(); h.showSongAt(s.id, 0) }
+        Btn(L.removeFromPlaylist, kind = BtnKind.RED) { ui.closeAll(); h.removeFromPlaylist(index) }
+        Note(L.removeFromPlaylistNote)
     }
 }
 
@@ -160,16 +160,16 @@ private fun PlaylistItemMenu(h: HolyricsSource, ui: Ui, s: HolyricsSong, index: 
 private fun HolyricsAddSheet(h: HolyricsSource) {
     val songs by h.songs.collectAsState()
     var q by remember { mutableStateOf("") }
-    SearchField(q, "Песня в базе Holyrics") { q = it }
+    SearchField(q, L.songInHolyricsDb) { q = it }
     val found = songs.filter { q.isBlank() || it.title.contains(q.trim(), true) || it.artist.contains(q.trim(), true) }.take(MAX_FOUND)
     Group(Modifier.padding(top = T.gap)) {
         found.forEachIndexed { i, s ->
             if (i > 0) Sep()
-            Cell(s.title, s.artist.ifBlank { null }, "song", chevron = null) { Pill("В плейлист", tint = true) { h.addToPlaylist(s) } }
+            Cell(s.title, s.artist.ifBlank { null }, "song", chevron = null) { Pill(L.toPlaylist, tint = true) { h.addToPlaylist(s) } }
         }
-        if (found.isEmpty()) Cell("Ничего не найдено", chevron = null)
+        if (found.isEmpty()) Cell(L.nothingFound, chevron = null)
     }
-    Note("Новые песни в саму базу Holyrics с телефона не записать: Holyrics разрешает это только с подпиской Holyrics Plan.")
+    Note(L.noNewSongs)
 }
 
 /** Кнопки пульта Holyrics: F10 чёрный, назад, дальше, F8 обои, F9 пустой. */
@@ -182,12 +182,12 @@ fun HolyricsKeys(h: HolyricsSource) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
         Row(Modifier.padding(horizontal = T.gapS, vertical = T.gapXs), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
             // «Чёрный» — первым, как в режиме Deixis: аварийная кнопка всегда на одном месте под пальцем.
-            Key("black", "F10 — чёрный экран", HolyricsKey.F10 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F10) }
-            Key("prev", "Назад", false, Modifier.weight(1f)) { h.previous() }
-            Key("next", "Дальше", false, Modifier.weight(1f)) { h.next() }
-            Key("photo", "F8 — обои", HolyricsKey.F8 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F8) }
-            Key("clear", "F9 — пустой экран", HolyricsKey.F9 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F9) }
-            Key("more", "Ещё: текст, отсчёт, объявления", false, Modifier.weight(1f)) { ui.sheet("Ещё в Holyrics") { HolyricsExtrasSheet(h, ui) } }
+            Key("black", L.f10Black, HolyricsKey.F10 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F10) }
+            Key("prev", L.prev, false, Modifier.weight(1f)) { h.previous() }
+            Key("next", L.next, false, Modifier.weight(1f)) { h.next() }
+            Key("photo", L.f8Wallpaper, HolyricsKey.F8 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F8) }
+            Key("clear", L.f9Empty, HolyricsKey.F9 in keys, Modifier.weight(1f)) { h.toggleKey(HolyricsKey.F9) }
+            Key("more", L.holyricsMore, false, Modifier.weight(1f)) { ui.sheet(L.moreInHolyrics) { HolyricsExtrasSheet(h, ui) } }
         }
     }
 }
@@ -211,10 +211,10 @@ fun HolyricsLibraryScreen(h: HolyricsSource, ui: Ui) {
     var q by remember { mutableStateOf("") }
     LaunchedEffect(status) { if (status is HolyricsStatus.On && h.announcements.value.isEmpty()) h.loadExtras() }
     Column(Modifier.fillMaxSize()) {
-        Header("База Holyrics") { IconBtn("loop", "Обновить") { h.refresh() } }
+        Header(L.holyricsDb) { IconBtn("loop", L.update) { h.refresh() } }
         if (status !is HolyricsStatus.On) { NeedHolyrics(ui); return@Column }
         Column(Modifier.padding(horizontal = T.gutter), verticalArrangement = Arrangement.spacedBy(T.gap)) {
-            SearchField(q, "Поиск в базе Holyrics") { q = it }
+            SearchField(q, L.searchHolyricsDb) { q = it }
             Seg(LIB_TABS, tab, Modifier.fillMaxWidth(), scroll = true) { tab = it }
         }
         val needle = q.trim()
@@ -225,8 +225,8 @@ fun HolyricsLibraryScreen(h: HolyricsSource, ui: Ui) {
                         val songs by h.songs.collectAsState()
                         songs.filter { needle.isEmpty() || it.title.contains(needle, true) || it.artist.contains(needle, true) }.take(MAX_LIST).forEachIndexed { i, s ->
                             if (i > 0) Sep()
-                            Cell(s.title, s.artist.ifBlank { null }, "song", chevron = null, onClick = { h.showSongAt(s.id, 0); ui.toast("«${s.title}» — в Holyrics") }) {
-                                IconBtn("plus", "В плейлист Holyrics") { h.addToPlaylist(s) }
+                            Cell(s.title, s.artist.ifBlank { null }, "song", chevron = null, onClick = { h.showSongAt(s.id, 0); ui.toast(L.toHolyricsNamed(s.title)) }) {
+                                IconBtn("plus", L.toHolyricsPlaylist) { h.addToPlaylist(s) }
                             }
                         }
                     }
@@ -234,25 +234,25 @@ fun HolyricsLibraryScreen(h: HolyricsSource, ui: Ui) {
                         val texts by h.texts.collectAsState()
                         texts.filter { needle.isEmpty() || it.title.contains(needle, true) }.take(MAX_LIST).forEachIndexed { i, t ->
                             if (i > 0) Sep()
-                            Cell(t.title, t.folder.ifBlank { null }, "text", chevron = null, onClick = { h.showInHolyrics(text = t); ui.toast("«${t.title}» — в Holyrics") })
+                            Cell(t.title, t.folder.ifBlank { null }, "text", chevron = null, onClick = { h.showInHolyrics(text = t); ui.toast(L.toHolyricsNamed(t.title)) })
                         }
                     }
                     2 -> {
                         val files by h.documents.collectAsState()
-                        Files(files, needle, "pres") { h.openFile(it); ui.toast("«${it.name}» — в Holyrics") }
+                        Files(files, needle, "pres") { h.openFile(it); ui.toast(L.toHolyricsNamed(it.name)) }
                     }
                     3, 4 -> {
                         val kind = if (tab == 3) HolyricsMedia.IMAGE else HolyricsMedia.VIDEO
                         val files by (if (tab == 3) h.images else h.videos).collectAsState()
-                        Files(files, needle, if (tab == 3) "photo" else "media") { h.showMediaInHolyrics(kind, it); ui.toast("«${it.name}» — в Holyrics") }
+                        Files(files, needle, if (tab == 3) "photo" else "media") { h.showMediaInHolyrics(kind, it); ui.toast(L.toHolyricsNamed(it.name)) }
                     }
                     5 -> {
                         val files by h.audios.collectAsState()
-                        Files(files, needle, "vol") { h.playAudio(it); ui.toast("«${it.name}» играет в Holyrics") }
+                        Files(files, needle, "vol") { h.playAudio(it); ui.toast(L.playsInHolyrics(it.name)) }
                     }
                     6 -> {
                         val list by h.announcements.collectAsState()
-                        Cell("Все объявления по кругу", "каждые $ANN_SECONDS с", "list", chevron = null, onClick = { h.showAnnouncement(null, ANN_SECONDS) })
+                        Cell(L.allAnnouncements, L.everyNSec(ANN_SECONDS), "list", chevron = null, onClick = { h.showAnnouncement(null, ANN_SECONDS) })
                         list.filter { needle.isEmpty() || it.name.contains(needle, true) || it.text.contains(needle, true) }.take(MAX_LIST).forEach { a ->
                             Sep()
                             Cell(a.name.ifBlank { a.text }, a.text.takeIf { a.name.isNotBlank() }?.lineSequence()?.firstOrNull(), "text", chevron = null, onClick = { h.showAnnouncement(a.id, ANN_SECONDS) })
@@ -261,15 +261,15 @@ fun HolyricsLibraryScreen(h: HolyricsSource, ui: Ui) {
                     else -> {
                         val list by h.automatic.collectAsState()
                         val shown = list.filter { needle.isEmpty() || it.contains(needle, true) }.take(MAX_LIST)
-                        if (shown.isEmpty()) Cell("Автопрезентаций нет", chevron = null)
+                        if (shown.isEmpty()) Cell(L.noAutoPres, chevron = null)
                         shown.forEachIndexed { i, f ->
                             if (i > 0) Sep()
-                            Cell(f.removeSuffix(".ap"), "с музыкой и сменой слайдов по времени", "play", chevron = null, onClick = { h.playAutomatic(f); ui.toast("«${f.removeSuffix(".ap")}» — в Holyrics") })
+                            Cell(f.removeSuffix(".ap"), L.autoPresSub, "play", chevron = null, onClick = { h.playAutomatic(f); ui.toast(L.toHolyricsNamed(f.removeSuffix(".ap"))) })
                         }
                     }
                 }
             }
-            Note("Касание — сразу в Holyrics, с темой из ленты на главном, если она выбрана. Плюс у песни — в плейлист Holyrics. База Holyrics здесь только читается.")
+            Note(L.holyricsDbNote)
         }
     }
 }
@@ -281,26 +281,26 @@ fun HolyricsPlaylistsScreen(h: HolyricsSource, ui: Ui) {
     val saved by h.saved.collectAsState()
     LaunchedEffect(status) { if (status is HolyricsStatus.On) h.loadSaved() }
     Column(Modifier.fillMaxSize()) {
-        Header("Плейлисты Holyrics") { IconBtn("loop", "Обновить") { h.loadSaved() } }
+        Header(L.holyricsPlaylists) { IconBtn("loop", L.update) { h.loadSaved() } }
         if (status !is HolyricsStatus.On) { NeedHolyrics(ui); return@Column }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
             Group {
-                if (saved.isEmpty()) Cell("Сохранённых плейлистов нет", chevron = null)
+                if (saved.isEmpty()) Cell(L.noSavedPlaylists, chevron = null)
                 saved.forEachIndexed { i, s ->
                     if (i > 0) Sep()
                     val songs = s.items.count { it.type == "song" }
-                    Cell(s.name.ifBlank { "Без названия" }, "${s.items.size} элем." + if (songs > 0) " · песен $songs" else "", "list", onClick = {
-                        ui.sheet(s.name.ifBlank { "Плейлист" }) {
+                    Cell(s.name.ifBlank { L.untitled }, L.itemsShort(s.items.size) + if (songs > 0) " · " + L.songsN(songs) else "", "list", onClick = {
+                        ui.sheet(s.name.ifBlank { L.playlist }) {
                             Column(verticalArrangement = Arrangement.spacedBy(T.gap)) {
-                                Btn("Открыть в Holyrics", kind = BtnKind.TINT) { ui.closeAll(); h.loadPlaylist(s.name, merge = false) }
-                                Btn("Дописать в текущий плейлист") { ui.closeAll(); h.loadPlaylist(s.name, merge = true) }
-                                Note("«Открыть» заменит плейлист, который сейчас открыт в Holyrics.")
+                                Btn(L.openInHolyrics, kind = BtnKind.TINT) { ui.closeAll(); h.loadPlaylist(s.name, merge = false) }
+                                Btn(L.appendToPlaylist) { ui.closeAll(); h.loadPlaylist(s.name, merge = true) }
+                                Note(L.openReplacesNote)
                             }
                         }
                     })
                 }
             }
-            Note("Плейлисты сохраняются в самом Holyrics на компьютере.")
+            Note(L.playlistsNote)
         }
     }
 }
@@ -309,7 +309,7 @@ fun HolyricsPlaylistsScreen(h: HolyricsSource, ui: Ui) {
 @Composable
 private fun Files(files: List<app.deixis.core.HolyricsFile>, needle: String, icon: String, onClick: (app.deixis.core.HolyricsFile) -> Unit) {
     val shown = files.filter { !it.isDir && (needle.isEmpty() || it.name.contains(needle, true)) }.take(MAX_LIST)
-    if (shown.isEmpty()) Cell("Здесь пусто", chevron = null)
+    if (shown.isEmpty()) Cell(L.emptyHere, chevron = null)
     shown.forEachIndexed { i, f ->
         if (i > 0) Sep()
         Cell(f.name, null, icon, chevron = null, onClick = { onClick(f) })
@@ -330,10 +330,10 @@ fun HolyricsThemeStrip(h: HolyricsSource) {
     val ordered = remember(list) { list.sortedBy { if (it.isTheme) 0 else 1 } }
     val picked = list.firstOrNull { it.id == mix }
     Row(Modifier.padding(start = T.gutter, end = T.gutter, top = T.gapS, bottom = T.gapS), verticalAlignment = Alignment.CenterVertically) {
-        Txt("Тема", T.fSub, p.l2, FontWeight.SemiBold)
+        Txt(L.theme, T.fSub, p.l2, FontWeight.SemiBold)
         Spacer(Modifier.width(T.gapS))
         Txt(
-            picked?.let { "«${it.name}» — на всё, что показываете" } ?: "у каждой песни и текста своя",
+            picked?.let { L.themeForAll(it.name) } ?: L.eachOwnTheme,
             T.fSub, if (picked != null) p.tintText else p.l3, modifier = Modifier.weight(1f), lines = 1,
         )
     }
@@ -355,7 +355,7 @@ private fun ThemeTile(bg: HolyricsBackground, thumb: android.graphics.Bitmap?, o
             if (thumb != null) Image(thumb.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else Icon(if (bg.isVideo) "media" else if (bg.isTheme) "themes" else "photo", Color.White)
         }
-        Txt(bg.name.ifBlank { "Без названия" }, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, lines = 1)
+        Txt(bg.name.ifBlank { L.untitled }, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, lines = 1)
     }
 }
 
@@ -375,52 +375,52 @@ fun HolyricsExtrasSheet(h: HolyricsSource, ui: Ui) {
     var stage by remember { mutableStateOf(STAGE_MIN) }
     LaunchedEffect(Unit) { if (bgs.isEmpty()) h.loadExtras() }
 
-    Note(themeName?.let { "Текст и отсчёт пойдут с темой «$it» — её выбирают в ленте тем на главном." } ?: "Тема — как задано в Holyrics. Другую выбирают в ленте тем на главном.")
-    GHead("Быстрый текст")
-    Field(quick, "Что показать", single = false, minHeight = T.btn) { quick = it }
-    Btn("На экран", Modifier.padding(top = T.gapS, bottom = T.gap), icon = "up", kind = BtnKind.TINT, enabled = quick.isNotBlank()) { h.quickText(quick.trim()); ui.closeAll() }
+    Note(themeName?.let { L.quickThemeNote(it) } ?: L.themeAsHolyrics)
+    GHead(L.quickText)
+    Field(quick, L.whatToShow, single = false, minHeight = T.btn) { quick = it }
+    Btn(L.toScreen, Modifier.padding(top = T.gapS, bottom = T.gap), icon = "up", kind = BtnKind.TINT, enabled = quick.isNotBlank()) { h.quickText(quick.trim()); ui.closeAll() }
 
-    GHead("Обратный отсчёт")
-    Seg(listOf("На сколько", "До времени"), exact, Modifier.fillMaxWidth()) { exact = it; time = if (it == 1) COUNT_AT else COUNT_IN }
+    GHead(L.countdown)
+    Seg(listOf(L.howLong, L.untilTimeSeg), exact, Modifier.fillMaxWidth()) { exact = it; time = if (it == 1) COUNT_AT else COUNT_IN }
     Row(Modifier.padding(top = T.gapS), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Field(time, if (exact == 1) "ЧЧ:ММ" else "ММ:СС", Modifier.weight(1f)) { time = it }
-        Field(before, "Текст над отсчётом", Modifier.weight(2f)) { before = it }
+        Field(time, if (exact == 1) L.hhmm else L.mmss, Modifier.weight(1f)) { time = it }
+        Field(before, L.aboveCountdown, Modifier.weight(2f)) { before = it }
     }
     val okTime = TIME.matches(time.trim())
-    Btn("Запустить отсчёт", Modifier.padding(top = T.gapS, bottom = T.gap), icon = "clock", kind = BtnKind.TINT, enabled = okTime) {
+    Btn(L.startCountdown, Modifier.padding(top = T.gapS, bottom = T.gap), icon = "clock", kind = BtnKind.TINT, enabled = okTime) {
         h.countdown(time.trim().padStart(TIME_LEN, '0'), exact == 1, before.trim(), ""); ui.closeAll()
     }
 
-    GHead("Объявления")
+    GHead(L.announcements)
     Group {
-        Cell("Все по кругу", "каждые $ANN_SECONDS с", "list", chevron = null, onClick = { h.showAnnouncement(null, ANN_SECONDS); ui.closeAll() })
+        Cell(L.allInLoop, L.everyNSec(ANN_SECONDS), "list", chevron = null, onClick = { h.showAnnouncement(null, ANN_SECONDS); ui.closeAll() })
         ann.forEach { a ->
             Sep()
             Cell(a.name.ifBlank { a.text }, null, "text", chevron = null, onClick = { h.showAnnouncement(a.id, ANN_SECONDS); ui.closeAll() })
         }
     }
 
-    GHead("Тревога")
-    Field(alert, "Строка поверх всего: «Машина у входа»") { alert = it }
+    GHead(L.alert)
+    Field(alert, L.alertHint) { alert = it }
     Row(Modifier.padding(top = T.gapS, bottom = T.gap), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Btn("Показать", Modifier.weight(1f), kind = BtnKind.TINT, enabled = alert.isNotBlank()) { h.alert(alert.trim(), true) }
-        Btn("Убрать", Modifier.weight(1f)) { h.alert("", false) }
+        Btn(L.show, Modifier.weight(1f), kind = BtnKind.TINT, enabled = alert.isNotBlank()) { h.alert(alert.trim(), true) }
+        Btn(L.remove, Modifier.weight(1f)) { h.alert("", false) }
     }
 
-    GHead("Таймер для сцены")
+    GHead(L.stageTimer)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Stepper("$stage мин", { stage = (stage - 1).coerceAtLeast(1) }, { stage = (stage + 1).coerceAtMost(STAGE_MAX) })
-        Btn("Старт", Modifier.weight(1f), kind = BtnKind.TINT) { h.stageCountdown(stage, "") }
-        Btn("Стоп", Modifier.weight(1f)) { h.stopStageCountdown() }
+        Stepper(L.minN(stage), { stage = (stage - 1).coerceAtLeast(1) }, { stage = (stage + 1).coerceAtMost(STAGE_MAX) })
+        Btn(L.start, Modifier.weight(1f), kind = BtnKind.TINT) { h.stageCountdown(stage, "") }
+        Btn(L.stop, Modifier.weight(1f)) { h.stopStageCountdown() }
     }
-    Note("Таймер виден на панели для сцены Holyrics, в зале его нет.", Modifier.padding(top = T.gapS, bottom = T.gap))
+    Note(L.stageTimerNote, Modifier.padding(top = T.gapS, bottom = T.gap))
 
     if (favs.isNotEmpty()) {
-        GHead("Избранное Holyrics")
+        GHead(L.holyricsFavorites)
         Group {
             favs.forEachIndexed { i, f ->
                 if (i > 0) Sep()
-                Cell(f.name.ifBlank { "Без названия" }, null, "layers", chevron = null, onClick = { h.runFavorite(f); ui.closeAll() })
+                Cell(f.name.ifBlank { L.untitled }, null, "layers", chevron = null, onClick = { h.runFavorite(f); ui.closeAll() })
             }
         }
     }
@@ -438,37 +438,37 @@ fun HolyricsBibleSheet(c: Controller, ui: Ui) {
     val modules by c.bibleModules.collectAsState()
     val selected by c.desk.selected.collectAsState()
     LaunchedEffect(Unit) { h.loadBibleVersions() }
-    Note("Стихи выбираются в Deixis, а показываются в Holyrics — его переводом. Здесь видно, какой перевод Holyrics отвечает каждому модулю Deixis.")
-    GHead("Модули Deixis → Holyrics")
+    Note(L.bibleMapNote)
+    GHead(L.modulesToHolyrics)
     Group {
         modules.forEachIndexed { i, m ->
             if (i > 0) Sep()
             val v = map.let { h.versionFor(m.fileName) }
             Cell(
-                m.title, v?.let { "в Holyrics: ${it.title.ifBlank { it.id }}" + if (m.fileName in map) "" else " · подобран" } ?: "в Holyrics такого перевода нет",
+                m.title, v?.let { L.inHolyricsLower(it.title.ifBlank { it.id }) + if (m.fileName in map) "" else L.autoMatchedSuffix } ?: L.noSuchInHolyrics,
                 "bible",
                 onClick = { ui.push(m.abbreviation) { BibleVersionPicker(h, ui, m.fileName, versions) } },
             )
         }
-        if (modules.isEmpty()) Cell("В Deixis пока нет модулей Библии", chevron = null)
+        if (modules.isEmpty()) Cell(L.noModulesInDeixis, chevron = null)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-        Btn("Как в Holyrics", Modifier.weight(1f), icon = "down") { h.takeBibleTabs(); ui.closeAll() }
-        Btn("Как в Deixis", Modifier.weight(1f), icon = "up", kind = BtnKind.TINT) { h.pushBibleTabs(selected); ui.closeAll() }
+        Btn(L.likeHolyrics, Modifier.weight(1f), icon = "down") { h.takeBibleTabs(); ui.closeAll() }
+        Btn(L.likeDeixis, Modifier.weight(1f), icon = "up", kind = BtnKind.TINT) { h.pushBibleTabs(selected); ui.closeAll() }
     }
-    Note("«Как в Holyrics» — переводы из вкладок Библии Holyrics становятся выбранными здесь. «Как в Deixis» — выбранные здесь переводы ставятся во вкладки Holyrics.", Modifier.padding(top = T.gapS))
+    Note(L.likeNote, Modifier.padding(top = T.gapS))
     val used = modules.mapNotNull { h.versionFor(it.fileName)?.id }.toSet()
     val missing = versions.filter { it.id !in used }
     if (missing.isNotEmpty()) {
-        GHead("Есть в Holyrics, нет в Deixis")
+        GHead(L.inHolyricsNotDeixis)
         Group {
             missing.take(MAX_FOUND).forEachIndexed { i, v ->
                 if (i > 0) Sep()
                 Cell(v.title.ifBlank { v.id }, listOfNotNull(v.id, v.language?.altName ?: v.language?.name?.ifBlank { null }).joinToString(" · "), "bible", chevron = null)
             }
         }
-        Note("Чтобы листать и искать их в Deixis, нужен MyBible-модуль того же перевода: «+» в строке переводов на вкладке «Библия». Holyrics не отдаёт текст своих модулей через API.")
-        Btn("Добавить модуль в Deixis", icon = "plus") { ui.push("Переводы Библии") { BibleModulesSheet(c) } }
+        Note(L.holyricsModulesNote)
+        Btn(L.addModuleToDeixis, icon = "plus") { ui.push(L.modules) { BibleModulesSheet(c) } }
     }
 }
 
@@ -477,9 +477,9 @@ private fun BibleVersionPicker(h: HolyricsSource, ui: Ui, file: String, versions
     val map by h.bibleMap.collectAsState()
     val current = map[file]
     var q by remember { mutableStateOf("") }
-    SearchField(q, "Перевод Holyrics") { q = it }
+    SearchField(q, L.holyricsTranslation) { q = it }
     Group(Modifier.padding(top = T.gap)) {
-        Cell("Подбирать самому", "по сокращению, названию и языку", "loop", chevron = null, mark = if (current == null) P.current.tint else null, onClick = { h.mapBible(file, null); ui.close() })
+        Cell(L.autoMatch, L.autoMatchSub, "loop", chevron = null, mark = if (current == null) P.current.tint else null, onClick = { h.mapBible(file, null); ui.close() })
         versions.filter { q.isBlank() || it.title.contains(q.trim(), true) || it.id.contains(q.trim(), true) }.take(MAX_LIST).forEach { v ->
             Sep()
             Cell(v.title.ifBlank { v.id }, v.id, "bible", chevron = null, mark = if (current == v.id) P.current.tint else null, onClick = { h.mapBible(file, v.id); ui.close() })
@@ -487,7 +487,7 @@ private fun BibleVersionPicker(h: HolyricsSource, ui: Ui, file: String, versions
     }
 }
 
-private val LIB_TABS = listOf("Песни", "Тексты", "Презентации", "Фото", "Видео", "Аудио", "Объявления", "Авто")
+private val LIB_TABS: List<String> get() = listOf(L.pSong, L.pText, L.pPres, L.tPhoto, L.tVideo, L.audio, L.announcements, L.autoShort)
 private val TIME = Regex("\\d{1,2}:\\d{2}")
 private const val TIME_LEN = 5
 private const val COUNT_IN = "05:00"

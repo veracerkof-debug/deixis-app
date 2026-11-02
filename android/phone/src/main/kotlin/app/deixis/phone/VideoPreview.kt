@@ -73,7 +73,7 @@ fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
 
     DisposableEffect(cue) {
         val pfd: ParcelFileDescriptor? = runCatching { context.contentResolver.openFileDescriptor(Uri.parse(item?.uri), "r") }.getOrNull()
-        if (pfd != null) player.play(pfd.fileDescriptor, item?.title.orEmpty()) else error = "Файл недоступен: возможно, его переместили или удалили"
+        if (pfd != null) player.play(pfd.fileDescriptor, item?.title.orEmpty()) else error = L.fileUnavailableMoved
         onDispose {
             player.stop()
             player.release()
@@ -93,9 +93,9 @@ fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
 
     Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = T.gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconBtn("down", "Закрыть", V.ink) { close() }
-            Txt(item?.title ?: "Видео", T.fBody, V.ink, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
-            Txt("Предпросмотр", T.fSub, V.dim)
+            IconBtn("down", L.close, V.ink) { close() }
+            Txt(item?.title ?: L.tVideo, T.fBody, V.ink, FontWeight.SemiBold, Modifier.weight(1f), lines = 1)
+            Txt(L.preview, T.fSub, V.dim)
         }
         BoxWithConstraints(
             Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp).swipes(onDown = close),
@@ -132,11 +132,11 @@ fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
         }
         // Как видео ляжет на экран зала и чем заполнить поля.
         item?.let { it ->
-            Seg(listOf("Вписать", "Заполнить", "Растянуть", "Исходный"), app.deixis.core.VideoFit.entries.indexOf(it.videoFit), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+            Seg(listOf(L.fit, L.fill, L.stretch, L.original), app.deixis.core.VideoFit.entries.indexOf(it.videoFit), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
                 c.setVideoFit(it.id, app.deixis.core.VideoFit.entries[i], it.videoBackdrop)
             }
             if (it.videoFit == app.deixis.core.VideoFit.FIT || it.videoFit == app.deixis.core.VideoFit.ORIGINAL) {
-                Seg(listOf("Поля чёрные", "Размытые", "Цвет темы"), app.deixis.core.VideoBackdrop.entries.indexOf(it.videoBackdrop), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+                Seg(listOf(L.barsBlack, L.blurred, L.themeColor), app.deixis.core.VideoBackdrop.entries.indexOf(it.videoBackdrop), Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
                     c.setVideoFit(it.id, it.videoFit, app.deixis.core.VideoBackdrop.entries[i])
                 }
             }
@@ -164,18 +164,18 @@ fun VideoPreview(c: Controller, ui: Ui, cue: Cue) {
             Txt(clock(dur), T.fLabel, V.dim)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            VBtn("back10", "−10 с", Modifier.weight(1f)) { player.apply(VideoCommand(VideoAction.SEEK, positionMs = (pos - 10_000).coerceAtLeast(0))) }
-            VBtn(if (playing) "pause" else "play", if (playing) "Пауза" else "Пуск", Modifier.weight(1f)) {
+            VBtn("back10", L.back10, Modifier.weight(1f)) { player.apply(VideoCommand(VideoAction.SEEK, positionMs = (pos - 10_000).coerceAtLeast(0))) }
+            VBtn(if (playing) "pause" else "play", if (playing) L.pause else L.play, Modifier.weight(1f)) {
                 player.apply(VideoCommand(if (playing) VideoAction.PAUSE else VideoAction.PLAY))
             }
-            VBtn("fwd10", "+10 с", Modifier.weight(1f)) { player.apply(VideoCommand(VideoAction.SEEK, positionMs = pos + 10_000)) }
+            VBtn("fwd10", L.fwd10, Modifier.weight(1f)) { player.apply(VideoCommand(VideoAction.SEEK, positionMs = pos + 10_000)) }
         }
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            VBtn("prev", "С начала в зал", Modifier.weight(1f)) {
-                player.apply(VideoCommand(VideoAction.PAUSE)); c.goLiveVideo(cue, 0); ui.toast("Видео в зале"); close()
+            VBtn("prev", L.fromStart, Modifier.weight(1f)) {
+                player.apply(VideoCommand(VideoAction.PAUSE)); c.goLiveVideo(cue, 0); ui.toast(L.videoInHall); close()
             }
-            VBtn("up", "В зал отсюда", Modifier.weight(1f), V.go) {
-                player.apply(VideoCommand(VideoAction.PAUSE)); c.goLiveVideo(cue, pos); ui.toast("Видео в зале с ${clock(pos)}"); close()
+            VBtn("up", L.fromHere, Modifier.weight(1f), V.go) {
+                player.apply(VideoCommand(VideoAction.PAUSE)); c.goLiveVideo(cue, pos); ui.toast(L.videoLiveFrom(clock(pos))); close()
             }
         }
     }

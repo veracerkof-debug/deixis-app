@@ -23,16 +23,16 @@ object Feedback {
     }
 
     fun problem(context: Context) = share(
-        context, "Проблема в Deixis",
-        "Что случилось:\n\n\nЧто ожидалось:\n\n\nКак повторить:\n\n\n— ${device(context)}",
+        context, L.problemSubject,
+        L.problemBody + "— ${device(context)}",
     )
 
-    fun idea(context: Context) = share(context, "Идея для Deixis", "Идея:\n\n\nЗачем она нужна:\n\n\n— ${device(context)}")
+    fun idea(context: Context) = share(context, L.ideaSubject, L.ideaBody + "— ${device(context)}")
 
     /** Отчёт о падении: причина уже вписана, остаётся добавить, что делалось перед этим. */
     fun crash(context: Context, report: String) = share(
-        context, "Deixis закрылся из-за ошибки",
-        "Что делалось перед этим:\n\n\n— Отчёт:\n$report",
+        context, L.crashed,
+        L.crashBody + report,
     )
 }
 
@@ -40,11 +40,11 @@ object Feedback {
 @Composable
 fun FeedbackSection() {
     val context = LocalContext.current
-    GHead("Отзыв")
+    GHead(L.feedback)
     Group {
-        Cell("Сообщить о проблеме", "Текст с версией и устройством уже заполнен", onClick = { Feedback.problem(context) })
+        Cell(L.reportProblem, L.reportProblemSub, onClick = { Feedback.problem(context) })
         Sep(T.gutter)
-        Cell("Идея", "Что добавить или сделать удобнее", onClick = { Feedback.idea(context) })
+        Cell(L.idea, L.ideaSub, onClick = { Feedback.idea(context) })
     }
-    Note("Отправка через «Поделиться»: в Telegram, почту или любое приложение. Deixis сам ничего не отправляет.")
+    Note(L.feedbackNote)
 }

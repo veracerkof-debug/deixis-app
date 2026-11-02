@@ -87,8 +87,10 @@ import androidx.compose.foundation.selection.selectable
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-enum class AppTab(val title: String, val icon: String) {
-    SHOW("Показ", "show"), BIBLE("Библия", "bible"), LIBRARY("Библиотека", "lib"), SETLISTS("Сетлисты", "list"), DEVICES("Устройства", "devs"),
+enum class AppTab(val icon: String) {
+    SHOW("show"), BIBLE("bible"), LIBRARY("lib"), SETLISTS("list"), DEVICES("devs");
+
+    val title: String get() = when (this) { SHOW -> L.tabShow; BIBLE -> L.tabBible; LIBRARY -> L.tabLibrary; SETLISTS -> L.tabSets; DEVICES -> L.tabDevices }
 }
 
 /** Шторка: заголовок и содержимое. */
@@ -147,9 +149,11 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     val info by controller.receiverInfo.collectAsState()
     val testRatio by controller.testRatio.collectAsState()
     val profile by controller.profiles.collectAsState()
+    val lang by I18n.flow.collectAsState()
     CompositionLocalProvider(P provides paletteOf(theme, profile.current.accent), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
         // Другой профиль — экраны пульта начинаются заново: ничего из прежнего профиля не остаётся на виду.
-        key(profile.current.id) { Root(controller, holyrics, ui) }
+        // Другой язык — тоже: все строки читаются заново.
+        key(profile.current.id, lang) { Root(controller, holyrics, ui) }
     }
 }
 
@@ -163,7 +167,7 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
         if (!settings.church && ui.tab == AppTab.BIBLE) ui.tab = AppTab.SHOW
     }
     val needPin by c.needPin.collectAsState()
-    LaunchedEffect(needPin) { needPin?.let { t -> ui.push("PIN с экрана") { PinSheet(c, t) } } }
+    LaunchedEffect(needPin) { needPin?.let { t -> ui.push(L.pinFromScreen) { PinSheet(c, t) } } }
     UpdatesEffects(c, ui)
 
     // «Библия» — церковный раздел: без него вкладки нет. В режиме пульта Holyrics она остаётся: стихи идут в Holyrics.
@@ -215,7 +219,7 @@ private fun BoxScope.HallBlack(c: Controller, h: HolyricsSource, ui: Ui, holyric
     Box(
         Modifier.align(Alignment.BottomEnd).padding(T.gutter).size(T.barKey).clip(RoundedCornerShape(T.rPill))
             .background(if (on) p.tint else p.cell).border(T.hair, p.sep, RoundedCornerShape(T.rPill))
-            .press(label = if (holyricsMode) "F10 — чёрный экран" else "Чёрный экран") { if (holyricsMode) h.toggleKey(HolyricsKey.F10) else c.mode(Mode.BLACK) }
+            .press(label = if (holyricsMode) L.f10Black else L.blackScreen) { if (holyricsMode) h.toggleKey(HolyricsKey.F10) else c.mode(Mode.BLACK) }
             .semantics { selected = on },
         contentAlignment = Alignment.Center,
     ) { Icon("black", if (on) p.onTint else p.ink, T.barIcon) }
@@ -337,7 +341,7 @@ private fun SheetHost(ui: Ui) {
                     Column {
                         Row(Modifier.fillMaxWidth().then(if (wide) Modifier else drag).padding(start = T.gutter, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Txt(cur.title, T.fSheet, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
-                            IconBtn("close", "Закрыть") { ui.close() }
+                            IconBtn("close", L.close) { ui.close() }
                         }
                         Column(Modifier.verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) { cur.content(this) }
                     }

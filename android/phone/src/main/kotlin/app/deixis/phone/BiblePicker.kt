@@ -47,7 +47,7 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
     val p = P.current
     val modules by c.bibleModules.collectAsState()
     if (modules.isEmpty()) {
-        Note("Переводы загружаются… Если их нет — модуль MyBible добавляется в «Библиотека → + → Переводы Библии».", Modifier)
+        Note(L.pickerLoading, Modifier)
         return
     }
     val start = edit?.bible
@@ -82,7 +82,7 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
         }
     }
 
-    SearchField(query, "Быстро: Ин 3:16 или Пс 22", Modifier.padding(bottom = T.gap)) { query = it }
+    SearchField(query, L.quickRef, Modifier.padding(bottom = T.gap)) { query = it }
     val parsed = remember(query, primary) { if (query.isBlank()) null else parseBibleRef(query, primary.books) }
     if (parsed != null) {
         val label = runCatching {
@@ -90,7 +90,7 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
             refLabel(primary, parsed.book, parsed.chapter, parsed.fromVerse ?: 1, last, full = true, withModule = false)
         }.getOrNull()
         if (label != null) Group {
-            Cell("Открыть: $label", kind = "bible", onClick = {
+            Cell(L.openRef(label), kind = "bible", onClick = {
                 book = parsed.book; chapter = parsed.chapter
                 from = parsed.fromVerse; to = parsed.toVerse ?: parsed.fromVerse
                 testament = if (parsed.book >= NEW_TESTAMENT) 1 else 0
@@ -102,13 +102,13 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
     // Где мы: книга › глава. Касание возвращает на шаг назад.
     val bk = book?.let { primary.book(it) }
     if (step != Step.BOOK) Row(Modifier.padding(bottom = T.gap), horizontalArrangement = Arrangement.spacedBy(T.gapS), verticalAlignment = Alignment.CenterVertically) {
-        Pill(bk?.longName ?: "Книга", "prev") { step = Step.BOOK }
-        if (step == Step.VERSE && chapter != null) Pill("Глава $chapter") { step = Step.CHAPTER }
+        Pill(bk?.longName ?: L.book, "prev") { step = Step.BOOK }
+        if (step == Step.VERSE && chapter != null) Pill(L.chapterN(chapter)) { step = Step.CHAPTER }
     }
 
     when (step) {
         Step.BOOK -> {
-            Seg(listOf("Ветхий Завет", "Новый Завет"), testament, Modifier.fillMaxWidth().padding(bottom = T.gap)) { testament = it }
+            Seg(listOf(L.oldT, L.newT), testament, Modifier.fillMaxWidth().padding(bottom = T.gap)) { testament = it }
             val books = primary.books.filter { if (testament == 0) it.number < NEW_TESTAMENT else it.number >= NEW_TESTAMENT }
             Grid(books, 3) { b, m ->
                 Column(
@@ -133,7 +133,7 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
             val ch = chapter
             if (b != null && ch != null) {
                 val n = runCatching { primary.verseCount(b, ch) }.getOrDefault(0)
-                Txt(if (from == null) "Стих или диапазон: первое касание — начало, второе — конец" else "Выбрано: ${rangeText(from, to)}", T.fSub, p.l2, modifier = Modifier.padding(bottom = T.gapS))
+                Txt(if (from == null) L.rangeHint else L.selectedColon(rangeText(from, to)), T.fSub, p.l2, modifier = Modifier.padding(bottom = T.gapS))
                 Grid((1..n).toList(), 6) { v, m ->
                     val f = from
                     val t = to ?: f
@@ -148,42 +148,42 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
                 if (verses.isNotEmpty()) Group(Modifier.padding(top = T.gap)) {
                     Column(Modifier.padding(T.gutter), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         verses.take(6).forEach { Txt("${it.number}  ${app.deixis.core.cleanVerseText(it.text)}", T.fSub) }
-                        if (verses.size > 6) Txt("…и ещё ${verses.size - 6}", T.fSub, p.l2)
+                        if (verses.size > 6) Txt(L.andMore(verses.size - 6), T.fSub, p.l2)
                     }
                 }
 
                 // Оформление Писания: свёрнуто, чтобы выбор места оставался главным.
-                Cell("Оформление Писания", if (more) null else optionsText(options, selected.size), "brush", chevron = if (more) "down" else "chev", onClick = { more = !more })
+                Cell(L.scriptureLook, if (more) null else optionsText(options, selected.size), "brush", chevron = if (more) "down" else "chev", onClick = { more = !more })
                 if (more) Options(options, selected.size) { options = it }
                 Spacer(Modifier.height(T.gap))
 
                 val pick = BiblePick(b, ch, first, last, selected, options)
-                val title = runCatching { refLabel(primary, b, ch, first, last, full = false, withModule = false) }.getOrDefault("Писание")
+                val title = runCatching { refLabel(primary, b, ch, first, last, full = false, withModule = false) }.getOrDefault(L.scripture)
                 val keep = {
                     c.bible.selected = selected
                     c.bible.options = options
                 }
                 val source = {
                     val slides = c.scripture(pick)
-                    if (slides.isEmpty()) { ui.toast("Стихи не найдены в выбранных переводах"); null }
+                    if (slides.isEmpty()) { ui.toast(L.versesNotFound); null }
                     else Source(edit?.id, title, Kind.BIBLE, slides.map { Slide.Scripture(it) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                    Btn("В предпросмотр", Modifier.weight(1f)) {
+                    Btn(L.toPreview, Modifier.weight(1f)) {
                         keep(); source()?.let { ui.closeAll(); ui.tab = AppTab.SHOW; c.toPreview(Cue(it, 0)) }
                     }
-                    Btn("В зал", Modifier.weight(1f), kind = BtnKind.TINT) {
-                        keep(); source()?.let { ui.closeAll(); ui.tab = AppTab.SHOW; c.goLive(Cue(it, 0)); ui.toast("В зале") }
+                    Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT) {
+                        keep(); source()?.let { ui.closeAll(); ui.tab = AppTab.SHOW; c.goLive(Cue(it, 0)); ui.toast(L.inHall) }
                     }
                 }
                 Spacer(Modifier.height(T.gap))
-                Btn(if (edit != null) "Сохранить" else "В сетлист", icon = if (edit != null) null else "plus") {
+                Btn(if (edit != null) L.save else L.toSet, icon = if (edit != null) null else "plus") {
                     keep()
                     val item = (edit ?: LibItem(Store.newId(), Kind.BIBLE, title)).copy(title = title, bible = pick)
                     c.saveItem(item)
                     if (edit == null) c.addToSet(item.id)
                     ui.closeAll()
-                    ui.toast(if (edit != null) "Сохранено" else "Добавлено в сетлист")
+                    ui.toast(if (edit != null) L.saved else L.addedToSet)
                 }
             }
         }
@@ -192,24 +192,24 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
 
 private fun rangeText(from: Int?, to: Int?) = when {
     from == null -> ""
-    to == null || to == from -> "стих $from"
-    else -> "стихи $from–$to"
+    to == null || to == from -> L.verseLower(from)
+    else -> L.versesLower(from, to)
 }
 
 private fun optionsText(o: ScriptureOptions, translations: Int): String = listOfNotNull(
-    "по ${o.versesPerSlide} ст. на слайде",
-    when { o.refMode == RefMode.NONE -> "без адреса"; o.refPosition == RefPosition.TOP -> "адрес сверху"; else -> "адрес снизу" },
-    if (translations > 1 && o.sideBySide) "переводы рядом" else null,
+    L.versesPerSlideN(o.versesPerSlide),
+    when { o.refMode == RefMode.NONE -> L.refNoneLower; o.refPosition == RefPosition.TOP -> L.refTopLower; else -> L.refBottomLower },
+    if (translations > 1 && o.sideBySide) L.sideBySideLower else null,
 ).joinToString(" · ")
 
 @Composable
 private fun Options(o: ScriptureOptions, translations: Int, onChange: (ScriptureOptions) -> Unit) {
     Column(Modifier.padding(top = T.gapS), verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Txt("Стихов на слайде", T.fSub, P.current.l2)
+        Txt(L.versesPerSlide, T.fSub, P.current.l2)
         Seg(listOf("1", "2", "3"), (o.versesPerSlide - 1).coerceIn(0, 2), Modifier.fillMaxWidth()) { onChange(o.copy(versesPerSlide = it + 1)) }
-        Txt("Адрес", T.fSub, P.current.l2)
+        Txt(L.refLbl, T.fSub, P.current.l2)
         val ref = when { o.refMode == RefMode.NONE -> 2; o.refPosition == RefPosition.TOP -> 0; else -> 1 }
-        Seg(listOf("Сверху", "Снизу", "Без адреса"), ref, Modifier.fillMaxWidth()) {
+        Seg(listOf(L.top, L.bottom, L.refNone), ref, Modifier.fillMaxWidth()) {
             onChange(
                 when (it) {
                     0 -> o.copy(refMode = if (o.refMode == RefMode.NONE) RefMode.ONE_LINE else o.refMode, refPosition = RefPosition.TOP)
@@ -219,14 +219,14 @@ private fun Options(o: ScriptureOptions, translations: Int, onChange: (Scripture
             )
         }
         Group {
-            SwitchRow("Полное название книги", o.fullBookName, "«От Иоанна» вместо «Ин»") { onChange(o.copy(fullBookName = it)) }
+            SwitchRow(L.fullBook, o.fullBookName, L.fullBookSub) { onChange(o.copy(fullBookName = it)) }
             Sep(T.gutter)
-            SwitchRow("Номера стихов", o.verseNumbers) { onChange(o.copy(verseNumbers = it)) }
+            SwitchRow(L.verseNumbers, o.verseNumbers) { onChange(o.copy(verseNumbers = it)) }
             if (translations > 1) {
                 Sep(T.gutter)
-                SwitchRow("Два перевода рядом", o.sideBySide, "В две колонки, а не друг под другом") { onChange(o.copy(sideBySide = it)) }
+                SwitchRow(L.sideBySide, o.sideBySide, L.sideBySideSub) { onChange(o.copy(sideBySide = it)) }
                 Sep(T.gutter)
-                SwitchRow("Адрес у каждого перевода", o.refMode == RefMode.PER_TRANSLATION) {
+                SwitchRow(L.refEach, o.refMode == RefMode.PER_TRANSLATION) {
                     onChange(o.copy(refMode = if (it) RefMode.PER_TRANSLATION else RefMode.ONE_LINE))
                 }
             }

@@ -22,22 +22,22 @@ import kotlinx.coroutines.launch
 
 /** Строка состояния обновления для пульта: и для этого телефона, и для экрана в «Устройствах». */
 fun updateStatus(s: UpdateState): String = when (s.phase) {
-    "checking" -> "Проверка…"
-    "uptodate" -> "Установлена последняя версия"
-    "available" -> "Есть версия ${s.available}"
-    "downloading" -> "Загрузка ${s.available}: ${(s.progress * 100).toInt()} %"
-    "ready" -> "Версия ${s.available} скачана"
-    "installing" -> "Установка ${s.available}…"
-    "error" -> s.error ?: "Не удалось проверить"
-    else -> if (s.settings.mode == UpdateMode.AUTO) "Проверяется автоматически" else "Проверка по кнопке"
+    "checking" -> L.checking
+    "uptodate" -> L.uptodate
+    "available" -> L.versionAvailable(s.available)
+    "downloading" -> L.downloadingPct(s.available, (s.progress * 100).toInt())
+    "ready" -> L.versionDownloaded(s.available)
+    "installing" -> L.installingV(s.available)
+    "error" -> s.error ?: L.checkFailed
+    else -> if (s.settings.mode == UpdateMode.AUTO) L.autoChecked else L.manualCheck
 }
 
 /** Кнопка действия по состоянию: проверить, скачать и установить, установить. null — действие идёт. */
 fun updateAction(s: UpdateState): Pair<String, String>? = when (s.phase) {
     "checking", "downloading", "installing" -> null
-    "available" -> "Скачать и установить ${s.available}" to "install"
-    "ready" -> "Установить ${s.available}" to "install"
-    else -> "Проверить обновления" to "check"
+    "available" -> L.downloadInstall(s.available) to "install"
+    "ready" -> L.installV(s.available) to "install"
+    else -> L.checkUpdates to "check"
 }
 
 /** Раздел «Обновления» в настройках телефона. */
@@ -47,15 +47,15 @@ fun UpdatesSection() {
     val app = context.applicationContext as PhoneApp
     val u = app.updater
     val s by u.state.collectAsState()
-    GHead("Обновления")
+    GHead(L.updates)
     if (ApkUpdates.fromPlay(context)) {
-        Note("Эта версия из Google Play: обновления приходят через магазин.")
+        Note(L.playVersion)
         return
     }
     Group {
         Cell("Deixis ${s.current}", updateStatus(s), chevron = null)
     }
-    Seg(listOf("По кнопке", "Автоматически"), if (s.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
+    Seg(listOf(L.byButton, L.automatically), if (s.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
         u.setSettings(s.settings.copy(mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
     }
     if (s.notes.isNotEmpty() && s.phase in setOf("available", "downloading", "ready")) {
@@ -67,11 +67,11 @@ fun UpdatesSection() {
         }
     }
     if (!ApkUpdates.canInstall(context)) {
-        Note("Перед первой установкой Android попросит разрешить Deixis устанавливать приложения.")
+        Note(L.installPermission)
     }
     Note(
-        if (s.settings.mode == UpdateMode.AUTO) "Автоматически: проверка на GitHub при запуске и раз в сутки, установка — когда ничего не показывается."
-        else "По кнопке: Deixis выходит в сеть только когда нажата «Проверить обновления».",
+        if (s.settings.mode == UpdateMode.AUTO) L.autoNote
+        else L.manualNoteUpd,
     )
 }
 
@@ -79,10 +79,10 @@ fun UpdatesSection() {
 @Composable
 fun WhatsNewSheet(entries: List<ChangelogEntry>, ui: Ui) {
     entries.forEach { e ->
-        GHead("Версия ${e.version}")
+        GHead(L.versionN(e.version))
         Group { e.lines.forEachIndexed { i, line -> if (i > 0) Sep(T.gutter); Cell(line, chevron = null) } }
     }
-    Btn("Понятно", Modifier.fillMaxWidth().padding(top = T.gutter), kind = BtnKind.TINT) { ui.close() }
+    Btn(L.gotIt, Modifier.fillMaxWidth().padding(top = T.gutter), kind = BtnKind.TINT) { ui.close() }
 }
 
 /**
@@ -95,7 +95,7 @@ fun UpdatesEffects(c: Controller, ui: Ui) {
     val app = context.applicationContext as PhoneApp
     LaunchedEffect(Unit) {
         val news = app.updater.takeWhatsNew()
-        if (news.isNotEmpty()) ui.sheet("Что нового") { WhatsNewSheet(news, ui) }
+        if (news.isNotEmpty()) ui.sheet(L.whatsNew) { WhatsNewSheet(news, ui) }
     }
     val s by app.updater.state.collectAsState()
     val live by c.live.collectAsState()
@@ -126,12 +126,12 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
     fun send(req: UpdateRequest) { scope.launch { c.screenUpdate(t, req)?.let { s = it } } }
     val st = s
     if (st == null) {
-        Note(if (loaded) "Этот экран не обновляется с пульта: старая версия Deixis или версия из Google Play. Новую версию можно поставить на нём вручную." else "Связь с экраном…")
+        Note(if (loaded) L.screenNoUpdate else L.linkToScreen)
         return
     }
-    GHead("Обновления экрана")
+    GHead(L.screenUpdates)
     Group { Cell("Deixis ${st.current}", updateStatus(st), chevron = null) }
-    Seg(listOf("По кнопке", "Автоматически"), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
+    Seg(listOf(L.byButton, L.automatically), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
         send(UpdateRequest("settings", mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
     }
     if (st.notes.isNotEmpty() && st.phase in setOf("available", "downloading", "ready")) {
@@ -140,5 +140,5 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
     updateAction(st)?.let { (label, action) ->
         Btn(label, Modifier.fillMaxWidth().padding(top = T.gap), kind = if (action == "install") BtnKind.TINT else BtnKind.PLAIN) { send(UpdateRequest(action)) }
     }
-    Note("Установка идёт, только когда на экране ничего не показывается: окно системы появится на экране зала. На телевизоре его подтверждают пультом телевизора. После обновления экран откроется сам.")
+    Note(L.screenUpdateNote)
 }

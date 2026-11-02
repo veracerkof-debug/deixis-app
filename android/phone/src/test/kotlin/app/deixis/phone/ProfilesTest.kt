@@ -31,11 +31,11 @@ class ProfilesTest {
         assertTrue(dir != root && dir.startsWith(root))
         val d = library(dir)
         assertTrue(d.items.isEmpty() && d.themes.isEmpty())
-        assertEquals(listOf("Сегодня"), d.setlists.map { it.title })
+        assertEquals(listOf(L.today), d.setlists.map { it.title })
         assertFalse(d.settings.church, "у учёбы нет церковного раздела")
         assertTrue(d.demoSeeded, "демо-песни не попадают в новый профиль")
         val (_, church) = p.create(book, "", ProfileKind.CHURCH, Accent.BRONZE)
-        assertEquals("Церковь", church.name)
+        assertEquals(ProfileKind.CHURCH.title, church.name)
         assertTrue(library(p.dirOf(church.id)).settings.church)
     }
 

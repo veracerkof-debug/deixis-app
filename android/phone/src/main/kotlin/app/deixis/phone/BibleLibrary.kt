@@ -29,7 +29,7 @@ class BibleLibrary(private val context: Context) {
             if (c.moveToFirst()) c.getString(0) else null
         } ?: "module.SQLite3"
         if (name.contains(".commentaries", true) || name.contains(".dictionary", true) || name.contains(".crossreferences", true)) {
-            error("«$name» — не перевод Библии. Нужен основной файл модуля, например RST.SQLite3")
+            error(L.notBible(name))
         }
         val safe = name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_").let { if (it.endsWith(".SQLite3", true)) it else "$it.SQLite3" }
         val target = File(dir, safe)
@@ -37,11 +37,11 @@ class BibleLibrary(private val context: Context) {
         context.contentResolver.openInputStream(uri)!!.use { input -> tmp.outputStream().use { input.copyTo(it) } }
         try {
             BibleModule(AndroidSql(tmp), safe).use { m ->
-                if (m.books.isEmpty()) error("В «$name» нет книг: это не модуль Библии MyBible")
+                if (m.books.isEmpty()) error(L.noBooks(name))
             }
         } catch (e: Exception) {
             tmp.delete()
-            throw IllegalStateException(e.message ?: "«$name» не открывается как модуль MyBible")
+            throw IllegalStateException(e.message ?: L.notMyBible(name))
         }
         open.remove(safe)?.close()
         target.delete()

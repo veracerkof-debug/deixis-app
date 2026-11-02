@@ -17,12 +17,14 @@ import java.time.LocalDate
 
 /** Для чего профиль: от этого — начальный вид и есть ли церковный раздел. */
 @Serializable
-enum class ProfileKind(val title: String, val icon: String) {
-    CHURCH("Церковь", "song"),
-    STUDY("Учёба", "board"),
-    WORK("Работа", "pres"),
-    HOME("Дом", "tv"),
-    OTHER("Другое", "layers"),
+enum class ProfileKind(val icon: String) {
+    CHURCH("song"),
+    STUDY("board"),
+    WORK("pres"),
+    HOME("tv"),
+    OTHER("layers");
+
+    val title: String get() = when (this) { CHURCH -> L.profKindChurch; STUDY -> L.profKindStudy; WORK -> L.profKindWork; HOME -> L.profKindHome; OTHER -> L.profKindOther }
 }
 
 /** Цвет акцента пульта в профиле: с первого взгляда видно, в каком профиле работаете. */
@@ -55,8 +57,8 @@ class Profiles(private val root: File) {
         if (file.isFile) runCatching { file.copyTo(File(root, "profiles.broken-${System.currentTimeMillis()}.json"), overwrite = true) }
         val found = File(root, "profiles").listFiles { f -> f.isDirectory && File(f, "library.json").isFile }
             ?.sortedBy { it.lastModified() }.orEmpty()
-            .mapIndexed { i, dir -> Profile(dir.name, "Профиль ${i + 2}") }
-        val book = ProfileBook(listOf(Profile(MAIN, "Основной")) + found, MAIN)
+            .mapIndexed { i, dir -> Profile(dir.name, L.profileN(i + 2)) }
+        val book = ProfileBook(listOf(Profile(MAIN, L.mainProfile)) + found, MAIN)
         if (found.isNotEmpty()) save(book)
         return book
     }
@@ -71,16 +73,16 @@ class Profiles(private val root: File) {
 
     fun backupsOf(context: Context, id: String) = Backups(context, dirOf(id), if (id == MAIN) "deixis-" else "deixis.$id-", if (id == MAIN) "last" else "last-$id")
 
-    /** Новый профиль: пустая библиотека с сетлистом на сегодня; церковный раздел — только у «Церкви». */
-    fun create(b: ProfileBook, name: String, kind: ProfileKind, accent: Accent): Pair<ProfileBook, Profile> {
+    /** Новый профиль: пустая библиотека с сетлистом на сегодня; церковный раздел — только у «Церкви»; язык — как у открытого. */
+    fun create(b: ProfileBook, name: String, kind: ProfileKind, accent: Accent, lang: String? = null): Pair<ProfileBook, Profile> {
         val p = Profile(Store.newId(), name.trim().ifBlank { kind.title }, kind, accent)
-        val set = Setlist(Store.newId(), "Сегодня", LocalDate.now().toString())
+        val set = Setlist(Store.newId(), L.today, LocalDate.now().toString())
         val start = StoreData(
             setlists = listOf(set), active = set.id, demoSeeded = true, bibleBooksV2 = true,
-            settings = AppSettings(church = kind == ProfileKind.CHURCH),
+            settings = AppSettings(church = kind == ProfileKind.CHURCH, lang = lang),
         )
         if (!writeDurably(File(dirOf(p.id), "library.json"), DeixisJson.encodeToString(StoreData.serializer(), start))) {
-            throw java.io.IOException("Не удалось создать профиль: мало места на телефоне")
+            throw java.io.IOException(L.profileNoSpace)
         }
         return save(b.copy(list = b.list + p)) to p
     }
@@ -103,22 +105,22 @@ class Profiles(private val root: File) {
 @androidx.compose.runtime.Composable
 fun ProfilesSheet(c: Controller, ui: Ui) {
     val book by c.profiles.collectAsState()
-    Note("У каждого профиля своя библиотека, сетлисты, темы, логотип и вид пульта. Данные профилей не смешиваются. Экраны и Holyrics — общие.")
-    GHead("Профили")
+    Note(L.profilesNote)
+    GHead(L.profiles)
     Group {
         book.list.forEachIndexed { i, p ->
             if (i > 0) Sep()
             val on = p.id == book.active
             Cell(
-                p.name, if (on) "открыт" else p.kind.title, p.kind.icon, chevron = null,
+                p.name, if (on) L.openLower else p.kind.title, p.kind.icon, chevron = null,
                 mark = if (on) accentColors(p.accent, P.current.dark).first else null,
                 onLong = { ui.push(p.name) { ProfileEditor(c, ui, p) } },
                 onClick = { if (on) ui.push(p.name) { ProfileEditor(c, ui, p) } else { c.switchProfile(p.id); ui.closeAll() } },
             ) { AccentDot(p.accent) }
         }
     }
-    Btn("Новый профиль", icon = "plus", kind = BtnKind.TINT) { ui.push("Новый профиль") { ProfileEditor(c, ui, null) } }
-    Note("Касание — открыть профиль. Удержание — переименовать, сменить цвет или удалить.", androidx.compose.ui.Modifier.padding(top = T.gapS))
+    Btn(L.newProfile, icon = "plus", kind = BtnKind.TINT) { ui.push(L.newProfile) { ProfileEditor(c, ui, null) } }
+    Note(L.profilesHint, androidx.compose.ui.Modifier.padding(top = T.gapS))
 }
 
 /** Новый профиль ([p] = null) или изменение существующего. */
@@ -128,34 +130,34 @@ private fun ProfileEditor(c: Controller, ui: Ui, p: Profile?) {
     var name by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(p?.name.orEmpty()) }
     var kind by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(p?.kind ?: ProfileKind.STUDY) }
     var accent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(p?.accent ?: Accent.BLUE) }
-    GHead("Название")
+    GHead(L.title)
     Field(name, kind.title) { name = it }
-    GHead("Для чего")
+    GHead(L.purpose)
     Seg(ProfileKind.entries.map { it.title }, ProfileKind.entries.indexOf(kind), androidx.compose.ui.Modifier.fillMaxWidth(), scroll = true) { kind = ProfileKind.entries[it] }
     if (p == null) Note(
-        if (kind == ProfileKind.CHURCH) "С церковным разделом: Библия, песни, пульт Holyrics." else "Без церковного раздела — его можно включить в настройках профиля.",
+        if (kind == ProfileKind.CHURCH) L.churchProfileNote else L.nonChurchProfileNote,
         androidx.compose.ui.Modifier.padding(top = T.gapS),
     )
-    GHead("Цвет")
+    GHead(L.color)
     androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(T.gap)) {
         Accent.entries.forEach { a -> Swatch(accentColors(a, P.current.dark).first, a == accent, ACCENT_NAMES.getValue(a)) { accent = a } }
     }
     androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(T.gutter))
     if (p == null) {
-        Btn("Создать и открыть", kind = BtnKind.TINT) { c.createProfile(name, kind, accent); ui.closeAll() }
+        Btn(L.createOpen, kind = BtnKind.TINT) { c.createProfile(name, kind, accent); ui.closeAll() }
     } else {
-        Btn("Сохранить", kind = BtnKind.TINT) { c.editProfile(p.copy(name = name.trim().ifBlank { p.name }, kind = kind, accent = accent)); ui.close() }
+        Btn(L.save, kind = BtnKind.TINT) { c.editProfile(p.copy(name = name.trim().ifBlank { p.name }, kind = kind, accent = accent)); ui.close() }
         if (p.id != Profiles.MAIN && p.id != book.active) {
             androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(T.gap))
-            Btn("Удалить профиль и его данные", kind = BtnKind.DANGER) {
-                ui.push("Удалить «${p.name}»?") {
-                    Note("Библиотека, сетлисты, темы и копии этого профиля удалятся с телефона. Другие профили не изменятся.")
+            Btn(L.deleteProfile, kind = BtnKind.DANGER) {
+                ui.push(L.deleteQ(p.name)) {
+                    Note(L.deleteProfileNote)
                     androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(T.gap))
-                    Btn("Удалить", kind = BtnKind.DANGER) { c.deleteProfile(p.id); ui.closeAll() }
+                    Btn(L.delete, kind = BtnKind.DANGER) { c.deleteProfile(p.id); ui.closeAll() }
                 }
             }
         } else if (p.id == book.active && book.list.size > 1) {
-            Note("Открытый профиль не удаляется: сначала — открыть другой.", androidx.compose.ui.Modifier.padding(top = T.gapS))
+            Note(L.openProfileNote, androidx.compose.ui.Modifier.padding(top = T.gapS))
         }
     }
 }
@@ -168,6 +170,6 @@ private fun AccentDot(a: Accent) {
     )
 }
 
-private val ACCENT_NAMES = mapOf(
-    Accent.BRONZE to "Бронза", Accent.BLUE to "Синий", Accent.GREEN to "Зелёный", Accent.PLUM to "Сливовый", Accent.SLATE to "Графит",
+private val ACCENT_NAMES: Map<Accent, String> get() = mapOf(
+    Accent.BRONZE to L.cBronze, Accent.BLUE to L.cNavy, Accent.GREEN to L.cGreen, Accent.PLUM to L.cPlum, Accent.SLATE to L.cGraphite,
 )

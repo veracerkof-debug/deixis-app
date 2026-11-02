@@ -78,16 +78,16 @@ fun BibleScreen(c: Controller, ui: Ui) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(T.rField)).press(label = "Выбрать книгу и главу") { ui.sheet("Книга и глава") { Navigator(c, ui) } }.padding(vertical = 4.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(T.rField)).press(label = L.pickBookChapter) { ui.sheet(L.bookChapter) { Navigator(c, ui) } }.padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Txt(chapter?.let { "${it.title} ${it.chapter}" } ?: "Библия", T.fTitle, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
+                Txt(chapter?.let { "${it.title} ${it.chapter}" } ?: L.tabBible, T.fTitle, weight = FontWeight.Bold, lines = 1, modifier = Modifier.weight(1f, fill = false))
                 Icon("down", p.l2)
             }
-            IconBtn("search", "Поиск по тексту") { searchOpen = !searchOpen; if (!searchOpen) d.search("") }
-            IconBtn("brush", "Тема оформления") { openStyle(c, ui) }
-            if (holy) IconBtn("loop", "Переводы Holyrics") { ui.sheet("Переводы в Holyrics") { HolyricsBibleSheet(c, ui) } }
-            else IconBtn("gear", "Оформление Писания") { ui.sheet("Оформление Писания") { ScriptureOptionsSheet(c) } }
+            IconBtn("search", L.searchText) { searchOpen = !searchOpen; if (!searchOpen) d.search("") }
+            IconBtn("brush", L.themeLook) { openStyle(c, ui) }
+            if (holy) IconBtn("loop", L.holyricsTranslations) { ui.sheet(L.translationsInHolyrics) { HolyricsBibleSheet(c, ui) } }
+            else IconBtn("gear", L.scriptureLook) { ui.sheet(L.scriptureLook) { ScriptureOptionsSheet(c) } }
         }
 
         // Переводы: быстро на этом экране. Первый — основной; «⇄» меняет их местами.
@@ -99,12 +99,12 @@ fun BibleScreen(c: Controller, ui: Ui) {
                 val i = selected.indexOf(m.fileName)
                 Pill(if (i >= 0 && selected.size > 1) "${i + 1} · ${m.abbreviation}" else m.abbreviation, tint = i >= 0, label = m.title) { d.toggle(m.fileName) }
             }
-            if (selected.size > 1) Pill("⇄", label = "Поменять переводы местами") { d.swap() }
-            Pill("", "plus", label = "Добавить перевод") { ui.sheet("Переводы Библии") { BibleModulesSheet(c) } }
+            if (selected.size > 1) Pill("⇄", label = L.swapTr) { d.swap() }
+            Pill("", "plus", label = L.addTranslation) { ui.sheet(L.modules) { BibleModulesSheet(c) } }
         }
 
         if (searchOpen) {
-            SearchField(query, "Слова из стиха или «Ин 3:16»", Modifier.padding(horizontal = T.gutter, vertical = 4.dp)) { d.search(it) }
+            SearchField(query, L.searchHint, Modifier.padding(horizontal = T.gutter, vertical = 4.dp)) { d.search(it) }
         }
 
         // История: открытые места — одним касанием.
@@ -115,9 +115,9 @@ fun BibleScreen(c: Controller, ui: Ui) {
             Icon("back10", p.l2, T.iconS)
             history.forEach { h ->
                 val on = liveRange != null && chapter?.book == h.book && chapter?.chapter == h.chapter && liveRange == h.from..h.to
-                HistoryChip(d.passageLabel(h), on, onClick = { d.openPassage(h) }, onLong = { d.forget(h); ui.toast("Убрано из истории") })
+                HistoryChip(d.passageLabel(h), on, onClick = { d.openPassage(h) }, onLong = { d.forget(h); ui.toast(L.removedHistory) })
             }
-            Pill("Очистить", label = "Очистить историю") { d.clearHistory() }
+            Pill(L.clear, label = L.clearHistory) { d.clearHistory() }
         }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -126,7 +126,7 @@ fun BibleScreen(c: Controller, ui: Ui) {
                 searchOpen && query.isNotBlank() -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
                     if (ref != null) item("ref") {
                         Column(Modifier.fillMaxWidth().groupCell(true, true)) {
-                            Cell("Открыть: $query", kind = "bible", onClick = {
+                            Cell(L.openRef(query), kind = "bible", onClick = {
                                 d.go(ref.book, ref.chapter, ref.fromVerse, ref.toVerse, toHall = false)
                                 searchOpen = false; d.search("")
                             })
@@ -134,7 +134,7 @@ fun BibleScreen(c: Controller, ui: Ui) {
                     }
                     val found = hits.orEmpty()
                     if (ref == null && found.isEmpty()) item("none") {
-                        Note(if (searching) "Ищем…" else "Ничего не найдено", Modifier.padding(horizontal = T.gutter))
+                        Note(if (searching) L.searchingShort else L.nothingFound, Modifier.padding(horizontal = T.gutter))
                     }
                     items(found.size, key = { "h$it" }) { i ->
                         val h = found[i]
@@ -151,9 +151,9 @@ fun BibleScreen(c: Controller, ui: Ui) {
                             }
                         }
                     }
-                    if (found.size >= 200) item("more") { Note("Показаны первые 200 стихов: точнее запрос — меньше лишнего.", Modifier.padding(horizontal = T.gutter)) }
+                    if (found.size >= 200) item("more") { Note(L.first200, Modifier.padding(horizontal = T.gutter)) }
                 }
-                chapter == null -> Note(if (modules.isEmpty()) "Переводы загружаются…" else "Книга и глава — выше", Modifier.padding(T.gutter))
+                chapter == null -> Note(if (modules.isEmpty()) L.translationsLoading else L.bookChapterAbove, Modifier.padding(T.gutter))
                 else -> {
                     val ch = chapter!!
                     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp)) {
@@ -169,8 +169,8 @@ fun BibleScreen(c: Controller, ui: Ui) {
                         }
                         item("nav") {
                             Row(Modifier.fillMaxWidth().padding(T.gutter), horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                                Btn("Глава ${ch.chapter - 1}", Modifier.weight(1f), icon = "prev", enabled = ch.chapter > 1) { d.nextChapter(-1) }
-                                Btn(if (ch.chapter < ch.chapters) "Глава ${ch.chapter + 1}" else "Следующая книга", Modifier.weight(1f), icon = "next") { d.nextChapter(1) }
+                                Btn(L.chapterN(ch.chapter - 1), Modifier.weight(1f), icon = "prev", enabled = ch.chapter > 1) { d.nextChapter(-1) }
+                                Btn(if (ch.chapter < ch.chapters) L.chapterN(ch.chapter + 1) else L.nextBook, Modifier.weight(1f), icon = "next") { d.nextChapter(1) }
                             }
                         }
                     }
@@ -206,7 +206,7 @@ private fun VerseRow(n: Int, text: String, second: String?, live: Boolean, marke
             Txt(text, T.fBody)
             second?.let { Txt(it, T.fSub, p.l2) }
         }
-        if (live) Box(Modifier.padding(top = T.gap)) { Tag("В зале", true) }
+        if (live) Box(Modifier.padding(top = T.gap)) { Tag(L.inHall, true) }
     }
 }
 
@@ -224,34 +224,34 @@ private fun BibleBar(c: Controller, ui: Ui, mark: IntRange?, liveRange: IntRange
             Box(Modifier.size(8.dp).clip(RoundedCornerShape(T.rPill)).background(if (liveRange != null) p.live else p.l3))
             Txt(
                 when {
-                    holy && liveRange != null -> "В Holyrics: ${d.label(liveRange)}"
-                    holy && mark == null -> "Касание — выбрать, двойное — сразу в Holyrics"
-                    !holy && mode == Mode.BLACK -> "В зале чёрный экран"
-                    !holy && mode == Mode.AWAY -> "Deixis ушёл с экранов"
-                    liveRange != null -> "В зале: ${d.label(liveRange)}"
-                    mark != null -> "Выбрано: ${d.label(mark)}"
-                    else -> "Касание — предпросмотр, двойное — в зал, удержание — до этого стиха"
+                    holy && liveRange != null -> L.inHolyricsColon(d.label(liveRange))
+                    holy && mark == null -> L.tapHolyrics
+                    !holy && mode == Mode.BLACK -> L.blackInHall
+                    !holy && mode == Mode.AWAY -> L.awayNow
+                    liveRange != null -> L.inHallColon(d.label(liveRange))
+                    mark != null -> L.selectedColon(d.label(mark))
+                    else -> L.verseHint
                 },
                 T.fLabel, p.l2, lines = 1, modifier = Modifier.weight(1f),
             )
-            if (mark != null) Pill("В сетлист", label = "Сохранить в сетлист") { d.saveToSet()?.let { ui.toast("В сетлисте: $it") } }
+            if (mark != null) Pill(L.toSet, label = L.saveToSet) { d.saveToSet()?.let { ui.toast(L.inSetColon(it)) } }
         }
         Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
-            BarBtn2("black", "Чёрный", !holy && mode == Mode.BLACK, Modifier.weight(1f)) {
+            BarBtn2("black", L.black, !holy && mode == Mode.BLACK, Modifier.weight(1f)) {
                 if (holy) c.holyricsRemote?.toggleKey(app.deixis.core.HolyricsKey.F10) else c.mode(Mode.BLACK)
             }
-            BarBtn2("prev", "Стих", false, Modifier.weight(1f)) { d.step(-1) }
+            BarBtn2("prev", L.verse, false, Modifier.weight(1f)) { d.step(-1) }
             val can = mark != null && mark != liveRange
             Column(
                 Modifier.weight(1.6f).heightIn(min = T.barBtn).clip(RoundedCornerShape(T.rBtn)).background(if (can) p.tint else p.fill)
-                    .press(enabled = can, scaleTo = 0.94f, label = if (holy) "В Holyrics" else "В зал") { d.live(); ui.toast(if (holy) "В Holyrics" else "В зале") },
+                    .press(enabled = can, scaleTo = 0.94f, label = if (holy) L.toHolyrics else L.toHall) { d.live(); ui.toast(if (holy) L.toHolyrics else L.inHall) },
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
                 Icon("up", if (can) Color.White else p.l3, T.iconBar)
-                Txt(if (holy) "В Holyrics" else "В зал", T.fBar, if (can) Color.White else p.l3, FontWeight.SemiBold)
+                Txt(if (holy) L.toHolyrics else L.toHall, T.fBar, if (can) Color.White else p.l3, FontWeight.SemiBold)
             }
-            BarBtn2("next", "Стих", false, Modifier.weight(1f)) { d.step(1) }
-            BarBtn2("clear", "Очистить", !holy && mode == Mode.CLEAR, Modifier.weight(1f)) {
+            BarBtn2("next", L.verse, false, Modifier.weight(1f)) { d.step(1) }
+            BarBtn2("clear", L.clear, !holy && mode == Mode.CLEAR, Modifier.weight(1f)) {
                 if (holy) c.holyricsRemote?.toggleKey(app.deixis.core.HolyricsKey.F9) else c.mode(Mode.CLEAR)
             }
         }
@@ -282,8 +282,8 @@ private fun Navigator(c: Controller, ui: Ui) {
     val books = d.books()
     val b = book
     if (b == null) {
-        SearchField(filter, "Название книги", Modifier.padding(bottom = T.gap)) { filter = it }
-        if (filter.isBlank()) Seg(listOf("Ветхий Завет", "Новый Завет"), testament, Modifier.fillMaxWidth().padding(bottom = T.gap)) { testament = it }
+        SearchField(filter, L.bookName, Modifier.padding(bottom = T.gap)) { filter = it }
+        if (filter.isBlank()) Seg(listOf(L.oldT, L.newT), testament, Modifier.fillMaxWidth().padding(bottom = T.gap)) { testament = it }
         val f = filter.trim().lowercase().replace('ё', 'е')
         val shown = books.filter { bk ->
             if (f.isNotEmpty()) bk.longName.lowercase().replace('ё', 'е').contains(f) || bk.shortName.lowercase().replace('ё', 'е').startsWith(f)
@@ -309,7 +309,7 @@ private fun Navigator(c: Controller, ui: Ui) {
             val cur = d.chapter.value?.let { it.book == b && it.chapter == ch } == true
             Box(
                 m.height(T.iconBtn).clip(RoundedCornerShape(T.rField)).background(if (cur) p.tint else p.cell)
-                    .press(label = "Глава $ch") { d.open(b, ch); ui.closeAll() },
+                    .press(label = L.chapterN(ch)) { d.open(b, ch); ui.closeAll() },
                 contentAlignment = Alignment.Center,
             ) { Txt("$ch", T.fBody, if (cur) Color.White else p.ink, FontWeight.Medium) }
         }
@@ -321,11 +321,11 @@ private fun Navigator(c: Controller, ui: Ui) {
 private fun ScriptureOptionsSheet(c: Controller) {
     var o by remember { mutableStateOf(c.bible.options) }
     val set = { n: app.deixis.core.ScriptureOptions -> o = n; c.bible.options = n; c.desk.refreshLive() }
-    Txt("Стихов на слайде", T.fSub, P.current.l2, modifier = Modifier.padding(bottom = T.gapS))
+    Txt(L.versesPerSlide, T.fSub, P.current.l2, modifier = Modifier.padding(bottom = T.gapS))
     Seg(listOf("1", "2", "3"), (o.versesPerSlide - 1).coerceIn(0, 2), Modifier.fillMaxWidth().padding(bottom = T.gap)) { set(o.copy(versesPerSlide = it + 1)) }
-    Txt("Адрес", T.fSub, P.current.l2, modifier = Modifier.padding(bottom = T.gapS))
+    Txt(L.refLbl, T.fSub, P.current.l2, modifier = Modifier.padding(bottom = T.gapS))
     val ref = when { o.refMode == app.deixis.core.RefMode.NONE -> 2; o.refPosition == app.deixis.core.RefPosition.TOP -> 0; else -> 1 }
-    Seg(listOf("Сверху", "Снизу", "Без адреса"), ref, Modifier.fillMaxWidth().padding(bottom = T.gap)) {
+    Seg(listOf(L.top, L.bottom, L.refNone), ref, Modifier.fillMaxWidth().padding(bottom = T.gap)) {
         set(
             when (it) {
                 0 -> o.copy(refMode = if (o.refMode == app.deixis.core.RefMode.NONE) app.deixis.core.RefMode.ONE_LINE else o.refMode, refPosition = app.deixis.core.RefPosition.TOP)
@@ -335,13 +335,13 @@ private fun ScriptureOptionsSheet(c: Controller) {
         )
     }
     Group {
-        SwitchRow("Два перевода рядом", o.sideBySide, "В две колонки, а не друг под другом") { set(o.copy(sideBySide = it)) }
+        SwitchRow(L.sideBySide, o.sideBySide, L.sideBySideSub) { set(o.copy(sideBySide = it)) }
         Sep(T.gutter)
-        SwitchRow("Полное название книги", o.fullBookName, "«От Иоанна» вместо «Ин»") { set(o.copy(fullBookName = it)) }
+        SwitchRow(L.fullBook, o.fullBookName, L.fullBookSub) { set(o.copy(fullBookName = it)) }
         Sep(T.gutter)
-        SwitchRow("Номера стихов", o.verseNumbers) { set(o.copy(verseNumbers = it)) }
+        SwitchRow(L.verseNumbers, o.verseNumbers) { set(o.copy(verseNumbers = it)) }
     }
-    Note("Цвет, фон и размер текста — тема оформления: кнопка «Вид» на главном.", Modifier)
+    Note(L.scriptureNote, Modifier)
 }
 
 @Composable

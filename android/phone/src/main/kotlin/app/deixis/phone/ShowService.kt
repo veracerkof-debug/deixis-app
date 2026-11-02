@@ -67,12 +67,12 @@ class ShowService : Service() {
 
     private fun notification(names: List<String>): Notification {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Связь с экранами", NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, L.linkChannel, NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_slideshow)
-            .setContentTitle(if (names.size == 1) "Подключён экран «${names[0]}»" else "Подключено экранов: ${names.size}")
-            .setContentText("Связь держится и в фоне. Отключить — в «Устройствах»")
+            .setContentTitle(if (names.size == 1) L.screenConnected(names[0]) else L.screensConnected(names.size))
+            .setContentText(L.linkInBackground)
             .setContentIntent(open)
             .setOngoing(true)
             .build()
