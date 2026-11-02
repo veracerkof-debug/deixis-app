@@ -100,7 +100,7 @@ fun rememberActs(c: Controller, ui: Ui): Acts {
                 runCatching { files.launch(mimes) }.onFailure { ui.toast("Не удалось открыть выбор файлов") }
             },
             share = { f ->
-                if (c.outputs.value.none { it.state == OutState.ONLINE && it.target.kind != Target.Kind.DLNA }) ui.toast("Сначала подключите экран")
+                if (c.outputs.value.none { it.state == OutState.ONLINE && it.target.kind != Target.Kind.DLNA }) ui.toast("Сначала нужен подключённый экран")
                 else {
                     openAfter = f
                     val wantSound = c.settings.value.shareSound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
@@ -149,7 +149,7 @@ fun ConnectSheet(c: Controller, ui: Ui) {
             }
         })
     }
-    Note("Не видно экрана? В гостевом Wi-Fi устройства часто изолированы. Введите адрес с экрана приёмника или включите точку доступа на телефоне и подключите к ней приёмник. Кабель HDMI и Миракаст появляются здесь сами.")
+    Note("Не видно экрана? В гостевом Wi-Fi устройства часто изолированы. Выход — адрес с экрана приёмника вручную или точка доступа на телефоне, к которой подключён приёмник. Кабель HDMI и Миракаст появляются здесь сами.")
 }
 
 /** Экран в списке подключённых: состояние, повтор, отключение. */
@@ -175,7 +175,7 @@ fun PinSheet(c: Controller, t: Target) {
     var pin by remember { mutableStateOf("") }
     LaunchedEffect(need) { if (need == null) ui.close() }
     DisposableEffect(Unit) { onDispose { if (c.needPin.value == t) c.needPin.value = null } }
-    Note("Введите PIN, который показан на экране «${t.name}». Это нужно только при первом подключении.", Modifier)
+    Note("PIN — тот, что на экране «${t.name}». Нужен только при первом подключении.", Modifier)
     Field(pin, "0000", keyboard = KeyboardType.NumberPassword, code = true) { pin = it.filter(Char::isDigit).take(4) }
     Spacer(Modifier.height(12.dp))
     Btn("Подключить", kind = BtnKind.TINT, enabled = pin.length == 4) { c.pair(t, pin) }
@@ -620,7 +620,7 @@ fun ViewersBlock(c: Controller) {
     val state by c.receiverState.collectAsState()
     val u = url
     if (u == null) {
-        Group { Cell("Зрители смотрят показ в браузере", "Подключите экран Deixis по Wi-Fi: здесь появится QR-код", "people", chevron = null) }
+        Group { Cell("Зрители смотрят показ в браузере", "С экраном Deixis по Wi-Fi здесь появится QR-код", "people", chevron = null) }
         return
     }
     Group {

@@ -73,7 +73,7 @@ fun WorkModeSwitch(c: Controller, ui: Ui, h: HolyricsSource) {
 @Composable
 private fun NeedHolyrics(ui: Ui) {
     Column(Modifier.fillMaxWidth().padding(T.gutter), verticalArrangement = Arrangement.spacedBy(T.gap)) {
-        Note("Пульт Holyrics: подключитесь к Holyrics на компьютере — найдите его в сети или отсканируйте QR-код в Deixis для компьютера.")
+        Note("Пульт Holyrics: связь с Holyrics на компьютере — поиском в сети или по QR-коду в Deixis для компьютера.")
         Btn("Подключить Holyrics", kind = BtnKind.TINT, icon = "song") { ui.holyrics = true }
     }
 }
@@ -466,7 +466,7 @@ fun HolyricsBibleSheet(c: Controller, ui: Ui) {
                 Cell(v.title.ifBlank { v.id }, listOfNotNull(v.id, v.language?.altName ?: v.language?.name?.ifBlank { null }).joinToString(" · "), "bible", chevron = null)
             }
         }
-        Note("Чтобы листать и искать их в Deixis, добавьте MyBible-модуль того же перевода: «+» в строке переводов на вкладке «Библия». Holyrics не отдаёт текст своих модулей через API.")
+        Note("Чтобы листать и искать их в Deixis, нужен MyBible-модуль того же перевода: «+» в строке переводов на вкладке «Библия». Holyrics не отдаёт текст своих модулей через API.")
         Btn("Добавить модуль в Deixis", icon = "plus") { ui.push("Переводы Библии") { BibleModulesSheet(c) } }
     }
 }

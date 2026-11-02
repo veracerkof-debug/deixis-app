@@ -130,8 +130,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         missing.value = p.takeIf { !it.ok }
         if (p.ok || quiet) return
         controller.messages.emit(
-            if (p.request == "pending") "Holyrics просит подтвердить права для Deixis: нажмите «Разрешить» в уведомлении на компьютере"
-            else "У токена Holyrics не хватает прав (${p.missing.size}). Добавьте их в Holyrics: Файл → Настройки → API Server → Управление правами",
+            if (p.request == "pending") "Holyrics просит подтвердить права для Deixis: «Разрешить» в уведомлении на компьютере"
+            else "У токена Holyrics не хватает прав (${p.missing.size}). Права добавляются в Holyrics: Файл → Настройки → API Server → Управление правами",
         )
     }
 
@@ -482,7 +482,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         if (bibleVersions.value.isEmpty()) bibleVersions.value = c.bibleVersions()
         val tabs = c.bibleTabs().filter { it.isNotBlank() }
         val files = tabs.mapNotNull { v -> controller.bibleModules.value.firstOrNull { versionFor(it.fileName)?.id == v }?.fileName }
-        if (files.isEmpty()) return@io controller.messages.emit("Для переводов Holyrics (${tabs.joinToString()}) в Deixis нет модулей: добавьте их в «Переводы Библии»")
+        if (files.isEmpty()) return@io controller.messages.emit("Для переводов Holyrics (${tabs.joinToString()}) в Deixis нет модулей: они добавляются в «Переводы Библии»")
         withContext(Dispatchers.Main) { controller.desk.choose(files) }
         syncedTabs = tabs
         controller.messages.emit("Переводы как в Holyrics: ${tabs.joinToString()}")
@@ -508,7 +508,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     }.getOrNull()
 
     private fun io(block: suspend (HolyricsClient) -> Unit) = scope.launch {
-        val c = client ?: return@launch controller.messages.emit("Сначала подключите Holyrics")
+        val c = client ?: return@launch controller.messages.emit("Сначала нужна связь с Holyrics")
         try {
             withContext(Dispatchers.IO) { block(c) }
         } catch (e: Exception) {

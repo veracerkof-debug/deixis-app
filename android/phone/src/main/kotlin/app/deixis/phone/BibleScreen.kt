@@ -151,9 +151,9 @@ fun BibleScreen(c: Controller, ui: Ui) {
                             }
                         }
                     }
-                    if (found.size >= 200) item("more") { Note("Показаны первые 200 стихов: уточните запрос.", Modifier.padding(horizontal = T.gutter)) }
+                    if (found.size >= 200) item("more") { Note("Показаны первые 200 стихов: точнее запрос — меньше лишнего.", Modifier.padding(horizontal = T.gutter)) }
                 }
-                chapter == null -> Note(if (modules.isEmpty()) "Переводы загружаются…" else "Выберите книгу и главу", Modifier.padding(T.gutter))
+                chapter == null -> Note(if (modules.isEmpty()) "Переводы загружаются…" else "Книга и глава — выше", Modifier.padding(T.gutter))
                 else -> {
                     val ch = chapter!!
                     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp)) {

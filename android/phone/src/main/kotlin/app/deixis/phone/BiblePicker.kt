@@ -47,7 +47,7 @@ fun BiblePicker(c: Controller, ui: Ui, edit: LibItem? = null) {
     val p = P.current
     val modules by c.bibleModules.collectAsState()
     if (modules.isEmpty()) {
-        Note("Переводы загружаются… Если их нет, добавьте модуль MyBible в «Библиотека → + → Переводы Библии».", Modifier)
+        Note("Переводы загружаются… Если их нет — модуль MyBible добавляется в «Библиотека → + → Переводы Библии».", Modifier)
         return
     }
     val start = edit?.bible

@@ -461,7 +461,7 @@ class Controller(private val app: Application) {
                 when (e.reason) {
                     DenyReason.WRONG_PIN -> "Неверный PIN"
                     DenyReason.TOO_MANY_ATTEMPTS -> "Слишком много попыток. Через полминуты — новый PIN с экрана"
-                    DenyReason.INCOMPATIBLE_VERSION -> "Версии Deixis не совпадают. Обновите приложения"
+                    DenyReason.INCOMPATIBLE_VERSION -> "Версии Deixis не совпадают: нужно обновить приложения"
                     DenyReason.UNKNOWN_TOKEN -> "Приёмник не узнал телефон"
                 },
             )
@@ -1014,8 +1014,8 @@ class Controller(private val app: Application) {
         val doc = mediaKindOf(item.title) == MediaKind.DOCUMENT
         if (!info.convert || (doc && !info.documents)) {
             if (outs.value.none { (it.client.connection.value as? Connection.Connected)?.receiver?.convert == true }) {
-                messages.emit(if (doc) "Документы переводит компьютер с Microsoft Office или LibreOffice: сохраните файл как PDF"
-                else "Этот экран не переводит презентации: сохраните файл как PDF или подключите компьютер")
+                messages.emit(if (doc) "Документы переводит компьютер с Microsoft Office или LibreOffice: нужен файл PDF"
+                else "Этот экран не переводит презентации: нужен файл PDF или подключённый компьютер")
             }
             return null
         }
@@ -1647,7 +1647,7 @@ class Controller(private val app: Application) {
         // Экран старой версии звука не принимает: картинка идёт, а звук — нет. Подсказать один раз.
         scope.launch {
             kotlinx.coroutines.delay(SOUND_CHECK_MS)
-            if (a.unsupported && screenAudio === a) messages.emit("Экран не принимает звук: обновите Deixis на экране, картинка идёт без звука")
+            if (a.unsupported && screenAudio === a) messages.emit("Экран не принимает звук (нужен новый Deixis на экране): картинка идёт без звука")
         }
         return a
     }

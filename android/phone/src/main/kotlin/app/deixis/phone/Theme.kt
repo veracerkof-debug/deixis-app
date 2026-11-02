@@ -59,6 +59,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import app.deixis.receiver.Didot
 
 /** Цвета из DESIGN.md → «Цвет интерфейса». Других цветов в интерфейсе нет. */
@@ -67,7 +70,24 @@ data class Palette(
     val tint: Color, val tintText: Color, val red: Color, val fill: Color,
     val live: Color = red, val gold: Color = Color(0xFFA87A00), val sep: Color = Color(0x263C372D), val fill2: Color = Color(0x3378736A),
     val dark: Boolean = false,
-)
+) {
+    /**
+     * Текст и значки на акцентном цвете (кнопка «В зал», нажатая кнопка полосы). Выбирается сам (DESIGN.md):
+     * белый, пока он читается на акценте; на светлых акцентах тёмной темы белый почти не виден (2,8:1) —
+     * тогда тёмный.
+     */
+    val onTint: Color get() = if (contrast(Color.White, tint) >= ON_TINT_MIN_CONTRAST) Color.White else Color(0xFF161514)
+}
+
+/** Контраст двух цветов по WCAG 2: от 1 (одинаковые) до 21 (чёрный на белом). */
+fun contrast(a: Color, b: Color): Float {
+    val la = a.luminance() + 0.05f
+    val lb = b.luminance() + 0.05f
+    return maxOf(la, lb) / minOf(la, lb)
+}
+
+/** Ниже этого белый на акценте не читается даже крупным текстом (WCAG: 3:1 для крупного). */
+private const val ON_TINT_MIN_CONTRAST = 3f
 
 private val Light = Palette(
     // Второстепенный текст темнее прежнего: подписи читаются и на слабом экране, и при свете в зале (контраст 5:1).
@@ -133,6 +153,8 @@ object T {
     val dev = 36.dp
     val search = 40.dp
     val segMin = 32.dp
+    /** Подпись под образцом темы: ниже пунктирной рамки выбранной (она выходит за образец), а не поперёк неё. */
+    val themeLabelGap = 8.dp
     val switchW = 51.dp
     val switchH = 31.dp
     val knob = 27.dp
@@ -346,8 +368,8 @@ fun Pill(text: String, icon: String? = null, tint: Boolean = false, label: Strin
             .padding(horizontal = T.pillPad),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS),
     ) {
-        icon?.let { Icon(it, if (tint) Color.White else p.ink, T.iconBar) }
-        if (text.isNotEmpty()) Txt(text, T.fPill, if (tint) Color.White else p.ink, FontWeight.SemiBold, lines = 1)
+        icon?.let { Icon(it, if (tint) p.onTint else p.ink, T.iconBar) }
+        if (text.isNotEmpty()) Txt(text, T.fPill, if (tint) p.onTint else p.ink, FontWeight.SemiBold, lines = 1)
     }
 }
 
@@ -357,7 +379,7 @@ enum class BtnKind { PLAIN, TINT, RED, DANGER }
 fun Btn(text: String, modifier: Modifier = Modifier, icon: String? = null, kind: BtnKind = BtnKind.PLAIN, enabled: Boolean = true, height: Dp = T.btn, onClick: () -> Unit) {
     val p = P.current
     val bg = when (kind) { BtnKind.TINT -> p.tint; BtnKind.DANGER -> p.red; else -> p.fill }
-    val fg = when (kind) { BtnKind.TINT, BtnKind.DANGER -> Color.White; BtnKind.RED -> p.red; else -> p.ink }
+    val fg = when (kind) { BtnKind.TINT -> p.onTint; BtnKind.DANGER -> Color.White; BtnKind.RED -> p.red; else -> p.ink }
     Row(
         modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(T.rBtn)).background(bg)
             .then(if (enabled) Modifier.press(scaleTo = 0.97f, label = text, onClick = onClick) else Modifier.alpha(T.disabled)),
@@ -423,7 +445,8 @@ fun Cell(
         if (item != null && hasThumb(item)) ItemThumb(item, T.kind) { kind?.let { Kind(it) } } else kind?.let { Kind(it) }
         Column(Modifier.weight(1f)) {
             Txt(title, lines = 1)
-            sub?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fSub, mark ?: p.l2, if (mark != null) FontWeight.Medium else FontWeight.Normal, lines = 1) }
+            // Подпись — в две строки: в ней часто главное («Подключите экран по Wi-Fi…»), обрезанная она теряется.
+            sub?.takeIf { it.isNotBlank() }?.let { Txt(it, T.fSub, mark ?: p.l2, if (mark != null) FontWeight.Medium else FontWeight.Normal, lines = 2) }
         }
         trailing()
         if (chevron != null && click != null) Icon(chevron, p.l3)
@@ -447,7 +470,7 @@ fun Seg(options: List<String>, selected: Int, modifier: Modifier = Modifier, scr
                 Modifier.then(if (scroll) Modifier else Modifier.weight(1f)).heightIn(min = T.segMin).clip(RoundedCornerShape(T.rSegIn))
                     // Выбранный сегмент проявляется, прежний гаснет: глаз видит, куда перешёл выбор.
                     .background(androidx.compose.animation.animateColorAsState(if (i == selected) p.cell else p.cell.copy(alpha = 0f), androidx.compose.animation.core.tween(T.mid, easing = T.eOut), label = "seg").value)
-                    .clickable(role = Role.Tab) { onSelect(i) }.padding(horizontal = T.gap),
+                    .selectable(selected = i == selected, role = Role.Tab) { onSelect(i) }.padding(horizontal = T.gap),
                 contentAlignment = Alignment.Center,
             ) { Txt(t, T.fSub, p.ink, FontWeight.Medium, lines = 1) }
         }
@@ -500,7 +523,7 @@ fun Switch(on: Boolean, label: String, onChange: (Boolean) -> Unit) {
     val x by animateFloatAsState(if (on) 1f else 0f, tween(T.mid, easing = T.eSpring), label = "switch")
     Box(
         Modifier.size(T.switchW, T.switchH).clip(RoundedCornerShape(T.rPill)).background(if (on) p.tint else p.fill2)
-            .clickable(role = Role.Switch) { onChange(!on) }.semantics { contentDescription = label },
+            .toggleable(value = on, role = Role.Switch) { onChange(it) }.semantics { contentDescription = label },
     ) {
         Box(
             Modifier.padding(T.gapXs).offset(x = (T.switchW - T.knob - T.gapXs * 2) * x).size(T.knob)

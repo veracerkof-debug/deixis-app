@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.selection.selectable
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -229,7 +230,7 @@ private fun Tabs(ui: Ui, tabs: List<AppTab>, pager: PagerState, vertical: Boolea
         val color by animateColorAsState(if (on) p.tint else p.l2, tween(T.mid, easing = T.eOut), label = "tab")
         val lift by animateFloatAsState(if (on) T.tabLift else 1f, tween(T.mid, easing = T.eSpring), label = "tabLift")
         Column(
-            m.heightIn(min = if (vertical) 64.dp else T.tabMin).clickable(role = Role.Tab) { ui.tab = t; ui.closeAll() }.padding(top = 7.dp, bottom = T.gapS),
+            m.heightIn(min = if (vertical) 64.dp else T.tabMin).selectable(selected = on, role = Role.Tab) { ui.tab = t; ui.closeAll() }.padding(top = 7.dp, bottom = T.gapS),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(T.gapXs),
         ) {
             Box(Modifier.scale(lift)) { Icon(t.icon, color) }

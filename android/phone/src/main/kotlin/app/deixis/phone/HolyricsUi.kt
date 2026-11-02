@@ -104,8 +104,8 @@ private fun MissingRights(h: HolyricsSource) {
     Column(Modifier.fillMaxWidth().padding(bottom = T.gap).clip(RoundedCornerShape(T.rCard)).background(p.cell).padding(T.gap), verticalArrangement = Arrangement.spacedBy(T.gapS)) {
         Txt("Не хватает прав у токена", T.fBody, p.ink, FontWeight.SemiBold)
         Txt(
-            (if (miss.request == "pending") "На компьютере Holyrics показал уведомление — нажмите там «Разрешить». "
-            else "В Holyrics: Файл → Настройки → API Server → Управление правами — отметьте для этого токена всё. ") +
+            (if (miss.request == "pending") "На компьютере Holyrics показал уведомление — там нужно «Разрешить». "
+            else "В Holyrics: Файл → Настройки → API Server → Управление правами — для этого токена отметить всё. ") +
                 "Сейчас не разрешено: ${miss.missing.joinToString(", ")}.",
             T.fSub, p.l2,
         )
@@ -122,8 +122,8 @@ private fun ConnectForm(h: HolyricsSource, error: String?) {
     val found by h.found.collectAsState()
     val searching by h.searching.collectAsState()
     BasicText(
-        "Проще всего — QR-код: в Deixis для компьютера рядом с Holyrics откройте «Holyrics → Телефон по QR» и наведите камеру телефона. " +
-            "Или вручную: в Holyrics «Файл → Настройки → API Server» включите доступ по локальной сети, создайте токен и дайте ему права.",
+        "Проще всего — QR-код: в Deixis для компьютера рядом с Holyrics — «Holyrics → Телефон по QR», и камеру телефона на код. " +
+            "Или вручную: в Holyrics «Файл → Настройки → API Server» — доступ по локальной сети, новый токен и права для него.",
         style = TextStyle(fontSize = 14.sp, color = p.l2),
     )
     Spacer(Modifier.height(10.dp))
@@ -132,7 +132,7 @@ private fun ConnectForm(h: HolyricsSource, error: String?) {
     found?.let { list ->
         Spacer(Modifier.height(8.dp))
         if (list.isEmpty()) BasicText(
-            "Holyrics не найден. В Holyrics включите API Server и доступ по локальной сети; телефон и компьютер — в одной сети Wi-Fi.",
+            "Holyrics не найден. Нужны API Server и доступ по локальной сети в Holyrics; телефон и компьютер — в одной сети Wi-Fi.",
             style = TextStyle(fontSize = 13.sp, color = p.l2),
         )
         else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -219,7 +219,7 @@ private fun Library(h: HolyricsSource, link: HolyricsLink, onDismiss: () -> Unit
         Spacer(Modifier.height(10.dp))
         LinkQr(link.toUri())
         BasicText(
-            "Откройте камеру на втором телефоне с Deixis. Этот код даёт управление Holyrics — показывайте его только своим.",
+            "Камера второго телефона с Deixis — на этот код. Он даёт управление Holyrics: только для своих.",
             style = TextStyle(fontSize = 13.sp, color = p.l2, textAlign = TextAlign.Center),
             modifier = Modifier.fillMaxWidth(),
         )

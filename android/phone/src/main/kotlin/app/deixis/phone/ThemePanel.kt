@@ -66,7 +66,7 @@ private fun ThemeTile(t: ThemeChoice, on: Boolean, drag: ThemeDrag, modifier: Mo
     ) {
         // «Аа» во всю плитку: цвет и начертание темы видны и в узкой полосе.
         SlideView(Slide.Text("Аа"), null, t.style.copy(sizePercent = T.sampleSize), frame = if (on) Frame.PREVIEW_TINT else Frame.NONE)
-        Txt(t.name, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, Modifier.padding(top = 2.dp), lines = 1)
+        Txt(t.name, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, Modifier.padding(top = T.themeLabelGap), lines = 1)
     }
 }
 

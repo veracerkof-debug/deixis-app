@@ -46,7 +46,7 @@ fun BackupsSection(c: Controller, ui: Ui) {
         Sep(T.gutter)
         Cell(
             if (folder == null) "Копия вне телефона" else "Копия вне телефона: включена",
-            if (folder == null) "Папка на флешке, в Google Диске или «Документах»: переживёт потерю телефона" else "Нажмите, чтобы выбрать другую папку",
+            if (folder == null) "Папка на флешке, в Google Диске или «Документах»: переживёт потерю телефона" else "Касание — выбрать другую папку",
             onClick = { folderPick.launch(null) },
         )
         Sep(T.gutter)

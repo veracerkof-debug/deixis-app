@@ -163,7 +163,7 @@ class DlnaOutput(private val app: Application) {
                 t.play(s.share(src, address), ref.name.substringBeforeLast('.'), src.mime)
             }
             c is PdfContent -> picture(t, s, address, pdfPage(c))
-            c is ScreenContent -> throw IOException("Демонстрация экрана на DLNA-телевизор не идёт: выберите экран Deixis")
+            c is ScreenContent -> throw IOException("Демонстрация экрана на DLNA-телевизор не идёт: нужен экран Deixis")
             else -> picture(t, s, address, renderSlideBitmap(app, c, Mode.NORMAL))
         }
         s.forgetAllBut(2)

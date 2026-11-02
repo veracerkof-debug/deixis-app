@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.selected
 import app.deixis.core.Mode
 import app.deixis.core.VideoAction
 
@@ -177,7 +178,8 @@ private fun TopBar(c: Controller, ui: Ui) {
             outputs.forEach { o -> Dev(o.target.icon, o.state, "${o.target.name}: ${o.state.text}" + if (onAir && o.state == OutState.ONLINE) ", идёт показ" else "", onAir = onAir) { ui.tab = AppTab.DEVICES } }
             if (viewUrl != null) Dev("people", OutState.ONLINE, "Зрители: ${state?.viewers ?: 0}", count = state?.viewers ?: 0) { ui.tab = AppTab.DEVICES }
         }
-        Pill(if (outputs.isEmpty()) "Подключить" else "", "wifi", tint = true, label = "Подключить") { ui.sheet("Подключить") { ConnectSheet(c, ui) } }
+        // С меткой профиля места мало: «Подключить» — одним значком, иначе он вытесняет «Настройки» за край.
+        Pill(if (outputs.isEmpty() && book.list.size <= 1) "Подключить" else "", "wifi", tint = true, label = "Подключить") { ui.sheet("Подключить") { ConnectSheet(c, ui) } }
         IconBtn("gear", "Настройки") { ui.sheet("Настройки") { SettingsSheet(c) } }
     }
 }
@@ -233,7 +235,7 @@ private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     }
     val video = state?.video?.takeIf { live?.slide is Slide.Movie }
     val liveHint = progress ?: (liveName + (video?.let { " · ${clock(it.positionMs)}" + if (it.playing) "" else " · пауза" } ?: ""))
-    val preName = preview?.let { "${it.source.title} · ${it.index + 1}/${it.source.slides.size}" } ?: if (draft != null) "Новое оформление" else "Выберите слайд"
+    val preName = preview?.let { "${it.source.title} · ${it.index + 1}/${it.source.slides.size}" } ?: if (draft != null) "Новое оформление" else "Слайд не выбран"
 
     val now: @Composable (Modifier) -> Unit = { m ->
         Column(m, verticalArrangement = Arrangement.spacedBy(T.gapS)) {
@@ -406,7 +408,7 @@ private fun SetlistPane(c: Controller, ui: Ui, side: (@Composable () -> Unit)? =
                 if (items.isEmpty()) item("empty") {
                     Box(Modifier.fillMaxWidth().groupCell(true, true).padding(horizontal = T.gutter, vertical = T.rowPadV)) {
                         Txt(
-                            if (ui.listSeg == 0) "Пусто. Добавьте элементы через «Найти» или плитки «Показать»." else "Здесь появится то, что показывали.",
+                            if (ui.listSeg == 0) "Пусто. Элементы добавляются через «Найти» или плитки «Показать»." else "Здесь появится то, что показывали.",
                             T.fSub, p.l2,
                         )
                     }
@@ -644,10 +646,12 @@ private fun RowScope.BarBtn(icon: String, text: String, pressed: Boolean = false
     Box(
         Modifier.weight(weight).height(T.barKey).clip(RoundedCornerShape(T.rPill)).background(if (pressed) p.tint else Color.Transparent)
             // Удержание — подсказка с названием кнопки: значки учатся без подписей.
-            .press(scaleTo = 0.9f, label = text, onLong = { ui.toast(text) }, onClick = onClick),
+            .press(scaleTo = 0.9f, label = text, onLong = { ui.toast(text) }, onClick = onClick)
+            // Нажатое состояние слышно и в TalkBack, а не только видно цветом.
+            .semantics { selected = pressed },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, if (pressed) Color.White else p.ink, T.barIcon)
+        Icon(icon, if (pressed) p.onTint else p.ink, T.barIcon)
     }
 }
 

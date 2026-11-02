@@ -155,7 +155,7 @@ private fun ProfileEditor(c: Controller, ui: Ui, p: Profile?) {
                 }
             }
         } else if (p.id == book.active && book.list.size > 1) {
-            Note("Открытый профиль не удаляется: сначала откройте другой.", androidx.compose.ui.Modifier.padding(top = T.gapS))
+            Note("Открытый профиль не удаляется: сначала — открыть другой.", androidx.compose.ui.Modifier.padding(top = T.gapS))
         }
     }
 }
