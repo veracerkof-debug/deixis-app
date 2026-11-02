@@ -109,8 +109,9 @@ class FileStore(private val dir: File, private val limitBytes: Long = 10L * 1024
         val keep = runCatching { protect() }.getOrDefault(emptySet()).map { it.lowercase() }.toSet()
         val files = dir.listFiles { f -> f.isFile && !f.name.endsWith(".part") && f.name !in keep && f.name !in writing }
             ?.sortedBy { it.lastModified() } ?: return
-        // Загрузки из браузера лежат во вложенной папке: их объём тоже считается.
-        var used = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        // Недокачанные загрузки из браузера (вложенная папка) не вытесняются, поэтому и в расчёт вытеснения
+        // не входят: иначе одна большая загрузка опустошала бы кэш. Их чистит своя очистка по времени.
+        var used = dir.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0
         for (f in files) {
             if (used + needed <= limitBytes) break
             used -= f.length()

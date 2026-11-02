@@ -44,7 +44,10 @@ fun androidx.activity.ComponentActivity.guardBackOnHall() {
     onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             val now = android.os.SystemClock.uptimeMillis()
-            if (now - last < BACK_TWICE_MS) { isEnabled = false; onBackPressedDispatcher.onBackPressed() } else last = now
+            if (now - last < BACK_TWICE_MS) {
+                // Окно уходит назад, а не закрывается (Android 12+): защита должна действовать и когда оно вернётся.
+                isEnabled = false; onBackPressedDispatcher.onBackPressed(); isEnabled = true; last = 0L
+            } else last = now
         }
     })
 }

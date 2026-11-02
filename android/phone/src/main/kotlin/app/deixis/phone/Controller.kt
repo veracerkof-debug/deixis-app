@@ -186,7 +186,8 @@ class Controller(private val app: Application) {
      */
     private fun editIn(profileId: String, change: (StoreData) -> StoreData) {
         if (profileId == profiles.value.active) edit(change)
-        else Store(app, profileStore.dirOf(profileId), profileStore.backupsOf(app, profileId)).update(change)
+        // Удалённый за это время профиль не воскрешается: его папка не создаётся заново.
+        else if (profiles.value.list.any { it.id == profileId }) bind(Store(app, profileStore.dirOf(profileId), profileStore.backupsOf(app, profileId))).update(change)
     }
 
     fun switchProfile(id: String) {

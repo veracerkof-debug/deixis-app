@@ -46,7 +46,7 @@ class ReceiverRuntime(
 ) {
     private val appContext = context.applicationContext
     val core: ReceiverCore
-    private var server: ReceiverServer
+    @Volatile private var server: ReceiverServer
 
     private val _pin: MutableStateFlow<String>
     val pin: StateFlow<String>
@@ -98,7 +98,7 @@ class ReceiverRuntime(
     suspend fun start() = withContext(Dispatchers.IO) {
         actualPort = try {
             server.start()
-        } catch (e: Exception) {
+        } catch (e: java.net.BindException) {
             // Порт занят (на ТВ стоят и Deixis TV, и универсальный Deixis): экран берёт свободный порт —
             // адрес в QR и в объявлении по сети всё равно берётся из фактического порта.
             if (port == 0) throw e

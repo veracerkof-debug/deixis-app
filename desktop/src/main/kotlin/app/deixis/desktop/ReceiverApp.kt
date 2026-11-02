@@ -227,8 +227,16 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             ScreenInfo(d.iDstring, b.x, b.y, m?.width?.takeIf { it > 0 } ?: b.width, m?.height?.takeIf { it > 0 } ?: b.height)
         }
         primaryId = runCatching { ge.defaultScreenDevice.iDstring }.getOrNull()
-        if (screens.size > 1) sawSeveralScreens = true
+        // Проектор пропал на миг (кабель, сон) — зал не переезжает на монитор пульта. Остался один монитор
+        // надолго (Win+P «Повторяющийся», работа без проектора) — он снова берёт зал, как при запуске с одним.
+        val now = System.currentTimeMillis()
+        if (screens.size > 1) { sawSeveralScreens = true; singleSince = 0L }
+        else if (sawSeveralScreens) {
+            if (singleSince == 0L) singleSince = now
+            else if (now - singleSince > SINGLE_TAKES_HALL_AFTER_MS) sawSeveralScreens = false
+        }
     }
+    @Volatile private var singleSince = 0L
 
     /** Был ли с запуска второй монитор: тогда пропажа проектора не переносит зал на монитор пульта. */
     @Volatile private var sawSeveralScreens = false
@@ -294,9 +302,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun startTimers() {
         // Мониторы подключают и отключают на ходу: окна следуют за ними.
         Timer(HOTPLUG_MS) {
-            val before = screens to primaryId
+            val before = Triple(screens, primaryId, sawSeveralScreens)
             refreshScreens()
-            if (before != screens to primaryId) reconcile()
+            if (before != Triple(screens, primaryId, sawSeveralScreens)) reconcile()
         }.start()
         Timer(VIDEO_REPORT_MS) { hallWindow()?.videoState()?.let { core.reportVideo(it) } }.start()
         // Обратный отсчёт: с долями секунды — 25 раз в секунду, иначе 4; окна перерисовываются, только когда меняется строка.
@@ -499,6 +507,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     companion object {
+        /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */
+        private const val SINGLE_TAKES_HALL_AFTER_MS = 15_000L
         /** Версия программы из метки выпуска (вшита при сборке). */
         val APP_VERSION: String = ReceiverApp::class.java.getResourceAsStream("/deixis-version.txt")?.use { it.readBytes().decodeToString().trim() } ?: "0.1.0"
         private const val WINDOWED_ID = "window"

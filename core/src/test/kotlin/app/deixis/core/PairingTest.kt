@@ -34,7 +34,7 @@ class PairingTest {
     fun attemptsAreLockedOutAfterFiveWrongPins() {
         var now = 1_000_000L
         val p = Pairing(MemoryTokenStore(), clock = { now })
-        repeat(5) { p.pair("0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
         // Даже верный PIN не принимается до конца паузы: перебор из сети упирается во время.
         assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x"))
         now += Pairing.LOCK_FIRST_MS + 1
@@ -45,9 +45,9 @@ class PairingTest {
     fun lockoutGrowsWithRepeatedBruteForce() {
         var now = 1_000_000L
         val p = Pairing(MemoryTokenStore(), clock = { now })
-        repeat(5) { p.pair("0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
         now += Pairing.LOCK_FIRST_MS + 1
-        repeat(5) { p.pair("0000", "x") }
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x") }
         now += Pairing.LOCK_FIRST_MS + 1
         assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x"), "вторая пауза вдвое дольше")
         now += Pairing.LOCK_FIRST_MS

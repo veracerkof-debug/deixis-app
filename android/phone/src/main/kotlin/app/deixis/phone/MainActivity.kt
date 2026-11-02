@@ -139,6 +139,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         (application as PhoneApp).remoteVisible = false
+        // Пульт уходит с экрана — несохранённое дописывается, пока процесс жив (в фоне, не задерживая выход).
+        Thread({ StoreWriter.flush() }, "deixis-flush").start()
         if (castView != null) (application as PhoneApp).controller.stopDiscovery()
         super.onStop()
     }
