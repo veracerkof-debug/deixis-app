@@ -10,6 +10,7 @@
     <application
         android:name=".DeixisTvApp"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:banner="@drawable/banner"
         android:icon="@drawable/ic_launcher"
         android:label="Deixis TV"
