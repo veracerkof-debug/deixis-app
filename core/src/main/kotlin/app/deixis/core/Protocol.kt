@@ -62,6 +62,14 @@ data class VideoCommand(
 @Serializable @SerialName("ping")
 data class Ping(val t: Long) : Msg
 
+/** Пульт оператора на этом компьютере: пустить или не пустить ждущее устройство. */
+@Serializable @SerialName("answer")
+data class ConnectAnswer(val id: String, val allow: Boolean) : Msg
+
+/** Пульт оператора на этом компьютере: отключить пульт [id] и забыть его. */
+@Serializable @SerialName("kick")
+data class Kick(val id: String) : Msg
+
 // Приёмник → источник
 
 @Serializable @SerialName("welcome")
@@ -79,6 +87,14 @@ data class Paired(val token: String) : Msg
 @Serializable @SerialName("denied")
 data class Denied(val reason: DenyReason) : Msg
 
+/** PIN верный, ждём «Разрешить» на пульте оператора. Старые пульты такое сообщение пропускают. */
+@Serializable @SerialName("awaiting")
+data class AwaitingApproval(val timeoutMs: Long) : Msg
+
+/** Пульту оператора на этом компьютере: кто подключён и кто ждёт подтверждения. */
+@Serializable @SerialName("peers")
+data class Peers(val state: PeersState) : Msg
+
 @Serializable @SerialName("status")
 data class Status(val state: ReceiverState) : Msg
 
@@ -93,6 +109,8 @@ enum class DenyReason {
     WRONG_PIN, TOO_MANY_ATTEMPTS, UNKNOWN_TOKEN, INCOMPATIBLE_VERSION,
     /** Только у пульта: по адресу экрана отвечает устройство с другим сертификатом (подмена или переустановка). */
     UNTRUSTED_SCREEN,
+    /** Оператор не пустил устройство (или не ответил за минуту). */
+    NOT_APPROVED,
 }
 
 /** Что показано на экране. */

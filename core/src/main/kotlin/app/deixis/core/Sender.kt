@@ -157,12 +157,13 @@ class SenderClient(
     private var outbox = Channel<Msg>(Channel.BUFFERED)
 
     /** Первое подключение: PIN с экрана приёмника. Возвращает токен для следующих подключений. */
-    suspend fun pair(pin: String): String {
+    /** [onAwaiting] — PIN верный, экран ждёт «Разрешить» у своего оператора (до минуты). */
+    suspend fun pair(pin: String, onAwaiting: () -> Unit = {}): String {
         // Шифрованный вход экрана — до PIN: тогда PIN и токен не видны в сети.
         if (!secure) runCatching { info() }.getOrNull()?.let(::adopt)
         var result: Result<String>? = null
         try {
-            pairSession(pin) { result = it }
+            pairSession(pin, onAwaiting) { result = it }
         } catch (e: Exception) {
             if (e.isUntrusted()) throw PairingException(DenyReason.UNTRUSTED_SCREEN)
             throw e
@@ -172,11 +173,14 @@ class SenderClient(
         return t
     }
 
-    private suspend fun pairSession(pin: String, done: (Result<String>) -> Unit) {
+    private suspend fun pairSession(pin: String, onAwaiting: () -> Unit, done: (Result<String>) -> Unit) {
         http.webSocket(urlString = "${wsBase()}/ws") {
             send(Frame.Text(PairRequest(PROTOCOL_VERSION, senderName, pin).encode()))
+            suspend fun next(ms: Long) = withTimeoutOrNull(ms) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }
             // Без ответа за 10 с — обычная ошибка связи, а не отмена (иначе её проглотил бы обработчик отмены выше).
-            val reply = withTimeoutOrNull(10_000) { (incoming.receiveCatching().getOrNull() as? Frame.Text)?.readText()?.let(::decodeMsg) }
+            var reply = next(10_000)
+            // Экран ждёт решения оператора: ответ придёт, когда тот нажмёт «Разрешить» или «Отклонить».
+            if (reply is AwaitingApproval) { onAwaiting(); reply = next(reply.timeoutMs + 10_000) }
             done(when (reply) {
                 is Paired -> Result.success(reply.token)
                 is Denied -> Result.failure(PairingException(reply.reason))

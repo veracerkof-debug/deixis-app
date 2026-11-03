@@ -12,7 +12,6 @@ import java.awt.SystemTray
 import java.awt.Toolkit
 import java.awt.TrayIcon
 import java.awt.datatransfer.StringSelection
-import java.awt.image.BufferedImage
 import java.io.File
 import java.net.URI
 
@@ -158,8 +157,10 @@ class Tray private constructor(private val actions: TrayActions, private val ico
             if (!SystemTray.isSupported()) return null
             return try {
                 val tray = SystemTray.getSystemTray()
-                val icon = TrayIcon(iconImage(tray.trayIconSize.height.coerceAtLeast(16)), "Deixis")
-                icon.isImageAutoSize = true
+                // Значок рисуется ровно под размер трея: растягивание системой давало рваные края.
+                val size = tray.trayIconSize
+                val icon = TrayIcon(AppIcon.trayImage(minOf(size.width, size.height).coerceAtLeast(16)), "Deixis")
+                icon.isImageAutoSize = false
                 Tray(actions, icon).also { tray.add(icon) }
             } catch (_: Exception) {
                 null
@@ -167,6 +168,5 @@ class Tray private constructor(private val actions: TrayActions, private val ico
         }
 
         /** Значок — тот же, что у приложения на телефоне и у установщика (AppIcon). */
-        private fun iconImage(size: Int): BufferedImage = AppIcon.image(size) ?: BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
     }
 }

@@ -116,6 +116,13 @@ class ReceiverCore(
     /** Вернуть зал из «Уйти с экранов»: показ остаётся тем же. */
     fun returnToScreens() = _state.update { if (it.mode == Mode.AWAY) it.copy(mode = Mode.NORMAL) else it }
 
+    /** Кто подключён и кто ждёт подтверждения оператора. */
+    val peers = PeerDesk()
+
+    /** Ссылка для QR сопряжения с этим экраном (адрес в сети, порт, PIN); null — платформа её не даёт. */
+    @Volatile
+    var pairingUri: (() -> String?)? = null
+
     /** Приём AirPlay с iPhone, iPad и Mac; null — не поддерживается этой сборкой (Google Play) или устройством. */
     @Volatile
     var airPlay: app.deixis.core.airplay.AirPlayHost? = null
@@ -222,6 +229,10 @@ fun newViewKey(): String {
 
 /** Сетевой сервер приёмника: WebSocket для команд, HTTP для файлов и страница для зрителей. */
 /** [host] = "127.0.0.1" — только для этого устройства (вывод по кабелю с телефона), иначе вся локальная сеть. */
+/** PIN и ссылка для QR сопряжения; [approval] — новые устройства ждут «Разрешить» на пульте оператора. */
+@kotlinx.serialization.Serializable
+data class PairingInfo(val pin: String, val uri: String?, val approval: Boolean)
+
 /** Шифрованный вход приёмника: порт и отпечаток сертификата. */
 data class TlsEndpoint(val port: Int, val fingerprint: String)
 
@@ -310,6 +321,13 @@ class ReceiverServer(
                         if (localSessions.get() == 0) core.onOperatorClosed?.invoke(otherSessions.get() > 0)
                     }
                     call.respondText("", status = HttpStatusCode.NoContent)
+                }
+                // QR и PIN для нового телефона — на пульте оператора, когда в зале их уже не видно.
+                get("/api/pairing") {
+                    if (!call.authorized()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
+                    val body = DeixisJson.encodeToString(PairingInfo.serializer(), PairingInfo(core.pairing.pin, core.pairingUri?.invoke(), core.peers.approvalNeeded))
+                    call.response.header("Cache-Control", "no-store")
+                    call.respondText(body, ContentType.Application.Json)
                 }
                 // Второй запуск Deixis на этом компьютере передаёт управление уже работающему.
                 post("/api/activate") {
@@ -425,6 +443,7 @@ class ReceiverServer(
         } finally {
             waiting.decrementAndGet()
         }
+        var pairedToken: String? = null
         val ok = when (first) {
             is Hello -> when {
                 first.version != PROTOCOL_VERSION -> deny(DenyReason.INCOMPATIBLE_VERSION)
@@ -434,7 +453,8 @@ class ReceiverServer(
             is PairRequest -> when {
                 first.version != PROTOCOL_VERSION -> deny(DenyReason.INCOMPATIBLE_VERSION)
                 else -> when (val r = core.pairing.pair(first.pin, first.sender, call.clientAddress(), call.secure())) {
-                    is Pairing.Result.Ok -> { send(Frame.Text(Paired(r.token).encode())); true }
+                    is Pairing.Result.Ok -> if (approved(first.sender)) { pairedToken = r.token; send(Frame.Text(Paired(r.token).encode())); true }
+                        else { core.pairing.forget(r.token); deny(DenyReason.NOT_APPROVED) }
                     is Pairing.Result.Denied -> deny(r.reason)
                 }
             }
@@ -442,6 +462,28 @@ class ReceiverServer(
         }
         if (!ok) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
         maxFrameSize = SESSION_FRAME_BYTES
+        val here = call.request.local.remoteAddress in LOOPBACK && !call.secure()
+        val token = (first as? Hello)?.token ?: pairedToken
+        val sender = (first as? Hello)?.sender ?: (first as? PairRequest)?.sender ?: ""
+        val peerId = core.peers.joined(sender, if (here) "" else call.clientAddress(), here, token) {
+            launch { close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "kicked")) }
+        }
+        try {
+            serve(ws, here)
+        } finally {
+            core.peers.left(peerId)
+        }
+    }
+
+    /** Новое устройство с верным PIN: если открыт пульт оператора на этом компьютере, решает он. */
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.approved(sender: String): Boolean {
+        val here = call.request.local.remoteAddress in LOOPBACK && !call.secure()
+        if (here || !core.peers.approvalNeeded) return true
+        send(Frame.Text(AwaitingApproval(PeerDesk.APPROVAL_TIMEOUT_MS).encode()))
+        return core.peers.ask(sender, call.clientAddress()) != false
+    }
+
+    private suspend fun serve(ws: io.ktor.server.websocket.DefaultWebSocketServerSession, here: Boolean) = with(ws) {
 
         // Подписка — до приветствия, и состояние в приветствии — то же, что первое в подписке. Иначе
         // команда, пришедшая сразу после входа (переподключение шлёт слайд мгновенно), меняла экран
@@ -457,17 +499,26 @@ class ReceiverServer(
         }
         send(Frame.Text(Welcome(PROTOCOL_VERSION, core.publicInfo(), welcomeState ?: core.state.value, core.viewKey).encode()))
         welcomed.complete(Unit)
+        // Пульт оператора на этом компьютере видит, кто подключён, и решает, кого пустить.
+        val peersFeed = if (here) {
+            core.peers.approverJoined()
+            launch { core.peers.state.collect { send(Frame.Text(Peers(it).encode())) } }
+        } else null
         try {
             for (frame in incoming) {
                 if (frame !is Frame.Text) continue
                 when (val msg = decodeMsg(frame.readText())) {
                     null -> Unit
                     is Ping -> send(Frame.Text(Pong(msg.t).encode()))
+                    // Решать, кого пустить и кого отключить, может только пульт на самом компьютере.
+                    is ConnectAnswer -> if (here) core.peers.answer(msg.id, msg.allow)
+                    is Kick -> if (here) core.peers.kick(msg.id) { core.pairing.forget(it) }
                     else -> core.apply(msg)?.let { send(Frame.Text(it.encode())) }
                 }
             }
         } finally {
             updates.cancel()
+            peersFeed?.let { it.cancel(); core.peers.approverLeft() }
         }
     }
 

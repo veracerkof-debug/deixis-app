@@ -877,6 +877,8 @@ object L {
     fun profileNamed(name: Any?): String = t("Профиль «$name»", "«$name» profili", "Profile “$name”")
     fun profileN(n: Any?): String = t("Профиль $n", "Profil $n", "Profile $n")
     fun profilesSub(n: Any?): String = t("Своя библиотека и вид · профилей: $n", "O‘z kutubxonasi va ko‘rinishi · profillar: $n", "Own library and look · profiles: $n")
+    fun waitApproval(name: Any?): String = t("PIN верный. Ждём «Разрешить» на пульте экрана «$name»", "PIN to‘g‘ri. «$name» ekrani pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on the remote of “$name”")
+    fun notApproved(name: Any?): String = t("Экран «$name» не разрешил подключение", "«$name» ekrani ulanishga ruxsat bermadi", "Screen “$name” did not allow the connection")
     fun screenConnected(name: Any?): String = t("Подключён экран «$name»", "«$name» ekrani ulangan", "Screen “$name” connected")
     fun screensConnected(n: Any?): String = t("Подключено экранов: $n", "Ulangan ekranlar: $n", "Screens connected: $n")
     fun connectedTo(name: Any?): String = t("$name: подключено", "$name: ulandi", "$name: connected")

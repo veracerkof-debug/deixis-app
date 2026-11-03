@@ -166,6 +166,7 @@ class ScreenRelay(
                     DenyReason.INCOMPATIBLE_VERSION -> "На экране другая версия Deixis"
                     DenyReason.UNKNOWN_TOKEN -> "Экран не принял подключение"
                     DenyReason.UNTRUSTED_SCREEN -> "По этому адресу отвечает другое устройство, а не этот экран"
+                    DenyReason.NOT_APPROVED -> "Экран не разрешил подключение"
                 }, needPin = true)
             } catch (e: CancellationException) {
                 throw e

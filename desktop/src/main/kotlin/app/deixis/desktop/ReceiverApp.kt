@@ -162,6 +162,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (activateRunning()) { println("Deixis уже запущен: зал возвращён, пульт открыт"); opts.exit(0); return }
             throw e
         }
+        core.pairingUri = { address?.let { PairingCode(it.hostAddress, port, core.pairing.pin, core.info.id, core.info.name, core.tls?.port ?: 0, core.tls?.fingerprint.orEmpty()).toUri() } }
         core.onActivate = {
             core.returnToScreens()
             openOperator()

@@ -471,15 +471,22 @@ class Controller(private val app: Application) {
      */
     private fun client(t: Target): SenderClient {
         val k = key(t)
-        val c = SenderClient(t.host, t.port, deviceName, scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
+        val c = SenderClient(t.host, t.port, senderName(), scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
         c.onPinned = { tp, fp -> prefs.edit().putInt("$k.tp", tp).putString("$k.fp", fp).apply() }
         return c
+    }
+
+    /** Как экран видит этот телефон: имя профиля и устройство («Алексей · Redmi 9T»). */
+    private fun senderName(): String {
+        val p = profiles.value.let { ps -> ps.list.firstOrNull { it.id == ps.active } }
+        return listOfNotNull(p?.name?.trim()?.takeIf { it.isNotEmpty() }, deviceName).joinToString(" · ")
     }
 
     fun pair(t: Target, pin: String) = scope.launch {
         val c = client(t)
         try {
-            val token = c.pair(pin.trim())
+            // Экран с открытым пультом оператора пускает только после «Разрешить» на нём: сказать об этом сразу.
+            val token = c.pair(pin.trim()) { scope.launch { messages.emit(L.waitApproval(t.name)) } }
             prefs.edit().putString(key(t), token).apply()
             needPin.value = null
             open(t, token)
@@ -492,6 +499,7 @@ class Controller(private val app: Application) {
                     DenyReason.INCOMPATIBLE_VERSION -> L.oldVersion
                     DenyReason.UNKNOWN_TOKEN -> L.unknownToken
                     DenyReason.UNTRUSTED_SCREEN -> L.untrustedScreen(t.name)
+                    DenyReason.NOT_APPROVED -> L.notApproved(t.name)
                 },
             )
         } catch (e: Exception) {
@@ -518,7 +526,7 @@ class Controller(private val app: Application) {
         // Сначала спросить экран, кто он: тот же экран, найденный в сети, останется одним устройством,
         // с настоящим именем и тем же сопряжением. Экран старой версии или без ответа — по адресу.
         scope.launch {
-            val probe = SenderClient(host, port, deviceName, scope)
+            val probe = SenderClient(host, port, senderName(), scope)
             val info = try { probe.info() } catch (e: Exception) { null } finally { probe.close() }
             val t = if (info != null) Target(info.id, info.name, host, port, Target.Kind.MANUAL, info.platform)
             else Target("$host:$port", host, host, port, Target.Kind.MANUAL)

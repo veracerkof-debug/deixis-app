@@ -95,6 +95,7 @@ class ReceiverRuntime(
         core.conversions = app.deixis.core.Conversions(core, PptxPdf.converter(appContext), File(dataDir, "convert"))
         // AirPlay — в сборках с GitHub и F-Droid; в сборке для Google Play его нет (DECISIONS.md, NOTICE).
         if (BuildConfig.AIRPLAY && !loopbackOnly) core.airPlay = app.deixis.core.airplay.AirPlayHost(core, dataDir) { advertised }
+        core.pairingUri = ::pairingUri
         core.pageCounter = { f ->
             android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
         }

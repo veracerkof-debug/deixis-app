@@ -459,6 +459,20 @@ const TR = {
   blackNow: ["Чёрный экран", "Qora ekran", "Black screen"],
   awayNow: ["Deixis ушёл с экранов", "Deixis ekranlardan chiqdi", "Deixis left the screens"],
   away: ["Уйти", "Chiqish", "Leave"],
+  connectPhone: ["Подключить телефон", "Telefonni ulash", "Connect a phone"],
+  connectPhoneHint: ["Камерой телефона — QR-код, или PIN в приложении Deixis. Новое устройство войдёт после «Разрешить» здесь.", "Telefon kamerasi bilan QR-kod yoki Deixis ilovasida PIN. Yangi qurilma bu yerda «Ruxsat berish»dan keyin kiradi.", "Scan the QR code with the phone camera, or enter the PIN in the Deixis app. A new device gets in after “Allow” here."],
+  onLink: ["На связи", "Aloqada", "Connected"],
+  thisComputer: ["этот компьютер", "shu kompyuter", "this computer"],
+  sinceTime: ["с {0}", "{0} dan", "since {0}"],
+  kick: ["Отключить", "Uzish", "Disconnect"],
+  kickedNote: ["Отключённое устройство забыто: вернуться оно сможет только по PIN и с вашего разрешения.", "Uzilgan qurilma unutiladi: u faqat PIN va sizning ruxsatingiz bilan qayta kira oladi.", "A disconnected device is forgotten: it can come back only with the PIN and your permission."],
+  newConnect: ["Новое подключение", "Yangi ulanish", "New connection"],
+  newConnectAsk: ["Ввели верный PIN. Пустить к показу?", "To‘g‘ri PIN kiritildi. Ko‘rsatuvga kiritilsinmi?", "The correct PIN was entered. Let it control the show?"],
+  allow: ["Разрешить", "Ruxsat berish", "Allow"],
+  reject: ["Не пускать", "Kiritmaslik", "Don’t allow"],
+  moreWaiting: ["Ещё ждут: {0}", "Yana kutmoqda: {0}", "Also waiting: {0}"],
+  waitApproval: ["PIN верный. Ждём «Разрешить» на пульте экрана", "PIN to‘g‘ri. Ekran pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on the screen’s remote"],
+  notApproved: ["Экран не разрешил подключение", "Ekran ulanishga ruxsat bermadi", "The screen did not allow the connection"],
   backToScreens: ["Вернуться на экраны", "Ekranlarga qaytish", "Back to the screens"],
   awayLong: ["Уйти с экранов: на них снова то, что было до Deixis", "Ekranlardan chiqish: ularda Deixisdan oldingi narsa", "Leave the screens: they show what was there before Deixis"],
   logoNow: ["Логотип", "Logotip", "Logo"],
@@ -937,6 +951,8 @@ function connect(pin) {
       if (first) started();
     }
     else if (m.type === "status") onState(m.state);
+    else if (m.type === "peers") onPeers(m.state);
+    else if (m.type === "awaiting") toast(t.waitApproval);
     else if (m.type === "error") toast(m.message);
     else if (m.type === "denied") denied(m.reason);
   };
@@ -1010,7 +1026,7 @@ const startPin = qrPin || "";
 // Устаревший PIN в адресе при каждом обновлении страницы снова считался бы неверной попыткой.
 function dropPinFromUrl() { if (params.has("pin")) { params.delete("pin"); history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash); } }
 function denied(reason) {
-  const msg = { WRONG_PIN: t.wrongPin, TOO_MANY_ATTEMPTS: t.tooMany, INCOMPATIBLE_VERSION: t.oldVersion, UNKNOWN_TOKEN: t.forgot }[reason] || t.failed;
+  const msg = { WRONG_PIN: t.wrongPin, TOO_MANY_ATTEMPTS: t.tooMany, INCOMPATIBLE_VERSION: t.oldVersion, UNKNOWN_TOKEN: t.forgot, NOT_APPROVED: t.notApproved }[reason] || t.failed;
   // Неверный PIN и пауза после попыток к сохранённому сопряжению отношения не имеют: его стирает только «не знаю такого».
   if (reason === "UNKNOWN_TOKEN") {
     token = null; store.set("token", null);
@@ -1585,6 +1601,55 @@ async function loadOutputs() {
     if (e.status === 501 || e.status === 404) { S.outputs = null; render(); }
   }
 }
+// ——— Подключения: кто на связи, кто ждёт «Разрешить» (только у пульта на самом компьютере) ———
+let approving = null;
+function onPeers(p) {
+  S.peers = p;
+  const req = p.requests[0];
+  if (req && approving !== req.id) sheetApprove(req);
+  else if (approving && !p.requests.some((r) => r.id === approving)) { approving = null; if (SHEET && SHEET.title === t.newConnect) closeSheet(); }
+  else if (approving && SHEET && SHEET.title === t.newConnect) refreshSheet();
+  if (S.tab === "devices") render();
+  if (req && document.hidden) try { document.title = "● " + t.newConnect; } catch (e) {}
+  if (!req) try { document.title = "Deixis"; } catch (e) {}
+}
+function sheetApprove(req) {
+  openSheet(t.newConnect, () => {
+    const more = S.peers ? S.peers.requests.length - 1 : 0;
+    return `<div class="row"><span class="kind">${ico("phone")}</span><span class="main"><div class="t">${esc(req.sender || t.browser)}</div><div class="s mono">${esc(req.address)}</div></span></div>
+      <p class="note">${esc(t.newConnectAsk)}${more > 0 ? " " + esc(tf("moreWaiting", more)) : ""}</p>
+      <button class="btn tint" data-act="peerok" data-id="${esc(req.id)}">${esc(t.allow)}</button><div class="gap"></div>
+      <button class="btn" data-act="peerno" data-id="${esc(req.id)}">${esc(t.reject)}</button>`;
+  }, { onClose: () => { approving = null; } });
+  approving = req.id; // после openSheet: закрытие прежней шторки сбрасывает approving
+}
+function answerPeer(id, allow) {
+  send({ type: "answer", id, allow });
+  approving = null;
+  closeSheet();
+}
+async function loadPairing() {
+  if (S.pairing === false) return;
+  try { S.pairing = await getJson("/api/pairing"); if (S.tab === "devices") render(); }
+  catch (e) { if (e.status === 404 || e.status === 501) S.pairing = false; }
+}
+function peersHTML() {
+  const p = S.pairing;
+  const conn = (S.peers && S.peers.connected) || [];
+  let out = "";
+  if (p) {
+    out += `<div class="ghead">${esc(t.connectPhone)}</div><div class="group"><div class="room">${p.uri ? qrImg(p.uri) : ""}
+      <div style="min-width:0"><div class="s">PIN</div><div class="big mono">${esc(p.pin)}</div><div class="s wrap">${esc(t.connectPhoneHint)}</div></div></div></div>`;
+  }
+  if (S.peers) {
+    out += `<div class="ghead">${esc(t.onLink)}</div><div class="group">${conn.map((c) => `<div class="row"><span class="kind">${ico(c.here ? "laptop" : "phone")}</span>
+      <span class="main"><div class="t">${esc(c.sender || t.browser)}</div><div class="s">${esc(c.here ? t.thisComputer : c.address)} · ${esc(tf("sinceTime", new Date(c.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })))}</div></span>
+      ${c.here ? "" : `<button class="pill" data-act="peerkick" data-id="${esc(c.id)}">${esc(t.kick)}</button>`}</div>`).join("")}</div>
+      <p class="note">${esc(t.kickedNote)}</p>`;
+  }
+  return out;
+}
+
 // ——— Приём AirPlay на этом экране (/api/airplay; 501 — сборка без AirPlay) ———
 async function loadAirPlay() {
   if (S.airPlay === null) return;
@@ -1597,7 +1662,7 @@ async function setAirPlay(on) {
 }
 function pollOutputs() {
   clearInterval(outputsTimer);
-  outputsTimer = setInterval(() => { if (online && S.tab === "devices" && document.visibilityState === "visible") loadOutputs(); }, 3000);
+  outputsTimer = setInterval(() => { if (online && S.tab === "devices" && document.visibilityState === "visible") { loadOutputs(); loadPairing(); } }, 3000);
 }
 async function setMonitor(id, enabled, layout) {
   try { S.outputs = await postJson("/api/outputs/monitor", { id, enabled, layout }); render(); } catch (e) { toast(e.message || t.failed); }
@@ -2068,6 +2133,7 @@ function renderDevices() {
       <div class="row"><span class="kind">${ico("show")}</span><span class="main"><div class="t">${esc(liveName())}</div><div class="s">${r.screenWidth ? `${r.screenWidth}×${r.screenHeight}` : ""}${c ? (r.screenWidth ? " · " : "") + esc(typeName(c.type === "image" ? "photo" : c.type === "pdf" ? "file" : c.type === "scripture" ? "bible" : c.type)) : ""}</div></span></div>
       ${/Android/.test(navigator.userAgent) ? `<button class="row" data-act="app"><span class="kind">${ico("phone")}</span><span class="main t">${esc(t.openApp)}</span><span class="chev">${ico("chev")}</span></button>` : ""}
       <button class="row" data-act="unpair"><span class="kind">${ico("close")}</span><span class="main t">${esc(t.forgetScreen)}</span></button></div>
+    ${peersHTML()}
     <div class="ghead">${esc(t.viewers)}</div><div class="group">${vu ? `<div class="room">${qrImg(vu)}
       <div style="min-width:0"><div class="s">${esc(t.watchingNow)}</div><div class="big" id="vcount2">${(state && state.viewers) || 0}</div>
       <div class="s wrap">${esc(t.viewersHint)}</div></div></div>
@@ -2602,7 +2668,7 @@ const A = {
   byname: () => { const a = altUrl(); if (a) location.href = a; },
   unpair: () => { closeSheet(); A.forget(); everOnline = false; receiver = null; renderPair(); },
   app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(startPin)}`; },
-  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") { loadOutputs(); loadAirPlay(); } render(); },
+  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") { loadOutputs(); loadAirPlay(); loadPairing(); } render(); },
   lseg: (d) => { S.listSeg = d.v; render(); },
   preLive: () => preToLive(),
   step: (d) => step(+d.d),
@@ -2776,6 +2842,9 @@ const A = {
   mon: (d) => { const m = S.outputs.monitors.find((x) => x.id === d.id); if (m) setMonitor(m.id, !m.enabled, m.layout); },
   monlayout: (d) => setMonitor(d.id, true, d.v),
   airplay: () => setAirPlay(!S.airPlay),
+  peerok: (d) => answerPeer(d.id, true),
+  peerno: (d) => answerPeer(d.id, false),
+  peerkick: (d) => { send({ type: "kick", id: d.id }); toast(t.kick); },
   link: (d) => linkOutput(d.id),
   linkgo: (d) => { const pin = $("#lpin").value.trim(); if (!/^\d{4}$/.test(pin)) return toast(t.pin4); linkOutput(d.id, pin); },
   unlink: (d) => unlinkOutput(d.id),
@@ -2919,6 +2988,7 @@ function started() {
   if (settings.church) loadModules();
   loadOutputs();
   loadAirPlay();
+  loadPairing();
   pollOutputs();
   keepAwake();
   restoreLive();
