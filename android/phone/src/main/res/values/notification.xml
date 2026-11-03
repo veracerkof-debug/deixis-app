@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Токены уведомления «Показ»: знак Deixis — белая Δ на чёрном, акцент — бронза темы (Theme.kt, Accent.BRONZE). -->
+<resources>
+    <color name="n_tile">#000000</color>
+    <color name="n_on_tile">#FFFFFF</color>
+    <color name="n_accent">#BC9361</color>
+    <dimen name="n_tile">40dp</dimen>
+    <dimen name="n_btn_h">40dp</dimen>
+    <dimen name="n_btn_big_h">56dp</dimen>
+    <dimen name="n_icon">22dp</dimen>
+    <dimen name="n_radius">12dp</dimen>
+    <dimen name="n_gap">4dp</dimen>
+    <dimen name="n_gap_l">10dp</dimen>
+    <dimen name="n_label">11sp</dimen>
+</resources>

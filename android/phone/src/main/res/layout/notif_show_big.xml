@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Уведомление «Показ», развёрнутое: знак Deixis, экран и что в зале, кнопки пульта с подписями. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+        <ImageView android:layout_width="@dimen/n_tile" android:layout_height="@dimen/n_tile" android:src="@drawable/n_mark" android:importantForAccessibility="no" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap_l" android:orientation="vertical">
+            <TextView android:id="@+id/n_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" />
+            <TextView android:id="@+id/n_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textAppearance="@android:style/TextAppearance.Material.Notification" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/n_gap_l" android:orientation="horizontal">
+        <LinearLayout android:id="@+id/nb_prev" android:layout_width="0dp" android:layout_height="@dimen/n_btn_big_h" android:layout_weight="1"
+            android:background="@drawable/n_btn" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:src="@drawable/n_prev" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/nb_prev_t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textColor="@color/n_on_tile" android:textSize="@dimen/n_label" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/nb_next" android:layout_width="0dp" android:layout_height="@dimen/n_btn_big_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+            android:background="@drawable/n_btn" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:src="@drawable/n_next" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/nb_next_t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textColor="@color/n_on_tile" android:textSize="@dimen/n_label" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/nb_black" android:layout_width="0dp" android:layout_height="@dimen/n_btn_big_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+            android:background="@drawable/n_btn" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:src="@drawable/n_black" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/nb_black_t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textColor="@color/n_on_tile" android:textSize="@dimen/n_label" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/nb_logo" android:layout_width="0dp" android:layout_height="@dimen/n_btn_big_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+            android:background="@drawable/n_btn" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:src="@drawable/n_logo" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/nb_logo_t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textColor="@color/n_on_tile" android:textSize="@dimen/n_label" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/nb_away" android:layout_width="0dp" android:layout_height="@dimen/n_btn_big_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+            android:background="@drawable/n_btn" android:gravity="center" android:orientation="vertical">
+            <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:src="@drawable/n_away" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/nb_away_t" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+                android:textColor="@color/n_on_tile" android:textSize="@dimen/n_label" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

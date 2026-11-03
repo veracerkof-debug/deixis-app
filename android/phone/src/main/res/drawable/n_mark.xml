@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Знак Deixis на чёрной плитке уведомления: тот же Δ, что в ic_launcher, со скруглёнными углами. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp" android:height="40dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="@color/n_tile" android:pathData="M28,0h52a28,28 0 0 1 28,28v52a28,28 0 0 1 -28,28h-52a28,28 0 0 1 -28,-28v-52a28,28 0 0 1 28,-28z" />
+    <path android:fillColor="@color/n_on_tile" android:fillType="evenOdd" android:pathData="M54,26 L80,80 L28,80 Z M54,38 L37,74 L71,74 Z" />
+</vector>

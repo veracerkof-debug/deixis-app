@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Уведомление «Показ», свёрнутое: пять кнопок пульта. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+    <FrameLayout android:id="@+id/n_prev" android:layout_width="0dp" android:layout_height="@dimen/n_btn_h" android:layout_weight="1"
+        android:background="@drawable/n_btn">
+        <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:layout_gravity="center" android:src="@drawable/n_prev" android:importantForAccessibility="no" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/n_next" android:layout_width="0dp" android:layout_height="@dimen/n_btn_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+        android:background="@drawable/n_btn">
+        <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:layout_gravity="center" android:src="@drawable/n_next" android:importantForAccessibility="no" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/n_black" android:layout_width="0dp" android:layout_height="@dimen/n_btn_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+        android:background="@drawable/n_btn">
+        <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:layout_gravity="center" android:src="@drawable/n_black" android:importantForAccessibility="no" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/n_logo" android:layout_width="0dp" android:layout_height="@dimen/n_btn_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+        android:background="@drawable/n_btn">
+        <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:layout_gravity="center" android:src="@drawable/n_logo" android:importantForAccessibility="no" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/n_away" android:layout_width="0dp" android:layout_height="@dimen/n_btn_h" android:layout_weight="1" android:layout_marginStart="@dimen/n_gap"
+        android:background="@drawable/n_btn">
+        <ImageView android:layout_width="@dimen/n_icon" android:layout_height="@dimen/n_icon" android:layout_gravity="center" android:src="@drawable/n_away" android:importantForAccessibility="no" />
+    </FrameLayout>
+</LinearLayout>

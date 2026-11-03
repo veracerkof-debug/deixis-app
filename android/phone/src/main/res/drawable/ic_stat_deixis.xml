@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок в строке состояния: знак Deixis Δ (как в ic_launcher), одним цветом. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="@color/n_on_tile" android:fillType="evenOdd" android:pathData="M54,18 L90,92 L18,92 Z M54,36 L33,82 L75,82 Z" />
+</vector>

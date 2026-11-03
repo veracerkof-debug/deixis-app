@@ -164,6 +164,7 @@ object L {
     val cleared: String get() = t("Очищено", "Tozalandi", "Cleared")
     val clear: String get() = t("Очистить", "Tozalash", "Clear")
     val awayNow: String get() = t("Deixis ушёл с экранов", "Deixis ekranlardan chiqdi", "Deixis left the screens")
+    val away: String get() = t("Уйти", "Chiqish", "Leave")
     val awayLong: String get() = t("Уйти с экранов", "Ekranlardan chiqish", "Leave the screens")
     val awayBack: String get() = t("Deixis снова на экранах", "Deixis yana ekranlarda", "Deixis is back on the screens")
     val awayToast: String get() = t("Deixis ушёл с экранов: любой показ вернёт его", "Deixis ekranlardan chiqdi: istalgan ko‘rsatish uni qaytaradi", "Deixis left the screens: anything shown brings it back")
