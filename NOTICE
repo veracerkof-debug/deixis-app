@@ -54,3 +54,26 @@ That FFmpeg build is configured with --enable-version3 and without --enable-gpl 
 --enable-nonfree, so it is licensed under the GNU LGPL version 3 or later. Source code:
 https://ffmpeg.org and the javacpp-presets repository. It decodes the phone's screen
 broadcast with low latency (the same approach as scrcpy; no scrcpy code is used).
+
+
+AirPlay receiver (rewritten from UxPlay)
+
+core/src/main/kotlin/app/deixis/core/airplay/ is a Kotlin rewrite of the AirPlay mirroring
+receiver in UxPlay (https://github.com/FDH2/UxPlay), which is licensed under the GNU GPL
+version 3. The protocol handling, pairing, stream decryption and FairPlay key exchange follow
+these UxPlay files:
+  lib/raop.c, lib/raop_handlers.h, lib/raop_rtp_mirror.c, lib/mirror_buffer.c, lib/raop_ntp.c,
+  lib/pairing.c, lib/dns_sd/dns_sd.c, lib/dnssdint.h, lib/global.h, lib/fairplay_playfair.c
+    UxPlay: Copyright (C) F. Duncanh and the UxPlay contributors (GPL-3.0)
+    RPiPlay: Copyright (C) 2019 dsafa22, Florian Draschbacher (LGPL-2.1-or-later)
+    shairplay: Copyright (C) 2011-2012, 2018 Juho Vähä-Herttua (LGPL-2.1-or-later)
+    Jaslo Ziska, 2020 (LGPL-2.1-or-later)
+  lib/playfair/*.c (FairPlay "playfair" module, by EstebanKubata; GPL-3.0)
+    -> FairPlay.kt and FairPlayTables.kt; the constant tables are data taken from playfair,
+       verified against the unmodified C code by FairPlayTest.
+All these licences are compatible with GPL-3.0-or-later. The rewrite is not part of the
+Google Play build (gradle property deixis.store=play turns it off). AirPlay, iPhone, iPad and
+Mac are trademarks of Apple Inc.; Deixis is not affiliated with or endorsed by Apple.
+
+Bouncy Castle (org.bouncycastle:bcprov-jdk18on, MIT-style Bouncy Castle Licence) provides
+Ed25519 and X25519 for AirPlay pairing.

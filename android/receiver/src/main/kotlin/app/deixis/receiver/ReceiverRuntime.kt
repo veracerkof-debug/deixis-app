@@ -93,6 +93,8 @@ class ReceiverRuntime(
         // Для веб-пульта (iPhone): модули Библии хранятся на ТВ, страницы PDF считаются здесь.
         core.bible = app.deixis.core.BibleStore(File(dataDir, "bible")) { AndroidSql(it) }
         core.conversions = app.deixis.core.Conversions(core, PptxPdf.converter(appContext), File(dataDir, "convert"))
+        // AirPlay — в сборках с GitHub и F-Droid; в сборке для Google Play его нет (DECISIONS.md, NOTICE).
+        if (BuildConfig.AIRPLAY && !loopbackOnly) core.airPlay = app.deixis.core.airplay.AirPlayHost(core, dataDir) { advertised }
         core.pageCounter = { f ->
             android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
         }
@@ -168,6 +170,8 @@ class ReceiverRuntime(
             ?.createMulticastLock("deixis")?.apply { setReferenceCounted(false) }?.also { multicastLock = it }
         runCatching { lock?.acquire() }
         advertisement = runCatching { Discovery.advertise(core.publicInfo(), actualPort, addr) }.getOrNull()
+        // AirPlay объявляет себя на новом адресе: iPhone найдёт экран и после смены сети.
+        core.airPlay?.let { ap -> ap.close(); ap.start() }
     }
 
     /** Адрес из ConnectivityManager (Wi-Fi или провод, без VPN), иначе — перебор интерфейсов. */
@@ -203,6 +207,7 @@ class ReceiverRuntime(
         }
         runCatching { wifiLock?.release() }
         wifiLock = null
+        runCatching { core.airPlay?.close() }
         runCatching { server.stop() }
     }
 

@@ -385,6 +385,19 @@ class SenderClient(
         return DeixisJson.decodeFromString(UpdateState.serializer(), r.bodyAsText())
     }
 
+    /** Приём AirPlay на экране: без [enabled] — состояние, с ним — включить или выключить. null — экран без AirPlay. */
+    suspend fun airPlay(enabled: Boolean? = null): Boolean? {
+        val t = token ?: return null
+        val url = "${base()}/api/airplay"
+        val r = if (enabled == null) http.get(url) { header("Authorization", "Bearer $t") }
+        else http.post(url) {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(app.deixis.core.airplay.AirPlayState.serializer(), app.deixis.core.airplay.AirPlayState(enabled)))
+        }
+        if (r.status != HttpStatusCode.OK) return null
+        return DeixisJson.decodeFromString(app.deixis.core.airplay.AirPlayState.serializer(), r.bodyAsText()).enabled
+    }
+
     /** Сколько файла уже на экране: целиком, частью (передача оборвалась) или нисколько. */
     suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 

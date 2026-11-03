@@ -124,6 +124,13 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         }
     }
     fun send(req: UpdateRequest) { scope.launch { c.screenUpdate(t, req)?.let { s = it } } }
+    var airPlay by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(t.id) { airPlay = c.screenAirPlay(t) }
+    airPlay?.let { on ->
+        GHead("AirPlay")
+        Group { SwitchRow(L.airPlayReceive, on) { v -> airPlay = v; scope.launch { airPlay = c.screenAirPlay(t, v) ?: on } } }
+        Note(L.airPlayNote)
+    }
     val st = s
     if (st == null) {
         Note(if (loaded) L.screenNoUpdate else L.linkToScreen)

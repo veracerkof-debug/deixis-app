@@ -627,6 +627,9 @@ const TR = {
   searching: ["Поиск…", "Qidirilmoqda…", "Searching…"],
   first200: ["Показаны первые 200 стихов: стоит уточнить запрос.", "Dastlabki 200 oyat ko‘rsatildi: so‘rovni aniqlashtirish kerak.", "The first 200 verses are shown: a narrower query helps."],
   openPlace: ["Открыть: {0}", "Ochish: {0}", "Open: {0}"],
+  airPlayReceive: ["Принимать AirPlay", "AirPlay qabul qilish", "Receive AirPlay"],
+  airPlaySub: ["iPhone, iPad и Mac: «Повтор экрана»", "iPhone, iPad va Mac: «Ekran takrori»", "iPhone, iPad and Mac: Screen Mirroring"],
+  airPlayNote: ["Пока приём включён, показать экран может любое устройство Apple в этой сети; показ с пульта заменяет его сразу. Звук AirPlay пока не играется.", "Qabul yoqilgan paytda bu tarmoqdagi istalgan Apple qurilmasi ekranni ko‘rsata oladi; pultdan ko‘rsatish uni darhol almashtiradi. AirPlay ovozi hozircha chalinmaydi.", "While this is on, any Apple device on this network can show its screen; showing from the remote replaces it at once. AirPlay sound does not play yet."],
   themeLook: ["Тема оформления", "Bezak mavzusi", "Theme"],
   scriptureLook: ["Оформление Писания", "Muqaddas Yozuv bezagi", "Scripture layout"],
   swapTr: ["Поменять переводы местами", "Tarjimalar o‘rnini almashtirish", "Swap translations"],
@@ -1581,6 +1584,16 @@ async function loadOutputs() {
     if (e.status === 501 || e.status === 404) { S.outputs = null; render(); }
   }
 }
+// ——— Приём AirPlay на этом экране (/api/airplay; 501 — сборка без AirPlay) ———
+async function loadAirPlay() {
+  if (S.airPlay === null) return;
+  try { S.airPlay = (await getJson("/api/airplay")).enabled; render(); }
+  catch (e) { if (e.status === 501 || e.status === 404) { S.airPlay = null; render(); } }
+}
+async function setAirPlay(on) {
+  S.airPlay = on; render();
+  try { S.airPlay = (await postJson("/api/airplay", { enabled: on })).enabled; render(); } catch (e) { S.airPlay = !on; render(); toast(e.message || t.failed); }
+}
 function pollOutputs() {
   clearInterval(outputsTimer);
   outputsTimer = setInterval(() => { if (online && S.tab === "devices" && document.visibilityState === "visible") loadOutputs(); }, 3000);
@@ -2058,6 +2071,10 @@ function renderDevices() {
       <div class="s wrap">${esc(t.viewersHint)}</div></div></div>
       <div class="row"><span class="kind">${ico("link")}</span><span class="main"><div class="t mono">${esc(vu)}</div></span><button class="pill" data-act="copy" data-v="${esc(vu)}">${esc(t.copy)}</button></div>`
       : `<div class="row"><span class="main s wrap">${esc(t.noViewers)}</span></div>`}</div>
+    ${S.airPlay === true || S.airPlay === false ? `<div class="ghead">AirPlay</div><div class="group"><div class="row"><span class="kind">${ico("show")}</span>
+      <span class="main"><div class="t">${esc(t.airPlayReceive)}</div><div class="s">${esc(t.airPlaySub)}</div></span>
+      <button class="switch" role="switch" aria-checked="${S.airPlay}" data-act="airplay" aria-label="${esc(t.airPlayReceive)}"></button></div></div>
+      <p class="note">${esc(t.airPlayNote)}</p>` : ""}
     ${outs}
     ${settings.church ? `<div class="ghead">${esc(t.churchSection)}</div><div class="group">
       <button class="row" data-act="holyrics"><span class="kind">${ico("song")}</span><span class="main"><div class="t">Holyrics</div><div class="s">${esc(settings.holyrics ? t.hlOn : t.hlAbout)}</div></span><span class="chev">${ico("chev")}</span></button>
@@ -2583,7 +2600,7 @@ const A = {
   byname: () => { const a = altUrl(); if (a) location.href = a; },
   unpair: () => { closeSheet(); A.forget(); everOnline = false; receiver = null; renderPair(); },
   app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(startPin)}`; },
-  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") loadOutputs(); render(); },
+  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") { loadOutputs(); loadAirPlay(); } render(); },
   lseg: (d) => { S.listSeg = d.v; render(); },
   preLive: () => preToLive(),
   step: (d) => step(+d.d),
@@ -2756,6 +2773,7 @@ const A = {
   // Устройства и выводы
   mon: (d) => { const m = S.outputs.monitors.find((x) => x.id === d.id); if (m) setMonitor(m.id, !m.enabled, m.layout); },
   monlayout: (d) => setMonitor(d.id, true, d.v),
+  airplay: () => setAirPlay(!S.airPlay),
   link: (d) => linkOutput(d.id),
   linkgo: (d) => { const pin = $("#lpin").value.trim(); if (!/^\d{4}$/.test(pin)) return toast(t.pin4); linkOutput(d.id, pin); },
   unlink: (d) => unlinkOutput(d.id),
@@ -2898,6 +2916,7 @@ function started() {
   if (!S.open && s && s.items.length) S.open = s.items[0];
   if (settings.church) loadModules();
   loadOutputs();
+  loadAirPlay();
   pollOutputs();
   keepAwake();
   restoreLive();

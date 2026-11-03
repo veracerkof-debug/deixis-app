@@ -23,6 +23,8 @@ dependencies {
     implementation(libs.ktor.client.websockets)
     implementation(libs.jmdns)
     implementation(libs.zxing)
+    // Ed25519 и X25519 для сопряжения AirPlay: в Android до 13 их нет. Лицензия MIT.
+    implementation(libs.bouncycastle)
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.coroutines.test)

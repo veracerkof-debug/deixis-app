@@ -445,6 +445,10 @@ class Controller(private val app: Application) {
     suspend fun screenUpdate(t: Target, req: app.deixis.core.UpdateRequest? = null): app.deixis.core.UpdateState? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.update(req) }.getOrNull() }
 
+    /** Приём AirPlay на подключённом экране: без [on] — состояние. null — сборка экрана без AirPlay или старая версия. */
+    suspend fun screenAirPlay(t: Target, on: Boolean? = null): Boolean? =
+        outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.airPlay(on) }.getOrNull() }
+
     fun disconnect(t: Target) {
         if (dlnaTarget.value?.id == t.id) { dlna.close(); dlnaTarget.value = null; return }
         val o = outs.value.firstOrNull { it.target.id == t.id } ?: return

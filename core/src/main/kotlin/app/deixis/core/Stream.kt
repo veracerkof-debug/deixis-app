@@ -96,6 +96,19 @@ class StreamHub {
         _active.value = false
     }
 
+    private val owner = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Новый источник (телефон или AirPlay) занимает поток и вытесняет прежний. Возвращает его номер. */
+    fun claim(): Int = owner.incrementAndGet().also { start() }
+
+    /** Источник ещё владеет потоком: его не вытеснили. */
+    fun owns(id: Int): Boolean = owner.get() == id
+
+    /** Источник ушёл: поток останавливается, если его не перехватил другой. */
+    fun release(id: Int) {
+        if (owns(id)) stop()
+    }
+
     fun requestKey() {
         _keyRequests.tryEmit(Unit)
     }

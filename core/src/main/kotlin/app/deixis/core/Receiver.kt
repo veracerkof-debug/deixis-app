@@ -101,6 +101,10 @@ class ReceiverCore(
     /** Обновления этого приёмника; null — пульт не управляет ими (обновляется сам, как телефон). */
     var updates: UpdateHost? = null
 
+    /** Приём AirPlay с iPhone, iPad и Mac; null — не поддерживается этой сборкой (Google Play) или устройством. */
+    @Volatile
+    var airPlay: app.deixis.core.airplay.AirPlayHost? = null
+
     /** Мост к файлам Holyrics на этом же компьютере; null — не поддерживается (например, на ТВ). */
     @Volatile
     var holyrics: HolyricsBridge? = null
@@ -162,6 +166,16 @@ class ReceiverCore(
         val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
         _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays, logo = it.logo, logoImage = it.logoImage) }
         return null
+    }
+
+    /**
+     * Трансляция AirPlay закончилась: возвращается то, что было до неё ([before]).
+     * Если оператор за это время показал другое, ничего не меняется.
+     */
+    internal fun endMirror(mirror: Content, before: ReceiverState) {
+        if (_state.value.content != mirror) return
+        val back = before.content
+        if (back == null || show(back, before.next) != null) _state.update { it.copy(content = null, next = null, video = null) }
     }
 
     /** Платформа сообщает о ходе видео. */
@@ -289,6 +303,7 @@ class ReceiverServer(
                 remoteRoutes(core) { authorized() }
                 outputsRoutes(core) { authorized() }
                 updateRoutes(core) { authorized() }
+                airPlayRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)
@@ -415,17 +430,14 @@ class ReceiverServer(
         }
     }
 
-    private val streamSource = java.util.concurrent.atomic.AtomicInteger()
-
     /** Источник шлёт кадры экрана двоичными сообщениями. Новый источник вытесняет прежний. */
     private suspend fun handleStream(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
         if (!call.authorized()) return@with close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "denied"))
-        val me = streamSource.incrementAndGet()
-        core.stream.start()
+        val me = core.stream.claim()
         val keys = launch { core.stream.keyRequests.collect { send(Frame.Text(STREAM_KEY_REQUEST)) } }
         try {
             for (frame in incoming) {
-                if (streamSource.get() != me) break
+                if (!core.stream.owns(me)) break
                 if (frame !is Frame.Binary) continue
                 val f = StreamFrame.decode(frame.readBytes()) ?: continue
                 core.stream.publish(f)
@@ -434,7 +446,7 @@ class ReceiverServer(
             }
         } finally {
             keys.cancel()
-            if (streamSource.get() == me) core.stream.stop()
+            core.stream.release(me)
         }
     }
 

@@ -53,7 +53,15 @@
 #### Открытые беспроводные экраны (запасной путь)
 - **Miracast** — через системную трансляцию: Android отдаёт беспроводной экран как второй дисплей, Deixis выводит туда приёмник (`HdmiOutput`). На устройствах не проверено.
 - **DLNA/UPnP** (`core/.../Dlna.kt`, `phone/.../DlnaOutput.kt`, `deixis dlna`): поиск SSDP, управление AVTransport (SetAVTransportURI, Play, Pause, Seek, Stop), раздача файла с телефона по HTTP с Range и заголовками DLNA. Слайды, страницы PDF, «Чёрный» и «Логотип» рисуются в JPEG 1920×1080 тем же расчётом, что на Deixis TV. Демонстрация экрана и зрители по QR здесь не работают. Проверено с gmediarender (открытый DLNA-приёмник): найден, взял файл, проиграл видео.
-- **Google Cast и AirPlay** закрытые: Cast возможен только в сборке для Google Play (исключение в `NOTICE`), AirPlay — нет.
+- **Google Cast** закрытый: возможен только в сборке для Google Play (исключение в `NOTICE`).
+- **Приём AirPlay** (`core/.../airplay/`): компьютер и Deixis TV принимают «Повтор экрана» с iPhone, iPad и Mac. Это свой перенос на Kotlin приёмника UxPlay (GPL-3.0; части из RPiPlay и shairplay, LGPL-2.1+; FairPlay — модуль playfair, GPL-3.0); откуда какой файл — в шапках файлов и в `NOTICE`.
+  - `AirPlayServer`: RTSP на порту 7000 (занят — любой свободный), mDNS `_airplay._tcp` и `_raop._tcp`, `/info`, `pair-setup`/`pair-verify`, `fp-setup`, `SETUP`, `TEARDOWN`, запросы времени NTP раз в 3 с. Один iPhone одновременно; данные зеркала принимаются только с адреса, который вёл переговоры; заголовки до 16 КБ, тело до 1 МБ, кадр до 16 МБ.
+  - `AirPlayPairing`: постоянный ключ Ed25519 и адрес-имя экрана (`airplay-key`), X25519 и подпись при `pair-verify`, ключ сеанса = SHA-512(ключ FairPlay ‖ общий секрет)[0..16]. Ed25519 и X25519 — BouncyCastle: в Android до 13 их нет.
+  - `FairPlay`: playfair — ответы на `fp-setup` и расшифровка `ekey`; сверено с исходным C по 70+ векторам (`FairPlayTest`).
+  - `MirrorReader`: пакеты по 128 байт заголовка; SPS/PPS из avcC, кадры AES-CTR (ключ и IV — SHA-512 от `AirPlayStreamKey`/`AirPlayStreamIV` + streamConnectionID и ключа сеанса), длины NAL заменяются на стартовые коды.
+  - `AirPlayOutput`: картинка идёт в `StreamHub` — тот же поток, что демонстрация экрана с телефона, поэтому её показывают зал, мониторы компьютера и зрители по QR. iPhone и телефон вытесняют друг друга (`StreamHub.claim`). Новому подписчику повторяется последний ключевой кадр: iPhone шлёт их редко. После отключения возвращается прежний показ, если оператор не показал другое.
+  - Включение — `AirPlayHost` (по умолчанию выключен, выбор в файле `airplay-on`): меню компьютера, `/api/airplay` для телефона и веб-пульта. Звук (поток 96: AAC-ELD, AES-CBC) пока принимается и отбрасывается.
+  - В сборку для Google Play не входит: `./gradlew -Pdeixis.store=play` даёт `BuildConfig.AIRPLAY = false` в `android/receiver`, и R8 выбрасывает код. Компьютер в магазине не продаётся.
 
 #### Holyrics
 - **Протокол** — официальный API Server Holyrics (`https://github.com/holyrics/API-Server`): POST JSON на `http://IP:8091/api/{действие}`, вход по хешу `sha256(nonce:rid:token:data)`, `rid` растёт. Код в `core/.../Holyrics.kt`, проверка — поддельный Holyrics по документации (`HolyricsTest`).

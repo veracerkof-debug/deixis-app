@@ -23,6 +23,7 @@ import app.deixis.core.ReceiverInfo
 import app.deixis.core.ReceiverServer
 import app.deixis.core.ScreenRelay
 import app.deixis.core.VideoState
+import app.deixis.core.airplay.AirPlayHost
 import app.deixis.core.loadViewKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +91,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private val windowedIds = HashSet<String>()
     private val roleStore = RoleStore(File(opts.dataDir, "role"))
     private val updates: DesktopUpdates
+    /** Приём AirPlay с iPhone, iPad и Mac: включает оператор, по умолчанию выключен. */
+    private lateinit var airPlay: AirPlayHost
     @Volatile var role: Role = Role.SCREEN
         private set
 
@@ -127,6 +130,13 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         })
         core.updates = updates
         server = ReceiverServer(core, opts.port, tls = runCatching { TlsIdentity.loadOrCreate(File(opts.dataDir, "tls"), core.info.name) }.getOrNull())
+        airPlay = AirPlayHost(core, opts.dataDir) { address }
+        core.airPlay = airPlay
+    }
+
+    /** Переключатель приёма AirPlay из меню; в сети он появляется или пропадает сразу. */
+    private fun setAirPlay(on: Boolean) {
+        scope.launch(Dispatchers.IO) { airPlay.setEnabled(on); SwingUtilities.invokeLater { tray?.rebuild() } }
     }
 
     /** Размер монитора зала по сохранённому выбору; без мониторов (проверки) — 1920×1080. */
@@ -148,6 +158,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
             .getOrNull()
+        scope.launch(Dispatchers.IO) { airPlay.start() }
         // Экраны Deixis в сети для пересылки показа.
         browsing = scope.launch {
             runCatching { Discovery.browse(address).collect { relay.found(it) } }
@@ -415,6 +426,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             val inWindow = windowId in windowedIds
             m.add(if (inWindow) item("Во весь экран", "F11") { setWindowed(windowId, false) } else item("В окно", "Esc") { setWindowed(windowId, true) })
         }
+        m.add(javax.swing.JCheckBoxMenuItem(AIRPLAY_LABEL, airPlay.enabled).apply { addActionListener { setAirPlay(isSelected) } })
         m.add(item("Как работает компьютер…") { chooseRole() })
         m.add(item("Holyrics — телефон по QR…") { showHolyricsQr() })
         m.add(item("Обновления…") { showUpdates() })
@@ -425,6 +437,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     private fun dockMenu() = java.awt.PopupMenu().apply {
         add(java.awt.MenuItem("Открыть пульт").apply { addActionListener { openOperator() } })
+        add(java.awt.CheckboxMenuItem(AIRPLAY_LABEL, airPlay.enabled).apply { addItemListener { setAirPlay(state) } })
         add(java.awt.MenuItem("Как работает компьютер…").apply { addActionListener { SwingUtilities.invokeLater { chooseRole() } } })
         add(java.awt.MenuItem("Holyrics — телефон по QR…").apply { addActionListener { showHolyricsQr() } })
         add(java.awt.MenuItem("Обновления…").apply { addActionListener { showUpdates() } })
@@ -439,6 +452,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun chooseRole() = SwingUtilities.invokeLater { this@ReceiverApp.chooseRole() }
         override fun updates() = showUpdates()
         override fun holyrics() = showHolyricsQr()
+        override fun airPlay() = this@ReceiverApp.airPlay.enabled
+        override fun setAirPlay(on: Boolean) = this@ReceiverApp.setAirPlay(on)
     }
 
     private inner class DesktopOutputs : OutputsHost {
@@ -500,6 +515,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         browsing?.cancel()
         runCatching { relay.close() }
         runCatching { advertisement?.close() }
+        runCatching { airPlay.close() }
         runCatching { server.stop() }
         runCatching { tray?.remove() }
         windows.values.toList().forEach { it.release() }
@@ -508,6 +524,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     companion object {
+        /** iPhone, iPad и Mac показывают экран здесь без отдельных программ. */
+        const val AIRPLAY_LABEL = "Принимать AirPlay (iPhone, iPad, Mac)"
         /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */
         private const val SINGLE_TAKES_HALL_AFTER_MS = 15_000L
         /** Версия программы из метки выпуска (вшита при сборке). */

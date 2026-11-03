@@ -95,6 +95,9 @@ interface TrayActions {
     fun updates()
     /** Окно «Holyrics → телефон по QR». */
     fun holyrics()
+    /** Принимает ли экран AirPlay. */
+    fun airPlay(): Boolean
+    fun setAirPlay(on: Boolean)
 }
 
 /**
@@ -103,11 +106,14 @@ interface TrayActions {
  */
 class Tray private constructor(private val actions: TrayActions, private val icon: TrayIcon) {
     private val screens = Menu("Экраны")
+    private val airPlay = CheckboxMenuItem(ReceiverApp.AIRPLAY_LABEL)
 
     init {
         val popup = PopupMenu()
         popup.add(item("Открыть пульт") { actions.openOperator() })
         popup.add(screens)
+        airPlay.addItemListener { actions.setAirPlay(airPlay.state) }
+        popup.add(airPlay)
         popup.add(item("Как работает компьютер…") { actions.chooseRole() })
         popup.add(item("Holyrics — телефон по QR…") { actions.holyrics() })
         popup.add(item("Обновления…") { actions.updates() })
@@ -120,6 +126,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
 
     /** Мониторы сменились или оператор поменял раскладку в пульте. */
     fun rebuild() {
+        airPlay.state = actions.airPlay()
         screens.removeAll()
         for (m in actions.monitors()) {
             val menu = Menu(m.name + " · ${m.width}×${m.height}" + if (m.primary) " · пульт" else "")
