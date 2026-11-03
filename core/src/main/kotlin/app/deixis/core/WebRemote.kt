@@ -557,5 +557,5 @@ private fun remoteResource(path: String): ByteArray =
 internal data class OverlaySampleInfo(val name: String, val overlays: Overlays)
 
 /** Cookie сеанса веб-пульта. */
-private const val REMOTE_COOKIE = "deixis"
+internal const val REMOTE_COOKIE = "deixis"
 private const val REMOTE_COOKIE_AGE_S = 365 * 24 * 60 * 60

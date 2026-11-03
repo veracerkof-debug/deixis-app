@@ -459,6 +459,7 @@ const TR = {
   blackNow: ["Чёрный экран", "Qora ekran", "Black screen"],
   awayNow: ["Deixis ушёл с экранов", "Deixis ekranlardan chiqdi", "Deixis left the screens"],
   away: ["Уйти", "Chiqish", "Leave"],
+  backToScreens: ["Вернуться на экраны", "Ekranlarga qaytish", "Back to the screens"],
   awayLong: ["Уйти с экранов: на них снова то, что было до Deixis", "Ekranlardan chiqish: ularda Deixisdan oldingi narsa", "Leave the screens: they show what was there before Deixis"],
   logoNow: ["Логотип", "Logotip", "Logo"],
   clearNow: ["Очищено", "Tozalandi", "Cleared"],
@@ -1835,7 +1836,8 @@ function monitorsHTML() {
   return `<div class="mons">
     <div class="mon now ${on ? "" : "off"}"><div class="lbl"><span class="dot ${on ? "" : "off"}"></span>${esc(t.now)}</div>
       <div data-g="now" role="button" tabindex="0" aria-label="${esc(t.now + ": " + liveName())}">${slideHTML(online ? live : null, { mode: online ? m : "NORMAL", load: !!S.progress, empty: online ? t.empty : t.lost, time: isVid && v ? fmt(v.positionMs) : null, timeId: "vt2", w: 640 })}</div>
-      <div class="hint ${S.warn ? "warn" : ""}">${esc(S.warn || liveName())}${isVid && v && !v.playing ? " · " + esc(t.paused) : ""}</div></div>
+      <div class="hint ${S.warn ? "warn" : ""}">${esc(S.warn || liveName())}${isVid && v && !v.playing ? " · " + esc(t.paused) : ""}</div>
+      ${online && m === "AWAY" ? `<button class="pill tint" data-act="mode" data-m="AWAY">${ico("show")}${esc(t.backToScreens)}</button>` : ""}</div>
     <div class="mon pre"><div class="lbl">${esc(t.preview)}<button class="go" data-act="preLive" ${pre || S.draft ? "" : "disabled"}>${esc(t.toHall)}</button></div>
       <div data-g="pre" role="button" tabindex="0" aria-label="${esc(t.preview + ": " + preName)}">${slideHTML(preContent, { w: 640 })}</div>
       <div class="hint ${S.draft ? "changed" : ""}">${esc(preName)}${S.draft && pre ? " · " + esc(t.newStyleShort) : ""}</div></div>
@@ -2923,6 +2925,9 @@ function started() {
   render();
 }
 setInterval(rememberLive, 2000);
+// Окно пульта на самом компьютере закрыли: Deixis уходит с экранов зала вместе с ним
+// (перезагрузку страницы приёмник отличает: она подключается снова за секунды).
+addEventListener("pagehide", () => { if (isLoopback() && navigator.sendBeacon) try { navigator.sendBeacon("/remote/closed", ""); } catch (e) {} });
 
 // Запуск: PIN из QR-кода, токен в адресе (окно пульта на компьютере) или сохранённый токен.
 if (token) { connect(); dropPinFromUrl(); }

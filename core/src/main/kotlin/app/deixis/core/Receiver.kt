@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -100,6 +101,20 @@ class ReceiverCore(
     var outputs: OutputsHost? = null
     /** Обновления этого приёмника; null — пульт не управляет ими (обновляется сам, как телефон). */
     var updates: UpdateHost? = null
+
+    /**
+     * Окно пульта на этом же компьютере закрыли (не перезагрузили): [othersConnected] — остались ли
+     * другие пульты (телефон, браузер с другого устройства). null — платформе это не нужно (ТВ).
+     */
+    @Volatile
+    var onOperatorClosed: ((othersConnected: Boolean) -> Unit)? = null
+
+    /** Deixis запустили ещё раз на этом же компьютере: вернуть зал на экраны и открыть пульт. */
+    @Volatile
+    var onActivate: (() -> Unit)? = null
+
+    /** Вернуть зал из «Уйти с экранов»: показ остаётся тем же. */
+    fun returnToScreens() = _state.update { if (it.mode == Mode.AWAY) it.copy(mode = Mode.NORMAL) else it }
 
     /** Приём AirPlay с iPhone, iPad и Mac; null — не поддерживается этой сборкой (Google Play) или устройством. */
     @Volatile
@@ -284,6 +299,26 @@ class ReceiverServer(
                         call.respondText(e.message ?: "Не удалось взять файл из Holyrics", status = HttpStatusCode.UnprocessableEntity)
                     }
                 }
+                // Окно пульта этого компьютера закрывается: страница шлёт об этом сигнал (sendBeacon).
+                // Перезагрузка страницы подключается снова за секунды — тогда ничего не происходит.
+                post("/remote/closed") {
+                    val local = call.request.local.remoteAddress in LOOPBACK && !call.secure()
+                    val token = call.request.cookies[REMOTE_COOKIE]
+                    if (!local || !core.pairing.isValid(token)) return@post call.respondText("", status = HttpStatusCode.Forbidden)
+                    call.application.launch {
+                        delay(OPERATOR_CLOSE_GRACE_MS)
+                        if (localSessions.get() == 0) core.onOperatorClosed?.invoke(otherSessions.get() > 0)
+                    }
+                    call.respondText("", status = HttpStatusCode.NoContent)
+                }
+                // Второй запуск Deixis на этом компьютере передаёт управление уже работающему.
+                post("/api/activate") {
+                    val local = call.request.local.remoteAddress in LOOPBACK && !call.secure()
+                    if (!local || !call.authorized()) return@post call.respondText("", status = HttpStatusCode.Forbidden)
+                    val hook = core.onActivate ?: return@post call.respondText("", status = HttpStatusCode.NotImplemented)
+                    hook()
+                    call.respondText("", status = HttpStatusCode.NoContent)
+                }
                 webSocket("/ws") { handleSession(this) }
                 webSocket("/stream") { handleStream(this) }
                 webSocket("/audio") { handleAudio(this) }
@@ -360,6 +395,9 @@ class ReceiverServer(
 
     private val sessions = java.util.concurrent.ConcurrentHashMap.newKeySet<kotlinx.coroutines.Job>()
 
+    private val localSessions = java.util.concurrent.atomic.AtomicInteger()
+    private val otherSessions = java.util.concurrent.atomic.AtomicInteger()
+
     /** Соединений /ws, ещё не вошедших по токену или PIN: чужая программа не займёт ими весь сервер. */
     private val waiting = java.util.concurrent.atomic.AtomicInteger()
 
@@ -368,7 +406,10 @@ class ReceiverServer(
         // До входа по токену большие кадры не нужны: чужое соединение не займёт 8 МБ памяти.
         maxFrameSize = PRE_AUTH_FRAME_BYTES
         job?.let(sessions::add)
-        try { session(ws) } finally { job?.let(sessions::remove) }
+        // Пульт этого же компьютера (окно браузера по 127.0.0.1) и все остальные считаются отдельно.
+        val counter = if (call.request.local.remoteAddress in LOOPBACK && !call.secure()) localSessions else otherSessions
+        counter.incrementAndGet()
+        try { session(ws) } finally { job?.let(sessions::remove); counter.decrementAndGet() }
     }
 
     private suspend fun session(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
@@ -493,6 +534,8 @@ class ReceiverServer(
         private const val SESSION_FRAME_BYTES = 8L * 1024 * 1024
         const val HEADER_SIZE = "Deixis-Size"
         const val FILE_TTL_MS = 24L * 60 * 60 * 1000
+        /** Столько ждать после закрытия окна пульта: перезагруженная страница успевает подключиться снова. */
+        const val OPERATOR_CLOSE_GRACE_MS = 4_000L
         private val LOOPBACK = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")
         /** Приёмник просит у источника ключевой кадр: подключился новый зритель. */
         const val STREAM_KEY_REQUEST = """{"key":1}"""

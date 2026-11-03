@@ -154,7 +154,21 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     fun run() {
         AppIcon.applyToDock()
-        port = runBlocking { server.start() }
+        port = try {
+            runBlocking { server.start() }
+        } catch (e: Exception) {
+            // Deixis уже работает на этом компьютере (например, ушёл с экранов, а окно пульта закрыли):
+            // второй запуск возвращает его зал на экраны и открывает пульт, а сам завершается.
+            if (activateRunning()) { println("Deixis уже запущен: зал возвращён, пульт открыт"); opts.exit(0); return }
+            throw e
+        }
+        core.onActivate = {
+            core.returnToScreens()
+            openOperator()
+        }
+        // Окно пульта закрыли: зал уходит вместе с программой, как у любого приложения. Если показом
+        // ещё управляет другой пульт (телефон), экран остаётся: закрытое окно на компьютере его не трогает.
+        core.onOperatorClosed = { others -> if (role != Role.SCREEN && !others) SwingUtilities.invokeLater { quit() } }
         advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
             .getOrNull()
@@ -187,6 +201,17 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         Runtime.getRuntime().addShutdownHook(Thread { shutdown() })
         if (opts.operator ?: (role != Role.SCREEN)) openOperator()
     }
+
+    /** Просит уже запущенный Deixis этого компьютера вернуться на экраны. true — он ответил. */
+    private fun activateRunning(): Boolean = runCatching {
+        val token = File(opts.dataDir, "operator-token").takeIf { it.isFile }?.readText()?.trim() ?: return false
+        val req = java.net.http.HttpRequest.newBuilder(java.net.URI("http://127.0.0.1:${opts.port}/api/activate"))
+            .header("Authorization", "Bearer $token").timeout(java.time.Duration.ofSeconds(3))
+            .POST(java.net.http.HttpRequest.BodyPublishers.noBody()).build()
+        val client = java.net.http.HttpClient.newBuilder().proxy(java.net.http.HttpClient.Builder.NO_PROXY)
+            .connectTimeout(java.time.Duration.ofSeconds(2)).build()
+        client.send(req, java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode() == 204
+    }.getOrDefault(false)
 
     /** Окно выбора роли при первом запуске; ждёт ответа. null — окно закрыли. */
     private fun askRole(current: Role?): Role? {
