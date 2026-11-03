@@ -167,9 +167,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             core.returnToScreens()
             openOperator()
         }
-        // Окно пульта закрыли: зал уходит вместе с программой, как у любого приложения. Если показом
-        // ещё управляет другой пульт (телефон), экран остаётся: закрытое окно на компьютере его не трогает.
-        core.onOperatorClosed = { others -> if (role != Role.SCREEN && !others) SwingUtilities.invokeLater { quit() } }
+        // Окно пульта закрыли: зал уходит вместе с программой, как у любого приложения — даже если
+        // подключён ещё телефон (оператор за компьютером закончил). Компьютер-«Экран» так не закрывается:
+        // там пульт открывают лишь изредка, а зал должен оставаться.
+        core.onOperatorClosed = { _ -> if (role != Role.SCREEN && !exiting) SwingUtilities.invokeLater { quit() } }
         advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
             .getOrNull()

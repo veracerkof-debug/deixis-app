@@ -73,6 +73,17 @@ class LocalOperatorTest {
         }
     }
 
+    /** Браузер закрылся, не успев послать сигнал: пульт этого компьютера пропал и не вернулся — тоже закрытие. */
+    @Test
+    fun operatorGoneWithoutBeacon() = runBlocking<Unit> {
+        http.webSocket("ws://127.0.0.1:$port/ws") {
+            send(Frame.Text(Hello(PROTOCOL_VERSION, "Этот компьютер", token).encode()))
+            incoming.receive()
+        }
+        assertNull(closed.poll(ReceiverServer.OPERATOR_GONE_MS - 2_000, TimeUnit.MILLISECONDS), "сразу — нет: пульт мог переподключаться")
+        assertEquals(false, closed.poll(5_000, TimeUnit.MILLISECONDS))
+    }
+
     @Test
     fun secondLaunchReturnsToScreens() = runBlocking<Unit> {
         var activated = 0

@@ -427,7 +427,15 @@ class ReceiverServer(
         // Пульт этого же компьютера (окно браузера по 127.0.0.1) и все остальные считаются отдельно.
         val counter = if (call.request.local.remoteAddress in LOOPBACK && !call.secure()) localSessions else otherSessions
         counter.incrementAndGet()
-        try { session(ws) } finally { job?.let(sessions::remove); counter.decrementAndGet() }
+        try { session(ws) } finally {
+            job?.let(sessions::remove)
+            // Пропал последний пульт этого компьютера. Сигнал о закрытии окна мог не уйти (браузер закрылся
+            // раньше), поэтому смотрим и так: не вернулся за [OPERATOR_GONE_MS] — окно пульта закрыли.
+            if (counter.decrementAndGet() == 0 && counter === localSessions) call.application.launch {
+                delay(OPERATOR_GONE_MS)
+                if (localSessions.get() == 0) core.onOperatorClosed?.invoke(otherSessions.get() > 0)
+            }
+        }
     }
 
     private suspend fun session(ws: io.ktor.server.websocket.DefaultWebSocketServerSession) = with(ws) {
@@ -587,6 +595,8 @@ class ReceiverServer(
         const val FILE_TTL_MS = 24L * 60 * 60 * 1000
         /** Столько ждать после закрытия окна пульта: перезагруженная страница успевает подключиться снова. */
         const val OPERATOR_CLOSE_GRACE_MS = 4_000L
+        /** Связь с пультом этого компьютера пропала без сигнала о закрытии: ждать дольше — пульт сам переподключается. */
+        const val OPERATOR_GONE_MS = 8_000L
         private val LOOPBACK = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")
         /** Приёмник просит у источника ключевой кадр: подключился новый зритель. */
         const val STREAM_KEY_REQUEST = """{"key":1}"""
