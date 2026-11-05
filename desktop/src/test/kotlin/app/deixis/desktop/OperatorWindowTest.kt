@@ -37,7 +37,8 @@ class OperatorWindowTest {
             SwingUtilities.invokeAndWait { opened = window.open("http://127.0.0.1:$port/remote#t=$token", null) }
             assertTrue(opened, "окно открылось")
             waitFor(60_000, "пульт в окне вошёл через мост") { core.peers.state.value.connected.any { it.here } }
-            assertTrue(core.peers.approvalNeeded, "пульт в окне подтверждает подключения")
+            // Подтверждающим пульт становится сразу после приветствия — чуть позже, чем появляется «на связи».
+            waitFor(10_000, "пульт в окне подтверждает подключения") { core.peers.approvalNeeded }
             SwingUtilities.invokeAndWait { window.close(notify = true) }
             assertTrue(closed, "программа узнала о закрытии окна")
             waitFor(15_000, "связь пульта ушла вместе с окном") { core.peers.state.value.connected.none { it.here } }
