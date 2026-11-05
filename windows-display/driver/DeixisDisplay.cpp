@@ -237,10 +237,9 @@ void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid, UINT count = kMode
 
 }  // namespace
 
-static bool ConnectMonitor(IDDCX_ADAPTER adapter);
-
 extern "C" {
 
+static bool ConnectMonitor(IDDCX_ADAPTER adapter);
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD DeixisDeviceAdd;
 EVT_WDF_DEVICE_D0_ENTRY DeixisD0Entry;
