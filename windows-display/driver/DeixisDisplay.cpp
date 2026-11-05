@@ -121,7 +121,9 @@ struct Edid {
 
 const Edid kEdid;
 
-DISPLAYCONFIG_VIDEO_SIGNAL_INFO Signal(const Mode& m) {
+// Режим монитора и целевой режим адаптера различаются одним полем: у режима монитора делитель кадровой
+// частоты 0, у целевого — 1. С единицей у режима монитора Windows отвечает STATUS_INVALID_PARAMETER.
+DISPLAYCONFIG_VIDEO_SIGNAL_INFO Signal(const Mode& m, bool monitorMode) {
     DISPLAYCONFIG_VIDEO_SIGNAL_INFO s = {};
     s.pixelRate = m.pixelClock;
     s.activeSize.cx = m.width;
@@ -134,7 +136,7 @@ DISPLAYCONFIG_VIDEO_SIGNAL_INFO Signal(const Mode& m) {
     s.vSyncFreq.Numerator = static_cast<UINT32>(m.pixelClock);
     s.vSyncFreq.Denominator = m.totalWidth * m.totalHeight;
     s.AdditionalSignalInfo.videoStandard = 255;
-    s.AdditionalSignalInfo.vSyncFreqDivider = 1;
+    s.AdditionalSignalInfo.vSyncFreqDivider = monitorMode ? 0 : 1;
     s.scanLineOrdering = DISPLAYCONFIG_SCANLINE_ORDERING_PROGRESSIVE;
     return s;
 }
@@ -231,7 +233,7 @@ void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid, UINT count = kMode
         out[i] = {};
         out[i].Size = sizeof(IDDCX_MONITOR_MODE);
         out[i].Origin = fromEdid && kModes[i].inEdid ? IDDCX_MONITOR_MODE_ORIGIN_MONITORDESCRIPTOR : IDDCX_MONITOR_MODE_ORIGIN_DRIVER;
-        out[i].MonitorVideoSignalInfo = Signal(kModes[i]);
+        out[i].MonitorVideoSignalInfo = Signal(kModes[i], true);
     }
 }
 
@@ -425,7 +427,7 @@ NTSTATUS DeixisQueryTargetModes(IDDCX_MONITOR, const IDARG_IN_QUERYTARGETMODES* 
     for (UINT i = 0; i < kModeCount; i++) {
         IDDCX_TARGET_MODE mode = {};
         mode.Size = sizeof(mode);
-        mode.TargetVideoSignalInfo.targetVideoSignalInfo = Signal(kModes[i]);
+        mode.TargetVideoSignalInfo.targetVideoSignalInfo = Signal(kModes[i], false);
         in->pTargetModes[i] = mode;
     }
     return STATUS_SUCCESS;
