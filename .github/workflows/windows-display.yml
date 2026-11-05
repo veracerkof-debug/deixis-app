@@ -30,7 +30,17 @@ jobs:
           Get-PnpDevice -Class Display | Format-Table -AutoSize FriendlyName, Status, InstanceId
           Add-Type -AssemblyName System.Windows.Forms
           [System.Windows.Forms.Screen]::AllScreens | Format-Table DeviceName, Bounds, Primary
-          if (-not $seen) { throw "Windows не увидела монитор Deixis" }
+          if (-not $seen) {
+            # Почему: код проблемы устройства, журнал установки и журнал UMDF.
+            Get-PnpDevice -Class Display | Where-Object FriendlyName -like 'Deixis*' | ForEach-Object {
+              Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName DEVPKEY_Device_ProblemCode, DEVPKEY_Device_ProblemStatus, DEVPKEY_Device_DriverVersion | Format-Table -AutoSize KeyName, Data
+            }
+            pnputil /enum-devices /class Display /problem
+            Get-Content "$env:windir\INF\setupapi.dev.log" -Tail 80
+            Get-WinEvent -LogName 'Microsoft-Windows-DriverFrameworks-UserMode/Operational' -MaxEvents 30 -ErrorAction SilentlyContinue | Format-List TimeCreated, Id, Message
+            Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddMinutes(-5)} -MaxEvents 40 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Id, Message
+            throw "Windows не увидела монитор Deixis"
+          }
           & "$out/deixis-display.exe" remove
           if ($LASTEXITCODE -ne 0) { throw "удаление: код $LASTEXITCODE" }
           "После удаления: $(Monitors)"
