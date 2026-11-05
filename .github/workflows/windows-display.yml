@@ -22,6 +22,9 @@ jobs:
           $out = "windows-display/out"
           function Monitors { (Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction SilentlyContinue | ForEach-Object { -join ($_.ManufacturerName | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) }) }
           "До: $(Monitors)"
+          # Проверщик WDF для нашего драйвера: при нарушении он пишет, какой вызов неверен.
+          New-Item -Force "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" | Out-Null
+          Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" VerifierOn 1
           & "$out/deixis-display.exe" install (Resolve-Path "$out/DeixisDisplay.inf") (Resolve-Path "$out/DeixisDisplay.cer")
           if ($LASTEXITCODE -ne 0) { throw "установка: код $LASTEXITCODE" }
           & "$out/deixis-display.exe" status; if ($LASTEXITCODE -ne 0) { throw "устройство не заведено" }
@@ -37,7 +40,8 @@ jobs:
             }
             pnputil /enum-devices /class Display /problem
             Get-Content "$env:windir\INF\setupapi.dev.log" -Tail 80
-            Get-WinEvent -LogName 'Microsoft-Windows-DriverFrameworks-UserMode/Operational' -MaxEvents 30 -ErrorAction SilentlyContinue | Format-List TimeCreated, Id, Message
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -MaxEvents 20 -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'WUDFHost|DeixisDisplay|Wudf' } | Format-List TimeCreated, ProviderName, Id, Message
+            Get-ChildItem "$env:ProgramData\Microsoft\Windows\WER" -Recurse -Filter Report.wer -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | ForEach-Object { Get-Content $_.FullName | Select-String 'Sig|Exception|Module|Offset|AppName' }
             Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddMinutes(-5)} -MaxEvents 40 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Id, Message
             throw "Windows не увидела монитор Deixis"
           }
