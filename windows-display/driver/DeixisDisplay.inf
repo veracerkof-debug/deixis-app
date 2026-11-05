@@ -14,9 +14,9 @@ CatalogFile=DeixisDisplay.cat
 DriverVer=
 
 [Manufacturer]
-%ManufacturerName%=Standard,NT$ARCH$
+%ManufacturerName%=Standard,NT$ARCH$.10.0...17134
 
-[Standard.NT$ARCH$]
+[Standard.NT$ARCH$.10.0...17134]
 %DeviceName%=DeixisDisplay_Install, Root\DeixisDisplay
 
 [SourceDisksFiles]
