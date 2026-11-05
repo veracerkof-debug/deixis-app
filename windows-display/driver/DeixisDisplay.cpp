@@ -1,6 +1,6 @@
 // Deixis Display — виртуальный монитор Windows для Deixis.
 //
-// Windows видит его как настоящий второй монитор 1920×1080: Holyrics, PowerPoint и любые программы выводят туда
+// Windows видит его как настоящий второй монитор 1920×1080 (и 1600×900, 1280×720): Holyrics, PowerPoint и любые программы выводят туда
 // свой «проектор», а Deixis снимает этот монитор и раздаёт на экраны в сети и зрителям.
 //
 // Драйвер написан для Deixis по документации Microsoft к Indirect Display Driver (IddCx, UMDF 2):
@@ -54,9 +54,14 @@ void Log(const char* format, ...) {
     ReleaseSRWLockExclusive(&lock);
 }
 
-// Режимы монитора. Первый — основной: в нём Windows включает монитор.
-struct Mode { UINT width, height, hz; };
-constexpr Mode kModes[] = { {1920, 1080, 60}, {1600, 900, 60}, {1280, 720, 60}, {2560, 1440, 30}, {3840, 2160, 30} };
+// Режимы монитора со стандартными таймингами (активная часть, полный кадр с гашением, тактовая частота).
+// Первый — основной и единственный, что записан в EDID: 1920×1080 при 60 Гц (CEA-861).
+struct Mode { UINT width, height, totalWidth, totalHeight; UINT64 pixelClock; bool inEdid; };
+constexpr Mode kModes[] = {
+    {1920, 1080, 2200, 1125, 148500000ull, true},   // CEA-861 1080p60
+    {1600, 900, 1760, 926, 97750000ull, false},     // CVT-RB 1600×900 60 Гц
+    {1280, 720, 1650, 750, 74250000ull, false},     // CEA-861 720p60
+};
 constexpr UINT kModeCount = ARRAYSIZE(kModes);
 
 // EDID 1.4 на 128 байт: производитель «DXS», модель 1, имя «Deixis», основной режим 1920×1080 при 60 Гц.
@@ -118,13 +123,16 @@ const Edid kEdid;
 
 DISPLAYCONFIG_VIDEO_SIGNAL_INFO Signal(const Mode& m) {
     DISPLAYCONFIG_VIDEO_SIGNAL_INFO s = {};
-    s.activeSize.cx = s.totalSize.cx = m.width;
-    s.activeSize.cy = s.totalSize.cy = m.height;
-    s.vSyncFreq.Numerator = m.hz;
-    s.vSyncFreq.Denominator = 1;
-    s.hSyncFreq.Numerator = m.hz * m.height;
-    s.hSyncFreq.Denominator = 1;
-    s.pixelRate = static_cast<UINT64>(m.hz) * m.width * m.height;
+    s.pixelRate = m.pixelClock;
+    s.activeSize.cx = m.width;
+    s.activeSize.cy = m.height;
+    s.totalSize.cx = m.totalWidth;
+    s.totalSize.cy = m.totalHeight;
+    // Частоты — точными дробями: строчная = тактовая / ширина кадра, кадровая = тактовая / площадь кадра.
+    s.hSyncFreq.Numerator = static_cast<UINT32>(m.pixelClock);
+    s.hSyncFreq.Denominator = m.totalWidth;
+    s.vSyncFreq.Numerator = static_cast<UINT32>(m.pixelClock);
+    s.vSyncFreq.Denominator = m.totalWidth * m.totalHeight;
     s.AdditionalSignalInfo.videoStandard = 255;
     s.AdditionalSignalInfo.vSyncFreqDivider = 1;
     s.scanLineOrdering = DISPLAYCONFIG_SCANLINE_ORDERING_PROGRESSIVE;
@@ -215,11 +223,12 @@ IDDCX_MONITOR g_monitor = nullptr;
 FrameDrain* g_drain = nullptr;
 SRWLOCK g_lock = SRWLOCK_INIT;
 
-void FillMonitorModes(IDDCX_MONITOR_MODE* out, IDDCX_MONITOR_MODE_ORIGIN origin) {
+// Режим из EDID помечается как пришедший из описания монитора, остальные — как режимы драйвера.
+void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid) {
     for (UINT i = 0; i < kModeCount; i++) {
         out[i] = {};
         out[i].Size = sizeof(IDDCX_MONITOR_MODE);
-        out[i].Origin = origin;
+        out[i].Origin = fromEdid && kModes[i].inEdid ? IDDCX_MONITOR_MODE_ORIGIN_MONITORDESCRIPTOR : IDDCX_MONITOR_MODE_ORIGIN_DRIVER;
         out[i].MonitorVideoSignalInfo = Signal(kModes[i]);
     }
 }
@@ -333,13 +342,14 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
     IDARG_OUT_MONITORCREATE out = {};
     NTSTATUS status = IddCxMonitorCreate(adapter, &in, &out);
     Log("IddCxMonitorCreate %08x", status);
-    if (!NT_SUCCESS(status)) return status;
+    if (!NT_SUCCESS(status)) return STATUS_SUCCESS;
     g_monitor = out.MonitorObject;
 
     IDARG_OUT_MONITORARRIVAL arrival = {};
     status = IddCxMonitorArrival(out.MonitorObject, &arrival);
     Log("IddCxMonitorArrival %08x", status);
-    return status;
+    // Ошибка здесь не должна ронять процесс драйвера: Windows перезапускала бы его по кругу.
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
@@ -354,7 +364,7 @@ NTSTATUS DeixisParseMonitorDescription(const IDARG_IN_PARSEMONITORDESCRIPTION* i
         // Сначала Windows спрашивает только число режимов (буфер пустой).
         return in->MonitorModeBufferInputCount > 0 ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
     }
-    FillMonitorModes(in->pMonitorModes, IDDCX_MONITOR_MODE_ORIGIN_MONITORDESCRIPTOR);
+    FillMonitorModes(in->pMonitorModes, true);
     out->PreferredMonitorModeIdx = 0;
     return STATUS_SUCCESS;
 }
@@ -365,7 +375,7 @@ NTSTATUS DeixisDefaultModes(IDDCX_MONITOR, const IDARG_IN_GETDEFAULTDESCRIPTIONM
     if (in->DefaultMonitorModeBufferInputCount < kModeCount) {
         return in->DefaultMonitorModeBufferInputCount > 0 ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
     }
-    FillMonitorModes(in->pDefaultMonitorModes, IDDCX_MONITOR_MODE_ORIGIN_DRIVER);
+    FillMonitorModes(in->pDefaultMonitorModes, false);
     out->PreferredMonitorModeIdx = 0;
     return STATUS_SUCCESS;
 }
