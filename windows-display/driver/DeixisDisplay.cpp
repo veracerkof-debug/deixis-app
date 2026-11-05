@@ -24,10 +24,35 @@
 #include <d3d11_2.h>
 #include <avrt.h>
 #include <wrl/client.h>
+#include <cstdio>
+#include <cstdarg>
 
 using Microsoft::WRL::ComPtr;
 
 namespace {
+
+// Журнал по шагам — только если есть папка C:\ProgramData\Deixis\display-log (её заводит проверка в CI).
+// У пользователей папки нет, и драйвер ничего не пишет.
+void Log(const char* format, ...) {
+    static SRWLOCK lock = SRWLOCK_INIT;
+    char line[512];
+    va_list args;
+    va_start(args, format);
+    int n = vsnprintf(line, sizeof(line) - 2, format, args);
+    va_end(args);
+    if (n < 0) return;
+    if (n > static_cast<int>(sizeof(line)) - 3) n = sizeof(line) - 3;
+    line[n++] = '\r'; line[n++] = '\n';
+    AcquireSRWLockExclusive(&lock);
+    HANDLE f = CreateFileW(L"C:\\ProgramData\\Deixis\\display-log\\driver.log", FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+        WriteFile(f, line, n, &written, nullptr);
+        CloseHandle(f);
+    }
+    ReleaseSRWLockExclusive(&lock);
+}
 
 // Режимы монитора. Первый — основной: в нём Windows включает монитор.
 struct Mode { UINT width, height, hz; };
@@ -132,7 +157,9 @@ private:
         HANDLE task = AvSetMmThreadCharacteristicsW(L"Distribution", &taskIndex);
 
         ComPtr<ID3D11Device> device;
-        if (!CreateDevice(device)) {
+        bool created = CreateDevice(device);
+        Log("FrameDrain device %d", created ? 1 : 0);
+        if (!created) {
             // Без устройства цепочка кадров бесполезна: удаляем её, Windows выдаст новую.
             WdfObjectDelete(reinterpret_cast<WDFOBJECT>(swapChain_));
         } else {
@@ -213,9 +240,12 @@ EVT_IDD_CX_MONITOR_ASSIGN_SWAPCHAIN DeixisAssignSwapChain;
 EVT_IDD_CX_MONITOR_UNASSIGN_SWAPCHAIN DeixisUnassignSwapChain;
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT driverObject, PUNICODE_STRING registryPath) {
+    Log("DriverEntry");
     WDF_DRIVER_CONFIG config;
     WDF_DRIVER_CONFIG_INIT(&config, DeixisDeviceAdd);
-    return WdfDriverCreate(driverObject, registryPath, WDF_NO_OBJECT_ATTRIBUTES, &config, WDF_NO_HANDLE);
+    NTSTATUS status = WdfDriverCreate(driverObject, registryPath, WDF_NO_OBJECT_ATTRIBUTES, &config, WDF_NO_HANDLE);
+    Log("WdfDriverCreate %08x", status);
+    return status;
 }
 
 NTSTATUS DeixisDeviceAdd(WDFDRIVER, PWDFDEVICE_INIT init) {
@@ -234,15 +264,20 @@ NTSTATUS DeixisDeviceAdd(WDFDRIVER, PWDFDEVICE_INIT init) {
     config.EvtIddCxMonitorAssignSwapChain = DeixisAssignSwapChain;
     config.EvtIddCxMonitorUnassignSwapChain = DeixisUnassignSwapChain;
 
+    Log("DeviceAdd");
     NTSTATUS status = IddCxDeviceInitConfig(init, &config);
+    Log("IddCxDeviceInitConfig %08x", status);
     if (!NT_SUCCESS(status)) return status;
 
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     WDFDEVICE device = nullptr;
     status = WdfDeviceCreate(&init, &attributes, &device);
+    Log("WdfDeviceCreate %08x", status);
     if (!NT_SUCCESS(status)) return status;
-    return IddCxDeviceInitialize(device);
+    status = IddCxDeviceInitialize(device);
+    Log("IddCxDeviceInitialize %08x", status);
+    return status;
 }
 
 // Устройство включилось: регистрируем адаптер. Монитор подключится, когда адаптер будет готов.
@@ -268,12 +303,15 @@ NTSTATUS DeixisD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE) {
     in.pCaps = &caps;
     in.ObjectAttributes = &attributes;
     IDARG_OUT_ADAPTER_INIT out = {};
+    Log("D0Entry");
     NTSTATUS status = IddCxAdapterInitAsync(&in, &out);
+    Log("IddCxAdapterInitAsync %08x", status);
     if (NT_SUCCESS(status)) g_adapter = out.AdapterObject;
     return status;
 }
 
 NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_INIT_FINISHED* args) {
+    Log("AdapterInitFinished %08x", args->AdapterInitStatus);
     if (!NT_SUCCESS(args->AdapterInitStatus)) return STATUS_SUCCESS;
 
     IDDCX_MONITOR_INFO info = {};
@@ -294,11 +332,14 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
     in.pMonitorInfo = &info;
     IDARG_OUT_MONITORCREATE out = {};
     NTSTATUS status = IddCxMonitorCreate(adapter, &in, &out);
+    Log("IddCxMonitorCreate %08x", status);
     if (!NT_SUCCESS(status)) return status;
     g_monitor = out.MonitorObject;
 
     IDARG_OUT_MONITORARRIVAL arrival = {};
-    return IddCxMonitorArrival(out.MonitorObject, &arrival);
+    status = IddCxMonitorArrival(out.MonitorObject, &arrival);
+    Log("IddCxMonitorArrival %08x", status);
+    return status;
 }
 
 NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
@@ -307,6 +348,7 @@ NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
 }
 
 NTSTATUS DeixisParseMonitorDescription(const IDARG_IN_PARSEMONITORDESCRIPTION* in, IDARG_OUT_PARSEMONITORDESCRIPTION* out) {
+    Log("ParseMonitorDescription in=%u", in->MonitorModeBufferInputCount);
     out->MonitorModeBufferOutputCount = kModeCount;
     if (in->MonitorModeBufferInputCount < kModeCount) {
         // Сначала Windows спрашивает только число режимов (буфер пустой).
@@ -329,6 +371,7 @@ NTSTATUS DeixisDefaultModes(IDDCX_MONITOR, const IDARG_IN_GETDEFAULTDESCRIPTIONM
 }
 
 NTSTATUS DeixisQueryTargetModes(IDDCX_MONITOR, const IDARG_IN_QUERYTARGETMODES* in, IDARG_OUT_QUERYTARGETMODES* out) {
+    Log("QueryTargetModes in=%u", in->TargetModeBufferInputCount);
     out->TargetModeBufferOutputCount = kModeCount;
     if (in->TargetModeBufferInputCount < kModeCount) {
         return in->TargetModeBufferInputCount > 0 ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
@@ -343,6 +386,7 @@ NTSTATUS DeixisQueryTargetModes(IDDCX_MONITOR, const IDARG_IN_QUERYTARGETMODES* 
 }
 
 NTSTATUS DeixisAssignSwapChain(IDDCX_MONITOR, const IDARG_IN_SETSWAPCHAIN* in) {
+    Log("AssignSwapChain");
     AcquireSRWLockExclusive(&g_lock);
     delete g_drain;
     g_drain = new FrameDrain(in->hSwapChain, in->hNextSurfaceAvailable, in->RenderAdapterLuid);
