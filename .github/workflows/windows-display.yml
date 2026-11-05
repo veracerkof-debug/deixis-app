@@ -22,6 +22,11 @@ jobs:
           $out = "windows-display/out"
           function Monitors { (Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction SilentlyContinue | ForEach-Object { -join ($_.ManufacturerName | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) }) }
           "До: $(Monitors)"
+          # Дамп процесса драйвера при падении: потом его разберёт отладчик с нашими символами.
+          New-Item -ItemType Directory -Force C:\dumps | Out-Null
+          $ld = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\WUDFHost.exe"
+          New-Item -Force $ld | Out-Null
+          Set-ItemProperty $ld DumpFolder 'C:\dumps'; Set-ItemProperty $ld DumpType 2 -Type DWord; Set-ItemProperty $ld DumpCount 3 -Type DWord
           # Проверщик WDF для нашего драйвера: при нарушении он пишет, какой вызов неверен.
           New-Item -Force "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" | Out-Null
           Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" VerifierOn 1
@@ -40,8 +45,14 @@ jobs:
             }
             pnputil /enum-devices /class Display /problem
             Get-Content "$env:windir\INF\setupapi.dev.log" -Tail 80
-            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -MaxEvents 20 -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'WUDFHost|DeixisDisplay|Wudf' } | Format-List TimeCreated, ProviderName, Id, Message
-            Get-ChildItem "$env:ProgramData\Microsoft\Windows\WER" -Recurse -Filter Report.wer -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | ForEach-Object { Get-Content $_.FullName | Select-String 'Sig|Exception|Module|Offset|AppName' }
+            # Разбор дампа: исключение, стек с нашими символами, журнал WDF.
+            $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $pdb = (Get-ChildItem -Recurse windows-display/driver -Filter DeixisDisplay.pdb | Select-Object -First 1).DirectoryName
+            $dump = Get-ChildItem C:\dumps -Filter *.dmp -ErrorAction SilentlyContinue | Select-Object -First 1
+            "дамп: $($dump.FullName); отладчик: $($cdb.FullName); символы: $pdb"
+            if ($cdb -and $dump) {
+              & $cdb.FullName -z $dump.FullName -y "$pdb;srv*C:\symbols*https://msdl.microsoft.com/download/symbols" -c ".ecxr; kb 30; !analyze -v; !wdfkd.wdflogdump DeixisDisplay; q" 2>&1 | Select-Object -Last 160
+            }
             Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddMinutes(-5)} -MaxEvents 40 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Id, Message
             throw "Windows не увидела монитор Deixis"
           }
