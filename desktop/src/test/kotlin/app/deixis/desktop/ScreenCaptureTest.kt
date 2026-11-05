@@ -119,3 +119,28 @@ class ScreenCaptureTest {
         }
     }
 }
+
+/** Виртуальный экран Мака (CGVirtualDisplay): появляется в системе как монитор и убирается. Только на Маке в CI. */
+class MacVirtualScreenTest {
+    @Test
+    fun appearsAndGoes() {
+        val mac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+        if (!mac || System.getProperty("deixis.gui") == null) return
+        assertTrue(MacVirtualScreen.supported, "CGVirtualDisplay есть в системе")
+        val id = MacVirtualScreen.create().getOrElse { throw AssertionError("дисплей не создан: ${it.message}", it) }
+        try {
+            var seen = false
+            repeat(50) {
+                if (!seen) {
+                    seen = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.any { it.iDstring.endsWith(" $id") || it.iDstring == id.toString() }
+                    if (!seen) Thread.sleep(100)
+                }
+            }
+            println("виртуальный дисплей $id: Java видит — $seen; экраны " + GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.joinToString { it.iDstring })
+            assertTrue(seen, "Java видит новый монитор")
+            assertTrue(MacVirtualScreen.captureIndex(id) >= 0)
+        } finally {
+            MacVirtualScreen.remove()
+        }
+    }
+}

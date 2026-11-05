@@ -150,6 +150,7 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
             }
         }
         st.error?.let { Note(it) }
+        st.note?.let { Note(it) }
         Note(L.capNote)
     }
     var airPlay by remember { mutableStateOf<Boolean?>(null) }

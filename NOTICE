@@ -56,7 +56,8 @@ https://ffmpeg.org and the javacpp-presets repository. It decodes the phone's sc
 broadcast with low latency (the same approach as scrcpy; no scrcpy code is used).
 The same build captures a computer monitor (x11grab, gdigrab, avfoundation) and encodes it to H.264
 with the platform encoder (VideoToolbox, Media Foundation) or OpenH264 (Cisco, BSD-2-Clause source,
-compiled into the bytedeco build) for the "Computer screen" broadcast.
+compiled into the bytedeco build) for the "Computer screen" broadcast. The macOS virtual screen uses
+the system CGVirtualDisplay API, as the open-source DeskPad app (MIT) does; no DeskPad code is included.
 
 
 AirPlay receiver (rewritten from UxPlay)

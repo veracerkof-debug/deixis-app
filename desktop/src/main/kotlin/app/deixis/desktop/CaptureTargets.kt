@@ -107,3 +107,29 @@ object LinuxVirtualScreen {
         created = null
     }
 }
+
+/** Виртуальный экран Deixis своей системы: Linux (xrandr) или Мак (CGVirtualDisplay). На Windows нужен драйвер. */
+object VirtualScreen {
+    private val mac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+    const val WIDTH = 1920
+    const val HEIGHT = 1080
+
+    val supported: Boolean get() = if (mac) MacVirtualScreen.supported else LinuxVirtualScreen.supported
+    val exists: Boolean get() = if (mac) MacVirtualScreen.displayId != null else LinuxVirtualScreen.created != null
+
+    /** Создаёт (или берёт уже созданный) и возвращает, что снимать. */
+    fun create(): Result<CaptureArea> =
+        if (mac) MacVirtualScreen.create().map { id ->
+            // Новый дисплей появляется в списке съёмки не сразу.
+            Thread.sleep(1_000)
+            CaptureArea(0, 0, WIDTH, HEIGHT, screenIndex = MacVirtualScreen.captureIndex(id))
+        }
+        else LinuxVirtualScreen.create().map { x -> CaptureArea(x, 0, WIDTH, HEIGHT) }
+
+    /** Этот монитор из списка Java — виртуальный экран Deixis. */
+    fun isVirtual(screenId: String, x: Int): Boolean =
+        if (mac) MacVirtualScreen.displayId?.let { id -> screenId.endsWith(" $id") || screenId == id.toString() } == true
+        else LinuxVirtualScreen.created?.first == x
+
+    fun remove() = if (mac) MacVirtualScreen.remove() else LinuxVirtualScreen.remove()
+}

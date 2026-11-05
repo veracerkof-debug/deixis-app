@@ -36,7 +36,11 @@ data class CaptureSource(
 
 /** Источники и тот, что транслируется сейчас ([active]); [error] — почему не удалось начать. */
 @Serializable
-data class CaptureState(val sources: List<CaptureSource>, val active: String? = null, val error: String? = null)
+data class CaptureState(
+    val sources: List<CaptureSource>, val active: String? = null, val error: String? = null,
+    /** Подсказка платформы: например, как получить виртуальный экран на Windows. */
+    val note: String? = null,
+)
 
 @Serializable
 data class CaptureRequest(val id: String? = null)
