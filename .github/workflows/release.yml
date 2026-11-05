@@ -144,7 +144,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Windows, os: windows-latest, type: msi }
+          # windows-2022: на нём есть Driver Kit для драйвера виртуального монитора Deixis Display.
+          - { name: Windows, os: windows-2022, type: msi }
           - { name: macOS, os: macos-latest, type: dmg }
           - { name: Linux, os: ubuntu-latest, type: deb }
     runs-on: ${{ matrix.os }}
@@ -192,6 +193,14 @@ jobs:
             wix=$(ls -d "/c/Program Files (x86)"/WiX\ Toolset\ v3*/bin | head -1)
           fi
           cygpath -w "$wix" >> "$GITHUB_PATH"
+      - name: Виртуальный монитор для Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./windows-display/build.ps1
+          New-Item -ItemType Directory -Force content/deixis-display | Out-Null
+          Copy-Item windows-display/out/* content/deixis-display/
+          "DISPLAY_CONTENT=1" >> $env:GITHUB_ENV
       - name: VLC для macOS
         if: runner.os == 'macOS'
         run: |
@@ -216,7 +225,11 @@ jobs:
             --java-options "-Dfile.encoding=UTF-8"
             --dest out
           )
-          [ -n "$VLC_OPT" ] && args+=(--java-options "$VLC_OPT" --app-content content/vlc)
+          content=()
+          [ -n "$VLC_OPT" ] && { args+=(--java-options "$VLC_OPT"); content+=(content/vlc); }
+          # Драйвер виртуального монитора рядом с программой: Deixis ставит его по кнопке «Создать».
+          [ -n "$DISPLAY_CONTENT" ] && { args+=(--java-options '-Ddeixis.display=$APPDIR\..\deixis-display'); content+=(content/deixis-display); }
+          [ ${#content[@]} -gt 0 ] && args+=(--app-content "$(IFS=,; echo "${content[*]}")")
           case "${{ runner.os }}" in
             Windows) args+=(--icon desktop/packaging/deixis.ico --win-menu --win-shortcut --win-dir-chooser --win-upgrade-uuid 6f3c1a52-8d0b-4c1e-9a77-2b5e4d1c9f10) ;;
             # Полный экран macOS (MacScreen) и имя в меню программы.

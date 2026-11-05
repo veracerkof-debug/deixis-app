@@ -108,28 +108,52 @@ object LinuxVirtualScreen {
     }
 }
 
-/** Виртуальный экран Deixis своей системы: Linux (xrandr) или Мак (CGVirtualDisplay). На Windows нужен драйвер. */
+/** Виртуальный экран Deixis своей системы: Linux (xrandr), Мак (CGVirtualDisplay), Windows (драйвер Deixis Display). */
 object VirtualScreen {
-    private val mac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+    private val os = System.getProperty("os.name").orEmpty().lowercase()
+    private val mac = os.contains("mac")
+    private val win = os.contains("win")
     const val WIDTH = 1920
     const val HEIGHT = 1080
 
-    val supported: Boolean get() = if (mac) MacVirtualScreen.supported else LinuxVirtualScreen.supported
-    val exists: Boolean get() = if (mac) MacVirtualScreen.displayId != null else LinuxVirtualScreen.created != null
+    val supported: Boolean get() = when { mac -> MacVirtualScreen.supported; win -> WindowsVirtualScreen.supported; else -> LinuxVirtualScreen.supported }
+
+    @Volatile private var winExists: Pair<Long, Boolean>? = null
+
+    val exists: Boolean get() = when {
+        mac -> MacVirtualScreen.displayId != null
+        // Проверка на Windows — отдельная программа: результат помнится несколько секунд.
+        win -> winExists?.takeIf { System.currentTimeMillis() - it.first < 5_000 }?.second
+            ?: WindowsVirtualScreen.exists.also { winExists = System.currentTimeMillis() to it }
+        else -> LinuxVirtualScreen.created != null
+    }
 
     /** Создаёт (или берёт уже созданный) и возвращает, что снимать. */
-    fun create(): Result<CaptureArea> =
-        if (mac) MacVirtualScreen.create().map { id ->
+    fun create(): Result<CaptureArea> = when {
+        mac -> MacVirtualScreen.create().map { id ->
             // Новый дисплей появляется в списке съёмки не сразу.
             Thread.sleep(1_000)
             CaptureArea(0, 0, WIDTH, HEIGHT, screenIndex = MacVirtualScreen.captureIndex(id))
         }
-        else LinuxVirtualScreen.create().map { x -> CaptureArea(x, 0, WIDTH, HEIGHT) }
+        win -> WindowsVirtualScreen.create().also { winExists = null }
+        else -> LinuxVirtualScreen.create().map { x -> CaptureArea(x, 0, WIDTH, HEIGHT) }
+    }
 
     /** Этот монитор из списка Java — виртуальный экран Deixis. */
-    fun isVirtual(screenId: String, x: Int): Boolean =
-        if (mac) MacVirtualScreen.displayId?.let { id -> screenId.endsWith(" $id") || screenId == id.toString() } == true
-        else LinuxVirtualScreen.created?.first == x
+    fun isVirtual(screenId: String, x: Int): Boolean = when {
+        mac -> MacVirtualScreen.displayId?.let { id -> screenId.endsWith(" $id") || screenId == id.toString() } == true
+        win -> runCatching {
+            val area = WindowsVirtualScreen.find() ?: return@runCatching false
+            val d = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.first { it.iDstring == screenId }
+            val b = d.defaultConfiguration.bounds
+            val k = d.displayMode.width.toDouble() / b.width
+            kotlin.math.abs(b.x * k - area.x) < 2 && kotlin.math.abs(b.y * k - area.y) < 2
+        }.getOrDefault(false)
+        else -> LinuxVirtualScreen.created?.first == x
+    }
 
-    fun remove() = if (mac) MacVirtualScreen.remove() else LinuxVirtualScreen.remove()
+    /** При выходе: Мак и Linux убирают экран сами (без прав); на Windows монитор остаётся до «Убрать». */
+    fun releaseOnExit() { if (mac) MacVirtualScreen.remove() else if (!win) LinuxVirtualScreen.remove() }
+
+    fun remove() { when { mac -> MacVirtualScreen.remove(); win -> { WindowsVirtualScreen.remove(); winExists = null }; else -> LinuxVirtualScreen.remove() } }
 }

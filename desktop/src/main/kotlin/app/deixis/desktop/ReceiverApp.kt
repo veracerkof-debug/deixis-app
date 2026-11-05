@@ -511,9 +511,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (VirtualScreen.exists) list += app.deixis.core.CaptureSource(VIRTUAL_ID, "Виртуальный экран Deixis", VirtualScreen.WIDTH, VirtualScreen.HEIGHT, kind = app.deixis.core.CaptureSource.VIRTUAL)
             else if (VirtualScreen.supported) list += app.deixis.core.CaptureSource(app.deixis.core.CaptureSource.ID_NEW_VIRTUAL, "Создать виртуальный экран", VirtualScreen.WIDTH, VirtualScreen.HEIGHT, kind = app.deixis.core.CaptureSource.NEW_VIRTUAL)
             AppWindows.list().forEach { w -> list += app.deixis.core.CaptureSource("win:${w.id}", w.title, w.width, w.height, kind = app.deixis.core.CaptureSource.WINDOW) }
-            // На Windows виртуальный монитор даёт только подписанный драйвер: Deixis сам его не ставит.
-            val note = if (System.getProperty("os.name").orEmpty().lowercase().contains("win"))
-                "Свой виртуальный экран на Windows — драйвер Virtual Display Driver (github.com/VirtualDrivers/Virtual-Display-Driver, MIT): после установки он появится здесь среди мониторов. Или HDMI-заглушка." else null
+            // Windows: создание и удаление монитора спрашивают права администратора (окно Windows на мониторе пульта).
+            val note = if (System.getProperty("os.name").orEmpty().lowercase().contains("win") && VirtualScreen.supported)
+                "Windows спросит права администратора: драйвер виртуального монитора Deixis ставится один раз, монитор остаётся до «Убрать»." else null
             return app.deixis.core.CaptureState(list, activeId, error, note)
         }
 
@@ -580,7 +580,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             capture = null; output = null; activeId = null
         }
 
-        fun close() = synchronized(this) { stopNow(); VirtualScreen.remove() }
+        fun close() = synchronized(this) { stopNow(); VirtualScreen.releaseOnExit() }
     }
 
     private inner class DesktopOutputs : OutputsHost {

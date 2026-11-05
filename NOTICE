@@ -81,3 +81,12 @@ Mac are trademarks of Apple Inc.; Deixis is not affiliated with or endorsed by A
 
 Bouncy Castle (org.bouncycastle:bcprov-jdk18on, MIT-style Bouncy Castle Licence) provides
 Ed25519 and X25519 for AirPlay pairing.
+
+
+Deixis Display (Windows virtual monitor)
+
+windows-display/ is Deixis' own Indirect Display driver (IddCx, UMDF 2) and its installer helper,
+GPL-3.0-or-later. It was written from Microsoft's public IddCx documentation; the Microsoft
+IndirectDisplay sample (MS-PL) was not used. The release build signs the driver with a self-signed
+certificate whose private key is deleted right after signing; the helper adds that certificate to the
+computer's trusted stores only when the operator creates the virtual screen in Deixis.
