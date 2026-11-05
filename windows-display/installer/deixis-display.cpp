@@ -25,7 +25,8 @@
 
 namespace {
 
-const wchar_t kHardwareId[] = L"Root\\DeixisDisplay";
+// id устройства; для проверки в CI можно поставить и другой драйвер (четвёртый аргумент install).
+const wchar_t* kHardwareId = L"Root\\DeixisDisplay";
 
 bool AddCertificate(const std::wstring& cerPath) {
     HANDLE f = CreateFileW(cerPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
@@ -70,7 +71,7 @@ bool CreateDevice() {
     SP_DEVINFO_DATA info = {sizeof(info)};
     bool ok = SetupDiCreateDeviceInfoW(set, L"Display", &GUID_DEVCLASS_DISPLAY, nullptr, nullptr, DICD_GENERATE_ID, &info);
     // Список id оканчивается двумя нулями.
-    wchar_t ids[64] = {};
+    wchar_t ids[128] = {};
     wcscpy_s(ids, kHardwareId);
     const DWORD bytes = static_cast<DWORD>((wcslen(kHardwareId) + 2) * sizeof(wchar_t));
     ok = ok && SetupDiSetDeviceRegistryPropertyW(set, &info, SPDRP_HARDWAREID, reinterpret_cast<BYTE*>(ids), bytes);
@@ -102,6 +103,7 @@ int Remove() {
 
 int wmain(int argc, wchar_t** argv) {
     if (argc >= 2 && _wcsicmp(argv[1], L"status") == 0) return FindDevice([](HDEVINFO, SP_DEVINFO_DATA&) {}) ? 0 : 1;
+    if (argc >= 5) kHardwareId = argv[4];
     if (argc >= 4 && _wcsicmp(argv[1], L"install") == 0) return Install(argv[2], argv[3]);
     if (argc >= 2 && _wcsicmp(argv[1], L"remove") == 0) return Remove();
     fwprintf(stderr, L"deixis-display.exe install <inf> <cer> | remove | status\n");

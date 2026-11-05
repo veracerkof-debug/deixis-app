@@ -66,3 +66,41 @@ jobs:
         with:
           name: deixis-display
           path: windows-display/out/
+
+  # Эталон: пример Microsoft IndirectDisplay (MS-PL), собранный здесь же только для сравнения — в Deixis не входит.
+  # Если и он не подключит монитор на этой машине, ограничение у машины CI (Hyper-V без видеокарты), а не у драйвера.
+  reference:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - name: Помощник установки
+        shell: pwsh
+        run: ./windows-display/build.ps1
+      - name: Сборка и установка примера Microsoft
+        shell: pwsh
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/microsoft/Windows-driver-samples.git ms
+          git -C ms sparse-checkout set video/IndirectDisplay
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          & (Join-Path $vs 'MSBuild\Current\Bin\amd64\MSBuild.exe') ms/video/IndirectDisplay/IddSampleDriver/IddSampleDriver.vcxproj /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /nologo /v:minimal
+          $pkg = New-Item -ItemType Directory -Force ref
+          Get-ChildItem -Recurse ms/video/IndirectDisplay -Include IddSampleDriver.dll, IddSampleDriver.inf | Where-Object FullName -match 'x64\\Release' | ForEach-Object { Copy-Item $_.FullName $pkg -Force }
+          Get-ChildItem $pkg
+          $kits = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $inf2cat = Get-ChildItem -Recurse $kits -Filter Inf2Cat.exe | Sort-Object FullName -Descending | Select-Object -First 1
+          $signtool = Get-ChildItem -Recurse $kits -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
+          & $inf2cat.FullName /driver:$pkg /os:10_X64,10_RS5_X64,10_VB_X64 /uselocaltime
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Reference Test' -CertStoreLocation Cert:\CurrentUser\My
+          Export-Certificate -Cert $cert -FilePath ref\ref.cer | Out-Null
+          Get-ChildItem $pkg -Include *.dll, *.cat -Recurse | ForEach-Object { & $signtool.FullName sign /fd sha256 /sha1 $cert.Thumbprint /s My $_.FullName }
+          Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey -Force
+          $inf = (Get-ChildItem $pkg -Filter *.inf).FullName
+          & windows-display/out/deixis-display.exe install $inf (Resolve-Path ref\ref.cer) 'Root\IddSampleDriver'
+          "установка: $LASTEXITCODE"
+          Start-Sleep 15
+          Get-PnpDevice -Class Display | Format-Table -AutoSize FriendlyName, Status, InstanceId
+          Get-PnpDevice -Class Display | Where-Object FriendlyName -like '*Idd*' | ForEach-Object { Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName DEVPKEY_Device_ProblemCode | Format-Table KeyName, Data }
+          Add-Type -AssemblyName System.Windows.Forms
+          $screens = [System.Windows.Forms.Screen]::AllScreens
+          $screens | Format-Table DeviceName, Bounds, Primary
+          "ЭТАЛОН: мониторов $($screens.Count) (больше одного — пример Microsoft подключил свой монитор на этой машине)"
