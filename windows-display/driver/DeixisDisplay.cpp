@@ -219,13 +219,15 @@ private:
 
 // Один адаптер и один монитор на устройство: состояние — здесь.
 IDDCX_ADAPTER g_adapter = nullptr;
+// Сколько режимов отдавать при разборе EDID: все или только записанный в EDID (запасной вариант).
+UINT g_parseModes = kModeCount;
 IDDCX_MONITOR g_monitor = nullptr;
 FrameDrain* g_drain = nullptr;
 SRWLOCK g_lock = SRWLOCK_INIT;
 
 // Режим из EDID помечается как пришедший из описания монитора, остальные — как режимы драйвера.
-void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid) {
-    for (UINT i = 0; i < kModeCount; i++) {
+void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid, UINT count = kModeCount) {
+    for (UINT i = 0; i < count; i++) {
         out[i] = {};
         out[i].Size = sizeof(IDDCX_MONITOR_MODE);
         out[i].Origin = fromEdid && kModes[i].inEdid ? IDDCX_MONITOR_MODE_ORIGIN_MONITORDESCRIPTOR : IDDCX_MONITOR_MODE_ORIGIN_DRIVER;
@@ -325,17 +327,25 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
     Log("AdapterInitFinished %08x", args->AdapterInitStatus);
     if (!NT_SUCCESS(args->AdapterInitStatus)) return STATUS_SUCCESS;
 
-    // Сначала монитор как HDMI, если Windows не примет — как DisplayPort.
-    const DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY kinds[] = {DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EXTERNAL};
-    for (auto kind : kinds) {
+    // Варианты по очереди, пока Windows не примет монитор: EDID со всеми режимами, EDID с одним режимом,
+    // монитор без EDID (режимы даёт драйвер). Какой сработал — в журнале.
+    struct Variant { bool edid; UINT modes; DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY kind; };
+    const Variant variants[] = {
+        {true, kModeCount, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI},
+        {true, 1, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI},
+        {false, kModeCount, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI},
+        {false, kModeCount, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INDIRECT_WIRED},
+    };
+    for (const Variant& v : variants) {
+        g_parseModes = v.modes;
         IDDCX_MONITOR_INFO info = {};
         info.Size = sizeof(info);
-        info.MonitorType = kind;
+        info.MonitorType = v.kind;
         info.ConnectorIndex = 0;
         info.MonitorDescription.Size = sizeof(info.MonitorDescription);
         info.MonitorDescription.Type = IDDCX_MONITOR_DESCRIPTION_TYPE_EDID;
-        info.MonitorDescription.DataSize = sizeof(kEdid.data);
-        info.MonitorDescription.pData = const_cast<BYTE*>(kEdid.data);
+        info.MonitorDescription.DataSize = v.edid ? sizeof(kEdid.data) : 0;
+        info.MonitorDescription.pData = v.edid ? const_cast<BYTE*>(kEdid.data) : nullptr;
         // Постоянный id контейнера: Windows запоминает расположение монитора между запусками.
         info.MonitorContainerId = {0x6d1f2a40, 0x3b7c, 0x4e1a, {0x9c, 0x55, 0x0d, 0xe1, 0x15, 0xd1, 0x5f, 0x01}};
 
@@ -346,7 +356,7 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
         in.pMonitorInfo = &info;
         IDARG_OUT_MONITORCREATE out = {};
         NTSTATUS status = IddCxMonitorCreate(adapter, &in, &out);
-        Log("IddCxMonitorCreate type=%d %08x", static_cast<int>(kind), status);
+        Log("IddCxMonitorCreate edid=%d modes=%u type=%d %08x", v.edid ? 1 : 0, v.modes, static_cast<int>(v.kind), status);
         if (!NT_SUCCESS(status)) continue;
 
         IDARG_OUT_MONITORARRIVAL arrival = {};
@@ -365,20 +375,23 @@ NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
 }
 
 NTSTATUS DeixisParseMonitorDescription(const IDARG_IN_PARSEMONITORDESCRIPTION* in, IDARG_OUT_PARSEMONITORDESCRIPTION* out) {
-    Log("ParseMonitorDescription in=%u", in->MonitorModeBufferInputCount);
-    out->MonitorModeBufferOutputCount = kModeCount;
-    if (in->MonitorModeBufferInputCount < kModeCount) {
+    const UINT count = g_parseModes;
+    Log("ParseMonitorDescription in=%u give=%u", in->MonitorModeBufferInputCount, count);
+    out->MonitorModeBufferOutputCount = count;
+    out->PreferredMonitorModeIdx = 0;
+    if (in->MonitorModeBufferInputCount < count) {
         // Сначала Windows спрашивает только число режимов (буфер пустой).
         return in->MonitorModeBufferInputCount > 0 ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
     }
-    FillMonitorModes(in->pMonitorModes, true);
-    out->PreferredMonitorModeIdx = 0;
+    FillMonitorModes(in->pMonitorModes, true, count);
     return STATUS_SUCCESS;
 }
 
 NTSTATUS DeixisDefaultModes(IDDCX_MONITOR, const IDARG_IN_GETDEFAULTDESCRIPTIONMODES* in, IDARG_OUT_GETDEFAULTDESCRIPTIONMODES* out) {
     // Вызывается, только если у монитора нет EDID; у нашего он есть, но ответ должен быть верным.
+    Log("DefaultModes in=%u", in->DefaultMonitorModeBufferInputCount);
     out->DefaultMonitorModeBufferOutputCount = kModeCount;
+    out->PreferredMonitorModeIdx = 0;
     if (in->DefaultMonitorModeBufferInputCount < kModeCount) {
         return in->DefaultMonitorModeBufferInputCount > 0 ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
     }
