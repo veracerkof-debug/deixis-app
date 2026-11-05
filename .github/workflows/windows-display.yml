@@ -95,7 +95,20 @@ jobs:
           Get-ChildItem $pkg -Include *.dll, *.cat -Recurse | ForEach-Object { & $signtool.FullName sign /fd sha256 /sha1 $cert.Thumbprint /s My $_.FullName }
           Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey -Force
           $inf = (Get-ChildItem $pkg -Filter *.inf).FullName
-          & windows-display/out/deixis-display.exe install $inf (Resolve-Path ref\ref.cer) 'Root\IddSampleDriver'
+          "--- INF примера: производитель и модели ---"
+          Select-String -Path $inf -Pattern 'Manufacturer|NT\$ARCH|NTamd64|Root\\' | ForEach-Object { $_.Line }
+          [System.Environment]::OSVersion.Version
+          # Снять ограничение по версии Windows (если оно есть), чтобы сравнить на этой машине.
+          (Get-Content $inf) -replace '(NTamd64)\.10\.0\.\.\.\d+', '$1' -replace '(NT\$ARCH\$)\.10\.0\.\.\.\d+', '$1' | Set-Content $inf
+          Select-String -Path $inf -Pattern 'NTamd64|NT\$ARCH' | ForEach-Object { $_.Line }
+          & $inf2cat.FullName /driver:$pkg /os:10_X64,10_RS5_X64,10_VB_X64 /uselocaltime | Out-Null
+          $cert2 = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Reference Test' -CertStoreLocation Cert:\CurrentUser\My
+          Export-Certificate -Cert $cert2 -FilePath ref\ref.cer | Out-Null
+          Get-ChildItem $pkg -Include *.dll, *.cat -Recurse | ForEach-Object { & $signtool.FullName sign /fd sha256 /sha1 $cert2.Thumbprint /s My $_.FullName | Out-Null }
+          Remove-Item -Path "Cert:\CurrentUser\My\$($cert2.Thumbprint)" -DeleteKey -Force
+          $hwid = (Select-String -Path $inf -Pattern 'Root\\\w+' | Select-Object -First 1).Matches[0].Value
+          "id устройства примера: $hwid"
+          & windows-display/out/deixis-display.exe install $inf (Resolve-Path ref\ref.cer) $hwid
           "установка: $LASTEXITCODE"
           Start-Sleep 15
           Get-PnpDevice -Class Display | Format-Table -AutoSize FriendlyName, Status, InstanceId
