@@ -325,9 +325,9 @@ NTSTATUS DeixisD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE) {
 }
 
 NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_INIT_FINISHED* args) {
-    Log("AdapterInitFinished %08x; IddCx %d.%d, MONITOR_INFO=%u ADAPTER_CAPS=%u MONITOR_MODE=%u", args->AdapterInitStatus,
-        IDDCX_VERSION_MAJOR, IDDCX_VERSION_MINOR, (unsigned)sizeof(IDDCX_MONITOR_INFO), (unsigned)sizeof(IDDCX_ADAPTER_CAPS),
-        (unsigned)sizeof(IDDCX_MONITOR_MODE));
+    Log("AdapterInitFinished %08x; MONITOR_INFO=%u ADAPTER_CAPS=%u MONITOR_MODE=%u TARGET_MODE=%u", args->AdapterInitStatus,
+        (unsigned)sizeof(IDDCX_MONITOR_INFO), (unsigned)sizeof(IDDCX_ADAPTER_CAPS), (unsigned)sizeof(IDDCX_MONITOR_MODE),
+        (unsigned)sizeof(IDDCX_TARGET_MODE));
     if (!NT_SUCCESS(args->AdapterInitStatus)) return STATUS_SUCCESS;
     if (ConnectMonitor(adapter)) return STATUS_SUCCESS;
     // Не вышло сразу — ещё раз из своего потока, когда обратный вызов уже завершён.
