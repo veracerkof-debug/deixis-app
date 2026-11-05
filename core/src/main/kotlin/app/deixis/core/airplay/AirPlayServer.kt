@@ -10,6 +10,7 @@ package app.deixis.core.airplay
  * Подробности — в NOTICE.
  */
 
+import app.deixis.core.MirrorSink
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
@@ -27,15 +28,6 @@ import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicReference
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceInfo
-
-/** Куда приёмник AirPlay отдаёт картинку. Вызовы идут из потоков сервера. */
-interface MirrorSink {
-    /** Пришли параметры кода: начало трансляции или смена размера. */
-    fun config(annexB: ByteArray, width: Int, height: Int)
-    fun frame(annexB: ByteArray, key: Boolean, ptsUs: Long)
-    /** Трансляция закончилась (iPhone отключился или соединение оборвалось). */
-    fun stopped()
-}
 
 /**
  * Сервер AirPlay. Пока не вызван [start], он ничего не слушает и не объявляет себя в сети.

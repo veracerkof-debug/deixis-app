@@ -132,6 +132,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         server = ReceiverServer(core, opts.port, tls = runCatching { TlsIdentity.loadOrCreate(File(opts.dataDir, "tls"), core.info.name) }.getOrNull())
         airPlay = AirPlayHost(core, opts.dataDir) { address }
         core.airPlay = airPlay
+        core.capture = DesktopCapture()
     }
 
     /** Переключатель приёма AirPlay из меню; в сети он появляется или пропадает сразу. */
@@ -483,6 +484,71 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun setAirPlay(on: Boolean) = this@ReceiverApp.setAirPlay(on)
     }
 
+    /**
+     * Трансляция монитора этого компьютера (HDMI-заглушка, виртуальный экран, второй монитор, куда Holyrics или
+     * PowerPoint выводят «проектор») в общий поток экрана. Монитор, где сейчас окно Deixis, при выборе освобождается:
+     * иначе Deixis снимал бы сам себя. Показ другого с пульта останавливает съёмку — процессор не занят зря.
+     */
+    private inner class DesktopCapture : app.deixis.core.CaptureHost {
+        private var capture: ScreenCapture? = null
+        private var output: app.deixis.core.MirrorOutput? = null
+        private var activeId: String? = null
+        @Volatile private var error: String? = null
+        private var keys: Job? = null
+        private var watch: Job? = null
+
+        @Synchronized
+        override fun state(): app.deixis.core.CaptureState {
+            if (capture?.alive == false) stopNow()
+            val mons = monitors()
+            val list = screens.mapIndexed { i, sc ->
+                val m = mons.firstOrNull { it.id == sc.id }
+                app.deixis.core.CaptureSource(sc.id, m?.name ?: "Монитор ${i + 1}", sc.width, sc.height, hall = m?.enabled == true)
+            }
+            return app.deixis.core.CaptureState(list, activeId, error)
+        }
+
+        @Synchronized
+        override fun select(id: String?) {
+            stopNow()
+            error = null
+            if (id == null) return
+            val index = screens.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
+            val sc = screens[index]
+            monitors().firstOrNull { it.id == id && it.enabled }?.let { setMonitor(MonitorRequest(it.id, false, it.layout)) }
+            val area = runCatching {
+                val d = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.first { it.iDstring == id }
+                val b = d.defaultConfiguration.bounds
+                // Windows снимает в настоящих точках экрана, а Java считает с учётом масштаба (125 %, 150 %).
+                val k = sc.width.toDouble() / b.width
+                CaptureArea((b.x * k).toInt(), (b.y * k).toInt(), sc.width, sc.height, index)
+            }.getOrElse { CaptureArea(sc.x, sc.y, sc.width, sc.height, index) }
+            val out = app.deixis.core.MirrorOutput(core)
+            val cap = ScreenCapture(area, out, onError = { error = it })
+            output = out; capture = cap; activeId = id
+            keys = scope.launch { core.stream.keyRequests.collect { cap.requestKey() } }
+            watch = scope.launch {
+                // Пока картинки ещё нет — ждём; потом, если оператор показал другое, съёмка останавливается.
+                var seen = false
+                while (true) {
+                    kotlinx.coroutines.delay(1_000)
+                    val on = out.onScreen()
+                    if (on) seen = true
+                    if ((seen && !on) || !cap.alive) { synchronized(this@DesktopCapture) { if (capture === cap) stopNow() }; break }
+                }
+            }
+        }
+
+        private fun stopNow() {
+            keys?.cancel(); watch?.cancel()
+            runCatching { capture?.close() }
+            runCatching { output?.close() }
+            capture = null; output = null; activeId = null
+        }
+
+        fun close() = synchronized(this) { stopNow() }
+    }
+
     private inner class DesktopOutputs : OutputsHost {
         override fun state() = OutputsState(monitors(), relay.outputs.value, webScreenUrl())
         override fun setMonitor(req: MonitorRequest) = this@ReceiverApp.setMonitor(req)
@@ -543,6 +609,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         runCatching { relay.close() }
         runCatching { advertisement?.close() }
         runCatching { airPlay.close() }
+        runCatching { (core.capture as? DesktopCapture)?.close() }
         runCatching { server.stop() }
         runCatching { tray?.remove() }
         windows.values.toList().forEach { it.release() }

@@ -1,5 +1,6 @@
 package app.deixis.core.airplay
 
+import app.deixis.core.MirrorOutput
 import app.deixis.core.ReceiverCore
 import java.io.File
 import java.net.InetAddress
@@ -16,7 +17,7 @@ class AirPlayHost(
 ) {
     private val flag = File(dataDir, "airplay-on")
     private var server: AirPlayServer? = null
-    private var output: AirPlayOutput? = null
+    private var output: MirrorOutput? = null
 
     val enabled: Boolean get() = flag.isFile
 
@@ -33,7 +34,7 @@ class AirPlayHost(
     }
 
     private fun open() {
-        val out = AirPlayOutput(core)
+        val out = MirrorOutput(core)
         output = out
         val s = AirPlayServer(core.info.name, AirPlayIdentity.load(File(dataDir, "airplay-key")), out,
             width = core.info.screenWidth.takeIf { it > 0 } ?: 1920, height = core.info.screenHeight.takeIf { it > 0 } ?: 1080)

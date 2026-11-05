@@ -1,10 +1,5 @@
-package app.deixis.core.airplay
+package app.deixis.core
 
-import app.deixis.core.ReceiverCore
-import app.deixis.core.ReceiverState
-import app.deixis.core.ScreenContent
-import app.deixis.core.Show
-import app.deixis.core.StreamFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,12 +7,21 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.Closeable
 
+/** Куда источник зеркала (AirPlay, экран компьютера) отдаёт картинку. Вызовы идут из его потока. */
+interface MirrorSink {
+    /** Пришли параметры кода: начало трансляции или смена размера. */
+    fun config(annexB: ByteArray, width: Int, height: Int)
+    fun frame(annexB: ByteArray, key: Boolean, ptsUs: Long)
+    /** Трансляция закончилась (источник отключился или соединение оборвалось). */
+    fun stopped()
+}
+
 /**
- * Картинка с iPhone идёт в тот же поток экрана, что и демонстрация с телефона-пульта:
- * зал, второй монитор и зрители по QR показывают её одинаково. Когда iPhone отключается,
- * возвращается то, что было на экране до него.
+ * Картинка источника на самом приёмнике (iPhone по AirPlay, экран этого компьютера) идёт в тот же поток экрана,
+ * что и демонстрация с телефона-пульта: зал, мониторы, экраны в сети и зрители по QR показывают её одинаково.
+ * Когда источник отключается, возвращается то, что было на экране до него.
  */
-class AirPlayOutput(private val core: ReceiverCore) : MirrorSink, Closeable {
+class MirrorOutput(private val core: ReceiverCore) : MirrorSink, Closeable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var owner = -1
     private var seq = 0L
@@ -31,7 +35,7 @@ class AirPlayOutput(private val core: ReceiverCore) : MirrorSink, Closeable {
     init {
         scope.launch {
             core.stream.keyRequests.collect {
-                synchronized(this@AirPlayOutput) {
+                synchronized(this@MirrorOutput) {
                     val k = lastKey ?: return@synchronized
                     if (core.stream.owns(owner)) core.stream.publish(StreamFrame(true, false, seq++, lastPts, k))
                 }
@@ -54,6 +58,10 @@ class AirPlayOutput(private val core: ReceiverCore) : MirrorSink, Closeable {
             core.apply(Show(content))
         }
     }
+
+    /** Картинка источника сейчас в зале: оператор не показал ничего другого поверх неё. */
+    @Synchronized
+    fun onScreen(): Boolean = shown != null && core.state.value.content == shown && core.stream.owns(owner)
 
     @Synchronized
     override fun frame(annexB: ByteArray, key: Boolean, ptsUs: Long) {

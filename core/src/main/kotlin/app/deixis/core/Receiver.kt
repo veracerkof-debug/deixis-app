@@ -116,6 +116,10 @@ class ReceiverCore(
     /** Вернуть зал из «Уйти с экранов»: показ остаётся тем же. */
     fun returnToScreens() = _state.update { if (it.mode == Mode.AWAY) it.copy(mode = Mode.NORMAL) else it }
 
+    /** Трансляция монитора этого компьютера; null — платформа не умеет (ТВ, телефон). */
+    @Volatile
+    var capture: CaptureHost? = null
+
     /** Кто подключён и кто ждёт подтверждения оператора. */
     val peers = PeerDesk()
 
@@ -357,6 +361,7 @@ class ReceiverServer(
                 outputsRoutes(core) { authorized() }
                 updateRoutes(core) { authorized() }
                 airPlayRoutes(core) { authorized() }
+                captureRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)

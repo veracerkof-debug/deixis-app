@@ -531,6 +531,13 @@ const TR = {
   tVideo: ["Видео", "Video", "Video"],
   tPhoto: ["Фото", "Rasm", "Photo"],
   tFile: ["Файл", "Fayl", "File"],
+  tScreen: ["Экран компьютера", "Kompyuter ekrani", "Computer screen"],
+  capTitle: ["Транслировать монитор", "Monitorni translyatsiya qilish", "Broadcast a monitor"],
+  capNote: ["Выбранный монитор идёт в зал, на экраны в сети и зрителям по QR. Удобно для HDMI-заглушки или второго монитора, куда Holyrics, PowerPoint и другие программы выводят свой «проектор». Монитор, где сейчас зал Deixis, освобождается для съёмки. Показ другого с пульта останавливает трансляцию.", "Tanlangan monitor zalga, tarmoqdagi ekranlarga va QR orqali tomoshabinlarga boradi. HDMI-zaglushka yoki Holyrics, PowerPoint va boshqa dasturlar o‘z «proyektor»ini chiqaradigan ikkinchi monitor uchun qulay. Hozir Deixis zali turgan monitor suratga olish uchun bo‘shatiladi. Pultdan boshqasini ko‘rsatish translyatsiyani to‘xtatadi.", "The chosen monitor goes to the hall, to screens on the network and to viewers by QR. Handy for an HDMI dummy plug or a second monitor where Holyrics, PowerPoint and other apps send their “projector”. A monitor showing the Deixis hall is freed for capture. Showing something else from the remote stops the broadcast."],
+  capHall: ["сейчас здесь зал Deixis", "hozir bu yerda Deixis zali", "Deixis hall is here now"],
+  capLive: ["в эфире", "efirda", "on air"],
+  capStart: ["Транслировать", "Translyatsiya", "Broadcast"],
+  capStop: ["Остановить трансляцию", "Translyatsiyani to‘xtatish", "Stop broadcasting"],
   tSong: ["Песня", "Qo‘shiq", "Song"],
   tText: ["Текст", "Matn", "Text"],
   tBible: ["Библия", "Bibliya", "Bible"],
@@ -1601,6 +1608,27 @@ async function loadOutputs() {
     if (e.status === 501 || e.status === 404) { S.outputs = null; render(); }
   }
 }
+// ——— Экран компьютера: монитор (HDMI-заглушка, «проектор» Holyrics) в общий поток (/api/capture; 501 — не компьютер) ———
+async function loadCapture() {
+  if (S.capture === null) return;
+  try { S.capture = await getJson("/api/capture"); refreshSheet(); render(); }
+  catch (e) { if (e.status === 501 || e.status === 404) { S.capture = null; render(); } }
+}
+async function setCapture(id) {
+  try { S.capture = await postJson("/api/capture", { id }); if (S.capture.error) toast(S.capture.error); refreshSheet(); render(); }
+  catch (e) { toast(e.message || t.failed); }
+}
+function sheetCapture() {
+  loadCapture();
+  openSheet(t.capTitle, () => {
+    const c = S.capture || { sources: [] };
+    return `<div class="group">${c.sources.map((m) => `<div class="row"><span class="kind">${ico("monitor")}</span>
+      <span class="main"><div class="t">${esc(m.name)}</div><div class="s">${m.width}×${m.height}${c.active === m.id ? " · " + esc(t.capLive) : m.hall ? " · " + esc(t.capHall) : ""}</div></span>
+      ${c.active === m.id ? `<button class="pill" data-act="capstop">${esc(t.capStop)}</button>` : `<button class="pill tint" data-act="capgo" data-id="${esc(m.id)}">${esc(t.capStart)}</button>`}</div>`).join("")}</div>
+      <p class="note">${esc(t.capNote)}</p>`;
+  });
+}
+
 // ——— Подключения: кто на связи, кто ждёт «Разрешить» (только у пульта на самом компьютере) ———
 let approving = null;
 function onPeers(p) {
@@ -1902,7 +1930,8 @@ function monitorsHTML() {
     <div class="mon now ${on ? "" : "off"}"><div class="lbl"><span class="dot ${on ? "" : "off"}"></span>${esc(t.now)}</div>
       <div data-g="now" role="button" tabindex="0" aria-label="${esc(t.now + ": " + liveName())}">${slideHTML(online ? live : null, { mode: online ? m : "NORMAL", load: !!S.progress, empty: online ? t.empty : t.lost, time: isVid && v ? fmt(v.positionMs) : null, timeId: "vt2", w: 640 })}</div>
       <div class="hint ${S.warn ? "warn" : ""}">${esc(S.warn || liveName())}${isVid && v && !v.playing ? " · " + esc(t.paused) : ""}</div>
-      ${online && m === "AWAY" ? `<button class="pill tint" data-act="mode" data-m="AWAY">${ico("show")}${esc(t.backToScreens)}</button>` : ""}</div>
+      ${online && m === "AWAY" ? `<button class="pill tint" data-act="mode" data-m="AWAY">${ico("show")}${esc(t.backToScreens)}</button>` : ""}
+      ${online && S.capture && S.capture.active && live && live.type === "screen" ? `<button class="pill" data-act="capstop">${ico("monitor")}${esc(t.capStop)}</button>` : ""}</div>
     <div class="mon pre"><div class="lbl">${esc(t.preview)}<button class="go" data-act="preLive" ${pre || S.draft ? "" : "disabled"}>${esc(t.toHall)}</button></div>
       <div data-g="pre" role="button" tabindex="0" aria-label="${esc(t.preview + ": " + preName)}">${slideHTML(preContent, { w: 640 })}</div>
       <div class="hint ${S.draft ? "changed" : ""}">${esc(preName)}${S.draft && pre ? " · " + esc(t.newStyleShort) : ""}</div></div>
@@ -1954,6 +1983,7 @@ function setlistHTML(wide) {
 function tilesHTML() {
   const list = [["pres", t.tPres, "pres"], ["video", t.tVideo, "media"], ["photo", t.tPhoto, "photo"], ["text", t.tText, "text"], ["layer", t.tLayer, "layers"], ["file", t.tFile, "file"]];
   if (settings.church) list.push(["bible", t.tBible, "bible"], ["holyrics", "Holyrics", "song"]);
+  if (S.capture) list.push(["screen", t.tScreen, "monitor"]);
   return `<div class="tiles" role="group" aria-label="${esc(t.showWhat)}" data-key="tiles">${list.map(([k, l, i]) => `<button class="tile" data-act="tile" data-k="${k}">${ico(i)}<span>${esc(l)}</span></button>`).join("")}</div>`;
 }
 function controlBar() {
@@ -2679,6 +2709,7 @@ const A = {
     if (d.k === "layer") return sheetLayer();
     if (d.k === "bible") return A.tab({ id: "bible" });
     if (d.k === "holyrics") return sheetHolyrics();
+    if (d.k === "screen") return sheetCapture();
     sheetPick(d.k);
   },
   find: () => sheetFind(), setpick: () => sheetSetpick(), settings: () => sheetSettings(),
@@ -2843,6 +2874,8 @@ const A = {
   monlayout: (d) => setMonitor(d.id, true, d.v),
   airplay: () => setAirPlay(!S.airPlay),
   peerok: (d) => answerPeer(d.id, true),
+  capgo: (d) => setCapture(d.id),
+  capstop: () => setCapture(null),
   peerno: (d) => answerPeer(d.id, false),
   peerkick: (d) => { send({ type: "kick", id: d.id }); toast(t.kick); },
   link: (d) => linkOutput(d.id),
@@ -2988,6 +3021,7 @@ function started() {
   if (settings.church) loadModules();
   loadOutputs();
   loadAirPlay();
+  loadCapture();
   loadPairing();
   pollOutputs();
   keepAwake();
