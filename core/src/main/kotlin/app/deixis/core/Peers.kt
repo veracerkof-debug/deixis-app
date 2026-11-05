@@ -23,9 +23,10 @@ data class ConnectedRemote(val id: String, val sender: String, val address: Stri
 data class PeersState(val requests: List<ConnectRequest> = emptyList(), val connected: List<ConnectedRemote> = emptyList())
 
 /**
- * Подключения к экрану. Пока открыт пульт оператора на самом компьютере, новое устройство с верным PIN
- * пускается только после «Разрешить» на этом пульте: PIN виден всем в зале, а решает оператор.
- * Без пульта оператора (ТВ, компьютер-экран) достаточно PIN, как прежде.
+ * Подключения к экрану. PIN виден всем в зале, поэтому новое устройство с верным PIN пускается только после
+ * «Разрешить»: на самом экране (пульт или окно подтверждения на мониторе оператора компьютера) или на уже
+ * подключённом пульте оператора — так и компьютер, где все мониторы показывают зал, не выводит запрос зрителям.
+ * Подтверждать некому (первое устройство у ТВ или компьютера-экрана) — достаточно PIN, как прежде.
  * Оператор видит, кто на связи, и может отключить любого: тот забывается и подключается заново по PIN.
  */
 class PeerDesk(private val clock: () -> Long = System::currentTimeMillis) {
@@ -38,17 +39,20 @@ class PeerDesk(private val clock: () -> Long = System::currentTimeMillis) {
 
     private class Session(val token: String?, val close: () -> Unit)
 
-    /** Сколько пультов оператора открыто на этом компьютере: они подтверждают подключения. */
+    /** Сколько пультов оператора на связи готовы подтверждать подключения (этот компьютер и подключённые). */
     private val approvers = java.util.concurrent.atomic.AtomicInteger()
 
     fun approverJoined() = approvers.incrementAndGet()
     fun approverLeft() = approvers.decrementAndGet()
 
-    /** Нужно ли подтверждение: открыт ли пульт оператора, который его даст. */
-    val approvalNeeded: Boolean get() = approvers.get() > 0
+    /** Окно подтверждения самого экрана: компьютер показывает его на мониторе оператора, где нет зала. */
+    @Volatile var screenApprover: Boolean = false
+
+    /** Нужно ли подтверждение: есть ли кому его дать. */
+    val approvalNeeded: Boolean get() = screenApprover || approvers.get() > 0
 
     /**
-     * Спрашивает оператора. null — спрашивать некого (пульта на компьютере нет): хватает PIN.
+     * Спрашивает оператора. null — спрашивать некого: хватает PIN.
      * Без ответа за [timeoutMs] — отказ. Ждущих одновременно не больше [MAX_PENDING]: остальным отказ сразу.
      */
     suspend fun ask(sender: String, address: String, timeoutMs: Long = APPROVAL_TIMEOUT_MS): Boolean? {

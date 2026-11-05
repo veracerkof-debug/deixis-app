@@ -27,8 +27,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Подключения: пока открыт пульт оператора на самом компьютере, новое устройство с верным PIN ждёт «Разрешить»;
- * оператор видит, кто на связи, и отключает лишних.
+ * Подключения: новое устройство с верным PIN ждёт «Разрешить» — на самом экране или на уже подключённом пульте
+ * оператора; оператор видит, кто на связи, и отключает лишних. Подтверждать некому — хватает PIN.
  */
 class PeersTest {
     private val dir = createTempDirectory("peers").toFile()
@@ -53,6 +53,49 @@ class PeersTest {
         assertEquals(true, a.await())
         assertTrue(d.state.value.requests.isEmpty())
         assertEquals(false, d.ask("Чужой", "10.0.0.9", timeoutMs = 200), "без ответа — отказ")
+    }
+
+    @Test
+    fun screenWindowAsksToo() = runBlocking<Unit> {
+        val d = PeerDesk()
+        d.screenApprover = true
+        assertTrue(d.approvalNeeded, "окно подтверждения на мониторе оператора")
+        assertEquals(false, d.ask("Чужой", "10.0.0.9", timeoutMs = 200))
+        d.screenApprover = false
+        assertNull(d.ask("Телефон", "10.0.0.5"))
+    }
+
+    /**
+     * Компьютер, где все мониторы — зал (или ТВ): первое устройство входит по PIN, следующее пускает уже
+     * подключённый телефон. Пересылка показа с другого экрана (не сказала, что подтверждает) ничего не меняет.
+     */
+    @Test
+    fun connectedPhoneApprovesTheNextOne() = runBlocking<Unit> {
+        val lan = NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }
+            .firstOrNull { it is Inet4Address && !it.isLoopbackAddress }?.hostAddress ?: return@runBlocking
+        val port = server.start()
+        val relay = SenderClient(lan, port, "Экран в холле", scope)
+        relay.connect(relay.pair(core.pairing.pin))
+        withTimeout(5_000) { while (relay.connection.value !is Connection.Connected) delay(20) }
+        assertFalse(core.peers.approvalNeeded, "пересылка показа не подтверждает")
+
+        val first = SenderClient(lan, port, "Оператор · Pixel", scope).apply { approver = true }
+        first.connect(first.pair(core.pairing.pin))
+        withTimeout(5_000) { while (!core.peers.approvalNeeded) delay(20) }
+        val answering = scope.launch {
+            first.peers.collect { p -> p?.requests?.forEach { first.answer(it.id, it.sender.startsWith("Свой")) } }
+        }
+        var waited = false
+        val good = SenderClient(lan, port, "Свой · iPhone", scope)
+        assertTrue(core.pairing.isValid(good.pair(core.pairing.pin) { waited = true }))
+        assertTrue(waited)
+        val bad = SenderClient(lan, port, "Чужой", scope)
+        assertEquals(DenyReason.NOT_APPROVED, (runCatching { bad.pair(core.pairing.pin) }.exceptionOrNull() as? PairingException)?.reason)
+        // Оператор видит всех на связи, и пересылку показа тоже.
+        withTimeout(5_000) { while (first.peers.value?.connected.orEmpty().none { it.sender == "Экран в холле" }) delay(20) }
+        answering.cancel()
+        listOf(relay, first, good, bad).forEach { it.close() }
+        withTimeout(5_000) { while (core.peers.approvalNeeded) delay(20) }
     }
 
     @Test

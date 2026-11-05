@@ -67,6 +67,15 @@ object L {
     // ——— Общие действия и состояния ———
 
     val connect: String get() = t("Подключить", "Ulash", "Connect")
+    val newConnect: String get() = t("Новое подключение", "Yangi ulanish", "New connection")
+    val newConnectAsk: String get() = t(
+        "Это устройство ввело верный PIN и просит управлять экраном. PIN виден всем в зале — пустите, только если знаете, кто это.",
+        "Bu qurilma to‘g‘ri PIN kiritdi va ekranni boshqarishni so‘ramoqda. PIN zaldagi hammaga ko‘rinadi — kimligini bilsangizgina ruxsat bering.",
+        "This device entered the correct PIN and asks to control the screen. The PIN is visible to everyone in the room — allow only if you know who it is.",
+    )
+    val allow: String get() = t("Разрешить", "Ruxsat berish", "Allow")
+    val reject: String get() = t("Отклонить", "Rad etish", "Reject")
+    val browserDevice: String get() = t("Браузер", "Brauzer", "Browser")
     val disconnect: String get() = t("Отключить", "Uzish", "Disconnect")
     val retry: String get() = t("Повторить", "Qayta urinish", "Retry")
     val close: String get() = t("Закрыть", "Yopish", "Close")
@@ -885,7 +894,8 @@ object L {
     fun profileNamed(name: Any?): String = t("Профиль «$name»", "«$name» profili", "Profile “$name”")
     fun profileN(n: Any?): String = t("Профиль $n", "Profil $n", "Profile $n")
     fun profilesSub(n: Any?): String = t("Своя библиотека и вид · профилей: $n", "O‘z kutubxonasi va ko‘rinishi · profillar: $n", "Own library and look · profiles: $n")
-    fun waitApproval(name: Any?): String = t("PIN верный. Ждём «Разрешить» на пульте экрана «$name»", "PIN to‘g‘ri. «$name» ekrani pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on the remote of “$name”")
+    fun waitApproval(name: Any?): String = t("PIN верный. Ждём «Разрешить» на экране «$name» или на пульте оператора", "PIN to‘g‘ri. «$name» ekranida yoki operator pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on “$name” or on the operator’s remote")
+    fun wantsScreen(name: Any?, address: Any?): String = t("Просит экран «$name» · $address", "«$name» ekranini so‘ramoqda · $address", "Asks for “$name” · $address")
     fun notApproved(name: Any?): String = t("Экран «$name» не разрешил подключение", "«$name» ekrani ulanishga ruxsat bermadi", "Screen “$name” did not allow the connection")
     fun screenConnected(name: Any?): String = t("Подключён экран «$name»", "«$name» ekrani ulangan", "Screen “$name” connected")
     fun screensConnected(n: Any?): String = t("Подключено экранов: $n", "Ulangan ekranlar: $n", "Screens connected: $n")

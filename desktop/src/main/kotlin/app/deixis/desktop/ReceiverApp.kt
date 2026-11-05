@@ -95,6 +95,12 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private lateinit var airPlay: AirPlayHost
     @Volatile var role: Role = Role.SCREEN
         private set
+    /** Окно пульта внутри программы; закрыли — программа решает, завершаться ли (как с любым приложением). */
+    private val operatorWindow = OperatorWindow { if (role != Role.SCREEN && !exiting) quit() else updateApproval() }
+    /** Пульт шёл в своём окне: тогда о закрытии говорит окно, а не пропажа связи страницы. */
+    @Volatile private var embeddedOperator = false
+    /** «Новое подключение» на мониторе оператора, пока окно пульта закрыто. */
+    private val approval = ApprovalWindow { id, allow -> core.peers.answer(id, allow) }
 
     init {
         opts.dataDir.mkdirs()
@@ -171,7 +177,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         // Окно пульта закрыли: зал уходит вместе с программой, как у любого приложения — даже если
         // подключён ещё телефон (оператор за компьютером закончил). Компьютер-«Экран» так не закрывается:
         // там пульт открывают лишь изредка, а зал должен оставаться.
-        core.onOperatorClosed = { _ -> if (role != Role.SCREEN && !exiting) SwingUtilities.invokeLater { quit() } }
+        // Это — для пульта в браузере (запасной путь): у своего окна закрытие видно сразу.
+        core.onOperatorClosed = { _ -> if (!embeddedOperator && role != Role.SCREEN && !exiting) SwingUtilities.invokeLater { quit() } }
         advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
             .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
             .getOrNull()
@@ -337,6 +344,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         val fs = frameState()
         windows.values.forEach { it.update(fs) }
         tray?.rebuild()
+        updateApproval()
     }
 
     private fun startTimers() {
@@ -381,6 +389,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     private fun observe() {
+        scope.launch(Dispatchers.Swing) { core.peers.state.collect { updateApproval() } }
         scope.launch(Dispatchers.Swing) {
             core.videoCommands.collect { cmd ->
                 windows.values.forEach { it.videoCommand(cmd) }
@@ -415,13 +424,46 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         return token
     }
 
+    /**
+     * Пульт — в своём окне Deixis на мониторе оператора. Если встроенного движка нет (сборка без него,
+     * сбой видеокарты) — как раньше, окном браузера.
+     */
     override fun openOperator() {
         scope.launch(Dispatchers.IO) {
-            val url = "http://127.0.0.1:$port/remote#t=${operatorToken()}"
-            if (!OperatorLauncher.open(url, File(opts.dataDir, "operator-browser"))) {
+            val url = "http://127.0.0.1:$port/remote#t=${operatorToken()}&l=${java.util.Locale.getDefault().language}"
+            val inWindow = kotlinx.coroutines.withContext(Dispatchers.Swing) {
+                operatorWindow.open(url, operatorArea()).also { if (it) { embeddedOperator = true; updateApproval() } }
+            }
+            if (!inWindow && !OperatorLauncher.open(url, File(opts.dataDir, "operator-browser"))) {
                 System.err.println("Не удалось открыть пульт. Адрес: http://127.0.0.1:$port/remote")
             }
         }
+    }
+
+    /**
+     * Где можно показать интерфейс, не задев зал: монитор без зала (сначала основной), иначе монитор, где зал
+     * идёт в окне. null — все мониторы показывают зал во весь экран.
+     */
+    private fun operatorArea(): java.awt.Rectangle? {
+        if (GraphicsEnvironment.isHeadless()) return null
+        val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        val devices = ge.screenDevices.associateBy { it.iDstring }
+        val id = if (opts.windowed) ge.defaultScreenDevice.iDstring else {
+            val list = monitors().filter { it.id in devices }
+            list.filter { !it.enabled }.sortedByDescending { it.primary }.firstOrNull()?.id
+                ?: list.firstOrNull { it.id in windowedIds }?.id ?: return null
+        }
+        val conf = devices[id]?.defaultConfiguration ?: return null
+        val b = conf.bounds
+        val i = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(conf)
+        return java.awt.Rectangle(b.x + i.left, b.y + i.top, b.width - i.left - i.right, b.height - i.top - i.bottom)
+    }
+
+    /** Запрос на подключение — в окне пульта, если оно открыто, иначе отдельным окном на мониторе оператора. */
+    private fun updateApproval() {
+        val area = operatorArea()
+        core.peers.screenApprover = area != null
+        approval.update(if (operatorWindow.showing) emptyList() else core.peers.state.value.requests, area)
     }
 
     override fun setWindowed(windowId: String, windowed: Boolean) {
@@ -646,6 +688,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         runCatching { (core.capture as? DesktopCapture)?.close() }
         runCatching { server.stop() }
         runCatching { tray?.remove() }
+        SwingUtilities.invokeLater { operatorWindow.close(notify = false); approval.hide() }
         windows.values.toList().forEach { it.release() }
         // В проверках процесс не завершается: окна закрываются сами.
         SwingUtilities.invokeLater { windows.values.forEach { it.dispose() }; windows.clear() }

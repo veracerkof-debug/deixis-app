@@ -60,6 +60,13 @@ compiled into the bytedeco build) for the "Computer screen" broadcast. The macOS
 the system CGVirtualDisplay API, as the open-source DeskPad app (MIT) does; no DeskPad code is included.
 
 
+Bundled OpenJFX (desktop)
+
+The desktop installers include OpenJFX (org.openjfx: javafx-base, -graphics, -controls, -media,
+-web, -swing; https://openjfx.io), licensed under the GNU GPL version 2 with the Classpath Exception.
+Its WebView (WebKit, LGPL/BSD) shows the operator remote inside the Deixis window on the computer.
+
+
 AirPlay receiver (rewritten from UxPlay)
 
 core/src/main/kotlin/app/deixis/core/airplay/ is a Kotlin rewrite of the AirPlay mirroring

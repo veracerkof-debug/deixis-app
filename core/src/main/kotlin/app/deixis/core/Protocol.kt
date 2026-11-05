@@ -62,11 +62,19 @@ data class VideoCommand(
 @Serializable @SerialName("ping")
 data class Ping(val t: Long) : Msg
 
-/** Пульт оператора на этом компьютере: пустить или не пустить ждущее устройство. */
+/**
+ * Пульт готов подтверждать подключения: показывает запрос «Пустить?» и шлёт [ConnectAnswer].
+ * Подключения от него с тех пор не проходят по одному PIN, пока он на связи. Пересылка показа между
+ * экранами этого не шлёт и не подтверждает.
+ */
+@Serializable @SerialName("approver")
+data class ApproverReady(val on: Boolean = true) : Msg
+
+/** Пульт оператора: пустить или не пустить ждущее устройство. */
 @Serializable @SerialName("answer")
 data class ConnectAnswer(val id: String, val allow: Boolean) : Msg
 
-/** Пульт оператора на этом компьютере: отключить пульт [id] и забыть его. */
+/** Пульт оператора: отключить пульт [id] и забыть его (пульт самого компьютера не отключается). */
 @Serializable @SerialName("kick")
 data class Kick(val id: String) : Msg
 
@@ -87,11 +95,11 @@ data class Paired(val token: String) : Msg
 @Serializable @SerialName("denied")
 data class Denied(val reason: DenyReason) : Msg
 
-/** PIN верный, ждём «Разрешить» на пульте оператора. Старые пульты такое сообщение пропускают. */
+/** PIN верный, ждём «Разрешить» на компьютере или на уже подключённом пульте. Старые пульты такое сообщение пропускают. */
 @Serializable @SerialName("awaiting")
 data class AwaitingApproval(val timeoutMs: Long) : Msg
 
-/** Пульту оператора на этом компьютере: кто подключён и кто ждёт подтверждения. */
+/** Пультам оператора: кто подключён и кто ждёт подтверждения. */
 @Serializable @SerialName("peers")
 data class Peers(val state: PeersState) : Msg
 

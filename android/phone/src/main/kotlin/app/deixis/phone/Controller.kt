@@ -123,6 +123,9 @@ data class OutputView(val target: Target, val state: OutState, val info: Receive
 data class LargeFile(val uri: Uri, val name: String, val mime: String)
 
 /** Подключённый экран: своя связь, свои переданные файлы. */
+/** Запрос на подключение к экрану [target]: решает оператор. */
+data class Approval(val target: Target, val request: app.deixis.core.ConnectRequest)
+
 private class Output(val target: Target, val client: SenderClient) {
     val syncing = MutableStateFlow(0)
     var jobs: List<Job> = emptyList()
@@ -477,7 +480,19 @@ class Controller(private val app: Application) {
         val k = key(t)
         val c = SenderClient(t.host, t.port, senderName(), scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
         c.onPinned = { tp, fp -> prefs.edit().putInt("$k.tp", tp).putString("$k.fp", fp).apply() }
+        // Этот телефон — пульт оператора: подтверждает новые подключения к экрану.
+        c.approver = true
         return c
+    }
+
+    /** Устройства, которые ввели верный PIN на экранах этого пульта и ждут «Разрешить». */
+    val approvals: StateFlow<List<Approval>> = outs.flatMapLatest { list ->
+        if (list.isEmpty()) flowOf(emptyList())
+        else combine(list.map { o -> o.client.peers.map { p -> p?.requests.orEmpty().map { Approval(o.target, it) } } }) { it.toList().flatten() }
+    }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    fun answerConnect(a: Approval, allow: Boolean) {
+        outs.value.firstOrNull { it.target.id == a.target.id }?.client?.answer(a.request.id, allow)
     }
 
     /** Как экран видит этот телефон: имя профиля и устройство («Алексей · Redmi 9T»). */

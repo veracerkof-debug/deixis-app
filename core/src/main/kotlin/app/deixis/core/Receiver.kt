@@ -28,6 +28,7 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -488,7 +489,7 @@ class ReceiverServer(
         }
     }
 
-    /** Новое устройство с верным PIN: если открыт пульт оператора на этом компьютере, решает он. */
+    /** Новое устройство с верным PIN: решает оператор — на самом экране или на уже подключённом пульте. */
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.approved(sender: String): Boolean {
         val here = call.request.local.remoteAddress in LOOPBACK && !call.secure()
         if (here || !core.peers.approvalNeeded) return true
@@ -512,20 +513,25 @@ class ReceiverServer(
         }
         send(Frame.Text(Welcome(PROTOCOL_VERSION, core.publicInfo(), welcomeState ?: core.state.value, core.viewKey).encode()))
         welcomed.complete(Unit)
-        // Пульт оператора на этом компьютере видит, кто подключён, и решает, кого пустить.
-        val peersFeed = if (here) {
+        // Пульт оператора видит, кто подключён, и решает, кого пустить: пульт этого компьютера — всегда,
+        // подключённый — когда сам сказал, что готов (ApproverReady). Пересылка показа между экранами молчит.
+        var peersFeed: Job? = null
+        fun becomeApprover() {
+            if (peersFeed != null) return
             core.peers.approverJoined()
-            launch { core.peers.state.collect { send(Frame.Text(Peers(it).encode())) } }
-        } else null
+            peersFeed = launch { core.peers.state.collect { send(Frame.Text(Peers(it).encode())) } }
+        }
+        if (here) becomeApprover()
         try {
             for (frame in incoming) {
                 if (frame !is Frame.Text) continue
                 when (val msg = decodeMsg(frame.readText())) {
                     null -> Unit
                     is Ping -> send(Frame.Text(Pong(msg.t).encode()))
-                    // Решать, кого пустить и кого отключить, может только пульт на самом компьютере.
-                    is ConnectAnswer -> if (here) core.peers.answer(msg.id, msg.allow)
-                    is Kick -> if (here) core.peers.kick(msg.id) { core.pairing.forget(it) }
+                    is ApproverReady -> if (msg.on) becomeApprover()
+                    // Решать, кого пустить и кого отключить, могут только пульты оператора.
+                    is ConnectAnswer -> if (peersFeed != null) core.peers.answer(msg.id, msg.allow)
+                    is Kick -> if (peersFeed != null) core.peers.kick(msg.id) { core.pairing.forget(it) }
                     else -> core.apply(msg)?.let { send(Frame.Text(it.encode())) }
                 }
             }

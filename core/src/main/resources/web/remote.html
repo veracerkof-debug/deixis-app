@@ -113,6 +113,7 @@ main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .btn[disabled] { opacity: .4; pointer-events: none; }
 
 .group { background: var(--cell); border-radius: var(--r-card); overflow: hidden; margin: 0 0 var(--g10); }
+.sect { font-size: var(--fs-h2); font-weight: 700; margin: var(--g16) 0 var(--g2) var(--gutter); }
 .ghead { font-size: var(--fs-sm); color: var(--l2); text-transform: uppercase; letter-spacing: .02em; margin: 0 0 var(--g3) var(--gutter); }
 .row { display: flex; align-items: center; gap: var(--g6); padding: var(--g5) var(--gutter); min-height: var(--h-row); width: 100%; text-align: left; position: relative; }
 .row + .row::before, .row + .slides + .row::before { content: ""; position: absolute; top: 0; left: calc(var(--gutter) + var(--w-kind) + var(--g6)); right: 0; border-top: var(--line) solid var(--sep); }
@@ -465,13 +466,13 @@ const TR = {
   thisComputer: ["этот компьютер", "shu kompyuter", "this computer"],
   sinceTime: ["с {0}", "{0} dan", "since {0}"],
   kick: ["Отключить", "Uzish", "Disconnect"],
-  kickedNote: ["Отключённое устройство забыто: вернуться оно сможет только по PIN и с вашего разрешения.", "Uzilgan qurilma unutiladi: u faqat PIN va sizning ruxsatingiz bilan qayta kira oladi.", "A disconnected device is forgotten: it can come back only with the PIN and your permission."],
+  kickedNote: ["Отключённое устройство забыто: вернуться оно сможет только по PIN и с разрешения оператора.", "Uzilgan qurilma unutiladi: u faqat PIN va operator ruxsati bilan qayta kira oladi.", "A disconnected device is forgotten: it can come back only with the PIN and the operator’s permission."],
   newConnect: ["Новое подключение", "Yangi ulanish", "New connection"],
   newConnectAsk: ["Ввели верный PIN. Пустить к показу?", "To‘g‘ri PIN kiritildi. Ko‘rsatuvga kiritilsinmi?", "The correct PIN was entered. Let it control the show?"],
   allow: ["Разрешить", "Ruxsat berish", "Allow"],
   reject: ["Не пускать", "Kiritmaslik", "Don’t allow"],
   moreWaiting: ["Ещё ждут: {0}", "Yana kutmoqda: {0}", "Also waiting: {0}"],
-  waitApproval: ["PIN верный. Ждём «Разрешить» на пульте экрана", "PIN to‘g‘ri. Ekran pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on the screen’s remote"],
+  waitApproval: ["PIN верный. Ждём «Разрешить» на экране или на пульте оператора", "PIN to‘g‘ri. Ekranda yoki operator pultida «Ruxsat berish» kutilmoqda", "PIN accepted. Waiting for “Allow” on the screen or on the operator’s remote"],
   notApproved: ["Экран не разрешил подключение", "Ekran ulanishga ruxsat bermadi", "The screen did not allow the connection"],
   backToScreens: ["Вернуться на экраны", "Ekranlarga qaytish", "Back to the screens"],
   awayLong: ["Уйти с экранов: на них снова то, что было до Deixis", "Ekranlardan chiqish: ularda Deixisdan oldingi narsa", "Leave the screens: they show what was there before Deixis"],
@@ -656,6 +657,10 @@ const TR = {
   searching: ["Поиск…", "Qidirilmoqda…", "Searching…"],
   first200: ["Показаны первые 200 стихов: стоит уточнить запрос.", "Dastlabki 200 oyat ko‘rsatildi: so‘rovni aniqlashtirish kerak.", "The first 200 verses are shown: a narrower query helps."],
   openPlace: ["Открыть: {0}", "Ochish: {0}", "Open: {0}"],
+  inputs: ["Входы", "Kirishlar", "Inputs"],
+  inputsNote: ["Откуда ещё картинка приходит на этот экран: экран компьютера, окно программы, AirPlay.", "Bu ekranga rasm yana qayerdan keladi: kompyuter ekrani, dastur oynasi, AirPlay.", "Other sources this screen can show: the computer screen, a program window, AirPlay."],
+  outputs: ["Выходы", "Chiqishlar", "Outputs"],
+  outputsNote: ["Куда этот экран выводит показ: зрители по QR, мониторы, экраны в сети, браузер.", "Bu ekran ko‘rsatuvni qayerga chiqaradi: QR orqali tomoshabinlar, monitorlar, tarmoqdagi ekranlar, brauzer.", "Where this screen sends the show: viewers by QR, monitors, screens on the network, a browser."],
   airPlayReceive: ["Принимать AirPlay", "AirPlay qabul qilish", "Receive AirPlay"],
   airPlaySub: ["iPhone, iPad и Mac: «Повтор экрана»", "iPhone, iPad va Mac: «Ekran takrori»", "iPhone, iPad and Mac: Screen Mirroring"],
   airPlayNote: ["Пока приём включён, показать экран может любое устройство Apple в этой сети; показ с пульта заменяет его сразу. Звук AirPlay пока не играется.", "Qabul yoqilgan paytda bu tarmoqdagi istalgan Apple qurilmasi ekranni ko‘rsata oladi; pultdan ko‘rsatish uni darhol almashtiradi. AirPlay ovozi hozircha chalinmaydi.", "While this is on, any Apple device on this network can show its screen; showing from the remote replaces it at once. AirPlay sound does not play yet."],
@@ -846,7 +851,9 @@ const STRINGS = { ru: {}, uz: {}, en: {} };
 for (const [k, v] of Object.entries(TR)) LANGS.forEach((l, i) => { STRINGS[l][k] = v[i] != null ? v[i] : v[0]; });
 let lang = "ru", t = STRINGS.ru;
 function setLang(code) {
-  const nav = (navigator.language || "ru").toLowerCase();
+  // Окно пульта на компьютере передаёт язык системы (#t=…&l=uz): встроенный движок его не знает.
+  const sys = (location.hash.match(/[#&]l=([a-z]+)/) || [])[1];
+  const nav = (sys || navigator.language || "ru").toLowerCase();
   lang = LANGS.includes(code) ? code : nav.startsWith("uz") ? "uz" : nav.startsWith("en") ? "en" : "ru";
   t = new Proxy(STRINGS[lang], { get: (o, k) => (k in o ? o[k] : STRINGS.ru[k] != null ? STRINGS.ru[k] : String(k)) });
   document.documentElement.lang = lang;
@@ -931,11 +938,33 @@ function setScreenRatio(r) {
 // казаться живым. Поэтому связь проверяется по ответам каждую секунду, а при возврате на страницу,
 // появлении сети и восстановлении из кэша — переподключение сразу, без ожидания.
 let pause = 500, lastPong = 0, fails = 0, retry = 0, online = false, everOnline = false, netText = "";
+// Окно пульта Deixis на компьютере: встроенный движок не умеет WebSocket, связь держит сама программа
+// (window.deixisHost), события приходят в window.__deixisWs. Снаружи окна — обычный WebSocket.
+const IN_APP = /JavaFX/.test(navigator.userAgent);
+const HOST_SOCKETS = {};
+function HostSocket(url) {
+  const s = this;
+  s.readyState = 0;
+  s.id = String(window.deixisHost.wsOpen(url));
+  HOST_SOCKETS[s.id] = s;
+  s.send = (text) => { if (s.readyState === 1) window.deixisHost.wsSend(s.id, text); };
+  s.close = () => { if (s.readyState < 2) { s.readyState = 2; window.deixisHost.wsClose(s.id); } };
+}
+window.__deixisWs = (id, kind, data) => {
+  const s = HOST_SOCKETS[id];
+  if (!s) return;
+  if (kind === "open") { s.readyState = 1; if (s.onopen) s.onopen(); }
+  else if (kind === "message") { if (s.onmessage) s.onmessage({ data }); }
+  else { s.readyState = 3; delete HOST_SOCKETS[id]; if (s.onclose) s.onclose({}); }
+};
 function connect(pin) {
   clearTimeout(retry);
+  // Мост окна ставится, когда страница загрузилась: ждём его, а не идём в нерабочий WebSocket движка.
+  if (IN_APP && !window.deixisHost) { retry = setTimeout(() => connect(pin), 50); return; }
   if (ws) { ws.onclose = null; ws.onmessage = null; try { ws.close(); } catch (e) {} }
   setNet(online ? "" : t.connecting);
-  const sock = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+  const sock = window.deixisHost ? new HostSocket(url) : new WebSocket(url);
   ws = sock;
   // Если за 4 секунды не открылось — Wi-Fi не тот или экран выключен; пробуем снова.
   const openTimer = setTimeout(() => { if (sock.readyState !== 1) sock.close(); }, 4000);
@@ -961,6 +990,8 @@ function connect(pin) {
       const first = !everOnline;
       everOnline = true;
       setOnline(true);
+      // Этот пульт подтверждает новые подключения к экрану (старый экран сообщение пропускает).
+      send({ type: "approver", on: true });
       onState(m.state, true);
       if (first) started();
     }
@@ -1618,34 +1649,41 @@ async function loadOutputs() {
 // ——— Экран компьютера: монитор (HDMI-заглушка, «проектор» Holyrics) в общий поток (/api/capture; 501 — не компьютер) ———
 async function loadCapture() {
   if (S.capture === null) return;
-  try { S.capture = await getJson("/api/capture"); refreshSheet(); render(); }
+  try {
+    const c = await getJson("/api/capture");
+    const changed = JSON.stringify(c) !== JSON.stringify(S.capture);
+    S.capture = c;
+    if (changed) { refreshSheet(); render(); }
+  }
   catch (e) { if (e.status === 501 || e.status === 404) { S.capture = null; render(); } }
 }
 async function setCapture(id) {
   try { S.capture = await postJson("/api/capture", { id }); if (S.capture.error) toast(S.capture.error); refreshSheet(); render(); }
   catch (e) { toast(e.message || t.failed); }
 }
+// Источники экрана компьютера: мониторы, виртуальный экран, окна программ — в шторке и в «Устройствах → Входы».
+function captureHTML() {
+  const c = S.capture || { sources: [] };
+  const row = (m, sub) => `<div class="row"><span class="kind">${ico(m.kind === "window" ? "file" : "monitor")}</span>
+    <span class="main"><div class="t">${esc(m.name)}</div><div class="s">${m.width}×${m.height}${c.active === m.id ? " · " + esc(t.capLive) : sub ? " · " + esc(sub) : ""}</div></span>
+    ${c.active === m.id ? `<button class="pill" data-act="capstop">${esc(t.capStop)}</button>` : `<button class="pill tint" data-act="capgo" data-id="${esc(m.id)}">${esc(m.kind === "newVirtual" ? t.capCreate : t.capStart)}</button>`}</div>`;
+  const mons = c.sources.filter((m) => m.kind === "monitor");
+  const virt = c.sources.filter((m) => m.kind === "virtual" || m.kind === "newVirtual");
+  const wins = c.sources.filter((m) => m.kind === "window");
+  return `<div class="ghead">${esc(t.monitors)}</div><div class="group">${mons.map((m) => row(m, m.hall ? t.capHall : "")).join("")}</div>
+    ${virt.length ? `<div class="ghead">${esc(t.capVirtual)}</div><div class="group">${virt.map((m) => row(m, m.kind === "newVirtual" ? t.capVirtualSub : t.capVirtualOn)).join("")}
+      ${virt.some((m) => m.kind === "virtual") ? `<button class="row" data-act="capgo" data-id="virtual:remove"><span class="kind">${ico("close")}</span><span class="main t">${esc(t.capVirtualRemove)}</span></button>` : ""}</div>
+      <p class="note">${esc(t.capVirtualNote)}</p>` : ""}
+    ${wins.length ? `<div class="ghead">${esc(t.capWindows)}</div><div class="group">${wins.map((m) => row(m, "")).join("")}</div>` : ""}
+    ${c.note ? `<p class="note">${esc(c.note)}</p>` : ""}${c.error ? `<p class="note">${esc(c.error)}</p>` : ""}
+    <p class="note">${esc(t.capNote)}</p>`;
+}
 function sheetCapture() {
   loadCapture();
-  openSheet(t.capTitle, () => {
-    const c = S.capture || { sources: [] };
-    const row = (m, sub) => `<div class="row"><span class="kind">${ico(m.kind === "window" ? "file" : "monitor")}</span>
-      <span class="main"><div class="t">${esc(m.name)}</div><div class="s">${m.width}×${m.height}${c.active === m.id ? " · " + esc(t.capLive) : sub ? " · " + esc(sub) : ""}</div></span>
-      ${c.active === m.id ? `<button class="pill" data-act="capstop">${esc(t.capStop)}</button>` : `<button class="pill tint" data-act="capgo" data-id="${esc(m.id)}">${esc(m.kind === "newVirtual" ? t.capCreate : t.capStart)}</button>`}</div>`;
-    const mons = c.sources.filter((m) => m.kind === "monitor");
-    const virt = c.sources.filter((m) => m.kind === "virtual" || m.kind === "newVirtual");
-    const wins = c.sources.filter((m) => m.kind === "window");
-    return `<div class="ghead">${esc(t.monitors)}</div><div class="group">${mons.map((m) => row(m, m.hall ? t.capHall : "")).join("")}</div>
-      ${virt.length ? `<div class="ghead">${esc(t.capVirtual)}</div><div class="group">${virt.map((m) => row(m, m.kind === "newVirtual" ? t.capVirtualSub : t.capVirtualOn)).join("")}
-        ${virt.some((m) => m.kind === "virtual") ? `<button class="row" data-act="capgo" data-id="virtual:remove"><span class="kind">${ico("close")}</span><span class="main t">${esc(t.capVirtualRemove)}</span></button>` : ""}</div>
-        <p class="note">${esc(t.capVirtualNote)}</p>` : ""}
-      ${wins.length ? `<div class="ghead">${esc(t.capWindows)}</div><div class="group">${wins.map((m) => row(m, "")).join("")}</div>` : ""}
-      ${c.note ? `<p class="note">${esc(c.note)}</p>` : ""}${c.error ? `<p class="note">${esc(c.error)}</p>` : ""}
-      <p class="note">${esc(t.capNote)}</p>`;
-  });
+  openSheet(t.capTitle, captureHTML);
 }
 
-// ——— Подключения: кто на связи, кто ждёт «Разрешить» (только у пульта на самом компьютере) ———
+// ——— Подключения: кто на связи, кто ждёт «Разрешить» (у пультов оператора: на компьютере и подключённых) ———
 let approving = null;
 function onPeers(p) {
   S.peers = p;
@@ -1706,7 +1744,7 @@ async function setAirPlay(on) {
 }
 function pollOutputs() {
   clearInterval(outputsTimer);
-  outputsTimer = setInterval(() => { if (online && S.tab === "devices" && document.visibilityState === "visible") { loadOutputs(); loadPairing(); } }, 3000);
+  outputsTimer = setInterval(() => { if (online && S.tab === "devices" && document.visibilityState === "visible") { loadOutputs(); loadPairing(); if (S.capture) loadCapture(); } }, 3000);
 }
 async function setMonitor(id, enabled, layout) {
   try { S.outputs = await postJson("/api/outputs/monitor", { id, enabled, layout }); render(); } catch (e) { toast(e.message || t.failed); }
@@ -2171,6 +2209,13 @@ function renderDevices() {
         <div style="min-width:0"><div class="t">${esc(t.webScreenTitle)}</div><div class="s wrap">${esc(t.webScreenHint)}</div></div></div>
         <div class="row"><span class="kind">${ico("link")}</span><span class="main"><div class="t mono">${esc(o.webScreenUrl)}</div></span><button class="pill" data-act="copy" data-v="${esc(o.webScreenUrl)}">${esc(t.copy)}</button></div></div>` : ""}`;
   }
+  // Входы: откуда картинка приходит на этот экран, кроме пультов (экран компьютера, окна программ, AirPlay).
+  let ins = "";
+  if (S.capture) ins += captureHTML();
+  if (S.airPlay === true || S.airPlay === false) ins += `<div class="ghead">AirPlay</div><div class="group"><div class="row"><span class="kind">${ico("show")}</span>
+      <span class="main"><div class="t">${esc(t.airPlayReceive)}</div><div class="s">${esc(t.airPlaySub)}</div></span>
+      <button class="switch" role="switch" aria-checked="${S.airPlay}" data-act="airplay" aria-label="${esc(t.airPlayReceive)}"></button></div></div>
+      <p class="note">${esc(t.airPlayNote)}</p>`;
   return `<header class="top"><h1>${esc(t.tabDevices)}</h1><button class="iconbtn" data-act="settings" aria-label="${esc(t.settings)}">${ico("gear")}</button></header>
   <div class="scroll" data-key="dev"><div class="pad wrapw">
     <div class="ghead">${esc(t.thisScreen)}</div><div class="group">
@@ -2180,15 +2225,13 @@ function renderDevices() {
       ${/Android/.test(navigator.userAgent) ? `<button class="row" data-act="app"><span class="kind">${ico("phone")}</span><span class="main t">${esc(t.openApp)}</span><span class="chev">${ico("chev")}</span></button>` : ""}
       <button class="row" data-act="unpair"><span class="kind">${ico("close")}</span><span class="main t">${esc(t.forgetScreen)}</span></button></div>
     ${peersHTML()}
+    ${ins ? `<h2 class="sect">${esc(t.inputs)}</h2><p class="note">${esc(t.inputsNote)}</p>${ins}` : ""}
+    <h2 class="sect">${esc(t.outputs)}</h2><p class="note">${esc(t.outputsNote)}</p>
     <div class="ghead">${esc(t.viewers)}</div><div class="group">${vu ? `<div class="room">${qrImg(vu)}
       <div style="min-width:0"><div class="s">${esc(t.watchingNow)}</div><div class="big" id="vcount2">${(state && state.viewers) || 0}</div>
       <div class="s wrap">${esc(t.viewersHint)}</div></div></div>
       <div class="row"><span class="kind">${ico("link")}</span><span class="main"><div class="t mono">${esc(vu)}</div></span><button class="pill" data-act="copy" data-v="${esc(vu)}">${esc(t.copy)}</button></div>`
       : `<div class="row"><span class="main s wrap">${esc(t.noViewers)}</span></div>`}</div>
-    ${S.airPlay === true || S.airPlay === false ? `<div class="ghead">AirPlay</div><div class="group"><div class="row"><span class="kind">${ico("show")}</span>
-      <span class="main"><div class="t">${esc(t.airPlayReceive)}</div><div class="s">${esc(t.airPlaySub)}</div></span>
-      <button class="switch" role="switch" aria-checked="${S.airPlay}" data-act="airplay" aria-label="${esc(t.airPlayReceive)}"></button></div></div>
-      <p class="note">${esc(t.airPlayNote)}</p>` : ""}
     ${outs}
     ${settings.church ? `<div class="ghead">${esc(t.churchSection)}</div><div class="group">
       <button class="row" data-act="holyrics"><span class="kind">${ico("song")}</span><span class="main"><div class="t">Holyrics</div><div class="s">${esc(settings.holyrics ? t.hlOn : t.hlAbout)}</div></span><span class="chev">${ico("chev")}</span></button>
@@ -2714,7 +2757,7 @@ const A = {
   byname: () => { const a = altUrl(); if (a) location.href = a; },
   unpair: () => { closeSheet(); A.forget(); everOnline = false; receiver = null; renderPair(); },
   app: () => { location.href = `deixis://${location.host}?pin=${encodeURIComponent(startPin)}`; },
-  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") { loadOutputs(); loadAirPlay(); loadPairing(); } render(); },
+  tab: (d) => { closeSheet(); closeFull(true); S.tab = d.id; if (d.id === "bible") bibleEnsure(); if (d.id === "devices") { loadOutputs(); loadAirPlay(); loadPairing(); loadCapture(); } render(); },
   lseg: (d) => { S.listSeg = d.v; render(); },
   preLive: () => preToLive(),
   step: (d) => step(+d.d),
@@ -2897,7 +2940,11 @@ const A = {
   link: (d) => linkOutput(d.id),
   linkgo: (d) => { const pin = $("#lpin").value.trim(); if (!/^\d{4}$/.test(pin)) return toast(t.pin4); linkOutput(d.id, pin); },
   unlink: (d) => unlinkOutput(d.id),
-  copy: async (d) => { try { await navigator.clipboard.writeText(d.v); toast(t.copied); } catch (e) { toast(d.v); } },
+  copy: async (d) => {
+    // В окне пульта Deixis на компьютере буфер обмена — через саму программу.
+    if (window.deixisHost) { try { window.deixisHost.copy(d.v); toast(t.copied); return; } catch (e) {} }
+    try { await navigator.clipboard.writeText(d.v); toast(t.copied); } catch (e) { toast(d.v); }
+  },
   // Holyrics
   holyrics: () => sheetHolyrics(),
   hconnect: async () => {

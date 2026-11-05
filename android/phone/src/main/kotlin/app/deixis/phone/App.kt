@@ -168,6 +168,10 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
     }
     val needPin by c.needPin.collectAsState()
     LaunchedEffect(needPin) { needPin?.let { t -> ui.push(L.pinFromScreen) { PinSheet(c, t) } } }
+    // Кто-то ввёл верный PIN на экране этого пульта: оператор решает здесь (или на самом экране).
+    val approvals by c.approvals.collectAsState()
+    val asking = approvals.firstOrNull()
+    LaunchedEffect(asking?.request?.id) { asking?.let { a -> ui.push(L.newConnect) { ApproveSheet(c, a) } } }
     UpdatesEffects(c, ui)
 
     // «Библия» — церковный раздел: без него вкладки нет. В режиме пульта Holyrics она остаётся: стихи идут в Holyrics.

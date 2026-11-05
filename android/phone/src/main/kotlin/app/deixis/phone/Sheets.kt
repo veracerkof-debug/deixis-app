@@ -181,6 +181,20 @@ fun PinSheet(c: Controller, t: Target) {
     Btn(L.connect, kind = BtnKind.TINT, enabled = pin.length == 4) { c.pair(t, pin) }
 }
 
+/** «Новое подключение»: устройство ввело верный PIN на экране и ждёт решения. Решили на экране — шторка уходит. */
+@Composable
+fun ApproveSheet(c: Controller, a: Approval) {
+    val ui = LocalUi.current
+    val list by c.approvals.collectAsState()
+    LaunchedEffect(list) { if (list.none { it.request.id == a.request.id }) ui.close() }
+    Group { Cell(a.request.sender.ifBlank { L.browserDevice }, L.wantsScreen(a.target.name, a.request.address), "phone", chevron = null) }
+    Note(L.newConnectAsk)
+    Spacer(Modifier.height(12.dp))
+    Btn(L.allow, kind = BtnKind.TINT) { c.answerConnect(a, true); ui.close() }
+    Spacer(Modifier.height(8.dp))
+    Btn(L.reject) { c.answerConnect(a, false); ui.close() }
+}
+
 @Composable
 private fun ManualSheet(c: Controller, ui: Ui) {
     var addr by remember { mutableStateOf("") }

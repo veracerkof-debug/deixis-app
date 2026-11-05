@@ -136,6 +136,22 @@ class SenderClient(
     var token: String? = null
         private set
 
+    /**
+     * Этот пульт подтверждает подключения к экрану: после входа экран шлёт ему, кто ждёт «Разрешить»
+     * и кто на связи ([peers]). Пересылка показа между экранами этого не включает.
+     */
+    @Volatile var approver: Boolean = false
+
+    private val _peers = MutableStateFlow<PeersState?>(null)
+    /** Кто подключён к экрану и кто ждёт подтверждения; null — экран не прислал (нет связи, старая версия). */
+    val peers: StateFlow<PeersState?> = _peers.asStateFlow()
+
+    /** Пустить или нет устройство, которое ждёт подтверждения. */
+    fun answer(id: String, allow: Boolean) = send(ConnectAnswer(id, allow))
+
+    /** Отключить пульт и забыть его: вернуться он сможет только по PIN и с подтверждением. */
+    fun kick(id: String) = send(Kick(id))
+
     private val _viewKey = MutableStateFlow<String?>(null)
     /** Ключ страницы для зрителей этого приёмника; null, пока нет связи или приёмник старой версии. */
     val viewKey: StateFlow<String?> = _viewKey.asStateFlow()
@@ -257,6 +273,7 @@ class SenderClient(
         val writer = launch {
             for (msg in box) send(Frame.Text(msg.encode()))
         }
+        if (approver) send(Frame.Text(ApproverReady().encode()))
         try {
             for (frame in incoming) {
                 if (frame !is Frame.Text) continue
@@ -264,12 +281,14 @@ class SenderClient(
                     is Status -> _state.value = msg.state
                     is Pong -> lastPong = System.currentTimeMillis()
                     is ErrorMsg -> _errors.tryEmit(msg)
+                    is Peers -> _peers.value = msg.state
                     else -> Unit
                 }
             }
         } finally {
             pinger.cancel()
             writer.cancel()
+            _peers.value = null
         }
         true
     }
