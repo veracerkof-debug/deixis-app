@@ -33,6 +33,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Зависший тест падает с именем, а не держит сборку часами.
+    systemProperty("junit.jupiter.execution.timeout.default", "120 s")
+    testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Имена файлов с кириллицей (папки Holyrics) читаются верно только в UTF-8.
     environment("LC_ALL", "C.UTF-8")
     environment("LANG", "C.UTF-8")
