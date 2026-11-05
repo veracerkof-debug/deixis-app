@@ -1,0 +1,70 @@
+;
+; Deixis Display — виртуальный монитор Windows для Deixis (Indirect Display, UMDF 2).
+; GPL-3.0-or-later. Ставится помощником deixis-display.exe по действию оператора в Deixis.
+;
+
+[Version]
+PnpLockdown=1
+Signature="$Windows NT$"
+ClassGUID={4D36E968-E325-11CE-BFC1-08002BE10318}
+Class=Display
+ClassVer=2.0
+Provider=%ManufacturerName%
+CatalogFile=DeixisDisplay.cat
+DriverVer=
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%DeviceName%=DeixisDisplay_Install, Root\DeixisDisplay
+
+[SourceDisksFiles]
+DeixisDisplay.dll=1
+
+[SourceDisksNames]
+1=%DiskName%
+
+[DestinationDirs]
+DeixisDisplay_Files=13
+
+[DeixisDisplay_Install.NT]
+CopyFiles=DeixisDisplay_Files
+
+[DeixisDisplay_Files]
+DeixisDisplay.dll
+
+[DeixisDisplay_Install.NT.hw]
+AddReg=DeixisDisplay_Hardware
+
+[DeixisDisplay_Hardware]
+HKR,,"UpperFilters",%REG_MULTI_SZ%,"IndirectKmd"
+HKR,"WUDF","DeviceGroupId",%REG_SZ%,"DeixisDisplayGroup"
+
+[DeixisDisplay_Install.NT.Services]
+AddService=WUDFRd,0x000001fa,WUDFRD_ServiceInstall
+
+[WUDFRD_ServiceInstall]
+DisplayName=%WudfRdDisplayName%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\WUDFRd.sys
+
+[DeixisDisplay_Install.NT.Wdf]
+UmdfService=DeixisDisplay,DeixisDisplay_UmdfService
+UmdfServiceOrder=DeixisDisplay
+UmdfKernelModeClientPolicy=AllowKernelModeClients
+
+[DeixisDisplay_UmdfService]
+UmdfLibraryVersion=$UMDFVERSION$
+ServiceBinary=%13%\DeixisDisplay.dll
+UmdfExtensions=IddCx0102
+
+[Strings]
+ManufacturerName="Deixis"
+DiskName="Deixis Display"
+DeviceName="Deixis Virtual Display"
+WudfRdDisplayName="Windows Driver Foundation - User-mode Driver Framework Reflector"
+REG_MULTI_SZ=0x00010000
+REG_SZ=0x00000000

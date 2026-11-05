@@ -1,0 +1,40 @@
+name: Виртуальный монитор Windows
+
+# Драйвер Deixis Display: сборка, подпись своим сертификатом и проверка на настоящей Windows —
+# после установки система должна увидеть монитор «Deixis», после удаления — нет.
+on:
+  push:
+    paths: ['windows-display/**', '.github/workflows/windows-display.yml']
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - name: Сборка
+        shell: pwsh
+        run: ./windows-display/build.ps1
+      - name: Установка и проверка
+        shell: pwsh
+        run: |
+          $out = "windows-display/out"
+          function Monitors { (Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction SilentlyContinue | ForEach-Object { -join ($_.ManufacturerName | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }) }) }
+          "До: $(Monitors)"
+          & "$out/deixis-display.exe" install (Resolve-Path "$out/DeixisDisplay.inf") (Resolve-Path "$out/DeixisDisplay.cer")
+          if ($LASTEXITCODE -ne 0) { throw "установка: код $LASTEXITCODE" }
+          & "$out/deixis-display.exe" status; if ($LASTEXITCODE -ne 0) { throw "устройство не заведено" }
+          $seen = $false
+          for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep 1; $seen = (Monitors) -contains 'DXS' }
+          Get-PnpDevice -Class Display | Format-Table -AutoSize FriendlyName, Status, InstanceId
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Screen]::AllScreens | Format-Table DeviceName, Bounds, Primary
+          if (-not $seen) { throw "Windows не увидела монитор Deixis" }
+          & "$out/deixis-display.exe" remove
+          if ($LASTEXITCODE -ne 0) { throw "удаление: код $LASTEXITCODE" }
+          "После удаления: $(Monitors)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deixis-display
+          path: windows-display/out/
