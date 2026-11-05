@@ -124,6 +124,34 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         }
     }
     fun send(req: UpdateRequest) { scope.launch { c.screenUpdate(t, req)?.let { s = it } } }
+    // Экран компьютера: какой монитор, окно или виртуальный экран транслировать.
+    var cap by remember { mutableStateOf<app.deixis.core.CaptureState?>(null) }
+    LaunchedEffect(t.id) { while (true) { cap = c.screenCapture(t); delay(5_000) } }
+    cap?.let { st ->
+        GHead(L.capTitle)
+        Group {
+            st.sources.forEachIndexed { i, src ->
+                if (i > 0) Sep(T.gutter)
+                val on = st.active == src.id
+                val sub = "${src.width}×${src.height}" + when {
+                    on -> " · ${L.capLive}"
+                    src.hall -> " · ${L.capHall}"
+                    else -> ""
+                }
+                Cell(src.name, sub, kind = if (src.kind == app.deixis.core.CaptureSource.WINDOW) "file" else "show", chevron = null) {
+                    Pill(if (on) L.capStop else if (src.kind == app.deixis.core.CaptureSource.NEW_VIRTUAL) L.capCreate else L.capStart, tint = !on) {
+                        scope.launch { c.screenCapture(t, if (on) "" else src.id)?.let { cap = it } }
+                    }
+                }
+            }
+            if (st.sources.any { it.kind == app.deixis.core.CaptureSource.VIRTUAL }) {
+                Sep(T.gutter)
+                Cell(L.capVirtualRemove, chevron = null, onClick = { scope.launch { c.screenCapture(t, app.deixis.core.CaptureSource.ID_REMOVE_VIRTUAL)?.let { cap = it } } })
+            }
+        }
+        st.error?.let { Note(it) }
+        Note(L.capNote)
+    }
     var airPlay by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(t.id) { airPlay = c.screenAirPlay(t) }
     airPlay?.let { on ->

@@ -24,6 +24,49 @@ class ScreenCaptureTest {
         assertTrue(w % 2 == 0 && h % 2 == 0)
     }
 
+    /** Окно программы (Linux, X11): снимается именно оно, даже если рядом другое. */
+    @Test
+    fun capturesOneWindow() {
+        val os = System.getProperty("os.name").orEmpty().lowercase()
+        if (!os.contains("linux") || System.getenv("DISPLAY") == null || GraphicsEnvironment.isHeadless() || System.getProperty("deixis.gui") == null) return
+        if (AppWindows.run("xwininfo", "-version") == null && AppWindows.run("xwininfo", "-root") == null) return
+        val frame = JFrame("Проектор проверки")
+        SwingUtilities.invokeAndWait {
+            frame.contentPane.background = Color(30, 40, 220)
+            frame.setBounds(100, 100, 640, 360)
+            frame.isVisible = true
+        }
+        Thread.sleep(700)
+        val info = AppWindows.run("xwininfo", "-name", "Проектор проверки")
+        val id = Regex("Window id: (0x[0-9a-fA-F]+)").find(info.orEmpty())?.groupValues?.get(1)?.removePrefix("0x")?.toLong(16)
+        if (id == null) { SwingUtilities.invokeAndWait { frame.dispose() }; return }
+        val sizes = LinkedBlockingQueue<Pair<Int, Int>>()
+        val frames = LinkedBlockingQueue<ByteArray>()
+        val sink = object : MirrorSink {
+            override fun config(annexB: ByteArray, width: Int, height: Int) { sizes += width to height }
+            override fun frame(annexB: ByteArray, key: Boolean, ptsUs: Long) { frames += annexB }
+            override fun stopped() {}
+        }
+        val errors = LinkedBlockingQueue<String>()
+        val cap = ScreenCapture(CaptureArea(0, 0, 640, 360, windowId = id), sink, onError = { errors += it })
+        try {
+            val size = assertNotNull(sizes.poll(15, TimeUnit.SECONDS), "нет кадров окна: ${errors.poll()}")
+            println("окно 0x${java.lang.Long.toHexString(id)}: кадр $size")
+            assertEquals(640 to 360, size, "кадр размером с окно, а не с экран")
+            var blue = false
+            LowLatencyDecoder().use { dec ->
+                repeat(8) {
+                    val d = frames.poll(2, TimeUnit.SECONDS) ?: return@repeat
+                    dec.decode(d) { img -> val c = Color(img.getRGB(img.width / 2, img.height / 2)); if (c.blue > 180 && c.red < 80) blue = true }
+                }
+            }
+            assertTrue(blue, "в кадре — синее окно")
+        } finally {
+            cap.close()
+            SwingUtilities.invokeAndWait { frame.dispose() }
+        }
+    }
+
     @Test
     fun capturesTheScreenIntoH264() {
         // Linux (Xvfb в CI) и Windows. На Маке съёмка требует разрешения «Запись экрана» — в CI его не дать.

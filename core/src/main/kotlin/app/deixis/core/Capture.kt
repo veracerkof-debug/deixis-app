@@ -18,7 +18,21 @@ import kotlinx.serialization.Serializable
  * его снимать нельзя, картинка ушла бы в бесконечное зеркало.
  */
 @Serializable
-data class CaptureSource(val id: String, val name: String, val width: Int, val height: Int, val hall: Boolean = false)
+data class CaptureSource(
+    val id: String, val name: String, val width: Int, val height: Int, val hall: Boolean = false,
+    /** monitor — монитор целиком; window — окно программы; virtual — виртуальный экран Deixis; newVirtual — создать его. */
+    val kind: String = MONITOR,
+) {
+    companion object {
+        const val MONITOR = "monitor"
+        const val WINDOW = "window"
+        const val VIRTUAL = "virtual"
+        const val NEW_VIRTUAL = "newVirtual"
+        /** Особые id для [CaptureRequest]: создать виртуальный экран и транслировать его; убрать его. */
+        const val ID_NEW_VIRTUAL = "virtual:new"
+        const val ID_REMOVE_VIRTUAL = "virtual:remove"
+    }
+}
 
 /** Источники и тот, что транслируется сейчас ([active]); [error] — почему не удалось начать. */
 @Serializable

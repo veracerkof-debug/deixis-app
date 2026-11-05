@@ -445,6 +445,10 @@ class Controller(private val app: Application) {
     suspend fun screenUpdate(t: Target, req: app.deixis.core.UpdateRequest? = null): app.deixis.core.UpdateState? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.update(req) }.getOrNull() }
 
+    /** Трансляция экрана компьютера: список или выбор источника ([select] — id, пустая строка — стоп). null — не компьютер. */
+    suspend fun screenCapture(t: Target, select: String? = null): app.deixis.core.CaptureState? =
+        outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.capture(select) }.getOrNull() }
+
     /** Приём AirPlay на подключённом экране: без [on] — состояние. null — сборка экрана без AirPlay или старая версия. */
     suspend fun screenAirPlay(t: Target, on: Boolean? = null): Boolean? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.airPlay(on) }.getOrNull() }

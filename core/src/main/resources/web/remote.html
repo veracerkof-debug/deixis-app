@@ -538,6 +538,13 @@ const TR = {
   capLive: ["в эфире", "efirda", "on air"],
   capStart: ["Транслировать", "Translyatsiya", "Broadcast"],
   capStop: ["Остановить трансляцию", "Translyatsiyani to‘xtatish", "Stop broadcasting"],
+  capCreate: ["Создать", "Yaratish", "Create"],
+  capVirtual: ["Виртуальный экран", "Virtual ekran", "Virtual screen"],
+  capVirtualSub: ["пробно, без драйвера", "sinov, drayversiz", "trial, no driver"],
+  capVirtualOn: ["создан: выберите его в Holyrics как экран проекции", "yaratildi: uni Holyricsda proyeksiya ekrani sifatida tanlang", "created: pick it in Holyrics as the projection screen"],
+  capVirtualRemove: ["Убрать виртуальный экран", "Virtual ekranni olib tashlash", "Remove the virtual screen"],
+  capVirtualNote: ["Рабочий стол расширяется вправо на 1920×1080, и эта часть становится вторым монитором для Holyrics, LibreOffice и других программ. Пока Linux (X11); на Windows и Mac — HDMI-заглушка. Убирается при выходе из Deixis.", "Ish stoli o‘ngga 1920×1080 ga kengayadi va bu qism Holyrics, LibreOffice va boshqa dasturlar uchun ikkinchi monitorga aylanadi. Hozircha Linux (X11); Windows va Mac’da — HDMI-zaglushka. Deixisdan chiqqanda olib tashlanadi.", "The desktop is extended to the right by 1920×1080 and that part becomes a second monitor for Holyrics, LibreOffice and other apps. Linux (X11) for now; on Windows and Mac use an HDMI dummy plug. Removed when Deixis quits."],
+  capWindows: ["Окна программ", "Dastur oynalari", "App windows"],
   tSong: ["Песня", "Qo‘shiq", "Song"],
   tText: ["Текст", "Matn", "Text"],
   tBible: ["Библия", "Bibliya", "Bible"],
@@ -1622,9 +1629,17 @@ function sheetCapture() {
   loadCapture();
   openSheet(t.capTitle, () => {
     const c = S.capture || { sources: [] };
-    return `<div class="group">${c.sources.map((m) => `<div class="row"><span class="kind">${ico("monitor")}</span>
-      <span class="main"><div class="t">${esc(m.name)}</div><div class="s">${m.width}×${m.height}${c.active === m.id ? " · " + esc(t.capLive) : m.hall ? " · " + esc(t.capHall) : ""}</div></span>
-      ${c.active === m.id ? `<button class="pill" data-act="capstop">${esc(t.capStop)}</button>` : `<button class="pill tint" data-act="capgo" data-id="${esc(m.id)}">${esc(t.capStart)}</button>`}</div>`).join("")}</div>
+    const row = (m, sub) => `<div class="row"><span class="kind">${ico(m.kind === "window" ? "file" : "monitor")}</span>
+      <span class="main"><div class="t">${esc(m.name)}</div><div class="s">${m.width}×${m.height}${c.active === m.id ? " · " + esc(t.capLive) : sub ? " · " + esc(sub) : ""}</div></span>
+      ${c.active === m.id ? `<button class="pill" data-act="capstop">${esc(t.capStop)}</button>` : `<button class="pill tint" data-act="capgo" data-id="${esc(m.id)}">${esc(m.kind === "newVirtual" ? t.capCreate : t.capStart)}</button>`}</div>`;
+    const mons = c.sources.filter((m) => m.kind === "monitor");
+    const virt = c.sources.filter((m) => m.kind === "virtual" || m.kind === "newVirtual");
+    const wins = c.sources.filter((m) => m.kind === "window");
+    return `<div class="ghead">${esc(t.monitors)}</div><div class="group">${mons.map((m) => row(m, m.hall ? t.capHall : "")).join("")}</div>
+      ${virt.length ? `<div class="ghead">${esc(t.capVirtual)}</div><div class="group">${virt.map((m) => row(m, m.kind === "newVirtual" ? t.capVirtualSub : t.capVirtualOn)).join("")}
+        ${virt.some((m) => m.kind === "virtual") ? `<button class="row" data-act="capgo" data-id="virtual:remove"><span class="kind">${ico("close")}</span><span class="main t">${esc(t.capVirtualRemove)}</span></button>` : ""}</div>
+        <p class="note">${esc(t.capVirtualNote)}</p>` : ""}
+      ${wins.length ? `<div class="ghead">${esc(t.capWindows)}</div><div class="group">${wins.map((m) => row(m, "")).join("")}</div>` : ""}
       <p class="note">${esc(t.capNote)}</p>`;
   });
 }

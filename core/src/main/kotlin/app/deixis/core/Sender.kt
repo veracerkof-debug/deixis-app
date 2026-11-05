@@ -402,6 +402,22 @@ class SenderClient(
         return DeixisJson.decodeFromString(app.deixis.core.airplay.AirPlayState.serializer(), r.bodyAsText()).enabled
     }
 
+    /**
+     * Трансляция экрана компьютера: без [select] — список источников, с ним — начать источник (id) или
+     * остановить (пустая строка). null — экран не компьютер или старая версия.
+     */
+    suspend fun capture(select: String? = null): CaptureState? {
+        val t = token ?: return null
+        val url = "${base()}/api/capture"
+        val r = if (select == null) http.get(url) { header("Authorization", "Bearer $t") }
+        else http.post(url) {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(CaptureRequest.serializer(), CaptureRequest(select.ifEmpty { null })))
+        }
+        if (r.status != HttpStatusCode.OK) return null
+        return DeixisJson.decodeFromString(CaptureState.serializer(), r.bodyAsText())
+    }
+
     /** Сколько файла уже на экране: целиком, частью (передача оборвалась) или нисколько. */
     suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 

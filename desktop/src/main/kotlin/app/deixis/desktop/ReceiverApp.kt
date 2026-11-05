@@ -501,10 +501,17 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun state(): app.deixis.core.CaptureState {
             if (capture?.alive == false) stopNow()
             val mons = monitors()
-            val list = screens.mapIndexed { i, sc ->
+            val virt = LinuxVirtualScreen.created
+            val list = ArrayList<app.deixis.core.CaptureSource>()
+            screens.forEachIndexed { i, sc ->
+                // Виртуальный экран Deixis, если Java его видит, — отдельной строкой ниже, не как монитор.
+                if (virt != null && sc.x == virt.first) return@forEachIndexed
                 val m = mons.firstOrNull { it.id == sc.id }
-                app.deixis.core.CaptureSource(sc.id, m?.name ?: "Монитор ${i + 1}", sc.width, sc.height, hall = m?.enabled == true)
+                list += app.deixis.core.CaptureSource(sc.id, m?.name ?: "Монитор ${i + 1}", sc.width, sc.height, hall = m?.enabled == true)
             }
+            if (virt != null) list += app.deixis.core.CaptureSource(VIRTUAL_ID, "Виртуальный экран Deixis", virt.second, virt.third, kind = app.deixis.core.CaptureSource.VIRTUAL)
+            else if (LinuxVirtualScreen.supported) list += app.deixis.core.CaptureSource(app.deixis.core.CaptureSource.ID_NEW_VIRTUAL, "Создать виртуальный экран", LinuxVirtualScreen.WIDTH, LinuxVirtualScreen.HEIGHT, kind = app.deixis.core.CaptureSource.NEW_VIRTUAL)
+            AppWindows.list().forEach { w -> list += app.deixis.core.CaptureSource("win:${w.id}", w.title, w.width, w.height, kind = app.deixis.core.CaptureSource.WINDOW) }
             return app.deixis.core.CaptureState(list, activeId, error)
         }
 
@@ -512,7 +519,28 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun select(id: String?) {
             stopNow()
             error = null
-            if (id == null) return
+            when {
+                id == null -> return
+                id == app.deixis.core.CaptureSource.ID_REMOVE_VIRTUAL -> { LinuxVirtualScreen.remove(); return }
+                id == app.deixis.core.CaptureSource.ID_NEW_VIRTUAL || id == VIRTUAL_ID -> {
+                    val x = LinuxVirtualScreen.create().getOrElse { error = "Виртуальный экран не создан: ${it.message}"; return }
+                    // Если Java увидит новый монитор, Deixis не должен ставить на него свой зал.
+                    scope.launch(Dispatchers.Swing) {
+                        kotlinx.coroutines.delay(1_500)
+                        refreshScreens()
+                        screens.firstOrNull { it.x == x }?.let { sc -> monitors().firstOrNull { it.id == sc.id && it.enabled }?.let { setMonitor(MonitorRequest(it.id, false, it.layout)) } }
+                    }
+                    start(VIRTUAL_ID, CaptureArea(x, 0, LinuxVirtualScreen.WIDTH, LinuxVirtualScreen.HEIGHT))
+                    return
+                }
+                id.startsWith("win:") -> {
+                    val wid = id.removePrefix("win:").toLongOrNull() ?: return
+                    val w = AppWindows.list().firstOrNull { it.id == wid } ?: run { error = "Окно уже закрыто"; return }
+                    val linux = System.getProperty("os.name").orEmpty().lowercase().contains("linux")
+                    start(id, CaptureArea(0, 0, w.width, w.height, windowId = wid.takeIf { linux }, windowTitle = w.title.takeIf { !linux }))
+                    return
+                }
+            }
             val index = screens.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
             val sc = screens[index]
             monitors().firstOrNull { it.id == id && it.enabled }?.let { setMonitor(MonitorRequest(it.id, false, it.layout)) }
@@ -523,6 +551,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
                 val k = sc.width.toDouble() / b.width
                 CaptureArea((b.x * k).toInt(), (b.y * k).toInt(), sc.width, sc.height, index)
             }.getOrElse { CaptureArea(sc.x, sc.y, sc.width, sc.height, index) }
+            start(id!!, area)
+        }
+
+        private fun start(id: String, area: CaptureArea) {
             val out = app.deixis.core.MirrorOutput(core)
             val cap = ScreenCapture(area, out, onError = { error = it })
             output = out; capture = cap; activeId = id
@@ -546,7 +578,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             capture = null; output = null; activeId = null
         }
 
-        fun close() = synchronized(this) { stopNow() }
+        fun close() = synchronized(this) { stopNow(); LinuxVirtualScreen.remove() }
     }
 
     private inner class DesktopOutputs : OutputsHost {
@@ -618,6 +650,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     companion object {
+        /** id виртуального экрана Deixis в списке источников трансляции. */
+        private const val VIRTUAL_ID = "virtual"
         /** iPhone, iPad и Mac показывают экран здесь без отдельных программ. */
         const val AIRPLAY_LABEL = "Принимать AirPlay (iPhone, iPad, Mac)"
         /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */

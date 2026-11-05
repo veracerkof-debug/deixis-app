@@ -52,8 +52,14 @@ import org.bytedeco.javacpp.DoublePointer
 import org.bytedeco.javacpp.PointerPointer
 import java.io.Closeable
 
-/** Область рабочего стола для съёмки: монитор целиком, в координатах системы. */
-data class CaptureArea(val x: Int, val y: Int, val width: Int, val height: Int, val screenIndex: Int = 0)
+/**
+ * Что снимать: монитор целиком (область в координатах системы) или окно программы —
+ * [windowId] на Linux (X11), [windowTitle] на Windows. Размер окна берётся из самого окна.
+ */
+data class CaptureArea(
+    val x: Int, val y: Int, val width: Int, val height: Int, val screenIndex: Int = 0,
+    val windowId: Long? = null, val windowTitle: String? = null,
+)
 
 /**
  * Съёмка монитора компьютера и сжатие в H.264 — тем же FFmpeg, что декодирует трансляцию (сборка bytedeco под LGPL).
@@ -161,6 +167,10 @@ class ScreenCapture(
         val opts = AVDictionary(null)
         av_dict_set(opts, "framerate", fps.toString(), 0)
         val (format, url) = when {
+            os.contains("win") && area.windowTitle != null -> {
+                av_dict_set(opts, "draw_mouse", "1", 0)
+                "gdigrab" to "title=${area.windowTitle}"
+            }
             os.contains("win") -> {
                 av_dict_set(opts, "offset_x", area.x.toString(), 0)
                 av_dict_set(opts, "offset_y", area.y.toString(), 0)
@@ -172,6 +182,11 @@ class ScreenCapture(
                 av_dict_set(opts, "capture_cursor", "1", 0)
                 av_dict_set(opts, "pixel_format", "nv12", 0)
                 "avfoundation" to "Capture screen ${area.screenIndex}:none"
+            }
+            area.windowId != null -> {
+                av_dict_set(opts, "window_id", "0x" + java.lang.Long.toHexString(area.windowId), 0)
+                av_dict_set(opts, "draw_mouse", "1", 0)
+                "x11grab" to (System.getenv("DISPLAY") ?: ":0")
             }
             else -> {
                 av_dict_set(opts, "video_size", "${area.width}x${area.height}", 0)
