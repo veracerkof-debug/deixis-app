@@ -296,6 +296,8 @@ NTSTATUS DeixisD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE) {
     IDDCX_ADAPTER_CAPS caps = {};
     caps.Size = sizeof(caps);
     caps.MaxMonitorsSupported = 1;
+    // Сколько точек в секунду адаптер пропускает: без этого Windows считает, что ни один режим не по силам.
+    caps.MaxDisplayPipelineRate = 3840ull * 2160ull * 60ull;
     caps.EndPointDiagnostics.Size = sizeof(caps.EndPointDiagnostics);
     caps.EndPointDiagnostics.GammaSupport = IDDCX_FEATURE_IMPLEMENTATION_NONE;
     caps.EndPointDiagnostics.TransmissionType = IDDCX_TRANSMISSION_TYPE_WIRED_OTHER;
@@ -323,31 +325,36 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
     Log("AdapterInitFinished %08x", args->AdapterInitStatus);
     if (!NT_SUCCESS(args->AdapterInitStatus)) return STATUS_SUCCESS;
 
-    IDDCX_MONITOR_INFO info = {};
-    info.Size = sizeof(info);
-    info.MonitorType = DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI;
-    info.ConnectorIndex = 0;
-    info.MonitorDescription.Size = sizeof(info.MonitorDescription);
-    info.MonitorDescription.Type = IDDCX_MONITOR_DESCRIPTION_TYPE_EDID;
-    info.MonitorDescription.DataSize = sizeof(kEdid.data);
-    info.MonitorDescription.pData = const_cast<BYTE*>(kEdid.data);
-    // Постоянный id контейнера: Windows запоминает расположение монитора между запусками.
-    info.MonitorContainerId = {0x6d1f2a40, 0x3b7c, 0x4e1a, {0x9c, 0x55, 0x0d, 0xe1, 0x15, 0xd1, 0x5f, 0x01}};
+    // Сначала монитор как HDMI, если Windows не примет — как DisplayPort.
+    const DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY kinds[] = {DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EXTERNAL};
+    for (auto kind : kinds) {
+        IDDCX_MONITOR_INFO info = {};
+        info.Size = sizeof(info);
+        info.MonitorType = kind;
+        info.ConnectorIndex = 0;
+        info.MonitorDescription.Size = sizeof(info.MonitorDescription);
+        info.MonitorDescription.Type = IDDCX_MONITOR_DESCRIPTION_TYPE_EDID;
+        info.MonitorDescription.DataSize = sizeof(kEdid.data);
+        info.MonitorDescription.pData = const_cast<BYTE*>(kEdid.data);
+        // Постоянный id контейнера: Windows запоминает расположение монитора между запусками.
+        info.MonitorContainerId = {0x6d1f2a40, 0x3b7c, 0x4e1a, {0x9c, 0x55, 0x0d, 0xe1, 0x15, 0xd1, 0x5f, 0x01}};
 
-    WDF_OBJECT_ATTRIBUTES attributes;
-    WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    IDARG_IN_MONITORCREATE in = {};
-    in.ObjectAttributes = &attributes;
-    in.pMonitorInfo = &info;
-    IDARG_OUT_MONITORCREATE out = {};
-    NTSTATUS status = IddCxMonitorCreate(adapter, &in, &out);
-    Log("IddCxMonitorCreate %08x", status);
-    if (!NT_SUCCESS(status)) return STATUS_SUCCESS;
-    g_monitor = out.MonitorObject;
+        WDF_OBJECT_ATTRIBUTES attributes;
+        WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+        IDARG_IN_MONITORCREATE in = {};
+        in.ObjectAttributes = &attributes;
+        in.pMonitorInfo = &info;
+        IDARG_OUT_MONITORCREATE out = {};
+        NTSTATUS status = IddCxMonitorCreate(adapter, &in, &out);
+        Log("IddCxMonitorCreate type=%d %08x", static_cast<int>(kind), status);
+        if (!NT_SUCCESS(status)) continue;
 
-    IDARG_OUT_MONITORARRIVAL arrival = {};
-    status = IddCxMonitorArrival(out.MonitorObject, &arrival);
-    Log("IddCxMonitorArrival %08x", status);
+        IDARG_OUT_MONITORARRIVAL arrival = {};
+        status = IddCxMonitorArrival(out.MonitorObject, &arrival);
+        Log("IddCxMonitorArrival %08x target=%u", status, arrival.OsTargetId);
+        if (NT_SUCCESS(status)) { g_monitor = out.MonitorObject; break; }
+        WdfObjectDelete(reinterpret_cast<WDFOBJECT>(out.MonitorObject));
+    }
     // Ошибка здесь не должна ронять процесс драйвера: Windows перезапускала бы его по кругу.
     return STATUS_SUCCESS;
 }
