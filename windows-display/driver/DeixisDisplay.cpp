@@ -237,6 +237,8 @@ void FillMonitorModes(IDDCX_MONITOR_MODE* out, bool fromEdid, UINT count = kMode
 
 }  // namespace
 
+static bool ConnectMonitor(IDDCX_ADAPTER adapter);
+
 extern "C" {
 
 DRIVER_INITIALIZE DriverEntry;
@@ -324,8 +326,23 @@ NTSTATUS DeixisD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE) {
 }
 
 NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_INIT_FINISHED* args) {
-    Log("AdapterInitFinished %08x", args->AdapterInitStatus);
+    Log("AdapterInitFinished %08x; IddCx %d.%d, MONITOR_INFO=%u ADAPTER_CAPS=%u MONITOR_MODE=%u", args->AdapterInitStatus,
+        IDDCX_VERSION_MAJOR, IDDCX_VERSION_MINOR, (unsigned)sizeof(IDDCX_MONITOR_INFO), (unsigned)sizeof(IDDCX_ADAPTER_CAPS),
+        (unsigned)sizeof(IDDCX_MONITOR_MODE));
     if (!NT_SUCCESS(args->AdapterInitStatus)) return STATUS_SUCCESS;
+    if (ConnectMonitor(adapter)) return STATUS_SUCCESS;
+    // Не вышло сразу — ещё раз из своего потока, когда обратный вызов уже завершён.
+    CreateThread(nullptr, 0, [](LPVOID a) -> DWORD {
+        Sleep(1000);
+        Log("retry from thread");
+        ConnectMonitor(static_cast<IDDCX_ADAPTER>(a));
+        return 0;
+    }, adapter, 0, nullptr);
+    return STATUS_SUCCESS;
+}
+
+// Подключает монитор, перебирая варианты описания. true — Windows его приняла.
+static bool ConnectMonitor(IDDCX_ADAPTER adapter) {
 
     // Варианты по очереди, пока Windows не примет монитор: EDID со всеми режимами, EDID с одним режимом,
     // монитор без EDID (режимы даёт драйвер). Какой сработал — в журнале.
@@ -362,11 +379,11 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
         IDARG_OUT_MONITORARRIVAL arrival = {};
         status = IddCxMonitorArrival(out.MonitorObject, &arrival);
         Log("IddCxMonitorArrival %08x target=%u", status, arrival.OsTargetId);
-        if (NT_SUCCESS(status)) { g_monitor = out.MonitorObject; break; }
+        if (NT_SUCCESS(status)) { g_monitor = out.MonitorObject; return true; }
         WdfObjectDelete(reinterpret_cast<WDFOBJECT>(out.MonitorObject));
     }
     // Ошибка здесь не должна ронять процесс драйвера: Windows перезапускала бы его по кругу.
-    return STATUS_SUCCESS;
+    return false;
 }
 
 NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
