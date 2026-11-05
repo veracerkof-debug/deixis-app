@@ -53,5 +53,9 @@
   <ItemGroup>
     <Inf Include="DeixisDisplay.inf" />
   </ItemGroup>
+  <!-- Пакет драйвера: .inf и .dll рядом, по ним Driver Kit строит каталог .cat. -->
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
