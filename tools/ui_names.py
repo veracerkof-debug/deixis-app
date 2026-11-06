@@ -7,7 +7,7 @@ import os
 import re
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_STRINGS = os.path.join(_HERE, "..", "android", "phone", "src", "main", "kotlin", "app", "deixis", "phone", "Strings.kt")
+_STRINGS = os.path.join(_HERE, "..", "pult", "src", "main", "kotlin", "app", "deixis", "phone", "Strings.kt")
 _T = re.compile(r't\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)', re.S)
 _cache = None
 

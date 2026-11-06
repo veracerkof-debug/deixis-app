@@ -12,7 +12,10 @@ mkdir -p "$wt/fixgen/src/main/kotlin/app/deixis/phone"
 cp "$root/testdata/compat/generator/build.gradle.kts" "$wt/fixgen/"
 sed "s/__VERSION__/$ver/g" "$root/testdata/compat/generator/Fix.kt" > "$wt/fixgen/src/main/kotlin/app/deixis/phone/Fix.kt"
 # Классы данных выпуска как есть, без хранилища (оно зависит от Android).
-awk '/^\/\*\* Хранилище библиотеки/{exit} {print}' "$wt/android/phone/src/main/kotlin/app/deixis/phone/Model.kt" | grep -v "^import android" \
+# С 0.10.28 пульт общий с компьютером и лежит в pult/; раньше — в android/phone.
+model="$wt/pult/src/main/kotlin/app/deixis/phone/Model.kt"
+[ -f "$model" ] || model="$wt/android/phone/src/main/kotlin/app/deixis/phone/Model.kt"
+awk '/^\/\*\* Хранилище библиотеки/{exit} {print}' "$model" | grep -v "^import android" \
   > "$wt/fixgen/src/main/kotlin/app/deixis/phone/OldModel.kt"
 echo 'include(":fixgen")' >> "$wt/settings.gradle.kts"
 (cd "$wt" && DEIXIS_SKIP_ANDROID=1 ./gradlew -q :fixgen:run --args="$root/testdata/compat")
