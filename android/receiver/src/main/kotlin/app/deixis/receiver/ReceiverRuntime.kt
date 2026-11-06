@@ -96,6 +96,13 @@ class ReceiverRuntime(
         // AirPlay — в сборках с GitHub и F-Droid; в сборке для Google Play его нет (DECISIONS.md, NOTICE).
         if (BuildConfig.AIRPLAY && !loopbackOnly) core.airPlay = app.deixis.core.airplay.AirPlayHost(core, dataDir) { advertised }
         core.pairingUri = ::pairingUri
+        // Журнал экрана — в файл; диагностика экрана — общие проверки и Android (Wi-Fi, проигрыватель, экран).
+        app.deixis.diag.Log.toFile(dataDir)
+        app.deixis.diag.Log.catchUncaught()
+        core.diagChecks = {
+            app.deixis.diag.Checks.common(dataDir) +
+                listOf(AndroidChecks.device(), AndroidChecks.wifi(appContext), AndroidChecks.screen(appContext), AndroidChecks.player(appContext))
+        }
         core.pageCounter = { f ->
             android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
         }

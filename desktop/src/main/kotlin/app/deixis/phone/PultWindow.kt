@@ -35,7 +35,7 @@ class PultWindow(
     val showing: Boolean get() = window?.isVisible == true
 
     fun open(screen: Rectangle?) {
-        window?.let { w -> w.isVisible = true; w.toFront(); w.requestFocus(); return }
+        window?.let { w -> w.isVisible = true; w.extendedState = w.extendedState and java.awt.Frame.ICONIFIED.inv(); raise(w); return }
         val w = ComposeWindow()
         w.title = title
         app.deixis.desktop.AppIcon.apply(w)
@@ -63,6 +63,19 @@ class PultWindow(
         pultFrame = w
         window = w
         w.isVisible = true
+        raise(w)
+        app.deixis.diag.Log.i("pult", "window ${w.bounds.x},${w.bounds.y} ${w.bounds.width}x${w.bounds.height}")
+    }
+
+    /**
+     * Вперёд, над окнами зала: на Windows новое окно иначе может остаться под окном зала, растянутым на весь монитор.
+     * Поверх всех — лишь на миг, дальше обычное окно.
+     */
+    private fun raise(w: ComposeWindow) {
+        w.isAlwaysOnTop = true
+        w.toFront()
+        w.requestFocus()
+        javax.swing.Timer(RAISE_MS) { w.isAlwaysOnTop = false }.apply { isRepeats = false }.start()
     }
 
     private fun clicker(key: Key): Boolean {
@@ -93,5 +106,6 @@ class PultWindow(
         const val MIN_WIDTH = 720
         const val MIN_HEIGHT = 520
         const val MARGIN = 40
+        const val RAISE_MS = 600
     }
 }

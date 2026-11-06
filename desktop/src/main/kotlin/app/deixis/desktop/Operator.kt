@@ -92,6 +92,8 @@ interface TrayActions {
     fun quit()
     fun chooseRole()
     fun updates()
+    /** Папка с журналом программы (log.txt) — отправить автору, если что-то не работает. */
+    fun showLog()
     /** Окно «Holyrics → телефон по QR». */
     fun holyrics()
     /** Принимает ли экран AirPlay. */
@@ -116,6 +118,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
         popup.add(item("Как работает компьютер…") { actions.chooseRole() })
         popup.add(item("Holyrics — телефон по QR…") { actions.holyrics() })
         popup.add(item("Обновления…") { actions.updates() })
+        popup.add(item(Words.logFolder) { actions.showLog() })
         popup.addSeparator()
         popup.add(item("Выйти") { actions.quit() })
         icon.popupMenu = popup

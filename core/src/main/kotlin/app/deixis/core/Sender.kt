@@ -452,6 +452,21 @@ class SenderClient(
         return DeixisJson.decodeFromString(OutputsState.serializer(), r.bodyAsText())
     }
 
+    /** Диагностика экрана на языке [lang]; null — старая версия экрана. */
+    suspend fun diagnostics(lang: String?): app.deixis.diag.DiagReport? {
+        val t = token ?: return null
+        val r = http.get("${base()}/api/diagnostics?lang=${lang.orEmpty()}") { header("Authorization", "Bearer $t") }
+        if (r.status != HttpStatusCode.OK) return null
+        return DeixisJson.decodeFromString(app.deixis.diag.DiagReport.serializer(), r.bodyAsText())
+    }
+
+    /** Журнал экрана целиком (для отправки автору); null — старая версия экрана. */
+    suspend fun screenLog(): String? {
+        val t = token ?: return null
+        val r = http.get("${base()}/api/diagnostics/log") { header("Authorization", "Bearer $t") }
+        return if (r.status == HttpStatusCode.OK) r.bodyAsText() else null
+    }
+
     /** Сколько файла уже на экране: целиком, частью (передача оборвалась) или нисколько. */
     suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 

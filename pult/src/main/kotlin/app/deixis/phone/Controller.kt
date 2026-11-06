@@ -448,6 +448,45 @@ class Controller(val platform: Platform) {
     suspend fun screenCapture(t: Target, select: String? = null): app.deixis.core.CaptureState? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.capture(select) }.getOrNull() }
 
+    /**
+     * Диагностика: это устройство и каждый подключённый экран Deixis. Пара — название и отчёт
+     * (null — экран не ответил: старая версия или нет связи).
+     */
+    suspend fun diagnoseAll(): List<Pair<String, app.deixis.diag.DiagReport?>> {
+        val lang = I18n.lang.code
+        val me = withContext(Dispatchers.IO) {
+            app.deixis.diag.Diagnostics.run(platform.diagnostics(), app.deixis.diag.Lang(lang), platform.deviceName, platform.appLabel)
+        }
+        val screens = outs.value.filter { it.client.connection.value is Connection.Connected && it.target.kind != Target.Kind.LOCAL }
+        // Свой экран компьютера проверяется вместе с пультом: тот же процесс, отдельный отчёт не нужен — но его проверки нужны.
+        val local = outs.value.firstOrNull { it.target.kind == Target.Kind.LOCAL && it.client.connection.value is Connection.Connected }
+        val localReport = local?.let { o -> withContext(Dispatchers.IO) { runCatching { o.client.diagnostics(lang) }.getOrNull() } }
+        val mine = if (localReport != null) me.copy(checks = me.checks + localReport.checks.filter { r -> me.checks.none { it.id == r.id } }) else me
+        return listOf(L.thisDevice to mine) + screens.map { o ->
+            (o.info()?.name ?: o.target.name) to withContext(Dispatchers.IO) { runCatching { o.client.diagnostics(lang) }.getOrNull() }
+        }
+    }
+
+    /** Отчёт целиком: итоги проверок и журналы этого устройства и экранов — текстом для автора. */
+    suspend fun diagnosticsText(reports: List<Pair<String, app.deixis.diag.DiagReport?>>): String = buildString {
+        for ((name, r) in reports) {
+            appendLine("===== $name =====")
+            appendLine(r?.toText() ?: L.diagNoAnswer)
+            appendLine()
+        }
+        appendLine("===== ${L.diagLogOf(platform.deviceName)} =====")
+        appendLine(app.deixis.diag.Log.logFile?.takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }
+            ?: app.deixis.diag.Log.recent().joinToString("\n"))
+        for (o in outs.value.filter { it.client.connection.value is Connection.Connected }) {
+            val log = withContext(Dispatchers.IO) { runCatching { o.client.screenLog() }.getOrNull() } ?: continue
+            appendLine()
+            appendLine("===== ${L.diagLogOf(o.info()?.name ?: o.target.name)} =====")
+            appendLine(log.takeLast(MAX_SCREEN_LOG))
+        }
+    }
+
+    private fun Output.info() = (client.connection.value as? Connection.Connected)?.receiver
+
     /** Мониторы подключённого компьютера: без [set] — список, с ним — включить или сменить раскладку. null — не компьютер. */
     suspend fun screenOutputs(t: Target, set: app.deixis.core.MonitorRequest? = null): app.deixis.core.OutputsState? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.outputs(set) }.getOrNull() }
@@ -1785,6 +1824,8 @@ class Controller(val platform: Platform) {
     }
 }
 
+/** Журнал экрана в отчёте — последние полмегабайта: начало дня обычно не нужно. */
+private const val MAX_SCREEN_LOG = 512 * 1024
 /** Сколько последних плашек и строк помнит пульт. */
 private const val OVERLAY_DRAFTS = 8
 

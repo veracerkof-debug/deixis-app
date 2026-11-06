@@ -19,6 +19,12 @@ import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import app.deixis.core.Docx
+import app.deixis.diag.Check
+import app.deixis.diag.CheckResult
+import app.deixis.diag.Checks
+import app.deixis.diag.Status
+import app.deixis.receiver.AndroidChecks
+import app.deixis.receiver.ApkUpdates
 import app.deixis.core.SqlSource
 import app.deixis.receiver.AndroidSql
 import app.deixis.receiver.PptxPdf
@@ -188,6 +194,29 @@ class AndroidPlatform(private val app: Application) : Platform {
         }
     }
 
+    override fun diagnostics(): List<Check> = Checks.common(filesDir) + listOf(
+        AndroidChecks.device(), AndroidChecks.wifi(app), AndroidChecks.notifications(app), AndroidChecks.battery(app),
+    )
+
+    override val appLabel: String get() = "Deixis ${ApkUpdates.currentVersion(app)} · Android ${Build.VERSION.RELEASE}"
+
+    override fun copyText(text: String) {
+        val cm = app.getSystemService(android.content.ClipboardManager::class.java)
+        cm?.setPrimaryClip(android.content.ClipData.newPlainText("Deixis", text.take(CLIP_LIMIT)))
+    }
+
+    /** Отчёт файлом через «Поделиться»: Telegram, почта, «Файлы». */
+    override fun shareFile(subject: String, name: String, text: String) {
+        val dir = File(app.cacheDir, "share").apply { mkdirs() }
+        val f = File(dir, name).apply { writeText(text) }
+        val uri = androidx.core.content.FileProvider.getUriForFile(app, "app.deixis.phone.files", f)
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, subject)
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        app.startActivity(Intent.createChooser(send, subject).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    }
+
     override fun keepAlive() = ShowService.start(app)
 
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -211,6 +240,8 @@ class AndroidPlatform(private val app: Application) : Platform {
         /** Фото для экрана — не больше 4K по длинной стороне: больше зал не покажет. */
         const val PHOTO_MAX_SIDE = 3840
         const val JPEG_QUALITY = 92
+        /** Буфер обмена Android не принимает очень большой текст: журнал — в файле, здесь — его конец. */
+        const val CLIP_LIMIT = 200_000
     }
 }
 

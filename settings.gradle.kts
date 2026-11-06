@@ -21,7 +21,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "deixis"
 
-include(":core", ":desktop")
+include(":diag", ":core", ":desktop")
 
 // Android-модули собираются только там, где есть Android SDK (CI, Android Studio).
 // DEIXIS_SKIP_ANDROID=1 отключает их явно (задание CI для ядра и компьютера).

@@ -102,12 +102,22 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private var pult: app.deixis.phone.PultWindow? = null
     private var pultController: app.deixis.phone.Controller? = null
     private lateinit var pdfConverter: OfficeConverter
+    private var pdfEngines: List<PdfEngine> = emptyList()
+
+    /** Проверки этого компьютера для диагностики (и экрана, и пульта). */
+    private fun desktopChecks(): List<app.deixis.diag.Check> =
+        DesktopChecks.all({ runCatching { monitors() }.getOrDefault(emptyList()) }, pdfEngines, { pult?.showing })
     /** «Новое подключение» на мониторе оператора, пока окно пульта закрыто. */
     private val approval = ApprovalWindow { id, allow -> core.peers.answer(id, allow) }
 
     init {
         opts.dataDir.mkdirs()
-        if (!GraphicsEnvironment.isHeadless()) DiskLog.start(opts.dataDir)
+        // Журнал — в файл log.txt папки данных; у программы из установщика нет консоли.
+        if (!GraphicsEnvironment.isHeadless()) {
+            app.deixis.diag.Log.toFile(opts.dataDir)
+            app.deixis.diag.Log.captureConsole()
+            println("Deixis $APP_VERSION · ${app.deixis.diag.Diagnostics.system()}")
+        }
         val idFile = File(opts.dataDir, "id")
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
@@ -131,6 +141,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
         core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
         pdfConverter = OfficeConverter(engines)
+        pdfEngines = engines
         core.conversions = Conversions(core, pdfConverter, File(opts.dataDir, "convert"))
         settings = monitorStore.load()
         relay = ScreenRelay(core, FileRelayStore(File(opts.dataDir, "screens.json")), scope, name)
@@ -144,6 +155,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         airPlay = AirPlayHost(core, opts.dataDir) { address }
         core.airPlay = airPlay
         core.capture = DesktopCapture()
+        core.diagChecks = { app.deixis.diag.Checks.common(opts.dataDir) + desktopChecks() }
     }
 
     /** Переключатель приёма AirPlay из меню; в сети он появляется или пропадает сразу. */
@@ -214,7 +226,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (news.isNotEmpty()) SwingUtilities.invokeLater { UpdatesWindow.whatsNew(news) }
         }
         Runtime.getRuntime().addShutdownHook(Thread { shutdown() })
-        val withOperator = opts.operator ?: (role != Role.SCREEN)
+        // Пульт при запуске — всегда, когда ему есть место не на зале: роль «Экран» с монитором оператора тоже.
+        // Только компьютер-экран, где все мониторы показывают зал, открывает пульт лишь из значка.
+        val withOperator = opts.operator ?: (role != Role.SCREEN || onEdt { operatorArea() } != null)
         println("Роль: $role, мониторов: ${screens.size}, пульт при запуске: ${if (withOperator) "да" else "нет"}")
         if (withOperator) openOperator()
     }
@@ -458,7 +472,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     /** Открывает (или выводит вперёд) окно пульта и связывает его со своим экраном. Только в потоке окон. */
     private fun openPult(token: String) {
         val c = pultController ?: run {
-            val platform = app.deixis.phone.DesktopPlatform(opts.dataDir, pdfConverter, { address?.hostAddress }, { pult?.showing == true })
+            val platform = app.deixis.phone.DesktopPlatform(opts.dataDir, pdfConverter, { address?.hostAddress }, { pult?.showing == true }, APP_VERSION, ::desktopChecks)
             app.deixis.phone.Controller(platform).also { pultController = it }
         }
         val w = pult ?: run {
@@ -538,6 +552,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         m.add(item("Как работает компьютер…") { chooseRole() })
         m.add(item("Holyrics — телефон по QR…") { showHolyricsQr() })
         m.add(item("Обновления…") { showUpdates() })
+        m.add(item(Words.logFolder) { showLog() })
         m.addSeparator()
         m.add(item("Выйти", "${cmd}Q") { quit() })
         return m
@@ -549,6 +564,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         add(java.awt.MenuItem("Как работает компьютер…").apply { addActionListener { SwingUtilities.invokeLater { chooseRole() } } })
         add(java.awt.MenuItem("Holyrics — телефон по QR…").apply { addActionListener { showHolyricsQr() } })
         add(java.awt.MenuItem("Обновления…").apply { addActionListener { showUpdates() } })
+        add(java.awt.MenuItem(Words.logFolder).apply { addActionListener { showLog() } })
     }
 
     private val trayActions = object : TrayActions {
@@ -559,6 +575,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun quit() = this@ReceiverApp.quit()
         override fun chooseRole() = SwingUtilities.invokeLater { this@ReceiverApp.chooseRole() }
         override fun updates() = showUpdates()
+        override fun showLog() = this@ReceiverApp.showLog()
         override fun holyrics() = showHolyricsQr()
         override fun airPlay() = this@ReceiverApp.airPlay.enabled
         override fun setAirPlay(on: Boolean) = this@ReceiverApp.setAirPlay(on)
@@ -703,6 +720,17 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         opts.exit(0)
     }
 
+    /** Папка с журналом программы: log.txt (и прошлый запуск — log.old.txt) — переслать автору. */
+    fun showLog() {
+        Thread {
+            runCatching {
+                val f = app.deixis.diag.Log.logFile
+                if (f != null && isWindows) ProcessBuilder("explorer.exe", "/select,", f.absolutePath).start()
+                else java.awt.Desktop.getDesktop().open(f?.parentFile ?: opts.dataDir)
+            }.onFailure { System.err.println("Папка журнала: ${it.message}") }
+        }.start()
+    }
+
     /** Пульт Holyrics на телефоне: QR-код с адресом этого компьютера и токеном Holyrics. */
     fun showHolyricsQr() = SwingUtilities.invokeLater { HolyricsQrWindow.show(address?.hostAddress, opts.dataDir) }
 
@@ -730,6 +758,13 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         windows.values.toList().forEach { it.release() }
         // В проверках процесс не завершается: окна закрываются сами.
         SwingUtilities.invokeLater { windows.values.forEach { it.dispose() }; windows.clear() }
+    }
+
+    private fun <T> onEdt(block: () -> T): T {
+        var r: Result<T>? = null
+        if (SwingUtilities.isEventDispatchThread()) return block()
+        SwingUtilities.invokeAndWait { r = runCatching(block) }
+        return r!!.getOrThrow()
     }
 
     companion object {

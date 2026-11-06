@@ -11,6 +11,8 @@ java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaV
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 dependencies {
+    // Журнал и проверки (diag) — у каждой площадки через ядро.
+    api(project(":diag"))
     api(libs.coroutines.core)
     api(libs.serialization.json)
     implementation(libs.ktor.server.core)

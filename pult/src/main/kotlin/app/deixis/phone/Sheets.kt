@@ -224,6 +224,8 @@ fun SettingsSheet(c: Controller) {
     }
     BackupsSection(c, LocalUi.current)
     UpdatesSection()
+    GHead(L.diagnostics)
+    Group { Cell(L.diagnostics, L.diagnosticsSub, kind = "info", onClick = { ui.push(L.diagnostics) { DiagnosticsSheet(c, ui) } }) }
     host.FeedbackSection()
     val version = host.version
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = T.gapS)) {

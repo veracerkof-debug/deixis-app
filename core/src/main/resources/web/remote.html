@@ -657,6 +657,13 @@ const TR = {
   searching: ["Поиск…", "Qidirilmoqda…", "Searching…"],
   first200: ["Показаны первые 200 стихов: стоит уточнить запрос.", "Dastlabki 200 oyat ko‘rsatildi: so‘rovni aniqlashtirish kerak.", "The first 200 verses are shown: a narrower query helps."],
   openPlace: ["Открыть: {0}", "Ochish: {0}", "Open: {0}"],
+  diagTitle: ["Диагностика экрана", "Ekran diagnostikasi", "Screen diagnostics"],
+  diagSub: ["Проверить экран и скачать его журнал", "Ekranni tekshirish va jurnalini yuklab olish", "Check the screen and download its log"],
+  diagRunning: ["Проверяется…", "Tekshirilmoqda…", "Checking…"],
+  diagCopy: ["Скопировать отчёт и журнал", "Hisobot va jurnalni nusxalash", "Copy report and log"],
+  diagDownload: ["Скачать файлом", "Fayl sifatida yuklab olish", "Download as a file"],
+  diagOld: ["Экран старой версии: обновите его", "Ekran eski versiyada: uni yangilang", "The screen is an old version: update it"],
+  diagPrivacy: ["Журнал остаётся на экране и уходит, только если отправить его самому. В нём нет PIN и ключей.", "Jurnal ekranda qoladi va faqat o‘zingiz yuborsangiz ketadi. Unda PIN va kalitlar yo‘q.", "The log stays on the screen and leaves only if you send it yourself. It contains no PINs or keys."],
   inputs: ["Входы", "Kirishlar", "Inputs"],
   inputsNote: ["Откуда ещё картинка приходит на этот экран: экран компьютера, окно программы, AirPlay.", "Bu ekranga rasm yana qayerdan keladi: kompyuter ekrani, dastur oynasi, AirPlay.", "Other sources this screen can show: the computer screen, a program window, AirPlay."],
   outputs: ["Выходы", "Chiqishlar", "Outputs"],
@@ -1072,6 +1079,14 @@ function authed(path, opts = {}) {
   return fetch(path, opts).then(async (r) => { if (!r.ok) { const e = new Error((await r.text().catch(() => "")) || String(r.status)); e.status = r.status; throw e; } return r; });
 }
 const getJson = (path) => authed(path).then((r) => r.json());
+/** Скачать текст файлом (отчёт диагностики): на iPhone — «Сохранить в Файлы» или «Поделиться». */
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const el = document.createElement("a");
+  el.href = url; el.download = name;
+  document.body.appendChild(el); el.click(); el.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 const postJson = (path, body) => authed(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
 
 // Файлы с экрана для превью: картинке и видео браузер заголовок не пришлёт, поэтому токен — параметром.
@@ -1711,6 +1726,30 @@ function peersHTML() {
   return out;
 }
 
+// ——— Диагностика экрана (/api/diagnostics): проверки и журнал — скопировать или скачать файлом ———
+let diag = null;
+async function sheetDiag() {
+  diag = null;
+  openSheet(t.diagTitle, () => {
+    if (!diag) return `<p class="note">${esc(t.diagRunning)}</p>`;
+    if (diag.error) return `<p class="note">${esc(diag.error)}</p>`;
+    const mark = { OK: "✓", WARN: "!", FAIL: "✗" };
+    return `<div class="group">${diag.checks.map((c) => `<div class="row"><span class="kind">${esc(mark[c.status] || "")}</span>
+      <span class="main"><div class="t">${esc(c.title)}</div><div class="s wrap">${esc([c.detail, c.advice].filter(Boolean).join(" — "))}</div></span></div>`).join("")}</div>
+      <div class="gap"></div><button class="btn" data-act="diagcopy">${esc(t.diagCopy)}</button><div class="gap"></div>
+      <button class="btn tint" data-act="diaglog">${esc(t.diagDownload)}</button>
+      <p class="note">${esc(t.diagPrivacy)}</p>`;
+  });
+  try { diag = await getJson("/api/diagnostics?lang=" + lang); } catch (e) { diag = { error: e.status === 404 ? t.diagOld : (e.message || t.failed) }; }
+  refreshSheet();
+}
+function diagText(log) {
+  const mark = { OK: "✓", WARN: "!", FAIL: "✗" };
+  const head = `Deixis — ${diag.device} · ${diag.app} · ${diag.system}\n\n` + diag.checks.map((c) => `${mark[c.status]} ${c.title}${c.detail ? ": " + c.detail : ""}${c.advice ? "\n   → " + c.advice : ""}`).join("\n");
+  return head + "\n\n" + log;
+}
+async function diagLog() { try { return await (await authed("/api/diagnostics/log")).text(); } catch (e) { return ""; } }
+
 // ——— Приём AirPlay на этом экране (/api/airplay; 501 — сборка без AirPlay) ———
 async function loadAirPlay() {
   if (S.airPlay === null) return;
@@ -2215,6 +2254,8 @@ function renderDevices() {
     ${settings.church ? `<div class="ghead">${esc(t.churchSection)}</div><div class="group">
       <button class="row" data-act="holyrics"><span class="kind">${ico("song")}</span><span class="main"><div class="t">Holyrics</div><div class="s">${esc(settings.holyrics ? t.hlOn : t.hlAbout)}</div></span><span class="chev">${ico("chev")}</span></button>
       <button class="row" data-act="mods"><span class="kind">${ico("bible")}</span><span class="main"><div class="t">${esc(t.modules)}</div><div class="s">${esc(t.modulesAbout)}</div></span><span class="chev">${ico("chev")}</span></button></div>` : ""}
+    <div class="ghead">${esc(t.diagTitle)}</div><div class="group">
+      <button class="row" data-act="diag"><span class="kind">${ico("show")}</span><span class="main"><div class="t">${esc(t.diagTitle)}</div><div class="s">${esc(t.diagSub)}</div></span><span class="chev">${ico("chev")}</span></button></div>
     <p class="note">${esc(t.devicesNote)}</p>
   </div></div>`;
 }
@@ -2911,6 +2952,17 @@ const A = {
   mon: (d) => { const m = S.outputs.monitors.find((x) => x.id === d.id); if (m) setMonitor(m.id, !m.enabled, m.layout); },
   monlayout: (d) => setMonitor(d.id, true, d.v),
   airplay: () => setAirPlay(!S.airPlay),
+  diag: () => sheetDiag(),
+  diagcopy: async () => {
+    if (!diag || diag.error) return;
+    const text = diagText(await diagLog());
+    try { await navigator.clipboard.writeText(text); toast(t.copied); }
+    catch (e) {
+      // Без доступа к буферу (страница по http) — файлом.
+      download("deixis-diagnostics.txt", text);
+    }
+  },
+  diaglog: async () => { if (diag && !diag.error) download("deixis-diagnostics.txt", diagText(await diagLog())); },
   peerok: (d) => answerPeer(d.id, true),
   capgo: (d) => setCapture(d.id),
   capstop: () => setCapture(null),

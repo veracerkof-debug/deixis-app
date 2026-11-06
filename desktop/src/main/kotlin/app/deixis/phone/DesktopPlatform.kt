@@ -27,6 +27,9 @@ class DesktopPlatform(
     private val converter: DocConverter,
     private val lan: () -> String?,
     private val shown: () -> Boolean,
+    private val version: String = "0",
+    /** Свои проверки компьютера (мониторы, VLC, FFmpeg, перевод презентаций). */
+    private val checks: () -> List<app.deixis.diag.Check> = { emptyList() },
 ) : Platform {
     override val filesDir: File = File(dataDir, "pult").apply { mkdirs() }
     override val cacheDir: File = File(dataDir, "pult-cache").apply { mkdirs() }
@@ -117,6 +120,28 @@ class DesktopPlatform(
         g.drawImage(src, 0, 0, width, h, null)
         g.dispose()
         return out
+    }
+
+    override fun diagnostics(): List<app.deixis.diag.Check> = app.deixis.diag.Checks.common(filesDir) + checks()
+    override val appLabel: String get() = "Deixis $version · ${app.deixis.diag.Diagnostics.system()}"
+
+    override fun copyText(text: String) {
+        runCatching { java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(java.awt.datatransfer.StringSelection(text), null) }
+    }
+
+    /** «Отправить файлом» на компьютере — сохранить, куда выберет оператор (рабочий стол, флешка), и показать файл. */
+    override fun shareFile(subject: String, name: String, text: String) {
+        javax.swing.SwingUtilities.invokeLater {
+            val d = java.awt.FileDialog(pultFrame, subject, java.awt.FileDialog.SAVE)
+            d.file = name
+            d.isVisible = true
+            val dir = d.directory ?: return@invokeLater
+            val f = File(dir, d.file ?: name)
+            runCatching {
+                f.writeText(text)
+                if (java.awt.Desktop.isDesktopSupported()) runCatching { java.awt.Desktop.getDesktop().open(f.parentFile) }
+            }
+        }
     }
 
     // Компьютер не засыпает с открытым окном и сеть не теряет: ни службы, ни разрешений не нужно.

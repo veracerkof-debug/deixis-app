@@ -78,6 +78,17 @@ interface Platform {
     fun multicast(on: Boolean)
     /** Остановить трансляцию экрана этого устройства, если она идёт. */
     fun stopScreenShare()
+    // ——— Диагностика ———
+
+    /** Проверки этого устройства: общие (сеть, место, память, журнал) и свои у площадки. */
+    fun diagnostics(): List<app.deixis.diag.Check>
+    /** «Deixis 0.10.28 · Android 14» — для отчёта. */
+    val appLabel: String
+    /** Скопировать текст в буфер обмена. */
+    fun copyText(text: String)
+    /** Отправить текст файлом [name]: на телефоне — «Поделиться», на компьютере — сохранить, куда выберет оператор. */
+    fun shareFile(subject: String, name: String, text: String)
+
     /** Адрес этого устройства в сети для ссылок зрителям; null — сети нет. */
     val lanAddress: String?
     /** Пульт сейчас на виду (а не свёрнут): от этого зависит, как часто спрашивать Holyrics. */

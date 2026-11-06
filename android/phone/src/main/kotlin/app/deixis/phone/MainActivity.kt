@@ -56,6 +56,9 @@ class PhoneApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Журнал пульта — в файл log.txt (для «Диагностики»), необработанные ошибки — с причиной.
+        app.deixis.diag.Log.toFile(filesDir)
+        app.deixis.diag.Log.catchUncaught()
         val file = java.io.File(filesDir, "last-crash.txt")
         lastCrash = file.takeIf { it.isFile }?.readText()?.also { file.delete() }
         val previous = Thread.getDefaultUncaughtExceptionHandler()

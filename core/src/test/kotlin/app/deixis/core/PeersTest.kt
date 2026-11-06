@@ -2,6 +2,7 @@ package app.deixis.core
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.get
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
@@ -151,5 +152,36 @@ class PeersTest {
         assertEquals(1, core.pairing.senders().count { it.sender != "Этот компьютер" }, "отклонённому токен не остался")
         op.cancel()
         assertFalse(core.peers.state.value.requests.isNotEmpty())
+    }
+}
+
+/** Диагностика экрана по сети: только сопряжённым, с проверками площадки и журналом файлом. */
+class DiagnosticsRouteTest {
+    @Test
+    fun screenAnswersDiagnostics() = runBlocking<Unit> {
+        val dir = createTempDirectory("diagroute").toFile()
+        val core = ReceiverCore(ReceiverInfo("tv", "ТВ в холле", "android-tv", "1"), FileStore(File(dir, "files")), Pairing(MemoryTokenStore()))
+        core.diagChecks = { listOf(app.deixis.diag.Check("vlc", { "VLC" }) { app.deixis.diag.CheckResult("vlc", "VLC", app.deixis.diag.Status.OK, "есть") }) }
+        val server = ReceiverServer(core, port = 0)
+        val port = server.start()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val c = SenderClient("127.0.0.1", port, "Пульт", scope)
+            val token = c.pair(core.pairing.pin)
+            c.connect(token)
+            withTimeout(5_000) { while (c.connection.value !is Connection.Connected) delay(20) }
+            val r = c.diagnostics("en")!!
+            assertEquals("ТВ в холле", r.device)
+            assertTrue(r.checks.any { it.id == "vlc" } && r.checks.any { it.id == "screen" && it.title == "Screen" }, r.checks.toString())
+            app.deixis.diag.Log.i("test", "строка журнала экрана")
+            assertTrue(c.screenLog()!!.contains("строка журнала экрана"))
+            c.close()
+            val stranger = HttpClient(CIO)
+            val code = stranger.get("http://127.0.0.1:$port/api/diagnostics").status.value
+            stranger.close()
+            assertEquals(401, code, "без сопряжения — нет")
+        } finally {
+            scope.cancel(); server.stop()
+        }
     }
 }

@@ -121,6 +121,12 @@ class ReceiverCore(
     @Volatile
     var capture: CaptureHost? = null
 
+    /**
+     * Проверки площадки для диагностики экрана (/api/diagnostics): общие ([app.deixis.diag.Checks.common]) и свои —
+     * мониторы и VLC на компьютере, проигрыватель и Wi-Fi на ТВ. Задаёт площадка.
+     */
+    @Volatile var diagChecks: () -> List<app.deixis.diag.Check> = { emptyList() }
+
     /** Кто подключён и кто ждёт подтверждения оператора. */
     val peers = PeerDesk()
 
@@ -363,6 +369,7 @@ class ReceiverServer(
                 updateRoutes(core) { authorized() }
                 airPlayRoutes(core) { authorized() }
                 captureRoutes(core) { authorized() }
+                diagRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)
