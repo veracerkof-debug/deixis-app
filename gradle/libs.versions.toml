@@ -8,7 +8,8 @@ bouncycastle = "1.84"
 vlcj = "4.12.1"
 ffmpeg = "7.1-1.5.11"
 javacpp = "1.5.11"
-javafx = "21.0.8"
+# Compose для компьютера — та же ветка 1.8, что Compose на телефоне (общий пульт).
+composeDesktop = "1.8.2"
 libvlc = "3.7.7"
 pdfbox = "3.0.8"
 poi = "5.4.1"
@@ -38,12 +39,10 @@ bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "boun
 vlcj = { module = "uk.co.caprica:vlcj", version.ref = "vlcj" }
 ffmpeg = { module = "org.bytedeco:ffmpeg", version.ref = "ffmpeg" }
 javacpp = { module = "org.bytedeco:javacpp", version.ref = "javacpp" }
-javafx-base = { module = "org.openjfx:javafx-base", version.ref = "javafx" }
-javafx-graphics = { module = "org.openjfx:javafx-graphics", version.ref = "javafx" }
-javafx-controls = { module = "org.openjfx:javafx-controls", version.ref = "javafx" }
-javafx-media = { module = "org.openjfx:javafx-media", version.ref = "javafx" }
-javafx-web = { module = "org.openjfx:javafx-web", version.ref = "javafx" }
-javafx-swing = { module = "org.openjfx:javafx-swing", version.ref = "javafx" }
+compose-desktop-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeDesktop" }
+compose-desktop-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeDesktop" }
+compose-desktop-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeDesktop" }
+compose-desktop-animation = { module = "org.jetbrains.compose.animation:animation", version.ref = "composeDesktop" }
 libvlc = { module = "org.videolan.android:libvlc-all", version.ref = "libvlc" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }

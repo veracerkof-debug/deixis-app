@@ -1,7 +1,5 @@
 package app.deixis.phone
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -19,15 +17,15 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun BackupsSection(c: Controller, ui: Ui) {
     var tick by remember { mutableIntStateOf(0) }
-    val folderPick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let {
+    val folderPick = rememberFolderPicker { uri ->
+        uri.let {
             c.backups.takeFolder(it)
             runCatching { c.backupNow() }.onSuccess { ui.toast(L.backupFolderSaved) }.onFailure { e -> ui.toast(e.message ?: L.folderUnavailable) }
             tick++
         }
     }
-    val filePick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { u ->
+    val filePick = rememberFilePicker { uris ->
+        uris.firstOrNull()?.let { u ->
             runCatching { c.backups.loadFile(u) }
                 .onSuccess { d -> ui.push(L.restoreFromFile) { RestoreConfirm(c, ui, d, L.fileLower) } }
                 .onFailure { ui.toast(L.notBackupOrBroken) }

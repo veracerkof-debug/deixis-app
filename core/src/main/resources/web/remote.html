@@ -851,7 +851,7 @@ const STRINGS = { ru: {}, uz: {}, en: {} };
 for (const [k, v] of Object.entries(TR)) LANGS.forEach((l, i) => { STRINGS[l][k] = v[i] != null ? v[i] : v[0]; });
 let lang = "ru", t = STRINGS.ru;
 function setLang(code) {
-  // Окно пульта на компьютере передаёт язык системы (#t=…&l=uz): встроенный движок его не знает.
+  // Пульт компьютера в браузере передаёт язык системы (#t=…&l=uz).
   const sys = (location.hash.match(/[#&]l=([a-z]+)/) || [])[1];
   const nav = (sys || navigator.language || "ru").toLowerCase();
   lang = LANGS.includes(code) ? code : nav.startsWith("uz") ? "uz" : nav.startsWith("en") ? "en" : "ru";
@@ -938,33 +938,12 @@ function setScreenRatio(r) {
 // казаться живым. Поэтому связь проверяется по ответам каждую секунду, а при возврате на страницу,
 // появлении сети и восстановлении из кэша — переподключение сразу, без ожидания.
 let pause = 500, lastPong = 0, fails = 0, retry = 0, online = false, everOnline = false, netText = "";
-// Окно пульта Deixis на компьютере: встроенный движок не умеет WebSocket, связь держит сама программа
-// (window.deixisHost), события приходят в window.__deixisWs. Снаружи окна — обычный WebSocket.
-const IN_APP = /JavaFX/.test(navigator.userAgent);
-const HOST_SOCKETS = {};
-function HostSocket(url) {
-  const s = this;
-  s.readyState = 0;
-  s.id = String(window.deixisHost.wsOpen(url));
-  HOST_SOCKETS[s.id] = s;
-  s.send = (text) => { if (s.readyState === 1) window.deixisHost.wsSend(s.id, text); };
-  s.close = () => { if (s.readyState < 2) { s.readyState = 2; window.deixisHost.wsClose(s.id); } };
-}
-window.__deixisWs = (id, kind, data) => {
-  const s = HOST_SOCKETS[id];
-  if (!s) return;
-  if (kind === "open") { s.readyState = 1; if (s.onopen) s.onopen(); }
-  else if (kind === "message") { if (s.onmessage) s.onmessage({ data }); }
-  else { s.readyState = 3; delete HOST_SOCKETS[id]; if (s.onclose) s.onclose({}); }
-};
 function connect(pin) {
   clearTimeout(retry);
-  // Мост окна ставится, когда страница загрузилась: ждём его, а не идём в нерабочий WebSocket движка.
-  if (IN_APP && !window.deixisHost) { retry = setTimeout(() => connect(pin), 50); return; }
   if (ws) { ws.onclose = null; ws.onmessage = null; try { ws.close(); } catch (e) {} }
   setNet(online ? "" : t.connecting);
   const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
-  const sock = window.deixisHost ? new HostSocket(url) : new WebSocket(url);
+  const sock = new WebSocket(url);
   ws = sock;
   // Если за 4 секунды не открылось — Wi-Fi не тот или экран выключен; пробуем снова.
   const openTimer = setTimeout(() => { if (sock.readyState !== 1) sock.close(); }, 4000);
@@ -2941,8 +2920,6 @@ const A = {
   linkgo: (d) => { const pin = $("#lpin").value.trim(); if (!/^\d{4}$/.test(pin)) return toast(t.pin4); linkOutput(d.id, pin); },
   unlink: (d) => unlinkOutput(d.id),
   copy: async (d) => {
-    // В окне пульта Deixis на компьютере буфер обмена — через саму программу.
-    if (window.deixisHost) { try { window.deixisHost.copy(d.v); toast(t.copied); return; } catch (e) {} }
     try { await navigator.clipboard.writeText(d.v); toast(t.copied); } catch (e) { toast(d.v); }
   },
   // Holyrics

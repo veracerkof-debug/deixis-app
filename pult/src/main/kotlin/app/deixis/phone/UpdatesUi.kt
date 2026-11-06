@@ -1,5 +1,6 @@
 package app.deixis.phone
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -11,12 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import app.deixis.core.ChangelogEntry
 import app.deixis.core.UpdateMode
 import app.deixis.core.UpdateRequest
 import app.deixis.core.UpdateState
-import app.deixis.receiver.ApkUpdates
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -43,12 +42,11 @@ fun updateAction(s: UpdateState): Pair<String, String>? = when (s.phase) {
 /** Раздел «Обновления» в настройках телефона. */
 @Composable
 fun UpdatesSection() {
-    val context = LocalContext.current
-    val app = context.applicationContext as PhoneApp
-    val u = app.updater
+    val host = LocalHost.current
+    val u = host.updates
     val s by u.state.collectAsState()
     GHead(L.updates)
-    if (ApkUpdates.fromPlay(context)) {
+    if (host.updatesFromStore) {
         Note(L.playVersion)
         return
     }
@@ -66,7 +64,7 @@ fun UpdatesSection() {
             if (action == "install") u.install() else u.check()
         }
     }
-    if (!ApkUpdates.canInstall(context)) {
+    if (!host.canInstallUpdates) {
         Note(L.installPermission)
     }
     Note(
@@ -91,19 +89,18 @@ fun WhatsNewSheet(entries: List<ChangelogEntry>, ui: Ui) {
  */
 @Composable
 fun UpdatesEffects(c: Controller, ui: Ui) {
-    val context = LocalContext.current
-    val app = context.applicationContext as PhoneApp
+    val app = LocalHost.current
     LaunchedEffect(Unit) {
-        val news = app.updater.takeWhatsNew()
+        val news = app.takeWhatsNew()
         if (news.isNotEmpty()) ui.sheet(L.whatsNew) { WhatsNewSheet(news, ui) }
     }
-    val s by app.updater.state.collectAsState()
+    val s by app.updates.state.collectAsState()
     val live by c.live.collectAsState()
     LaunchedEffect(s.phase, live) {
         // Один раз на версию: если оператор отменил окно установки, не спрашивать снова до кнопки.
         if (s.phase == "ready" && s.settings.mode == UpdateMode.AUTO && live == null && app.autoInstallTried != s.available) {
             app.autoInstallTried = s.available
-            app.updater.install()
+            app.updates.install()
         }
     }
 }
@@ -124,6 +121,33 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         }
     }
     fun send(req: UpdateRequest) { scope.launch { c.screenUpdate(t, req)?.let { s = it } } }
+    ScreenInputs(c, t)
+    val st = s
+    if (st == null) {
+        Note(if (loaded) L.screenNoUpdate else L.linkToScreen)
+        return
+    }
+    GHead(L.screenUpdates)
+    Group { Cell("Deixis ${st.current}", updateStatus(st), chevron = null) }
+    Seg(listOf(L.byButton, L.automatically), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
+        send(UpdateRequest("settings", mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
+    }
+    if (st.notes.isNotEmpty() && st.phase in setOf("available", "downloading", "ready")) {
+        Group { st.notes.take(MAX_NOTES).forEachIndexed { i, line -> if (i > 0) Sep(T.gutter); Cell(line, chevron = null) } }
+    }
+    updateAction(st)?.let { (label, action) ->
+        Btn(label, Modifier.fillMaxWidth().padding(top = T.gap), kind = if (action == "install") BtnKind.TINT else BtnKind.PLAIN) { send(UpdateRequest(action)) }
+    }
+    Note(L.screenUpdateNote)
+}
+
+/**
+ * Входы экрана — откуда ещё картинка приходит на него, кроме пультов: монитор или окно программы компьютера,
+ * виртуальный экран, AirPlay. Есть только у компьютера (и AirPlay — у ТВ); у остальных блок пустой.
+ */
+@Composable
+fun ScreenInputs(c: Controller, t: Target) {
+    val scope = rememberCoroutineScope()
     // Экран компьютера: какой монитор, окно или виртуальный экран транслировать.
     var cap by remember { mutableStateOf<app.deixis.core.CaptureState?>(null) }
     LaunchedEffect(t.id) { while (true) { cap = c.screenCapture(t); delay(5_000) } }
@@ -160,21 +184,31 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         Group { SwitchRow(L.airPlayReceive, on) { v -> airPlay = v; scope.launch { airPlay = c.screenAirPlay(t, v) ?: on } } }
         Note(L.airPlayNote)
     }
-    val st = s
-    if (st == null) {
-        Note(if (loaded) L.screenNoUpdate else L.linkToScreen)
-        return
+}
+
+/** Выходы компьютера: на каких мониторах зал и в какой раскладке («Зал», «Сцена», «Титры», «Хромакей»). */
+@Composable
+fun ScreenOutputs(c: Controller, t: Target) {
+    val scope = rememberCoroutineScope()
+    var st by remember { mutableStateOf<app.deixis.core.OutputsState?>(null) }
+    LaunchedEffect(t.id) { while (true) { st = c.screenOutputs(t); delay(4_000) } }
+    val o = st ?: return
+    GHead(L.monitors)
+    Group {
+        o.monitors.forEachIndexed { i, m ->
+            if (i > 0) Sep(T.gutter)
+            Column {
+                SwitchRow(m.name, m.enabled, "${m.width}×${m.height}" + if (m.primary) " · ${L.primaryMonitor}" else "") { v ->
+                    scope.launch { c.screenOutputs(t, app.deixis.core.MonitorRequest(m.id, v, m.layout))?.let { st = it } }
+                }
+                if (m.enabled) {
+                    val layouts = app.deixis.core.OutputLayout.entries
+                    Seg(layouts.map { L.layoutName(it) }, layouts.indexOf(m.layout), Modifier.fillMaxWidth().padding(start = T.gutter, end = T.gutter, bottom = T.gapS)) { k ->
+                        scope.launch { c.screenOutputs(t, app.deixis.core.MonitorRequest(m.id, true, layouts[k]))?.let { st = it } }
+                    }
+                }
+            }
+        }
     }
-    GHead(L.screenUpdates)
-    Group { Cell("Deixis ${st.current}", updateStatus(st), chevron = null) }
-    Seg(listOf(L.byButton, L.automatically), if (st.settings.mode == UpdateMode.AUTO) 1 else 0, Modifier.fillMaxWidth().padding(top = T.gap, bottom = T.gap)) { i ->
-        send(UpdateRequest("settings", mode = if (i == 1) UpdateMode.AUTO else UpdateMode.MANUAL))
-    }
-    if (st.notes.isNotEmpty() && st.phase in setOf("available", "downloading", "ready")) {
-        Group { st.notes.take(MAX_NOTES).forEachIndexed { i, line -> if (i > 0) Sep(T.gutter); Cell(line, chevron = null) } }
-    }
-    updateAction(st)?.let { (label, action) ->
-        Btn(label, Modifier.fillMaxWidth().padding(top = T.gap), kind = if (action == "install") BtnKind.TINT else BtnKind.PLAIN) { send(UpdateRequest(action)) }
-    }
-    Note(L.screenUpdateNote)
+    Note(L.layoutsNote)
 }

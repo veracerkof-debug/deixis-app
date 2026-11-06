@@ -45,14 +45,6 @@ import app.deixis.receiver.VlcPlayer
 import kotlinx.coroutines.delay
 import org.videolan.libvlc.util.VLCVideoLayout
 
-/** Цвета экрана предпросмотра видео: он на чёрном, как зал. */
-private object V {
-    val ink = Color.White
-    val dim = Color.White.copy(alpha = 0.6f)
-    val button = Color.White.copy(alpha = 0.14f)
-    val go = Color(0xFFBC9361)
-    val track = Color.White.copy(alpha = 0.25f)
-}
 
 /**
  * Предпросмотр видео отдельным экраном: файл играет на телефоне, без передачи.

@@ -54,6 +54,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // Пульт — общий с компьютером (pult/): здесь к нему добавляется только Android.
+    sourceSets["main"].java.srcDir("../../pult/src/main/kotlin")
     packaging { resources { excludes += setOf("META-INF/INDEX.LIST", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module", "META-INF/versions/9/OSGI-INF/MANIFEST.MF") } }
 }
 

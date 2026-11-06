@@ -1,16 +1,6 @@
 package app.deixis.phone
 
 import app.deixis.core.LogoStyle
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
-import android.graphics.pdf.PdfRenderer
-import android.media.MediaMetadataRetriever
-import android.net.Uri
-import android.os.Build
-import android.util.LruCache
-import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +33,6 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +41,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import app.deixis.core.Mode
-import app.deixis.receiver.Didot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import app.deixis.core.TextStyle as SlideStyle
@@ -165,7 +153,7 @@ private fun LogoPreview(logo: LogoStyle) {
     val img = LocalLogoImage.current
     val uri = img?.let { LocalBackgrounds.current(it.sha256) }
     if (img != null && uri != null) Thumb(LibItem("logo", Kind.PHOTO, img.name, uri = uri), ThumbKind.PHOTO, 0, ContentScale.Fit) {}
-    else app.deixis.receiver.LogoFull(logo)
+    else LogoFull(logo)
 }
 
 private const val AWAY_ALPHA = 0.5f
@@ -182,8 +170,8 @@ private fun BackgroundImage(style: SlideStyle) {
 private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
     when (slide) {
         // Текст и Писание — той же раскладкой, что в зале: превью — уменьшенный экран, а не прикидка.
-        is Slide.Text -> app.deixis.receiver.TextSlideCanvas(slide.text, null, style, drawBackground = false)
-        is Slide.Scripture -> app.deixis.receiver.ScriptureSlideCanvas(slide.content.copy(style = style), drawBackground = false)
+        is Slide.Text -> TextSlideCanvas(slide.text, null, style, drawBackground = false)
+        is Slide.Scripture -> ScriptureSlideCanvas(slide.content.copy(style = style), drawBackground = false)
         is Slide.Page -> Thumb(item, ThumbKind.PAGE, slide.index) { PagePlaceholder(slide.index + 1) }
         is Slide.Picture -> Thumb(item, ThumbKind.PHOTO, 0) { Icon("photo", Color.White, T.icon) }
         is Slide.Movie -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -197,7 +185,7 @@ private fun SlideBody(slide: Slide, item: LibItem?, style: SlideStyle) {
         }
         is Slide.Screen -> Icon("phone", Color.White, T.icon)
         // Превью отсчёта: сколько он будет идти, в оформлении зала.
-        is Slide.Countdown -> app.deixis.receiver.TextSlideCanvas(
+        is Slide.Countdown -> TextSlideCanvas(
             listOfNotNull(slide.spec.label, slide.spec.title).joinToString("\n"), null, style.copy(color = slide.spec.color ?: style.color), drawBackground = false,
         )
     }
@@ -228,14 +216,14 @@ private fun Thumb(
     scale: ContentScale = ContentScale.Fit,
     placeholder: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
+    val platform = LocalHost.current.platform
     val uri = item?.uri
     val key = "$uri#$kind#$index"
     // Состояние produceState не сбрасывается при смене ключа: новая страница грузится всегда, а до тех пор
     // видна прежняя — листание без мигания заглушкой.
     val bmp by produceState(Thumbs.cached(key), key) {
         value = Thumbs.cached(key)
-            ?: if (uri != null && (kind != ThumbKind.PAGE || item?.mime == "application/pdf")) Thumbs.load(context, key, Uri.parse(uri), kind, index) else null
+            ?: if (uri != null && (kind != ThumbKind.PAGE || item?.mime == "application/pdf")) Thumbs.load(platform, key, uri, kind, index) else null
     }
     val b = bmp
     if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = scale)
@@ -261,69 +249,28 @@ fun ItemThumb(item: LibItem, size: Dp, placeholder: @Composable () -> Unit) {
 }
 
 object Thumbs {
-    private val cache = object : LruCache<String, ImageBitmap>(48 * 1024 * 1024) {
-        override fun sizeOf(key: String, value: ImageBitmap) = value.width * value.height * 4
-    }
-
-    fun cached(key: String): ImageBitmap? = cache.get(key)
-
-    suspend fun load(context: Context, key: String, uri: Uri, kind: ThumbKind, index: Int): ImageBitmap? = withContext(Dispatchers.IO) {
-        cache.get(key) ?: runCatching {
-            when (kind) {
-                ThumbKind.PAGE -> page(context, uri, index)
-                ThumbKind.PHOTO -> photo(context, uri)
-                ThumbKind.VIDEO -> video(context, uri)
-            }
-        }.getOrNull()?.asImageBitmap()?.also { cache.put(key, it) }
-    }
-
-    private fun page(context: Context, uri: Uri, index: Int): Bitmap? {
-        val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: return null
-        return fd.use {
-            PdfRenderer(it).use { r ->
-                if (index !in 0 until r.pageCount) null
-                else r.openPage(index).use { pg ->
-                    val w = S.thumbWidth
-                    val h = (w.toFloat() * pg.height / pg.width).toInt().coerceAtLeast(1)
-                    Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also {
-                        it.eraseColor(android.graphics.Color.WHITE)
-                        pg.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    }
-                }
-            }
+    /** Кадры в памяти: до 48 МБ, давно не нужные уходят первыми. */
+    private val cache = object : LinkedHashMap<String, ImageBitmap>(64, 0.75f, true) {
+        var bytes = 0L
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>): Boolean {
+            if (bytes <= CACHE_BYTES) return false
+            bytes -= eldest.value.width.toLong() * eldest.value.height * 4
+            return true
         }
     }
 
-    private fun photo(context: Context, uri: Uri): Bitmap? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            runCatching { return context.contentResolver.loadThumbnail(uri, Size(S.thumbWidth, S.thumbWidth), null) }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            runCatching {
-                return ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { d, info, _ ->
-                    val scale = (info.size.width / S.thumbWidth).coerceAtLeast(1)
-                    d.setTargetSize(info.size.width / scale, info.size.height / scale)
-                }
-            }
-        }
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= S.thumbWidth) sample *= 2
-        return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
+    @Synchronized fun cached(key: String): ImageBitmap? = cache[key]
+
+    @Synchronized private fun put(key: String, b: ImageBitmap) {
+        cache.put(key, b)?.let { cache.bytes -= it.width.toLong() * it.height * 4 }
+        cache.bytes += b.width.toLong() * b.height * 4
     }
 
-    private fun video(context: Context, uri: Uri): Bitmap? {
-        val r = MediaMetadataRetriever()
-        return try {
-            r.setDataSource(context, uri)
-            val frame = r.getFrameAtTime(1_000_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
-            val h = (S.thumbWidth.toFloat() * frame.height / frame.width).toInt().coerceAtLeast(1)
-            Bitmap.createScaledBitmap(frame, S.thumbWidth, h, true).also { if (it !== frame) frame.recycle() }
-        } finally {
-            runCatching { r.release() }
-        }
+    suspend fun load(platform: Platform, key: String, uri: String, kind: ThumbKind, index: Int): ImageBitmap? = withContext(Dispatchers.IO) {
+        cached(key) ?: runCatching { platform.thumbnail(uri, kind, index, S.thumbWidth) }.getOrNull()?.also { put(key, it) }
     }
+
+    private const val CACHE_BYTES = 48L * 1024 * 1024
 }
 
 /** Слайд и элемент, к которому он относится: для превью «Сейчас» и «Предпросмотр». */

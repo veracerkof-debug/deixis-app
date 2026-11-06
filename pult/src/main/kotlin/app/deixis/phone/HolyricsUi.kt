@@ -1,7 +1,5 @@
 package app.deixis.phone
 
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -257,15 +254,16 @@ private fun <T> Items(list: List<T>, title: (T) -> String, subtitle: (T) -> Stri
 @Composable
 private fun MediaItems(list: List<HolyricsFile>, onPick: (HolyricsFile) -> Unit) {
     val p = P.current
+    val platform = LocalHost.current.platform
     if (list.isEmpty()) return BasicText(L.empty, style = TextStyle(fontSize = 14.sp, color = p.l2))
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(list, key = { it.name }) { f ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(p.cell).clickable { onPick(f) }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 val thumb = remember(f.thumbnail) {
-                    f.thumbnail?.let { runCatching { Base64.decode(it.substringAfter("base64,"), Base64.DEFAULT).let { b -> BitmapFactory.decodeByteArray(b, 0, b.size) } }.getOrNull() }
+                    f.thumbnail?.let { runCatching { platform.decodeImage(java.util.Base64.getMimeDecoder().decode(it.substringAfter("base64,"))) }.getOrNull() }
                 }
                 Box(Modifier.width(80.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(Color.Black)) {
-                    thumb?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop) }
+                    thumb?.let { Image(it, null, contentScale = ContentScale.Crop) }
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -317,7 +315,7 @@ fun HolyricsLiveCard(h: HolyricsSource) {
     ) {
         val bmp = cur?.let { live?.previews?.get(it.slideNumber) }
         when {
-            bmp != null -> Image(bmp.asImageBitmap(), null, Modifier.fillMaxWidth(), contentScale = ContentScale.Fit)
+            bmp != null -> Image(bmp, null, Modifier.fillMaxWidth(), contentScale = ContentScale.Fit)
             cur != null -> BasicText(
                 cur.slides?.firstOrNull { it.number == cur.slideNumber }?.text?.ifBlank { null } ?: cur.name,
                 Modifier.padding(16.dp), style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White, textAlign = TextAlign.Center),
@@ -339,7 +337,7 @@ fun HolyricsLiveCard(h: HolyricsSource) {
                         .clickable { h.goTo(i) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (thumb != null) Image(thumb.asImageBitmap(), null, contentScale = ContentScale.Fit)
+                    if (thumb != null) Image(thumb, null, contentScale = ContentScale.Fit)
                     else BasicText(s.description ?: s.text.lineSequence().firstOrNull().orEmpty(), Modifier.padding(4.dp), style = TextStyle(fontSize = 11.sp, color = Color.White, textAlign = TextAlign.Center), maxLines = 3)
                 }
             }

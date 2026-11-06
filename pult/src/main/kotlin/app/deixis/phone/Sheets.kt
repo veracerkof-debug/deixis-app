@@ -4,15 +4,6 @@ import kotlinx.coroutines.launch
 import app.deixis.core.LogoStyle
 import app.deixis.core.Mode
 
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.media.projection.MediaProjectionManager
-import android.os.Build
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +31,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -57,63 +47,7 @@ class Acts(
 
 val LocalActs = staticCompositionLocalOf<Acts> { error("Acts") }
 
-@Composable
-fun rememberActs(c: Controller, ui: Ui): Acts {
-    val context = LocalContext.current
-    var then by remember { mutableStateOf<((LibItem) -> Unit)?>(null) }
-    var presentation by remember { mutableStateOf(false) }
-    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) c.importFiles(uris, presentation) { then?.invoke(it) }
-    }
-    val bible = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(c::importBible) }
-
-    // Трансляция экрана: разрешение на уведомление (Android 13+), затем системный запрос на захват.
-    var openAfter by remember { mutableStateOf<LargeFile?>(null) }
-    val capture = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val data = r.data
-        if (r.resultCode == Activity.RESULT_OK && data != null) {
-            ScreenShareService.start(context, r.resultCode, data, sound = c.settings.value.shareSound)
-            // Большой файл открывается в проигрывателе телефона, а в зал идёт экран.
-            openAfter?.let { f ->
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(f.uri, f.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-            }
-        }
-        openAfter = null
-    }
-    val requestCapture = { capture.launch(context.getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent()) }
-    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { requestCapture() }
-    val afterSound = {
-        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else requestCapture()
-    }
-    // Звук приложений телефона: Android даёт его снимать только с разрешением на запись звука (микрофон не включается).
-    val soundPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) ui.toast(L.noSoundPermission)
-        afterSound()
-    }
-
-    return remember(c, ui) {
-        Acts(
-            pick = { mimes, pres, cb ->
-                then = cb; presentation = pres
-                runCatching { files.launch(mimes) }.onFailure { ui.toast(L.cantOpenPicker) }
-            },
-            share = { f ->
-                if (c.outputs.value.none { it.state == OutState.ONLINE && it.target.kind != Target.Kind.DLNA }) ui.toast(L.needScreenFirst)
-                else {
-                    openAfter = f
-                    val wantSound = c.settings.value.shareSound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                    if (wantSound && context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                        soundPermission.launch(Manifest.permission.RECORD_AUDIO)
-                    } else afterSound()
-                }
-            },
-            addBible = { runCatching { bible.launch(arrayOf("*/*")) } },
-            holyrics = { ui.holyrics = true },
-        )
-    }
-}
+// rememberActs(c, ui) — у каждой платформы свой: выбор файлов и трансляция экрана идут через систему.
 
 // ——— Подключить ———
 
@@ -121,7 +55,7 @@ fun rememberActs(c: Controller, ui: Ui): Acts {
 fun ConnectSheet(c: Controller, ui: Ui) {
     val targets by c.targets.collectAsState()
     val outputs by c.outputs.collectAsState()
-    val context = LocalContext.current
+    val host = LocalHost.current
     GHead(L.connectedState)
     Group {
         if (outputs.isEmpty()) Cell(L.noScreenYet, chevron = null)
@@ -142,12 +76,10 @@ fun ConnectSheet(c: Controller, ui: Ui) {
         }
         Sep()
         Cell(L.manualAddress, kind = "plus", onClick = { ui.push(L.receiverAddress) { ManualSheet(c, ui) } })
-        Sep()
-        Cell(L.miracastCell, L.miracastSub, "cast", onClick = {
-            runCatching { context.startActivity(Intent(Settings.ACTION_CAST_SETTINGS)) }.onFailure {
-                runCatching { context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }
-            }
-        })
+        if (host.platform.features.cable) {
+            Sep()
+            Cell(L.miracastCell, L.miracastSub, "cast", onClick = { host.openCastSettings() })
+        }
     }
     Note(L.connectNote)
 }
@@ -157,13 +89,13 @@ fun ConnectSheet(c: Controller, ui: Ui) {
 fun OutputCell(c: Controller, o: OutputView) {
     val ui = LocalUi.current
     // Экран Deixis в сети: касание открывает его обновления.
-    val open = if (o.state == OutState.ONLINE && (o.target.kind == Target.Kind.NETWORK || o.target.kind == Target.Kind.MANUAL)) ({ ui.push(L.screenNamed(o.info?.name ?: o.target.name)) { ScreenUpdateSheet(c, o.target) } }) else null
+    val open = if (o.state == OutState.ONLINE && (o.target.kind == Target.Kind.NETWORK || o.target.kind == Target.Kind.MANUAL || o.target.kind == Target.Kind.LOCAL)) ({ ui.push(L.screenNamed(o.info?.name ?: o.target.name)) { ScreenUpdateSheet(c, o.target) } }) else null
     // Имя — то, что сообщил сам экран, а не адрес, по которому его подключили.
     Cell(o.info?.name ?: o.target.name, "${o.target.via} · ${o.state.text}" + (o.info?.appVersion?.let { " · $it" } ?: ""), o.target.icon, chevron = null, onClick = open) {
         when (o.state) {
             OutState.OFFLINE -> Pill(L.retry) { c.retry(o.target) }
             OutState.PIN -> Pill("PIN", tint = true) { c.needPin.value = o.target }
-            else -> if (o.target.kind != Target.Kind.CABLE && o.target.kind != Target.Kind.MIRACAST) Pill(L.disconnect) { c.disconnect(o.target) }
+            else -> if (o.target.kind != Target.Kind.CABLE && o.target.kind != Target.Kind.MIRACAST && o.target.kind != Target.Kind.LOCAL) Pill(L.disconnect) { c.disconnect(o.target) }
         }
     }
 }
@@ -209,7 +141,7 @@ private fun ManualSheet(c: Controller, ui: Ui) {
 @Composable
 fun SettingsSheet(c: Controller) {
     val st by c.settings.collectAsState()
-    val context = LocalContext.current
+    val host = LocalHost.current
     val themes = listOf("light" to L.uiLight, "dark" to L.uiDark, "paper" to L.paper, "oled" to "OLED")
     val ui = LocalUi.current
     val book by c.profiles.collectAsState()
@@ -251,8 +183,8 @@ fun SettingsSheet(c: Controller) {
     }
     // Своя картинка вместо знака: логотип церкви, школы, афиша.
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
+    val pick = rememberFilePicker { uris ->
+        val uri = uris.firstOrNull() ?: return@rememberFilePicker
         scope.launch {
             runCatching { c.backgroundFrom(uri) }
                 .onSuccess { ref -> c.setSettings { it.copy(logoImage = ref) } }
@@ -292,8 +224,8 @@ fun SettingsSheet(c: Controller) {
     }
     BackupsSection(c, LocalUi.current)
     UpdatesSection()
-    FeedbackSection()
-    val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
+    host.FeedbackSection()
+    val version = host.version
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = T.gapS)) {
         Mark(T.fPill, P.current.l2)
         Txt(" · $version · GPL-3.0 · " + L.ethics, T.fSub, P.current.l2)
@@ -366,7 +298,7 @@ fun MirrorSheet(c: Controller, ui: Ui) {
     val st by c.settings.collectAsState()
     Note(L.mirrorNote, Modifier)
     Group(Modifier.padding(top = T.gap)) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (LocalHost.current.platform.features.shareSound) {
             SwitchRow(L.withSound, st.shareSound, L.withSoundSub) { v -> c.setSettings { it.copy(shareSound = v) } }
         } else {
             Cell(L.noSound, L.noSoundSub, "vol", chevron = null)

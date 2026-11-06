@@ -60,11 +60,12 @@ compiled into the bytedeco build) for the "Computer screen" broadcast. The macOS
 the system CGVirtualDisplay API, as the open-source DeskPad app (MIT) does; no DeskPad code is included.
 
 
-Bundled OpenJFX (desktop)
+Bundled Compose Multiplatform (desktop)
 
-The desktop installers include OpenJFX (org.openjfx: javafx-base, -graphics, -controls, -media,
--web, -swing; https://openjfx.io), licensed under the GNU GPL version 2 with the Classpath Exception.
-Its WebView (WebKit, LGPL/BSD) shows the operator remote inside the Deixis window on the computer.
+The desktop installers include Compose Multiplatform for desktop (org.jetbrains.compose: runtime,
+foundation, ui, animation; https://github.com/JetBrains/compose-multiplatform) and Skiko with Skia
+(https://github.com/JetBrains/skiko), licensed under the Apache License 2.0 (Skia: BSD-3-Clause).
+They draw the operator remote in the Deixis window on the computer — the same remote as the phone app.
 
 
 AirPlay receiver (rewritten from UxPlay)

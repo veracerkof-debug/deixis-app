@@ -38,7 +38,7 @@ object Feedback {
 
 /** Раздел «Отзыв» в настройках. */
 @Composable
-fun FeedbackSection() {
+fun PhoneFeedbackSection() {
     val context = LocalContext.current
     GHead(L.feedback)
     Group {

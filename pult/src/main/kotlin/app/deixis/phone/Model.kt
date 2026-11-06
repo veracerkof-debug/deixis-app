@@ -2,7 +2,6 @@ package app.deixis.phone
 
 import app.deixis.core.Overlays
 import app.deixis.core.LogoStyle
-import android.content.Context
 import app.deixis.core.DeixisJson
 import app.deixis.core.FileRef
 import app.deixis.core.ScriptureContent
@@ -227,7 +226,7 @@ object StoreWriter {
     private const val FLUSH_WAIT_S = 10L
 }
 
-class Store(private val context: Context, dir: File = context.filesDir, private val backups: Backups = Backups(context)) {
+class Store(private val platform: Platform, dir: File = platform.filesDir, private val backups: Backups = Backups(platform)) {
     private val file = File(dir, "library.json")
 
     /** Сохранение не удалось (чаще всего — нет места): пульт сообщает оператору, данные в памяти целы. */

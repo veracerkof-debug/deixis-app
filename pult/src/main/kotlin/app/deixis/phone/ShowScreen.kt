@@ -1,6 +1,5 @@
 package app.deixis.phone
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -51,7 +50,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -310,7 +308,8 @@ private data class TileSpec(val title: String, val icon: String, val action: () 
  */
 @Composable
 private fun ShowMenu(c: Controller, ui: Ui) {
-    val context = LocalContext.current
+    val host = LocalHost.current
+    val features = host.platform.features
     val acts = LocalActs.current
     val settings by c.settings.collectAsState()
     val sharing by c.sharing.collectAsState()
@@ -321,8 +320,8 @@ private fun ShowMenu(c: Controller, ui: Ui) {
         add(TileSpec(L.tText, "text") { ui.sheet(L.tText) { TextSheet(c, ui) } })
         add(TileSpec(L.tCountdown, "clock") { ui.sheet(L.countdown) { CountdownSheet(c, ui) } })
         add(TileSpec(L.overlay, "layers") { ui.sheet(L.overlayTitle) { OverlaySheet(c, ui) } })
-        add(TileSpec(if (sharing) L.stopScreen else L.screenShare, "phone") {
-            if (sharing) { ui.closeAll(); ScreenShareService.stop(context) } else ui.sheet(L.screenShare) { MirrorSheet(c, ui) }
+        if (features.screenShare) add(TileSpec(if (sharing) L.stopScreen else L.screenShare, "phone") {
+            if (sharing) { ui.closeAll(); host.platform.stopScreenShare() } else ui.sheet(L.screenShare) { MirrorSheet(c, ui) }
         })
         add(TileSpec(L.tFile, "file") { ui.sheet(L.tFile) { PickSheet(c, ui, PickKind.FILE) } })
         // Тяжёлые файлы службы — на экраны заранее, пока в зале идёт другое.
@@ -336,7 +335,7 @@ private fun ShowMenu(c: Controller, ui: Ui) {
             add(TileSpec(L.tabBible, "bible") { ui.closeAll(); ui.tab = AppTab.BIBLE })
             add(TileSpec("Holyrics", "song") { ui.closeAll(); acts.holyrics() })
         }
-        add(TileSpec(L.becomeScreen, "tv") { ui.closeAll(); context.startActivity(Intent(context, ScreenActivity::class.java)) })
+        if (features.becomeScreen) add(TileSpec(L.becomeScreen, "tv") { ui.closeAll(); host.becomeScreen() })
     }
     Group {
         tiles.forEachIndexed { i, t ->
@@ -558,7 +557,7 @@ fun ControlBar(c: Controller, ui: Ui) {
     val live by c.live.collectAsState()
     val mode by c.mode.collectAsState()
     val state by c.receiverState.collectAsState()
-    val context = LocalContext.current
+    val platform = LocalHost.current.platform
     val slide = live?.slide
     Column(Modifier.fillMaxWidth().background(p.cell)) {
         Box(Modifier.fillMaxWidth().height(T.hair).background(p.sep))
@@ -582,7 +581,7 @@ fun ControlBar(c: Controller, ui: Ui) {
                 }
                 is Slide.Screen -> Row(horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
                     black()
-                    BarBtn("stop", L.stopShare, weight = 2f) { ScreenShareService.stop(context) }
+                    BarBtn("stop", L.stopShare, weight = 2f) { platform.stopScreenShare() }
                 }
                 // Отсчёт в зале: пауза, ±1 мин, заново — на всех экранах сразу.
                 is Slide.Countdown -> {

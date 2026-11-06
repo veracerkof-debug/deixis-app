@@ -24,8 +24,11 @@ import androidx.compose.ui.unit.sp
 
 class PhoneApp : Application() {
     /** Пульт живёт дольше экрана: поворот телефона не рвёт связь и не прерывает передачу. */
-    val controller by lazy { Controller(this) }
-    val holyrics by lazy { HolyricsSource(this, controller) }
+    val platform by lazy { AndroidPlatform(this) }
+    val controller by lazy { Controller(platform) }
+    val holyrics by lazy { HolyricsSource(platform, controller) }
+    /** Пульт для экранов интерфейса (общих с компьютером). */
+    val host by lazy { PhoneHost(this) }
     /** Пульт сейчас на экране телефона. */
     @Volatile var remoteVisible = false
 
@@ -99,7 +102,11 @@ class MainActivity : ComponentActivity() {
         castView = CastPresentation(this, cast).also { v ->
             lifecycleScope.launch { cast.fallback.collect { v.update(it) } }
         }
-        setContent { DeixisPhone(controller, (application as PhoneApp).holyrics, ui) }
+        setContent {
+            androidx.compose.runtime.CompositionLocalProvider(LocalHost provides app.host) {
+                DeixisPhone(controller, app.holyrics, ui)
+            }
+        }
         handleLink(intent)
     }
 

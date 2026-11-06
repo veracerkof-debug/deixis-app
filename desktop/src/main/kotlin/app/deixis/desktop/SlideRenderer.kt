@@ -89,6 +89,30 @@ class SlideRenderer(
     }
 
     /**
+     * Слайд для превью пульта на этом компьютере — тем же движком, что зал, поэтому превью совпадает с залом.
+     * [transparent] — без фона: фон (фото, видеофон) рисует само превью. [logo] — заставка «Логотип».
+     */
+    fun renderPreview(width: Int, height: Int, content: Content?, clear: Boolean, transparent: Boolean, logo: LogoStyle? = null): BufferedImage {
+        val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), BufferedImage.TYPE_INT_ARGB)
+        transparentBackground = transparent
+        val g = img.createGraphics()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            when {
+                logo != null -> drawLogo(g, width, height, logo)
+                content is TextContent -> drawText(g, width, height, content, clear)
+                content is ScriptureContent -> drawScripture(g, width, height, content, clear)
+            }
+        } finally {
+            g.dispose()
+            transparentBackground = false
+        }
+        return img
+    }
+
+    /**
      * Экран ожидания: знак, имя, QR-код и PIN. На широком экране (16:9, 4:3, 32:9) — QR слева от PIN,
      * размеры от высоты 16:9-кадра внутри экрана; на квадратном и вертикальном — всё столбиком по ширине.
      * Строки, которые не помещаются по ширине, уменьшаются, а не обрезаются.

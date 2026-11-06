@@ -2,8 +2,6 @@ package app.deixis.phone
 
 import app.deixis.core.Overlays
 import app.deixis.core.OverlaySample
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,8 +38,8 @@ fun OverlaySheet(c: Controller, ui: Ui) {
     var title by remember { mutableStateOf(o.lowerThird?.title ?: drafts.lowerThirds.firstOrNull()?.title.orEmpty()) }
     var subtitle by remember { mutableStateOf(o.lowerThird?.subtitle ?: drafts.lowerThirds.firstOrNull()?.subtitle.orEmpty()) }
     var ticker by remember { mutableStateOf(o.ticker?.text ?: drafts.tickers.firstOrNull().orEmpty()) }
-    val logoPick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
+    val logoPick = rememberFilePicker { uris ->
+        uris.firstOrNull()?.let {
             scope.launch {
                 runCatching { c.backgroundFrom(it) }
                     .onSuccess { ref -> c.setOverlays(c.overlays.value.copy(logo = (c.overlays.value.logo ?: drafts.logo ?: LogoOverlay(ref)).copy(file = ref))) }

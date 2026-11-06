@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -343,7 +342,7 @@ fun HolyricsThemeStrip(h: HolyricsSource) {
 }
 
 @Composable
-private fun ThemeTile(bg: HolyricsBackground, thumb: android.graphics.Bitmap?, on: Boolean, onClick: () -> Unit) {
+private fun ThemeTile(bg: HolyricsBackground, thumb: androidx.compose.ui.graphics.ImageBitmap?, on: Boolean, onClick: () -> Unit) {
     val p = P.current
     val shape = RoundedCornerShape(T.rSlide)
     Column(Modifier.width(T.themeTile).press(label = bg.name, onClick = onClick), verticalArrangement = Arrangement.spacedBy(T.gapXs)) {
@@ -352,7 +351,7 @@ private fun ThemeTile(bg: HolyricsBackground, thumb: android.graphics.Bitmap?, o
                 .then(if (on) Modifier.border(T.outline, p.tint, shape) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (thumb != null) Image(thumb.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (thumb != null) Image(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else Icon(if (bg.isVideo) "media" else if (bg.isTheme) "themes" else "photo", Color.White)
         }
         Txt(bg.name.ifBlank { L.untitled }, T.fTag, if (on) p.tintText else p.l2, if (on) FontWeight.SemiBold else FontWeight.Normal, lines = 1)
@@ -432,7 +431,7 @@ fun HolyricsExtrasSheet(h: HolyricsSource, ui: Ui) {
  */
 @Composable
 fun HolyricsBibleSheet(c: Controller, ui: Ui) {
-    val h = (androidx.compose.ui.platform.LocalContext.current.applicationContext as PhoneApp).holyrics
+    val h = LocalHost.current.holyrics
     val versions by h.bibleVersions.collectAsState()
     val map by h.bibleMap.collectAsState()
     val modules by c.bibleModules.collectAsState()

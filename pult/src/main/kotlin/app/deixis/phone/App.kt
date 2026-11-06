@@ -1,6 +1,5 @@
 package app.deixis.phone
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -201,7 +200,7 @@ private fun Root(c: Controller, h: HolyricsSource, ui: Ui) {
         ThemeGhost(ui.themeDrag)
     }
     if (ui.holyrics) HolyricsDialog(h) { ui.holyrics = false }
-    BackHandler(enabled = ui.sheet != null || ui.full != null) {
+    BackHandlerOn(enabled = ui.sheet != null || ui.full != null) {
         if (ui.sheet != null) ui.close() else ui.full = null
     }
 }

@@ -1,7 +1,5 @@
 package app.deixis.phone
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -108,12 +106,12 @@ fun ThemeEditor(c: Controller, ui: Ui, theme: Theme?, base: TextStyle? = null) {
 @Composable
 fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) -> Unit) {
     val scope = rememberCoroutineScope()
-    val photo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundImage = ref)) }.onFailure { e -> ui.toast(e.message ?: L.photoNotOpened) } } }
+    val photo = rememberFilePicker { uris ->
+        uris.firstOrNull()?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundImage = ref)) }.onFailure { e -> ui.toast(e.message ?: L.photoNotOpened) } } }
     }
     // Видеофон, как анимированный фон Holyrics: играет по кругу без звука, текст меняется поверх.
-    val video = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundVideo = ref)) }.onFailure { e -> ui.toast(e.message ?: L.videoNotOpened) } } }
+    val video = rememberFilePicker { uris ->
+        uris.firstOrNull()?.let { scope.launch { runCatching { c.backgroundFrom(it) }.onSuccess { ref -> onChange(st.copy(backgroundVideo = ref)) }.onFailure { e -> ui.toast(e.message ?: L.videoNotOpened) } } }
     }
     Group {
         Cell(L.background, chevron = null) {

@@ -1,6 +1,5 @@
 package app.deixis.phone
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -71,7 +70,7 @@ class Profiles(private val root: File) {
     /** Папка данных профиля. */
     fun dirOf(id: String): File = if (id == MAIN) root else File(root, "profiles/$id").apply { mkdirs() }
 
-    fun backupsOf(context: Context, id: String) = Backups(context, dirOf(id), if (id == MAIN) "deixis-" else "deixis.$id-", if (id == MAIN) "last" else "last-$id")
+    fun backupsOf(platform: Platform, id: String) = Backups(platform, dirOf(id), if (id == MAIN) "deixis-" else "deixis.$id-", if (id == MAIN) "last" else "last-$id")
 
     /** Новый профиль: пустая библиотека с сетлистом на сегодня; церковный раздел — только у «Церкви»; язык — как у открытого. */
     fun create(b: ProfileBook, name: String, kind: ProfileKind, accent: Accent, lang: String? = null): Pair<ProfileBook, Profile> {

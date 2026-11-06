@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     application
 }
@@ -20,14 +21,14 @@ val javacppPlatform: String = run {
     }
 }
 
-/** Платформа JavaFX (окно пульта): та же, на которой идёт сборка. */
-val javafxPlatform: String = run {
+/** Платформа Skia для Compose (окно пульта): та же, на которой идёт сборка. */
+val composePlatform: String = run {
     val os = System.getProperty("os.name").lowercase()
     val arm = System.getProperty("os.arch").lowercase().let { it.contains("aarch64") || it.contains("arm64") }
     when {
-        os.contains("win") -> "win"
-        os.contains("mac") -> if (arm) "mac-aarch64" else "mac"
-        else -> if (arm) "linux-aarch64" else "linux"
+        os.contains("win") -> "windows-x64"
+        os.contains("mac") -> if (arm) "macos-arm64" else "macos-x64"
+        else -> if (arm) "linux-arm64" else "linux-x64"
     }
 }
 
@@ -49,10 +50,12 @@ dependencies {
     runtimeOnly(variantOf(libs.javacpp) { classifier(javacppPlatform) })
     testRuntimeOnly(variantOf(libs.ffmpeg) { classifier(javacppPlatform) })
     runtimeOnly(libs.slf4j.nop)
-    // Окно пульта Deixis: встроенный движок страниц OpenJFX (GPL-2.0 с Classpath Exception), без браузера в системе.
-    for (fx in listOf(libs.javafx.base, libs.javafx.graphics, libs.javafx.controls, libs.javafx.media, libs.javafx.web, libs.javafx.swing)) {
-        implementation(variantOf(fx) { classifier(javafxPlatform) })
-    }
+    // Пульт на компьютере — тот же, что на телефоне: Compose Multiplatform (Apache-2.0), Skia своей платформы.
+    implementation(libs.compose.desktop.runtime)
+    implementation(libs.compose.desktop.foundation)
+    implementation(libs.compose.desktop.ui)
+    implementation(libs.compose.desktop.animation)
+    implementation("org.jetbrains.compose.desktop:desktop-jvm-$composePlatform:${libs.versions.composeDesktop.get()}")
 
     testImplementation(libs.kotlin.test)
 }
@@ -75,6 +78,21 @@ val writeVersion by tasks.registering {
     doLast { versionResource.get().file("deixis-version.txt").asFile.apply { parentFile.mkdirs(); writeText(v) } }
 }
 sourceSets.main { resources.srcDir(writeVersion) }
+// Пульт — тот же, что на телефоне (pult/): на компьютере к нему добавляется своя платформа (app.deixis.phone в desktop).
+kotlin.sourceSets["main"].kotlin.srcDir("../pult/src/main/kotlin")
+
+// Демо-набор первого запуска — те же файлы, что у телефона, и их список (папку в jar не перечислить).
+val demoAssets = rootProject.file("android/phone/src/main/assets")
+val demoIndex = layout.buildDirectory.dir("generated/demo")
+val writeDemoIndex by tasks.registering {
+    inputs.dir(demoAssets.resolve("demo"))
+    outputs.dir(demoIndex)
+    doLast {
+        val names = demoAssets.resolve("demo").listFiles().orEmpty().filter { it.isFile }.map { it.name }.sorted()
+        demoIndex.get().file("demo/index.txt").asFile.apply { parentFile.mkdirs(); writeText(names.joinToString("\n")) }
+    }
+}
+sourceSets.main { resources.srcDir(demoAssets); resources.srcDir(writeDemoIndex) }
 
 tasks.test {
     useJUnitPlatform()

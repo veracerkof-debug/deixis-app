@@ -437,6 +437,21 @@ class SenderClient(
         return DeixisJson.decodeFromString(CaptureState.serializer(), r.bodyAsText())
     }
 
+    /**
+     * Мониторы компьютера (выходы): без [set] — список, с ним — включить монитор или сменить раскладку.
+     * null — экран не компьютер или старая версия.
+     */
+    suspend fun outputs(set: MonitorRequest? = null): OutputsState? {
+        val t = token ?: return null
+        val r = if (set == null) http.get("${base()}/api/outputs") { header("Authorization", "Bearer $t") }
+        else http.post("${base()}/api/outputs/monitor") {
+            header("Authorization", "Bearer $t")
+            setBody(DeixisJson.encodeToString(MonitorRequest.serializer(), set))
+        }
+        if (r.status != HttpStatusCode.OK) return null
+        return DeixisJson.decodeFromString(OutputsState.serializer(), r.bodyAsText())
+    }
+
     /** Сколько файла уже на экране: целиком, частью (передача оборвалась) или нисколько. */
     suspend fun fileStatus(sha: String): FileStatus = fileStatus(sha, token ?: error("Нет сопряжения"))
 

@@ -1,10 +1,6 @@
 package app.deixis.phone
 
-import android.app.Application
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.Base64
+import androidx.compose.ui.graphics.ImageBitmap
 import app.deixis.core.Discovery
 import app.deixis.core.HolyricsDiscovery
 import app.deixis.core.HolyricsAnnouncement
@@ -49,16 +45,16 @@ sealed interface HolyricsStatus {
 /** Holyrics в сети: адрес и имя компьютера, если на нём же стоит Deixis для компьютера. */
 data class HolyricsFound(val host: String, val name: String?)
 
-data class HolyricsLive(val p: HolyricsPresentation, val previews: Map<Int, Bitmap>)
+data class HolyricsLive(val p: HolyricsPresentation, val previews: Map<Int, ImageBitmap>)
 
 /**
  * Holyrics как источник и как экран. Песни, тексты и темы берутся через его API Server и показываются
  * на экранах Deixis в теме Holyrics; фото и видео — через Deixis на том же компьютере. Режим пульта
  * управляет показом в самом Holyrics.
  */
-class HolyricsSource(private val app: Application, private val controller: Controller) {
+class HolyricsSource(private val platform: Platform, private val controller: Controller) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val prefs = app.getSharedPreferences("holyrics", Context.MODE_PRIVATE)
+    private val prefs = platform.prefs("holyrics")
     @Volatile private var client: HolyricsClient? = null
     private var connectJob: Job? = null
 
@@ -103,7 +99,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
             val v = withContext(Dispatchers.IO) { c.hello() }
             client = c
             val clean = link.copy(token = link.token.trim())
-            prefs.edit().putString("host", clean.host).putInt("port", clean.port).putString("token", clean.token).apply()
+            prefs.edit { putString("host", clean.host); putInt("port", clean.port); putString("token", clean.token) }
             status.value = HolyricsStatus.On(clean, v)
             // Тихое переподключение при запуске не просит прав: иначе Holyrics выводил бы уведомление при каждом старте.
             if (!quiet) askRights(c, quiet = false)
@@ -143,7 +139,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         connectJob?.cancel()
         client?.let { old -> client = null; old.close() }
         // Забывается только связь; выбор тем и переводов Holyrics остаётся.
-        prefs.edit().remove("host").remove("port").remove("token").apply()
+        prefs.edit { remove("host"); remove("port"); remove("token") }
         missing.value = null
         status.value = HolyricsStatus.Off
     }
@@ -225,7 +221,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     fun selectTheme(id: String?) {
         themeId.value = id
-        prefs.edit().putString("theme", id).apply()
+        prefs.edit { putString("theme", id) }
     }
 
     /** Песня на экран Deixis: слайды в порядке исполнения, тема Holyrics. */
@@ -303,7 +299,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         if (!on) return
         // API Holyrics не сообщает об изменениях сам: опрос пару раз в секунду, превью — только при смене показа.
         poll = scope.launch(Dispatchers.IO) {
-            var previews = emptyMap<Int, Bitmap>()
+            var previews = emptyMap<Int, ImageBitmap>()
             var shownId: String? = null
             var tick = 0
             while (isActive) {
@@ -322,7 +318,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
                     }
                 }
                 // Пульт не на экране (телефон в кармане) — реже: батарея не тратится на то, чего никто не видит.
-                delay(if ((app as? PhoneApp)?.remoteVisible != false) POLL_MS else POLL_HIDDEN_MS)
+                delay(if (platform.visible) POLL_MS else POLL_HIDDEN_MS)
             }
         }
     }
@@ -346,7 +342,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     /** Темы и фоны Holyrics (лента тем на главном) и их миниатюры. */
     val backgrounds = MutableStateFlow<List<HolyricsBackground>>(emptyList())
-    val thumbs = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+    val thumbs = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
 
     /**
      * Тема или фон Holyrics, который держится для всех показов с пульта: песня, текст, быстрый текст,
@@ -373,7 +369,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
         for ((type, list) in bg.groupBy { if (it.isTheme) "theme" else "background" }) {
             for (chunk in list.map { it.id }.chunked(THUMB_CHUNK)) {
                 val got = runCatching { c.thumbnails(type, chunk) }.getOrDefault(emptyMap())
-                    .mapNotNull { (id, bytes) -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { id to it } }
+                    .mapNotNull { (id, bytes) -> platform.decodeImage(bytes)?.let { id to it } }
                 thumbs.value = thumbs.value + got
             }
         }
@@ -383,7 +379,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun pickMix(bg: HolyricsBackground) {
         val next = if (mix.value == bg.id) null else bg.id
         mix.value = next
-        prefs.edit().putString("mix", next).apply()
+        prefs.edit { putString("mix", next) }
         if (next != null) io { c -> c.setBackground(next) }
     }
 
@@ -442,7 +438,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     private var syncedTabs: List<String>? = null
 
     private fun readBibleMap(): Map<String, String> =
-        prefs.all.filterKeys { it.startsWith(BIBLE_KEY) }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix(BIBLE_KEY) to it } }.toMap()
+        prefs.all().filterKeys { it.startsWith(BIBLE_KEY) }.mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix(BIBLE_KEY) to it } }.toMap()
 
     fun loadBibleVersions() = io { c -> bibleVersions.value = c.bibleVersions() }
 
@@ -456,7 +452,7 @@ class HolyricsSource(private val app: Application, private val controller: Contr
 
     /** Свой выбор перевода Holyrics для модуля; null — снова подбирать самому. */
     fun mapBible(file: String, versionId: String?) {
-        prefs.edit().apply { if (versionId == null) remove(BIBLE_KEY + file) else putString(BIBLE_KEY + file, versionId) }.apply()
+        prefs.edit { if (versionId == null) remove(BIBLE_KEY + file) else putString(BIBLE_KEY + file, versionId) }
         bibleMap.value = readBibleMap()
         syncedTabs = null
     }
@@ -503,9 +499,8 @@ class HolyricsSource(private val app: Application, private val controller: Contr
     fun previous() = io { it.previous() }
     fun goTo(index: Int) = io { it.goTo(index) }
 
-    private fun decode(b64: String): Bitmap? = runCatching {
-        val bytes = Base64.decode(b64.substringAfter("base64,"), Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    private fun decode(b64: String): ImageBitmap? = runCatching {
+        platform.decodeImage(java.util.Base64.getMimeDecoder().decode(b64.substringAfter("base64,")))!!
     }.getOrNull()
 
     private fun io(block: suspend (HolyricsClient) -> Unit) = scope.launch {

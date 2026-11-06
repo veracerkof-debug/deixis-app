@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import app.deixis.receiver.Didot
 
 /** Цвета из DESIGN.md → «Цвет интерфейса». Других цветов в интерфейсе нет. */
 data class Palette(
@@ -129,6 +128,15 @@ fun accentColors(accent: Accent, dark: Boolean): Pair<Color, Color> = when (acce
 internal val P = staticCompositionLocalOf { Light }
 
 /** Размеры, скругления и движение из DESIGN.md. */
+/** Цвета экрана предпросмотра видео: он на чёрном, как зал. */
+object V {
+    val ink = Color.White
+    val dim = Color.White.copy(alpha = 0.6f)
+    val button = Color.White.copy(alpha = 0.14f)
+    val go = Color(0xFFBC9361)
+    val track = Color.White.copy(alpha = 0.25f)
+}
+
 object T {
     val gutter = 16.dp
     val gap = 10.dp
@@ -146,6 +154,10 @@ object T {
     val pill = 36.dp
     val pillPad = 14.dp
     val btn = 50.dp
+    /** Полоса перемотки видео: высота места под палец или мышь, дорожка, ручка. */
+    val seekHeight = 28.dp
+    val seekTrack = 4.dp
+    val seekKnob = 18.dp
     val btnHero = 64.dp
     val barBtn = 50.dp
     /** Кнопка-значок полосы показа. */

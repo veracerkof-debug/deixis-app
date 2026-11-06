@@ -16,36 +16,59 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Окно пульта Deixis: пульт идёт во встроенном движке, связь с приёмником — через саму программу
- * (у движка OpenJFX свой WebSocket не работает). Окно открылось → пульт вошёл как «этот компьютер»;
- * закрыли → связь ушла и программа узнала о закрытии. Нужен экран (-Ddeixis.gui=1).
+ * Окно пульта Deixis на компьютере — тот же пульт, что на телефоне (Compose): свой экран подключается по 127.0.0.1
+ * без PIN, показ с пульта идёт в зал, пульт подтверждает подключения; закрыли окно — программа узнала.
+ * Нужен экран (-Ddeixis.gui=1).
  */
-class OperatorWindowTest {
+class PultWindowTest {
     @Test
-    fun remoteInsideTheAppConnectsAndLeaves() = runBlocking<Unit> {
+    fun nativeRemoteDrivesItsOwnScreen() = runBlocking<Unit> {
         assumeTrue(System.getProperty("deixis.gui") == "1" && !GraphicsEnvironment.isHeadless(), "нужен экран")
-        assumeTrue(OperatorWindow.available, "нужен встроенный движок")
-        val dir = createTempDirectory("opwin").toFile()
+        val dir = createTempDirectory("pultwin").toFile()
         val core = ReceiverCore(ReceiverInfo("pc", "Компьютер", "desktop-test", "0"), FileStore(File(dir, "files")), Pairing(MemoryTokenStore()))
         val server = ReceiverServer(core, port = 0)
         val port = server.start()
         try {
             val token = (core.pairing.pair(core.pairing.pin, "Этот компьютер") as Pairing.Result.Ok).token
             var closed = false
-            val window = OperatorWindow { closed = true }
-            var opened = false
-            SwingUtilities.invokeAndWait { opened = window.open("http://127.0.0.1:$port/remote#t=$token", null) }
-            assertTrue(opened, "окно открылось")
-            waitFor(60_000, "пульт в окне вошёл через мост") { core.peers.state.value.connected.any { it.here } }
-            // Подтверждающим пульт становится сразу после приветствия — чуть позже, чем появляется «на связи».
-            waitFor(10_000, "пульт в окне подтверждает подключения") { core.peers.approvalNeeded }
-            SwingUtilities.invokeAndWait { window.close(notify = true) }
+            var controller: app.deixis.phone.Controller? = null
+            var window: app.deixis.phone.PultWindow? = null
+            SwingUtilities.invokeAndWait {
+                val platform = app.deixis.phone.DesktopPlatform(File(dir, "data"), { _, _ -> error("нет перевода") }, { "192.0.2.10" }, { window?.showing == true })
+                val c = app.deixis.phone.Controller(platform)
+                val ui = app.deixis.phone.Ui()
+                val host = app.deixis.phone.DesktopHost(platform, { app.deixis.phone.HolyricsSource(platform, c) }, testUpdates(dir), "0") { }
+                window = app.deixis.phone.PultWindow(c, host, ui, "Deixis — пульт") { closed = true }
+                c.setCable(app.deixis.phone.Target("pc", "Компьютер", "127.0.0.1", port, app.deixis.phone.Target.Kind.LOCAL, "desktop-test"), token)
+                window!!.open(null)
+                controller = c
+            }
+            val c = controller!!
+            waitFor(30_000, "свой экран на связи") { c.outputs.value.any { it.state == app.deixis.phone.OutState.ONLINE } }
+            waitFor(10_000, "пульт вошёл как «этот компьютер» и подтверждает подключения") {
+                core.peers.state.value.connected.any { it.here } && core.peers.approvalNeeded
+            }
+            waitFor(10_000, "ссылка зрителям — по адресу в сети, а не 127.0.0.1") { c.viewUrl.value?.startsWith("http://192.0.2.10:$port/view?k=") == true }
+            SwingUtilities.invokeAndWait { c.showSlides("Проверка", listOf("Первый слайд", "Второй"), null) }
+            waitFor(10_000, "слайд с пульта — в зале") { (core.state.value.content as? app.deixis.core.TextContent)?.text == "Первый слайд" }
+            SwingUtilities.invokeAndWait { c.step(1) }
+            waitFor(10_000, "«Дальше» листает в зале") { (core.state.value.content as? app.deixis.core.TextContent)?.text == "Второй" }
+            System.getProperty("deixis.outputsPng")?.let { out ->
+                Thread.sleep(1_500)
+                val shot = java.awt.Robot().createScreenCapture(GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds)
+                javax.imageio.ImageIO.write(shot, "png", File(out, "pult-window.png").also { it.parentFile.mkdirs() })
+            }
+            SwingUtilities.invokeAndWait { window!!.close(notify = true) }
             assertTrue(closed, "программа узнала о закрытии окна")
-            waitFor(15_000, "связь пульта ушла вместе с окном") { core.peers.state.value.connected.none { it.here } }
         } finally {
             server.stop()
         }
     }
+
+    private fun testUpdates(dir: File) = app.deixis.desktop.DesktopUpdates("0", dir, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default), object : app.deixis.desktop.UpdateApp {
+        override fun showing() = false
+        override fun exitForUpdate() = Unit
+    })
 
     /** «Новое подключение» на мониторе оператора: окно показывает, кто просится, и передаёт ответ. */
     @Test

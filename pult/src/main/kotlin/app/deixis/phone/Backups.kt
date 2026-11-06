@@ -1,16 +1,12 @@
 package app.deixis.phone
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.DocumentsContract
 import app.deixis.core.DeixisJson
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /** Резервная копия: файл, когда сделана, почему, сколько в ней материалов. */
-data class BackupInfo(val name: String, val at: String, val reason: String, val items: Int, val setlists: Int, val external: Boolean, val uri: Uri? = null)
+data class BackupInfo(val name: String, val at: String, val reason: String, val items: Int, val setlists: Int, val external: Boolean, val uri: String? = null)
 
 /**
  * Резервные копии библиотеки: сетлисты, материалы и тексты песен, темы, настройки (`library.json`).
@@ -19,20 +15,20 @@ data class BackupInfo(val name: String, val at: String, val reason: String, val 
  * потерю или сброс телефона. Большие видео и фото не копируются: в копии — ссылки на них.
  */
 class Backups(
-    private val context: Context,
-    root: File = context.filesDir,
+    private val platform: Platform,
+    root: File = platform.filesDir,
     /** Начало имени копии: у каждого профиля своё, копии профилей не путаются и в общей папке. */
     private val prefix: String = "deixis-",
     private val lastKey: String = "last",
 ) {
     private val dir = File(root, "backups").apply { mkdirs() }
     private val nameRe = Regex("^" + Regex.escape(prefix) + "(\\d{8}-\\d{6})-(.+)\\.json$")
-    private val prefs = context.getSharedPreferences("backups", Context.MODE_PRIVATE)
+    private val prefs = platform.prefs("backups")
 
-    /** Папка вне приложения, выбранная оператором (SAF). */
-    var folder: Uri?
-        get() = prefs.getString("folder", null)?.let(Uri::parse)
-        set(v) { prefs.edit().putString("folder", v?.toString()).apply() }
+    /** Папка вне приложения, выбранная оператором (на телефоне — через систему, на компьютере — любая). */
+    var folder: String?
+        get() = prefs.getString("folder", null)
+        set(v) { prefs.edit { putString("folder", v) } }
 
     fun lastAt(): Long = prefs.getLong(lastKey, 0)
 
@@ -53,7 +49,7 @@ class Backups(
         val anchor = local.lastOrNull()?.let { newest -> local.lastOrNull { newest.lastModified() - it.lastModified() >= ANCHOR_AGE_MS } }
         prune(local.filter { it != anchor }) { it.delete() }
         runCatching { folder?.let { writeExternal(it, name, json) } }
-        prefs.edit().putLong(lastKey, System.currentTimeMillis()).apply()
+        prefs.edit { putLong(lastKey, System.currentTimeMillis()) }
         return name
     }
 
@@ -61,25 +57,12 @@ class Backups(
         if (sortedOldFirst.size > KEEP) sortedOldFirst.take(sortedOldFirst.size - KEEP).forEach { runCatching { delete(it) } }
     }
 
-    private fun writeExternal(tree: Uri, name: String, json: String) {
-        val cr = context.contentResolver
-        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-        val doc = DocumentsContract.createDocument(cr, parent, "application/json", name) ?: return
-        cr.openOutputStream(doc, "w")?.use { it.write(json.toByteArray()) }
-        prune(externalFiles(tree).filter { it.second.startsWith(prefix) }.sortedBy { it.second }) { (uri, _) -> DocumentsContract.deleteDocument(cr, uri) }
+    private fun writeExternal(tree: String, name: String, json: String) {
+        platform.folderWrite(tree, name, json.toByteArray())
+        prune(externalFiles(tree).filter { it.second.startsWith(prefix) }.sortedBy { it.second }) { (uri, _) -> platform.folderDelete(uri) }
     }
 
-    private fun externalFiles(tree: Uri): List<Pair<Uri, String>> {
-        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-        val out = ArrayList<Pair<Uri, String>>()
-        context.contentResolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { c ->
-            while (c.moveToNext()) {
-                val name = c.getString(1) ?: continue
-                if (name.endsWith(".json")) out += DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0)) to name
-            }
-        }
-        return out
-    }
+    private fun externalFiles(tree: String): List<Pair<String, String>> = platform.folderFiles(tree).filter { it.second.endsWith(".json") }
 
     /** Копии, новые сверху: в памяти приложения и в выбранной папке. */
     fun list(): List<BackupInfo> {
@@ -88,14 +71,14 @@ class Backups(
         return (local + ext).sortedByDescending { it.name }
     }
 
-    private fun info(name: String, external: Boolean, uri: Uri?, text: () -> String): BackupInfo? {
+    private fun info(name: String, external: Boolean, uri: String?, text: () -> String): BackupInfo? {
         val m = nameRe.find(name) ?: return null
         val d = runCatching { StoreRead.read(text())?.data }.getOrNull() ?: return null
         val at = runCatching { LocalDateTime.parse(m.groupValues[1], STAMP).format(SHOW) }.getOrDefault(m.groupValues[1])
         return BackupInfo(name, at, m.groupValues[2], d.items.size, d.setlists.size, external, uri)
     }
 
-    private fun read(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { input ->
+    private fun read(uri: String): String = platform.open(uri)?.use { input ->
         // Случайно выбранный огромный файл не роняет приложение нехваткой памяти.
         val bytes = input.readNBytesCompat(MAX_BACKUP_BYTES + 1)
         if (bytes.size > MAX_BACKUP_BYTES) error(L.notBackupTooBig)
@@ -121,13 +104,13 @@ class Backups(
     }
 
     /** Данные из любого файла копии (перенос на новый телефон). */
-    fun loadFile(uri: Uri): StoreData = StoreRead.read(read(uri))?.data ?: error(L.notBackup)
+    fun loadFile(uri: String): StoreData = StoreRead.read(read(uri))?.data ?: error(L.notBackup)
 
     /** Самая свежая читаемая копия — на случай, если основной файл испорчен. */
     fun newest(): StoreData? = list().firstNotNullOfOrNull { runCatching { load(it) }.getOrNull() }
 
-    fun takeFolder(uri: Uri) {
-        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+    fun takeFolder(uri: String) {
+        runCatching { platform.keepFolder(uri) }
         folder = uri
     }
 

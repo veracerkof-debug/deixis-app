@@ -281,6 +281,28 @@ object L {
     val screens: String get() = t("Экраны", "Ekranlar", "Screens")
     val viewers: String get() = t("Зрители", "Tomoshabinlar", "Viewers")
     val nearby: String get() = t("Рядом в сети", "Tarmoqda yaqin", "Nearby on the network")
+    val loading: String get() = t("Загрузка…", "Yuklanmoqda…", "Loading…")
+    val inputs: String get() = t("Входы", "Kirishlar", "Inputs")
+    val inputsNote: String get() = t("Откуда ещё картинка приходит на экран: монитор или окно программы компьютера, виртуальный экран, AirPlay.", "Ekranga rasm yana qayerdan keladi: kompyuter monitori yoki dastur oynasi, virtual ekran, AirPlay.", "Other sources the screen can show: a computer monitor or program window, the virtual screen, AirPlay.")
+    val outputs: String get() = t("Выходы", "Chiqishlar", "Outputs")
+    val outputsNote: String get() = t("Куда экран выводит показ: мониторы компьютера и их раскладка.", "Ekran ko‘rsatuvni qayerga chiqaradi: kompyuter monitorlari va ularning joylashuvi.", "Where the screen sends the show: the computer’s monitors and their layout.")
+    val monitors: String get() = t("Мониторы", "Monitorlar", "Monitors")
+    val primaryMonitor: String get() = t("основной", "asosiy", "main")
+    val layoutsNote: String get() = t("Зал — слайд целиком. Сцена — текущий и следующий слайд с часами. Титры — текст нижней третью. Хромакей — текст на зелёном для трансляции.", "Zal — slayd to‘liq. Sahna — joriy va keyingi slayd soat bilan. Titrlar — matn pastki uchdan birida. Xromakey — translyatsiya uchun yashil fonda matn.", "Hall — the whole slide. Stage — current and next slide with a clock. Captions — text in the lower third. Chroma key — text on green for streaming.")
+    fun layoutName(l: app.deixis.core.OutputLayout): String = when (l) {
+        app.deixis.core.OutputLayout.HALL -> t("Зал", "Zal", "Hall")
+        app.deixis.core.OutputLayout.STAGE -> t("Сцена", "Sahna", "Stage")
+        app.deixis.core.OutputLayout.LOWER_THIRD -> t("Титры", "Titrlar", "Captions")
+        app.deixis.core.OutputLayout.CHROMA -> t("Хромакей", "Xromakey", "Chroma")
+    }
+    val chooseFiles: String get() = t("Выбрать файлы", "Fayllarni tanlash", "Choose files")
+    val chooseFolder: String get() = t("Папка для копий", "Nusxalar uchun jild", "Folder for backups")
+    val desktopShareHint: String get() = t(
+        "На компьютере экран показывается плиткой «Экран компьютера»: монитор, окно программы или виртуальный экран.",
+        "Kompyuterda ekran «Kompyuter ekrani» plitkasi orqali ko‘rsatiladi: monitor, dastur oynasi yoki virtual ekran.",
+        "On the computer, the screen goes out with the “Computer screen” tile: a monitor, a program window or the virtual screen.",
+    )
+    val thisComputerHead: String get() = t("Этот компьютер", "Bu kompyuter", "This computer")
     val thisPhone: String get() = t("Этот телефон", "Bu telefon", "This phone")
     val connectScreen: String get() = t("Подключить экран", "Ekranni ulash", "Connect a screen")
     val preflight: String get() = t("Проверка перед началом", "Boshlashdan oldin tekshirish", "Check before starting")
@@ -666,6 +688,12 @@ object L {
     val reportProblemSub: String get() = t("Текст с версией и устройством уже заполнен", "Versiya va qurilma bilan matn allaqachon to‘ldirilgan", "The text with the version and device is already filled in")
     val idea: String get() = t("Идея", "G‘oya", "Idea")
     val ideaSub: String get() = t("Что добавить или сделать удобнее", "Nimani qo‘shish yoki qulayroq qilish", "What to add or make easier")
+    val copied: String get() = t("Скопировано", "Nusxalandi", "Copied")
+    val feedbackNoteDesktop: String get() = t(
+        "Текст с версией программы копируется: вставьте его в письмо, Telegram или любое сообщение автору.",
+        "Dastur versiyasi bilan matn nusxalanadi: uni xatga, Telegramga yoki muallifga istalgan xabarga qo‘ying.",
+        "The text with the app version is copied: paste it into an email, Telegram or any message to the author.",
+    )
     val feedbackNote: String get() = t("Отправка через «Поделиться»: в Telegram, почту или любое приложение. Deixis сам ничего не отправляет.", "«Ulashish» orqali yuborish: Telegram, pochta yoki istalgan ilovaga. Deixis o‘zi hech narsa yubormaydi.", "Sent via “Share”: to Telegram, mail or any app. Deixis sends nothing by itself.")
     val problemSubject: String get() = t("Проблема в Deixis", "Deixis dagi muammo", "A problem in Deixis")
     val problemBody: String get() = t("Что случилось:\n\n\nЧто ожидалось:\n\n\nКак повторить:\n\n\n", "Nima bo‘ldi:\n\n\nNima kutilgan edi:\n\n\nQanday takrorlash mumkin:\n\n\n", "What happened:\n\n\nWhat was expected:\n\n\nHow to reproduce:\n\n\n")

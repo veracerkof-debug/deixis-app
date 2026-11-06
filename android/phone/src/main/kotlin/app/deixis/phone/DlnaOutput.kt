@@ -44,11 +44,11 @@ import java.util.UUID
  * с телефона; слайды, страницы PDF, «Чёрный» и «Логотип» уходят картинками. Смена слайда занимает
  * столько, сколько телевизору нужно, чтобы открыть новую картинку. Демонстрация экрана здесь не работает.
  */
-class DlnaOutput(private val app: Application) {
-    val found = MutableStateFlow<List<DlnaRenderer>>(emptyList())
+class DlnaOutput(private val app: Application) : DlnaOut {
+    override val found = MutableStateFlow<List<DlnaRenderer>>(emptyList())
 
     /** Режим и ход видео на телевизоре — для пульта, как у приёмника Deixis. */
-    val state = MutableStateFlow<ReceiverState?>(null)
+    override val state = MutableStateFlow<ReceiverState?>(null)
 
     var tv: DlnaController? = null
         private set
@@ -59,14 +59,14 @@ class DlnaOutput(private val app: Application) {
     private var poll: Job? = null
 
     /** Поиск телевизоров раз в 20 секунд, пока открыт пульт. */
-    fun search(scope: CoroutineScope): Job = scope.launch(Dispatchers.IO) {
+    override fun search(scope: CoroutineScope): Job = scope.launch(Dispatchers.IO) {
         while (isActive) {
             runCatching { Dlna.discover() }.onSuccess { found.value = it }
             delay(20_000)
         }
     }
 
-    suspend fun open(r: DlnaRenderer, scope: CoroutineScope) = withContext(Dispatchers.IO) {
+    override suspend fun open(r: DlnaRenderer, scope: CoroutineScope) = withContext(Dispatchers.IO) {
         close()
         server = DlnaFileServer().also { it.start() }
         tv = DlnaController(r)
@@ -83,7 +83,7 @@ class DlnaOutput(private val app: Application) {
         }
     }
 
-    fun close() {
+    override fun close() {
         poll?.cancel()
         poll = null
         tv?.let { t -> CoroutineScope(Dispatchers.IO).launch { runCatching { t.stop() }; t.close() } }
@@ -97,13 +97,13 @@ class DlnaOutput(private val app: Application) {
     }
 
     /** Файл телефона для показа: телевизору он отдаётся напрямую, без копии на приёмник. */
-    fun register(source: UploadSource): FileRef {
+    override fun register(source: UploadSource): FileRef {
         val id = "dlna-" + UUID.randomUUID().toString().replace("-", "")
         sources[id] = source
         return FileRef(id, source.name, source.size, source.mime)
     }
 
-    suspend fun show(content: Content) {
+    override suspend fun show(content: Content) {
         shown = content
         mode = Mode.NORMAL
         state.value = ReceiverState(content = content, mode = mode)
@@ -123,19 +123,19 @@ class DlnaOutput(private val app: Application) {
     }
 
     /** Вид заставки «Логотип» на телевизоре. */
-    var logo = LogoStyle.WORDMARK
+    override var logo = LogoStyle.WORDMARK
     /** Своя картинка «Логотипа» вместо знака: адрес файла на телефоне. */
-    var logoPicture: String? = null
+    override var logoPicture: String? = null
 
     /** «Чёрный», «Логотип», «Очистить», «Уйти»: повторное нажатие возвращает показ. */
 
-    suspend fun toggle(m: Mode) {
+    override suspend fun toggle(m: Mode) {
         mode = if (mode == m) Mode.NORMAL else m
         state.value = state.value?.copy(mode = mode)
         renderLatest()
     }
 
-    suspend fun video(action: VideoAction, deltaMs: Long) {
+    override suspend fun video(action: VideoAction, deltaMs: Long) {
         val t = tv ?: return
         when (action) {
             VideoAction.PLAY -> t.resume()

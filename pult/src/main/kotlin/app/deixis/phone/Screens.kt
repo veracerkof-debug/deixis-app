@@ -1,6 +1,5 @@
 package app.deixis.phone
 
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -198,7 +196,7 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     val targets by c.targets.collectAsState()
     val st by c.settings.collectAsState()
     val holyrics by h.status.collectAsState()
-    val context = LocalContext.current
+    val host = LocalHost.current
     Column(Modifier.fillMaxSize()) {
         Header(L.tabDevices) { Gear(c, ui) }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
@@ -214,6 +212,15 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                 Sep()
                 Cell(L.preflight, kind = "show", onClick = { ui.toast(c.check()) })
             }
+            // Компьютер среди экранов: его входы (монитор, окно программы, виртуальный экран, AirPlay) и выходы (мониторы).
+            outputs.firstOrNull { it.state == OutState.ONLINE && it.info?.platform?.startsWith("desktop") == true }?.let { pc ->
+                Txt(L.inputs, T.fSheet, P.current.ink, FontWeight.Bold, Modifier.padding(top = T.gutter, start = T.gapXs))
+                Note(L.inputsNote)
+                ScreenInputs(c, pc.target)
+                Txt(L.outputs, T.fSheet, P.current.ink, FontWeight.Bold, Modifier.padding(top = T.gutter, start = T.gapXs))
+                Note(L.outputsNote)
+                ScreenOutputs(c, pc.target)
+            }
             GHead(L.viewers)
             ViewersBlock(c)
             val free = targets.filter { t -> outputs.none { c.sameScreen(t, it) } }
@@ -228,19 +235,20 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                     }
                 }
             }
-            GHead(L.thisPhone)
-            Group {
-                Cell(L.becomeScreen, L.becomeScreenSub, "tv", onClick = {
-                    context.startActivity(Intent(context, ScreenActivity::class.java))
-                })
-                if (st.church) {
-                    Sep()
-                    Cell("Holyrics", if (holyrics is HolyricsStatus.On) L.connectedState else L.hlAbout, "song", onClick = { ui.holyrics = true })
-                    Sep()
-                    Cell(L.modules, L.modulesAbout, "bible", onClick = { ui.sheet(L.modules) { BibleModulesSheet(c) } })
+            val features = host.platform.features
+            if (features.becomeScreen || st.church) {
+                GHead(if (features.desktop) L.thisComputerHead else L.thisPhone)
+                Group {
+                    if (features.becomeScreen) Cell(L.becomeScreen, L.becomeScreenSub, "tv", onClick = { host.becomeScreen() })
+                    if (st.church) {
+                        if (features.becomeScreen) Sep()
+                        Cell("Holyrics", if (holyrics is HolyricsStatus.On) L.connectedState else L.hlAbout, "song", onClick = { ui.holyrics = true })
+                        Sep()
+                        Cell(L.modules, L.modulesAbout, "bible", onClick = { ui.sheet(L.modules) { BibleModulesSheet(c) } })
+                    }
                 }
             }
-            Note(L.cableNote)
+            if (features.cable) Note(L.cableNote)
         }
     }
 }

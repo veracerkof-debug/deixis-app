@@ -25,7 +25,8 @@ class StringsTest {
             for (m in methods) {
                 val argSets: List<Array<Any?>> = when {
                     m.parameterTypes.isEmpty() -> listOf(emptyArray())
-                    m.parameterTypes.all { it == Kind::class.java } -> Kind.entries.map { arrayOf<Any?>(it) }
+                    // Строка по значению перечисления (вид элемента, раскладка монитора) — для каждого значения.
+                    m.parameterTypes.size == 1 && m.parameterTypes[0].isEnum -> m.parameterTypes[0].enumConstants.map { arrayOf<Any?>(it) }
                     else -> listOf(1, 2, 5, 11, 22).map { n ->
                         m.parameterTypes.map { t -> if (t == Int::class.javaPrimitiveType || t == Int::class.javaObjectType) n else "X" }.toTypedArray<Any?>()
                     }
@@ -46,10 +47,11 @@ class StringsTest {
      */
     @Test
     fun noRussianLiteralsOutsideStrings() {
-        val dir = File("src/main/kotlin/app/deixis/phone")
-        assertTrue(dir.isDirectory, "исходники пульта: ${dir.absolutePath}")
+        // Пульт: общий код (pult/), Android телефона и платформа компьютера.
+        val dirs = listOf("src/main/kotlin/app/deixis/phone", "../../pult/src/main/kotlin/app/deixis/phone", "../../desktop/src/main/kotlin/app/deixis/phone").map(::File)
+        dirs.forEach { assertTrue(it.isDirectory, "исходники пульта: ${it.absolutePath}") }
         val found = mutableListOf<String>()
-        dir.listFiles { f -> f.extension == "kt" && f.name != "Strings.kt" }!!.sorted().forEach { f ->
+        dirs.flatMap { d -> d.listFiles { f -> f.extension == "kt" && f.name != "Strings.kt" }!!.toList() }.sorted().forEach { f ->
             val lines = f.readLines()
             val off = mutableSetOf<Int>()
             var on = true

@@ -96,9 +96,12 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     @Volatile var role: Role = Role.SCREEN
         private set
     /** Окно пульта внутри программы; закрыли — программа решает, завершаться ли (как с любым приложением). */
-    private val operatorWindow = OperatorWindow { if (role != Role.SCREEN && !exiting) quit() else updateApproval() }
     /** Пульт шёл в своём окне: тогда о закрытии говорит окно, а не пропажа связи страницы. */
     @Volatile private var embeddedOperator = false
+    /** Нативный пульт (тот же, что на телефоне): создаётся при первом открытии окна. Только в потоке окон. */
+    private var pult: app.deixis.phone.PultWindow? = null
+    private var pultController: app.deixis.phone.Controller? = null
+    private lateinit var pdfConverter: OfficeConverter
     /** «Новое подключение» на мониторе оператора, пока окно пульта закрыто. */
     private val approval = ApprovalWindow { id, allow -> core.peers.answer(id, allow) }
 
@@ -126,7 +129,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         // Для веб-пульта: модули Библии хранятся здесь, страницы PDF считаются здесь.
         core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
         core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
-        core.conversions = Conversions(core, OfficeConverter(engines), File(opts.dataDir, "convert"))
+        pdfConverter = OfficeConverter(engines)
+        core.conversions = Conversions(core, pdfConverter, File(opts.dataDir, "convert"))
         settings = monitorStore.load()
         relay = ScreenRelay(core, FileRelayStore(File(opts.dataDir, "screens.json")), scope, name)
         core.outputs = DesktopOutputs()
@@ -428,16 +432,46 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
      * Пульт — в своём окне Deixis на мониторе оператора. Если встроенного движка нет (сборка без него,
      * сбой видеокарты) — как раньше, окном браузера.
      */
+    /**
+     * Пульт — своё окно Deixis на мониторе оператора: тот же пульт, что на телефоне (Compose), со своим экраном
+     * компьютера по 127.0.0.1. Без экрана (проверки) — как раньше, окном браузера с веб-пультом.
+     */
     override fun openOperator() {
+        if (GraphicsEnvironment.isHeadless()) {
+            scope.launch(Dispatchers.IO) { OperatorLauncher.open("http://127.0.0.1:$port/remote#t=${operatorToken()}", File(opts.dataDir, "operator-browser")) }
+            return
+        }
         scope.launch(Dispatchers.IO) {
-            val url = "http://127.0.0.1:$port/remote#t=${operatorToken()}&l=${java.util.Locale.getDefault().language}"
-            val inWindow = kotlinx.coroutines.withContext(Dispatchers.Swing) {
-                operatorWindow.open(url, operatorArea()).also { if (it) { embeddedOperator = true; updateApproval() } }
-            }
-            if (!inWindow && !OperatorLauncher.open(url, File(opts.dataDir, "operator-browser"))) {
-                System.err.println("Не удалось открыть пульт. Адрес: http://127.0.0.1:$port/remote")
+            val token = operatorToken()
+            kotlinx.coroutines.withContext(Dispatchers.Swing) {
+                val ok = runCatching { openPult(token) }.onFailure { System.err.println("Окно пульта: ${it.message}") }.isSuccess
+                if (ok) { embeddedOperator = true; updateApproval() }
+                else OperatorLauncher.open("http://127.0.0.1:$port/remote#t=$token", File(opts.dataDir, "operator-browser"))
             }
         }
+    }
+
+    /** Открывает (или выводит вперёд) окно пульта и связывает его со своим экраном. Только в потоке окон. */
+    private fun openPult(token: String) {
+        val c = pultController ?: run {
+            val platform = app.deixis.phone.DesktopPlatform(opts.dataDir, pdfConverter, { address?.hostAddress }, { pult?.showing == true })
+            app.deixis.phone.Controller(platform).also { pultController = it }
+        }
+        val w = pult ?: run {
+            val ui = app.deixis.phone.Ui()
+            val host = app.deixis.phone.DesktopHost(c.platform, { app.deixis.phone.HolyricsSource(c.platform, c) }, updates, APP_VERSION) { ui.toast(it) }
+            app.deixis.phone.PultWindow(c, host, ui, Words.operatorTitle) { pultClosed() }.also { pult = it }
+        }
+        // Свой экран — первым, без PIN: токен «Этот компьютер».
+        c.setCable(app.deixis.phone.Target(core.info.id, core.info.name, "127.0.0.1", port, app.deixis.phone.Target.Kind.LOCAL, core.info.platform), token)
+        c.startDiscovery()
+        w.open(operatorArea())
+    }
+
+    /** Окно пульта закрыли: связь пульта со своим экраном уходит (запросы на подключение — в окно на мониторе). */
+    private fun pultClosed() {
+        pultController?.let { it.setCable(null, null); it.stopDiscovery() }
+        if (role != Role.SCREEN && !exiting) quit() else updateApproval()
     }
 
     /**
@@ -463,7 +497,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun updateApproval() {
         val area = operatorArea()
         core.peers.screenApprover = area != null
-        approval.update(if (operatorWindow.showing) emptyList() else core.peers.state.value.requests, area)
+        approval.update(if (pult?.showing == true) emptyList() else core.peers.state.value.requests, area)
     }
 
     override fun setWindowed(windowId: String, windowed: Boolean) {
@@ -688,7 +722,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         runCatching { (core.capture as? DesktopCapture)?.close() }
         runCatching { server.stop() }
         runCatching { tray?.remove() }
-        SwingUtilities.invokeLater { operatorWindow.close(notify = false); approval.hide() }
+        SwingUtilities.invokeLater { pult?.close(notify = false); approval.hide() }
         windows.values.toList().forEach { it.release() }
         // В проверках процесс не завершается: окна закрываются сами.
         SwingUtilities.invokeLater { windows.values.forEach { it.dispose() }; windows.clear() }
