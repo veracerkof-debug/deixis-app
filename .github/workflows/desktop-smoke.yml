@@ -1,0 +1,96 @@
+name: Запуск программы для компьютера
+
+# Собранная, как для установщика (jpackage), программа запускается на настоящей системе:
+# какие окна открылись (зал и пульт), снимок экрана и журнал программы. Ловит то, чего не видят
+# проверки из Gradle: другая Java внутри программы, запуск без консоли.
+on:
+  workflow_dispatch:
+  push:
+    paths: [ "desktop/**", "pult/**", "core/**", ".github/workflows/desktop-smoke.yml" ]
+
+jobs:
+  run:
+    name: Запуск (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-2022 }
+          - { name: macOS, os: macos-latest }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Сборка программы
+        env:
+          DEIXIS_SKIP_ANDROID: "1"
+        run: ./gradlew :desktop:installDist
+      - name: Программа как в установщике
+        run: |
+          jpackage --type app-image --name Deixis --input desktop/build/install/deixis/lib --main-jar desktop.jar \
+            --main-class app.deixis.desktop.MainKt --java-options "-Dfile.encoding=UTF-8" --dest out
+          ls out
+      - name: Запуск и окна (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          $data = "$env:RUNNER_TEMP\deixis-data"
+          # Тот же запуск, что из меню «Пуск»: без консоли, через запускатель jpackage.
+          $p = Start-Process -FilePath "out\Deixis\Deixis.exe" -ArgumentList @("receive", "--role", "both", "--data", $data) -PassThru
+          Start-Sleep -Seconds 60
+          Add-Type @"
+          using System; using System.Text; using System.Runtime.InteropServices; using System.Collections.Generic;
+          public static class Win {
+            public delegate bool EnumProc(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+            [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+            public static List<string> Titles(uint pid) {
+              var r = new List<string>();
+              EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); var s = new StringBuilder(256); GetWindowText(h, s, 256);
+                if (IsWindowVisible(h) && s.Length > 0) r.Add(p + " " + s); return true; }, IntPtr.Zero);
+              return r;
+            }
+          }
+          "@
+          Get-Process | Where-Object { $_.ProcessName -like "Deixis*" -or $_.ProcessName -like "java*" } | Format-Table Id, ProcessName, MainWindowTitle
+          "--- видимые окна:"
+          [Win]::Titles(0) | Where-Object { $_ -match "Deixis" }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $img = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($img).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $img.Save("smoke\windows.png")
+          "--- журнал программы:"
+          Get-Content "$data\log.txt" -ErrorAction SilentlyContinue
+          Copy-Item "$data\log.txt" smoke\ -ErrorAction SilentlyContinue
+          $titles = [Win]::Titles(0) -join "`n"
+          Get-Process | Where-Object { $_.ProcessName -like "Deixis*" } | Stop-Process -Force
+          if ($titles -notmatch "Deixis — (пульт|remote|pult)") { Write-Error "Окно пульта не открылось"; exit 1 }
+      - name: Запуск и окна (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p smoke
+          data="$RUNNER_TEMP/deixis-data"
+          out/Deixis.app/Contents/MacOS/Deixis receive --role both --data "$data" &
+          sleep 60
+          screencapture -x smoke/macos.png || true
+          echo "--- журнал программы:"; cat "$data/log.txt" || true
+          cp "$data/log.txt" smoke/ || true
+          pkill -f Deixis || true
+          grep -q "Окно пульта: открыто" "$data/log.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-smoke-${{ matrix.name }}
+          path: smoke/

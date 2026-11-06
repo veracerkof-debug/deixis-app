@@ -107,6 +107,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     init {
         opts.dataDir.mkdirs()
+        if (!GraphicsEnvironment.isHeadless()) DiskLog.start(opts.dataDir)
         val idFile = File(opts.dataDir, "id")
         val id = idFile.takeIf { it.isFile }?.readText()?.trim() ?: UUID.randomUUID().toString().also { idFile.writeText(it) }
         val name = opts.name ?: runCatching { InetAddress.getLocalHost().hostName }.getOrNull() ?: "Компьютер"
@@ -213,7 +214,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (news.isNotEmpty()) SwingUtilities.invokeLater { UpdatesWindow.whatsNew(news) }
         }
         Runtime.getRuntime().addShutdownHook(Thread { shutdown() })
-        if (opts.operator ?: (role != Role.SCREEN)) openOperator()
+        val withOperator = opts.operator ?: (role != Role.SCREEN)
+        println("Роль: $role, мониторов: ${screens.size}, пульт при запуске: ${if (withOperator) "да" else "нет"}")
+        if (withOperator) openOperator()
     }
 
     /** Просит уже запущенный Deixis этого компьютера вернуться на экраны. true — он ответил. */
@@ -444,7 +447,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         scope.launch(Dispatchers.IO) {
             val token = operatorToken()
             kotlinx.coroutines.withContext(Dispatchers.Swing) {
-                val ok = runCatching { openPult(token) }.onFailure { System.err.println("Окно пульта: ${it.message}") }.isSuccess
+                val ok = runCatching { openPult(token) }.onFailure { System.err.println("Окно пульта не открылось:"); it.printStackTrace() }.isSuccess
+                println("Окно пульта: ${if (ok) "открыто" else "запасной путь — браузер"}")
                 if (ok) { embeddedOperator = true; updateApproval() }
                 else OperatorLauncher.open("http://127.0.0.1:$port/remote#t=$token", File(opts.dataDir, "operator-browser"))
             }
