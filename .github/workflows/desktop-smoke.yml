@@ -110,6 +110,10 @@ jobs:
           screencapture -x smoke/macos.png || true
           echo "--- журнал программы:"; cat "$data/log.txt" || true
           cp "$data/log.txt" smoke/ || true
+          # Где стоит программа, если пульт не открылся: потоки Java — в лог проверки.
+          if ! grep -q "Окно пульта: открыто" "$data/log.txt"; then
+            for p in $(pgrep -f "Deixis.app/Contents/MacOS/Deixis"); do "$JAVA_HOME/bin/jstack" "$p" || true; done
+          fi
           pkill -f Deixis || true
           grep -q "Окно пульта: открыто" "$data/log.txt"
       - uses: actions/upload-artifact@v4

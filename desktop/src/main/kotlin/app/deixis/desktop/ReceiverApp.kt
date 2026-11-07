@@ -79,7 +79,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     @Volatile private var primaryId: String? = null
     /** `--screen N`: зал только на этом мониторе, пока оператор не выберет иначе. */
     @Volatile private var screenOverride: Int? = opts.screen
-    private var advertisement: AutoCloseable? = null
+    @Volatile private var advertisement: AutoCloseable? = null
     private var browsing: Job? = null
     private var port = 0
     private val address: InetAddress? = Discovery.localAddress()
@@ -200,9 +200,14 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         // там пульт открывают лишь изредка, а зал должен оставаться.
         // Это — для пульта в браузере (запасной путь): у своего окна закрытие видно сразу.
         core.onOperatorClosed = { _ -> if (!embeddedOperator && role != Role.SCREEN && !exiting) SwingUtilities.invokeLater { quit() } }
-        advertisement = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
-            .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
-            .getOrNull()
+        // Объявление в сети — в фоне: JmDNS может ждать сеть десятки секунд (так бывает на Маке),
+        // а зал и пульт открываются сразу и без него.
+        scope.launch(Dispatchers.IO) {
+            val ad = runCatching { Discovery.advertise(core.publicInfo(), port, address) }
+                .onFailure { System.err.println("Поиск в сети недоступен: ${it.message}") }
+                .getOrNull()
+            if (exiting) runCatching { ad?.close() } else advertisement = ad
+        }
         scope.launch(Dispatchers.IO) { airPlay.start() }
         // Экраны Deixis в сети для пересылки показа.
         browsing = scope.launch {
