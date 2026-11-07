@@ -114,6 +114,10 @@ class SenderClient(
      */
     private fun adopt(info: ReceiverInfo) {
         if (secure || info.tlsPort <= 0 || info.fingerprint.length != FINGERPRINT_LENGTH) return
+        // Экран на этом же устройстве (пульт компьютера): связь не выходит в сеть, шифровать нечего.
+        // Шифрованный вход пометил бы токен «только по шифрованному каналу», и экран перестал бы считать
+        // пульт «этим компьютером» (и пускать по нему повторный запуск программы).
+        if (sameDevice) return
         tlsPort = info.tlsPort
         fingerprint = info.fingerprint
         val old = http
@@ -141,6 +145,9 @@ class SenderClient(
      * и кто на связи ([peers]). Пересылка показа между экранами этого не включает.
      */
     @Volatile var approver: Boolean = false
+
+    /** Экран на этом же устройстве (пульт компьютера по 127.0.0.1): связь остаётся без шифрования. */
+    @Volatile var sameDevice: Boolean = false
 
     private val _peers = MutableStateFlow<PeersState?>(null)
     /** Кто подключён к экрану и кто ждёт подтверждения; null — экран не прислал (нет связи, старая версия). */

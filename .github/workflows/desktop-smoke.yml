@@ -33,10 +33,22 @@ jobs:
         env:
           DEIXIS_SKIP_ANDROID: "1"
         run: ./gradlew :desktop:installDist
+      # Драйвер виртуального монитора Deixis Display — как в установщике (release.yml).
+      - name: Виртуальный монитор для Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./windows-display/build.ps1
+          New-Item -ItemType Directory -Force content/deixis-display | Out-Null
+          Copy-Item windows-display/out/* content/deixis-display/
       - name: Программа как в установщике
         run: |
+          extra=()
+          if [ -d content/deixis-display ]; then
+            extra=(--app-content content/deixis-display --java-options '-Ddeixis.display=$APPDIR\..\deixis-display')
+          fi
           jpackage --type app-image --name Deixis --input desktop/build/install/deixis/lib --main-jar desktop.jar \
-            --main-class app.deixis.desktop.MainKt --java-options "-Dfile.encoding=UTF-8" --dest out
+            --main-class app.deixis.desktop.MainKt --java-options "-Dfile.encoding=UTF-8" "${extra[@]}" --dest out
           ls out
       - name: Запуск и окна (Windows)
         if: runner.os == 'Windows'
@@ -75,8 +87,19 @@ jobs:
           Get-Content "$data\log.txt" -ErrorAction SilentlyContinue
           Copy-Item "$data\log.txt" smoke\ -ErrorAction SilentlyContinue
           $titles = [Win]::Titles(0) -join "`n"
-          Get-Process | Where-Object { $_.ProcessName -like "Deixis*" } | Stop-Process -Force
+          "--- мониторы: " + [System.Windows.Forms.Screen]::AllScreens.Count
+          [System.Windows.Forms.Screen]::AllScreens | Format-Table DeviceName, Primary, Bounds
           if ($titles -notmatch "Deixis — (пульт|remote|pult)") { Write-Error "Окно пульта не открылось"; exit 1 }
+          # Один дисплей у «Пульта и экрана»: Deixis сам создаёт виртуальный монитор и выводит зал туда.
+          if (-not (Select-String -Path "$data\log.txt" -Pattern "зал — на виртуальном мониторе" -Quiet)) { Write-Error "Зал не ушёл на виртуальный монитор"; exit 1 }
+          # Повторный запуск при работающей программе открывает её пульт, а не молчит.
+          & "out\Deixis\Deixis.exe" receive --role both --data $data
+          Start-Sleep -Seconds 3
+          Copy-Item "$data\log.txt" smoke\log-after.txt -ErrorAction SilentlyContinue
+          "--- после повторного запуска:"
+          [Win]::Titles(0) | Where-Object { $_ -match "Deixis" }
+          Get-Process | Where-Object { $_.ProcessName -like "Deixis*" } | Stop-Process -Force
+          & "out\Deixis\deixis-display\deixis-display.exe" remove
       - name: Запуск и окна (macOS)
         if: runner.os == 'macOS'
         run: |

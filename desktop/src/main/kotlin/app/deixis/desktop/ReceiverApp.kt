@@ -112,9 +112,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     init {
         opts.dataDir.mkdirs()
-        // Журнал — в файл log.txt папки данных; у программы из установщика нет консоли.
+        // Журнал: консоль и ошибки — в память сразу, в файл log.txt — когда ясно, что эта копия программы
+        // и есть работающая (второй запуск не трогает журнал первого).
         if (!GraphicsEnvironment.isHeadless()) {
-            app.deixis.diag.Log.toFile(opts.dataDir)
             app.deixis.diag.Log.captureConsole()
             println("Deixis $APP_VERSION · ${app.deixis.diag.Diagnostics.system()}")
         }
@@ -186,6 +186,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             if (activateRunning()) { println("Deixis уже запущен: зал возвращён, пульт открыт"); opts.exit(0); return }
             throw e
         }
+        if (!GraphicsEnvironment.isHeadless()) app.deixis.diag.Log.toFile(opts.dataDir)
+        // Токен «Этот компьютер» — сразу: по нему повторный запуск просит работающую программу открыть пульт,
+        // даже если пульт в этот раз ещё не открывали (роль «Экран»).
+        runCatching { operatorToken() }
         core.pairingUri = { address?.let { PairingCode(it.hostAddress, port, core.pairing.pin, core.info.id, core.info.name, core.tls?.port ?: 0, core.tls?.fingerprint.orEmpty()).toUri() } }
         core.onActivate = {
             core.returnToScreens()
@@ -219,6 +223,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             startTimers()
         }
         observe()
+        autoVirtualHall()
         updates.start()
         // «Что нового» — окно интерфейса: на компьютере-экране с одним монитором оно открылось бы поверх зала.
         if (!GraphicsEnvironment.isHeadless() && !(role == Role.SCREEN && screens.size <= 1)) {
@@ -231,6 +236,46 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         val withOperator = opts.operator ?: (role != Role.SCREEN || onEdt { operatorArea() } != null)
         println("Роль: $role, мониторов: ${screens.size}, пульт при запуске: ${if (withOperator) "да" else "нет"}")
         if (withOperator) openOperator()
+    }
+
+    /**
+     * Один дисплей у «Пульта и экрана» (проектор дублирует рабочий стол): зал закрывал бы рабочий стол оператора.
+     * Deixis создаёт свой виртуальный монитор 1920×1080 и выводит зал туда — рабочий стол свободен, зал идёт
+     * зрителям по QR и на экраны в сети. На Windows права администратора — один раз, при первом создании.
+     * Если отказались (или убрали монитор в пульте) — больше сам не создаёт: кнопка «Создать» остаётся в пульте.
+     */
+    private fun autoVirtualHall() {
+        if (GraphicsEnvironment.isHeadless() || opts.windowed || role != Role.BOTH || screens.size != 1) return
+        val off = File(opts.dataDir, AUTO_VIRTUAL_OFF)
+        if (off.isFile || !runCatching { VirtualScreen.supported }.getOrDefault(false)) return
+        scope.launch(Dispatchers.IO) {
+            app.deixis.diag.Log.i("virtual", "один дисплей: создаю виртуальный монитор для зала")
+            val r = VirtualScreen.create()
+            if (r.isFailure) {
+                app.deixis.diag.Log.w("virtual", "виртуальный монитор не создан", r.exceptionOrNull())
+                runCatching { off.writeText("1") }
+                return@launch
+            }
+            // Монитор появляется в системе не сразу: ждём его в списке и отдаём ему зал.
+            val end = System.currentTimeMillis() + VIRTUAL_WAIT_MS
+            while (System.currentTimeMillis() < end) {
+                kotlinx.coroutines.delay(VIRTUAL_POLL_MS)
+                val moved = kotlinx.coroutines.withContext(Dispatchers.Swing) {
+                    refreshScreens()
+                    val virtual = screens.firstOrNull { sc -> runCatching { VirtualScreen.isVirtual(sc.id, sc.x) }.getOrDefault(false) }
+                        ?: screens.firstOrNull { it.id != primaryId }.takeIf { screens.size == 2 }
+                    if (virtual == null) return@withContext false
+                    screens.filter { it.id != virtual.id }.forEach { settings = settings.with(MonitorRequest(it.id, false, OutputLayout.HALL)) }
+                    settings = settings.with(MonitorRequest(virtual.id, true, OutputLayout.HALL))
+                    windowedIds.remove(virtual.id)
+                    runCatching { monitorStore.save(settings) }
+                    reconcile()
+                    true
+                }
+                if (moved) { app.deixis.diag.Log.i("virtual", "зал — на виртуальном мониторе"); return@launch }
+            }
+            app.deixis.diag.Log.w("virtual", "виртуальный монитор не появился в списке мониторов")
+        }
     }
 
     /** Просит уже запущенный Deixis этого компьютера вернуться на экраны. true — он ответил. */
@@ -620,7 +665,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             error = null
             when {
                 id == null -> return
-                id == app.deixis.core.CaptureSource.ID_REMOVE_VIRTUAL -> { VirtualScreen.remove(); return }
+                id == app.deixis.core.CaptureSource.ID_REMOVE_VIRTUAL -> {
+                    // Убрали сами — Deixis больше не создаёт его при запуске.
+                    runCatching { File(opts.dataDir, AUTO_VIRTUAL_OFF).writeText("1") }
+                    VirtualScreen.remove(); return
+                }
                 id == app.deixis.core.CaptureSource.ID_NEW_VIRTUAL || id == VIRTUAL_ID -> {
                     val area = VirtualScreen.create().getOrElse { error = "Виртуальный экран не создан: ${it.message}"; return }
                     // Если Java увидит новый монитор, Deixis не должен ставить на него свой зал.
@@ -772,6 +821,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         private const val VIRTUAL_ID = "virtual"
         /** iPhone, iPad и Mac показывают экран здесь без отдельных программ. */
         const val AIRPLAY_LABEL = "Принимать AirPlay (iPhone, iPad, Mac)"
+        /** Флаг в папке данных: свой виртуальный монитор для зала при одном дисплее больше не создавать. */
+        private const val AUTO_VIRTUAL_OFF = "virtual-auto-off"
+        private const val VIRTUAL_WAIT_MS = 20_000L
+        private const val VIRTUAL_POLL_MS = 1_000L
         /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */
         private const val SINGLE_TAKES_HALL_AFTER_MS = 15_000L
         /** Версия программы из метки выпуска (вшита при сборке). */

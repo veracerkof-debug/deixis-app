@@ -517,7 +517,9 @@ class Controller(val platform: Platform) {
      */
     private fun client(t: Target): SenderClient {
         val k = key(t)
-        val c = SenderClient(t.host, t.port, senderName(), scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
+        // Свой экран (127.0.0.1) — без шифрования: связь не выходит из устройства (запомненное прежде не берётся).
+        val c = if (t.kind == Target.Kind.LOCAL) SenderClient(t.host, t.port, senderName(), scope).apply { sameDevice = true }
+        else SenderClient(t.host, t.port, senderName(), scope, prefs.getInt("$k.tp", 0), prefs.getString("$k.fp", null))
         c.onPinned = { tp, fp -> prefs.edit { putInt("$k.tp", tp); putString("$k.fp", fp) } }
         // Этот телефон — пульт оператора: подтверждает новые подключения к экрану.
         c.approver = true

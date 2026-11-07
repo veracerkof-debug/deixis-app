@@ -35,6 +35,8 @@ object Log {
             out = f.outputStream().buffered()
             file = f
             written = 0
+            // То, что записано до файла (запуск, первые ошибки), — в начало файла.
+            ring.forEach { writeLine(it.toString()) }
         }
     }
 
