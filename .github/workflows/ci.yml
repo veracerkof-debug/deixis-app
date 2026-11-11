@@ -77,11 +77,17 @@ jobs:
         run: brew install --cask vlc > /dev/null && brew install ffmpeg > /dev/null
       - name: Проверка окон
         run: |
-          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*' --tests '*BackdropGuiTest*' --tests '*OverlayGuiTest*' --tests '*ScreenCaptureTest*' --tests '*MacVirtualScreenTest*' --tests '*PultWindowTest*' --tests '*OverlayWindowGuiTest*')
+          tests=(--tests '*DesktopWindowTest*' --tests '*KeyActionTest*' --tests '*DesktopUpdatesTest*' --tests '*VideoFitGuiTest*' --tests '*BackdropGuiTest*' --tests '*OverlayGuiTest*' --tests '*ScreenCaptureTest*' --tests '*MacVirtualScreenTest*' --tests '*PultWindowTest*')
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
           else
             ./gradlew :desktop:test -Ddeixis.gui=1 "${tests[@]}" --stacktrace
+          fi
+          # «Наложение» — отдельно и последним: окно поверх всех и щелчок сквозь него не должны задеть другие проверки.
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :desktop:test -Ddeixis.gui=1 --tests '*OverlayWindowGuiTest*' --stacktrace
+          else
+            ./gradlew :desktop:test -Ddeixis.gui=1 --tests '*OverlayWindowGuiTest*' --stacktrace
           fi
           # Проверка не должна пропуститься молча: без экрана она помечается пропущенной.
           if grep -l '<skipped' desktop/build/test-results/test/TEST-app.deixis.desktop.DesktopWindowTest.xml; then
