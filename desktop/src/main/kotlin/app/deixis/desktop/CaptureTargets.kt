@@ -59,51 +59,125 @@ object AppWindows {
     private const val MIN_SIDE = 120
 }
 
+/** Выходы видеокарты из `xrandr`: имя, подключён ли монитор, где он на рабочем столе (null — выключен). */
+data class XOutput(val name: String, val connected: Boolean, val primary: Boolean, val x: Int?, val y: Int?, val width: Int?, val height: Int?)
+
+/** Разбор `xrandr` (без ключей): размер рабочего стола и выходы. */
+object Xrandr {
+    private val screenRe = Regex("current (\\d+) x (\\d+)")
+    private val outputRe = Regex("^(\\S+) (connected|disconnected)( primary)?(?: (\\d+)x(\\d+)\\+(\\d+)\\+(\\d+))?")
+
+    fun screen(text: String): Pair<Int, Int>? = screenRe.find(text)?.let { it.groupValues[1].toInt() to it.groupValues[2].toInt() }
+
+    fun outputs(text: String): List<XOutput> = text.lines().mapNotNull { line ->
+        val m = outputRe.find(line) ?: return@mapNotNull null
+        val g = m.groupValues
+        XOutput(g[1], g[2] == "connected", g[3].isNotEmpty(), g[6].toIntOrNull(), g[7].toIntOrNull(), g[4].toIntOrNull(), g[5].toIntOrNull())
+    }
+
+    /**
+     * Свободный выход под виртуальный монитор: сначала VIRTUAL (драйвер Intel заводит их нарочно), потом
+     * любой выход без монитора — HDMI, DisplayPort. Встроенный экран ноутбука (eDP, LVDS) не берётся.
+     */
+    fun freeOutput(outs: List<XOutput>): XOutput? {
+        val free = outs.filter { !it.connected && it.width == null && !it.name.startsWith("eDP") && !it.name.startsWith("LVDS") }
+        return free.firstOrNull { it.name.startsWith("VIRTUAL", ignoreCase = true) } ?: free.firstOrNull()
+    }
+}
+
 /**
- * Свой виртуальный экран на Linux (X11) без драйвера: рабочий стол расширяется вправо на [WIDTH]×[HEIGHT],
- * и эта область объявляется отдельным монитором (xrandr --setmonitor). Программы (Holyrics, LibreOffice)
- * видят его как второй монитор и выводят туда свой «проектор»; Deixis снимает его и раздаёт.
- * Пробно: часть видеодрайверов и оболочек не даёт расширить рабочий стол — тогда [create] вернёт ошибку.
- * Убирается при выходе из Deixis.
+ * Свой виртуальный экран на Linux (X11) без драйвера, двумя путями:
+ * 1) свободный выход видеокарты (VIRTUAL, HDMI или DisplayPort без монитора) включается в режиме 1920×1080
+ *    справа от основного — такой монитор видят система, настройки экранов и все программы;
+ * 2) если видеодрайвер выход не включил — рабочий стол расширяется вправо и эта область объявляется монитором
+ *    (xrandr --setmonitor): его видят программы, но не настройки экранов.
+ * Каждый шаг пишется в журнал. Убирается при выходе из Deixis.
  */
 object LinuxVirtualScreen {
     const val NAME = "DEIXIS"
     const val WIDTH = 1920
     const val HEIGHT = 1080
+    /** Режим 1920×1080 60 Гц (cvt 1920 1080 60). */
+    private const val MODE = "DEIXIS1080"
+    private val MODELINE = listOf("173.00", "1920", "2048", "2248", "2576", "1080", "1083", "1088", "1120", "-hsync", "+vsync")
 
-    val supported: Boolean get() = System.getProperty("os.name").orEmpty().lowercase().contains("linux") &&
-        System.getenv("WAYLAND_DISPLAY") == null && AppWindows.run("xrandr", "--version") != null
+    /** Почему виртуального экрана здесь нет; null — может быть. */
+    val unsupported: String? get() = when {
+        !System.getProperty("os.name").orEmpty().lowercase().contains("linux") -> "не Linux"
+        System.getenv("WAYLAND_DISPLAY") != null -> "сеанс Wayland: виртуальный монитор создаётся только в сеансе X11 (на экране входа — «Cinnamon» или «Xorg», не «Wayland»)"
+        AppWindows.run("xrandr", "--version") == null -> "нет программы xrandr: установите пакет x11-xserver-utils"
+        else -> null
+    }
+    val supported: Boolean get() = unsupported == null
 
-    /** Где теперь виртуальный экран (x — его левый край) или текст ошибки. */
+    /** Где теперь виртуальный экран (x — его левый край). */
     @Volatile var created: Triple<Int, Int, Int>? = null
         private set
 
-    /** Размер рабочего стола до расширения: к нему возвращаемся. */
+    /** Включённый выход (путь 1) или null (путь 2 — область рабочего стола). */
+    private var output: String? = null
+    /** Размер рабочего стола до расширения (путь 2): к нему возвращаемся. */
     private var original: Pair<Int, Int>? = null
+
+    private fun x(vararg args: String): String? {
+        val r = AppWindows.run("xrandr", *args)
+        if (r == null) app.deixis.diag.Log.w("virtual", "xrandr ${args.joinToString(" ")}: не выполнено")
+        return r
+    }
 
     @Synchronized
     fun create(): Result<Int> = runCatching {
         created?.let { return@runCatching it.first }
-        val info = AppWindows.run("xrandr") ?: error("xrandr недоступен")
-        val m = Regex("current (\\d+) x (\\d+)").find(info) ?: error("не узнать размер рабочего стола")
-        val w = m.groupValues[1].toInt(); val h = m.groupValues[2].toInt()
-        val newH = maxOf(h, HEIGHT)
-        AppWindows.run("xrandr", "--fb", "${w + WIDTH}x$newH") ?: error("видеодрайвер не дал расширить рабочий стол")
+        val info = x() ?: error("xrandr недоступен")
+        val (w, h) = Xrandr.screen(info) ?: error("не узнать размер рабочего стола")
+        val outs = Xrandr.outputs(info)
+        val left = outs.filter { it.width != null }.maxOfOrNull { it.x!! + it.width!! } ?: w
+        viaOutput(outs, left)?.let { return@runCatching it }
+        // Путь 2: область рабочего стола справа от всего.
+        x("--fb", "${w + WIDTH}x${maxOf(h, HEIGHT)}") ?: error("видеодрайвер не дал расширить рабочий стол")
         original = w to h
         // Размер в миллиметрах — примерно как у монитора 24″: программам он нужен только для масштаба.
-        if (AppWindows.run("xrandr", "--setmonitor", NAME, "$WIDTH/531x$HEIGHT/299+$w+0", "none") == null) {
-            AppWindows.run("xrandr", "--fb", "${w}x$h")
+        if (x("--setmonitor", NAME, "$WIDTH/531x$HEIGHT/299+$w+0", "none") == null) {
+            x("--fb", "${w}x$h")
             error("не удалось объявить виртуальный монитор")
         }
+        app.deixis.diag.Log.i("virtual", "Linux: область рабочего стола $w,0 ${WIDTH}x$HEIGHT (--setmonitor $NAME)")
         created = Triple(w, WIDTH, HEIGHT)
         w
+    }
+
+    /** Путь 1: свободный выход в режиме 1920×1080 справа от занятых. null — не вышло (всё возвращено как было). */
+    private fun viaOutput(outs: List<XOutput>, left: Int): Int? {
+        val free = Xrandr.freeOutput(outs) ?: run { app.deixis.diag.Log.i("virtual", "Linux: свободного выхода видеокарты нет"); return null }
+        x("--newmode", MODE, *MODELINE.toTypedArray())  // уже есть — не страшно
+        if (x("--addmode", free.name, MODE) == null) return null
+        if (x("--output", free.name, "--mode", MODE, "--pos", "${left}x0") == null) {
+            x("--delmode", free.name, MODE)
+            return null
+        }
+        val on = x()?.let { Xrandr.outputs(it).firstOrNull { o -> o.name == free.name } }
+        if (on?.width == null) {
+            x("--output", free.name, "--off"); x("--delmode", free.name, MODE)
+            app.deixis.diag.Log.w("virtual", "Linux: выход ${free.name} не включился")
+            return null
+        }
+        output = free.name
+        created = Triple(on.x ?: left, WIDTH, HEIGHT)
+        app.deixis.diag.Log.i("virtual", "Linux: выход ${free.name} включён как монитор ${WIDTH}x$HEIGHT на ${on.x},${on.y}")
+        return on.x ?: left
     }
 
     @Synchronized
     fun remove() {
         if (created == null) return
-        AppWindows.run("xrandr", "--delmonitor", NAME)
-        original?.let { (w, h) -> AppWindows.run("xrandr", "--fb", "${w}x$h") }
+        val out = output
+        if (out != null) {
+            x("--output", out, "--off"); x("--delmode", out, MODE); x("--rmmode", MODE)
+        } else {
+            x("--delmonitor", NAME)
+            original?.let { (w, h) -> x("--fb", "${w}x$h") }
+        }
+        output = null
         created = null
     }
 }
@@ -117,6 +191,16 @@ object VirtualScreen {
     const val HEIGHT = 1080
 
     val supported: Boolean get() = when { mac -> MacVirtualScreen.supported; win -> WindowsVirtualScreen.supported; else -> LinuxVirtualScreen.supported }
+
+    /** Почему виртуального экрана на этом компьютере нет — для пульта и диагностики; null — он возможен. */
+    val unsupported: String? get() = when {
+        mac -> if (MacVirtualScreen.supported) null else "macOS не даёт создать виртуальный дисплей (нужна более новая версия macOS)"
+        win -> if (WindowsVirtualScreen.supported) null else "драйвер Deixis Display не входит в эту установку: поставьте Deixis из установщика .msi"
+        else -> LinuxVirtualScreen.unsupported
+    }
+
+    /** Последняя ошибка создания (для пульта и диагностики); null — не было или создан. */
+    @Volatile var lastError: String? = null
 
     @Volatile private var winExists: Pair<Long, Boolean>? = null
 
@@ -137,6 +221,9 @@ object VirtualScreen {
         }
         win -> WindowsVirtualScreen.create().also { winExists = null }
         else -> LinuxVirtualScreen.create().map { x -> CaptureArea(x, 0, WIDTH, HEIGHT) }
+    }.also { r ->
+        lastError = r.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
+        r.onFailure { app.deixis.diag.Log.w("virtual", "не создан", it) }.onSuccess { app.deixis.diag.Log.i("virtual", "создан: ${it.x},${it.y} ${it.width}x${it.height}") }
     }
 
     /** Этот монитор из списка Java — виртуальный экран Deixis. */

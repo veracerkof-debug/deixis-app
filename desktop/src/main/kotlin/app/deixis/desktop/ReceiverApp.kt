@@ -31,6 +31,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.swing.Swing
@@ -247,18 +249,26 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
      * Один дисплей у «Пульта и экрана» (проектор дублирует рабочий стол): зал закрывал бы рабочий стол оператора.
      * Deixis создаёт свой виртуальный монитор 1920×1080 и выводит зал туда — рабочий стол свободен, зал идёт
      * зрителям по QR и на экраны в сети. На Windows права администратора — один раз, при первом создании.
-     * Если отказались (или убрали монитор в пульте) — больше сам не создаёт: кнопка «Создать» остаётся в пульте.
+     * Если отказались в окне прав или убрали монитор в пульте — больше сам не создаёт: кнопка «Создать» остаётся
+     * в пульте («Устройства» → «Входы»). Любая другая неудача не запоминается: при следующем запуске — снова.
+     * Почему не создан — в журнале (virtual: …) и в «Диагностике».
      */
     private fun autoVirtualHall() {
-        if (GraphicsEnvironment.isHeadless() || opts.windowed || role != Role.BOTH || screens.size != 1) return
+        val skip = when {
+            GraphicsEnvironment.isHeadless() || opts.windowed -> "без экрана или окном"
+            role != Role.BOTH -> "роль «${role.title}»: зал на виртуальном мониторе — только у «Пульта и экрана»"
+            screens.size != 1 -> "мониторов: ${screens.size}"
+            File(opts.dataDir, AUTO_VIRTUAL_OFF).isFile -> "оператор отказался или убрал монитор — создаётся только кнопкой в пульте"
+            else -> runCatching { VirtualScreen.unsupported }.getOrElse { it.message }
+        }
+        if (skip != null) { app.deixis.diag.Log.i("virtual", "сам не создаю: $skip"); return }
         val off = File(opts.dataDir, AUTO_VIRTUAL_OFF)
-        if (off.isFile || !runCatching { VirtualScreen.supported }.getOrDefault(false)) return
         scope.launch(Dispatchers.IO) {
             app.deixis.diag.Log.i("virtual", "один дисплей: создаю виртуальный монитор для зала")
             val r = VirtualScreen.create()
             if (r.isFailure) {
-                app.deixis.diag.Log.w("virtual", "виртуальный монитор не создан", r.exceptionOrNull())
-                runCatching { off.writeText("1") }
+                // Отказ — решение оператора: больше не спрашиваем. Остальное (окно прав без ответа, драйвер) — попробуем снова.
+                if (r.exceptionOrNull() is WindowsVirtualScreen.Refused && r.exceptionOrNull()?.message == WindowsVirtualScreen.DECLINED) runCatching { off.writeText("1") }
                 return@launch
             }
             // Монитор появляется в системе не сразу: ждём его в списке и отдаём ему зал.
@@ -339,12 +349,18 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
     private fun refreshScreens() {
         val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
-        screens = ge.screenDevices.map { d ->
+        val all = ge.screenDevices.map { d ->
             val b = d.defaultConfiguration.bounds
             val m = runCatching { d.displayMode }.getOrNull()
             ScreenInfo(d.iDstring, b.x, b.y, m?.width?.takeIf { it > 0 } ?: b.width, m?.height?.takeIf { it > 0 } ?: b.height)
         }
         primaryId = runCatching { ge.defaultScreenDevice.iDstring }.getOrNull()
+        screens = withoutMirrors(all, primaryId)
+        if (all.size - screens.size != lastMirrorCount) {
+            lastMirrorCount = all.size - screens.size
+            if (lastMirrorCount > 0)
+                app.deixis.diag.Log.i("monitors", "повторяют рабочий стол: $lastMirrorCount — считаются одним монитором")
+        }
         // Проектор пропал на миг (кабель, сон) — зал не переезжает на монитор пульта. Остался один монитор
         // надолго (Win+P «Повторяющийся», работа без проектора) — он снова берёт зал, как при запуске с одним.
         val now = System.currentTimeMillis()
@@ -355,6 +371,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         }
     }
     @Volatile private var singleSince = 0L
+    private var lastMirrorCount = 0
 
     /** Был ли с запуска второй монитор: тогда пропажа проектора не переносит зал на монитор пульта. */
     @Volatile private var sawSeveralScreens = false
@@ -396,15 +413,18 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         for (m in wanted) {
             val device = devices.getValue(m.id)
             val shared = list.size <= 1 || m.primary
-            val mode = windowMode(m.id, shared)
+            // «Наложение» — своё окно (прозрачное, без мыши): смена раскладки на него и с него пересоздаёт окно.
+            val mode = if (m.layout == OutputLayout.OVERLAY) WindowMode.OVERLAY else windowMode(m.id, shared)
             val w = windows[m.id]
             if (w == null || w.mode != mode) {
                 w?.dispose()
                 // Окна только для зала не забирают фокус у пульта. Без значка в области уведомлений
                 // (часть окружений Linux) Ctrl+Q и Ctrl+O нужны на любом мониторе.
                 val focusable = shared || tray == null
-                windows[m.id] = OutputWindow(m.id, device, m.layout, mode, topmost = !shared, focusable = focusable, shared = shared, files = core.files, host = this)
+                windows[m.id] = OutputWindow(m.id, device, m.layout, mode, topmost = !shared, focusable = focusable && mode != WindowMode.OVERLAY, shared = shared, files = core.files, host = this)
+                    .also { it.dim = m.dim }
             } else {
+                w.dim = m.dim
                 w.setLayout(m.layout)
                 w.moveTo(device)
             }
@@ -456,6 +476,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             address = "${address?.hostAddress ?: "127.0.0.1"}:$port",
             pairingUri = address?.let { PairingCode(it.hostAddress, port, pin, core.info.id, core.info.name, core.tls?.port ?: 0, core.tls?.fingerprint.orEmpty()).toUri() },
         )
+        // «QR и код на экран»: заставка подключения вместо слайда, пока оператор её не убрал.
+        if (st.connectCard) return FrameState(null, app.deixis.core.Mode.NORMAL, st.next, null, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo, st.logoImage)
         return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo, st.logoImage)
     }
 
@@ -466,6 +488,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
                 windows.values.forEach { it.videoCommand(cmd) }
                 hallWindow()?.videoState()?.let { core.reportVideo(it) }
             }
+        }
+        scope.launch(Dispatchers.Swing) {
+            core.state.map { it.connectCard }.distinctUntilChanged().collect { tray?.rebuild() }
         }
         scope.launch(Dispatchers.Swing) {
             core.state.combine(pinFlow) { _, _ -> Unit }.collect {
@@ -629,6 +654,9 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         override fun holyrics() = showHolyricsQr()
         override fun airPlay() = this@ReceiverApp.airPlay.enabled
         override fun setAirPlay(on: Boolean) = this@ReceiverApp.setAirPlay(on)
+        override fun connectCard() = core.state.value.connectCard
+        // Без зала («Пульт») QR и код — в пульте: «Устройства» → «QR и код для подключения».
+        override fun setConnectCard(on: Boolean) = if (role == Role.REMOTE) openOperator() else core.connectCard(on)
     }
 
     /**
@@ -659,8 +687,13 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             else if (VirtualScreen.supported) list += app.deixis.core.CaptureSource(app.deixis.core.CaptureSource.ID_NEW_VIRTUAL, "Создать виртуальный экран", VirtualScreen.WIDTH, VirtualScreen.HEIGHT, kind = app.deixis.core.CaptureSource.NEW_VIRTUAL)
             AppWindows.list().forEach { w -> list += app.deixis.core.CaptureSource("win:${w.id}", w.title, w.width, w.height, kind = app.deixis.core.CaptureSource.WINDOW) }
             // Windows: создание и удаление монитора спрашивают права администратора (окно Windows на мониторе пульта).
-            val note = if (System.getProperty("os.name").orEmpty().lowercase().contains("win") && VirtualScreen.supported)
-                "Windows спросит права администратора: драйвер виртуального монитора Deixis ставится один раз, монитор остаётся до «Убрать»." else null
+            val why = if (VirtualScreen.exists) null else runCatching { VirtualScreen.unsupported }.getOrElse { it.message }
+            val note = when {
+                why != null -> "Виртуальный экран здесь не создаётся: $why."
+                System.getProperty("os.name").orEmpty().lowercase().contains("win") ->
+                    "Windows спросит права администратора: драйвер виртуального монитора Deixis ставится один раз, монитор остаётся до «Убрать»."
+                else -> null
+            }
             return app.deixis.core.CaptureState(list, activeId, error, note)
         }
 
@@ -677,6 +710,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
                 }
                 id == app.deixis.core.CaptureSource.ID_NEW_VIRTUAL || id == VIRTUAL_ID -> {
                     val area = VirtualScreen.create().getOrElse { error = "Виртуальный экран не создан: ${it.message}"; return }
+                    // Создали сами — значит, он нужен: при одном дисплее Deixis снова создаёт его при запуске.
+                    runCatching { File(opts.dataDir, AUTO_VIRTUAL_OFF).delete() }
                     // Если Java увидит новый монитор, Deixis не должен ставить на него свой зал.
                     scope.launch(Dispatchers.Swing) {
                         kotlinx.coroutines.delay(1_500)
@@ -801,6 +836,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun shutdown() {
         if (stopped) return
         stopped = true
+        // Свой виртуальный монитор (Linux, Мак) — первым: иначе после выхода остаётся пустой монитор, куда уходят окна.
+        runCatching { VirtualScreen.releaseOnExit() }
         browsing?.cancel()
         runCatching { relay.close() }
         runCatching { advertisement?.close() }

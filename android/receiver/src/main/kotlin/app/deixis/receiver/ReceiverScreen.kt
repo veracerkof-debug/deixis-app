@@ -128,6 +128,8 @@ fun ReceiverScreen(
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it, sound = mode == Mode.NORMAL) }
         when {
+            // «QR и код на экран» по кнопке оператора — поверх показа, пока её не убрали.
+            state.connectCard -> IdleScreen(runtime.core.info.name, pin, address, runtime.pairingUri())
             // «Уйти с экранов»: окно уходит само (AwayFollower); пока оно ещё видно — чёрное.
             mode == Mode.BLACK || mode == Mode.AWAY -> Box(Modifier.fillMaxSize().background(Color.Black))
             // Своя картинка вместо знака: вписана целиком на чёрном.

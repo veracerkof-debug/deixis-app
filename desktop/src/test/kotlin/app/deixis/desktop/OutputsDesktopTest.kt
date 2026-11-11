@@ -28,6 +28,16 @@ import kotlin.test.assertTrue
 class MonitorsTest {
     private val two = listOf(ScreenInfo("\\Display0", 0, 0, 1920, 1080), ScreenInfo("\\Display1", 1920, 0, 1280, 720))
 
+    /** Проектор повторяет рабочий стол (Linux): тот же угол — один монитор, основной; зал не закрывает рабочий стол. */
+    @Test
+    fun mirroredProjectorIsNotASecondMonitor() {
+        val mirror = listOf(ScreenInfo(":0.1", 0, 0, 1024, 768), ScreenInfo(":0.0", 0, 0, 1920, 1080))
+        assertEquals(listOf(":0.0"), withoutMirrors(mirror, ":0.0").map { it.id })
+        assertEquals(two, withoutMirrors(two, "\\Display0"), "соседние мониторы остаются")
+        val three = mirror + ScreenInfo(":0.2", 1920, 0, 1920, 1080)
+        assertEquals(listOf(":0.0", ":0.2"), withoutMirrors(three, ":0.0").map { it.id })
+    }
+
     @Test
     fun oneMonitorShowsTheHallAsBefore() {
         val m = resolveMonitors(two.take(1), "\\Display0", MonitorSettings()).single()

@@ -49,14 +49,35 @@ object WindowsVirtualScreen {
     /** Включает монитор (с запросом прав) и возвращает его место на рабочем столе в точках экрана. */
     fun create(): Result<CaptureArea> = runCatching {
         val d = dir ?: error("драйвер не входит в эту установку Deixis")
+        find()?.let { return@runCatching it }
         if (!exists) {
+            app.deixis.diag.Log.i("virtual", "Windows: ставлю драйвер Deixis Display (окно прав администратора)")
             val code = elevated("install", File(d, "DeixisDisplay.inf").path, File(d, "DeixisDisplay.cer").path)
-            if (code != 0) error(if (code == 1223 || code == -1) "права администратора не даны" else "установка драйвера: код $code")
+            app.deixis.diag.Log.i("virtual", "Windows: помощник установки завершился, код $code")
+            when (code) {
+                0 -> Unit
+                // Окно прав могло остаться под другими окнами: ответ пришёл позже — монитор ещё может появиться.
+                -1 -> if (waitFor(LATE_MS) == null) throw Refused("окно прав администратора осталось без ответа — оно могло открыться под другими окнами")
+                1223 -> throw Refused(DECLINED)
+                else -> error("установка драйвера: код $code")
+            }
         }
-        var area: CaptureArea? = null
-        repeat(40) { if (area == null) { area = find(); if (area == null) Thread.sleep(250) } }
-        area ?: error("Windows не подключила монитор")
+        waitFor(APPEAR_MS) ?: error("драйвер стоит, но Windows не подключила монитор: перезагрузите компьютер и нажмите «Создать» ещё раз")
     }
+
+    /** Отказ оператора (или окно прав без ответа) — не ошибка драйвера. */
+    class Refused(message: String) : Exception(message)
+    const val DECLINED = "права администратора не даны"
+
+    private fun waitFor(ms: Long): CaptureArea? {
+        val end = System.currentTimeMillis() + ms
+        while (System.currentTimeMillis() < end) { find()?.let { return it }; Thread.sleep(POLL_MS) }
+        return null
+    }
+
+    private const val APPEAR_MS = 10_000L
+    private const val LATE_MS = 60_000L
+    private const val POLL_MS = 250L
 
     fun remove() {
         if (supported && exists) elevated("remove")
@@ -99,13 +120,22 @@ object WindowsVirtualScreen {
         val exe = helper ?: return -1
         fun ps(s: String) = "'" + s.replace("'", "''") + "'"
         val list = args.joinToString(",") { ps("\"$it\"") }
-        val cmd = "\$p = Start-Process -FilePath ${ps(exe.path)} -ArgumentList $list -Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit \$p.ExitCode"
+        // Отказ в окне прав — исключение PowerShell: код 1223, как у Windows (ERROR_CANCELLED).
+        val cmd = "try { \$p = Start-Process -FilePath ${ps(exe.path)} -ArgumentList $list -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit \$p.ExitCode } catch { exit 1223 }"
         return run(listOf("powershell", "-NoProfile", "-NonInteractive", "-Command", cmd), 120)
     }
 
     private fun run(cmd: List<String>, seconds: Long = 15): Int = runCatching {
         val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
-        p.inputStream.bufferedReader().readText()
-        if (!p.waitFor(seconds, TimeUnit.SECONDS)) { p.destroyForcibly(); -1 } else p.exitValue()
+        // Вывод читается в фоне: иначе ожидание не ограничено временем, если программа молчит и не выходит.
+        val out = StringBuilder()
+        val reader = Thread { runCatching { out.append(p.inputStream.bufferedReader().readText()) } }.apply { isDaemon = true; start() }
+        val code = if (!p.waitFor(seconds, TimeUnit.SECONDS)) { p.destroyForcibly(); -1 } else p.exitValue()
+        reader.join(READER_MS)
+        if (code != 0 && cmd.getOrNull(1) != "status") out.toString().trim().takeIf { it.isNotEmpty() }?.let { app.deixis.diag.Log.w("virtual", "Windows: ${it.take(LOG_CHARS)}") }
+        code
     }.getOrDefault(-1)
+
+    private const val READER_MS = 1_000L
+    private const val LOG_CHARS = 600
 }

@@ -119,6 +119,16 @@ fun captionContent(content: Content?, mode: Mode, chroma: Boolean): Content? {
     }
 }
 
+/** Плотность слоя «Наложения» (0–100 %) — в альфу 0–255. */
+fun overlayAlpha(dim: Int): Int = (dim.coerceIn(0, 100) * 255 + 50) / 100
+
+/** Что из показа идёт в «Наложение»: текст и Писание — титрами внизу, отсчёт, картинки и PDF — как есть; видео и трансляция — нет. */
+fun overlayContent(content: Content): Content? = when (content) {
+    is TextContent, is ScriptureContent -> captionContent(content, Mode.NORMAL, chroma = false)
+    is app.deixis.core.CountdownContent, is ImageContent, is PdfContent -> content
+    else -> null
+}
+
 /** Текст для вида «Сцена»: крупно и без оформления зала, чтобы читалось с расстояния. */
 internal fun readableContent(content: Content): Content = when (content) {
     is TextContent -> content.copy(style = TextStyle(caps = content.style.caps, shadow = false))
@@ -142,7 +152,8 @@ class OutputFrames(files: FileStore) {
     }
 
     @Synchronized
-    fun render(layout: OutputLayout, width: Int, height: Int, s: FrameState): BufferedImage = when (layout) {
+    fun render(layout: OutputLayout, width: Int, height: Int, s: FrameState, dim: Int = app.deixis.core.OVERLAY_DIM_DEFAULT): BufferedImage = when (layout) {
+        OutputLayout.OVERLAY -> overlay(width, height, s, dim)
         OutputLayout.HALL -> slides.render(
             width, height,
             s.content.takeUnless { (it is VideoContent || it is ScreenContent) && s.mode == Mode.NORMAL },
@@ -153,6 +164,25 @@ class OutputFrames(files: FileStore) {
         OutputLayout.LOWER_THIRD -> caption(width, height, s, chroma = false)
         OutputLayout.CHROMA -> caption(width, height, s, chroma = true)
         OutputLayout.STAGE -> stage(width, height, s)
+    }
+
+    /**
+     * «Наложение»: полупрозрачный слой плотности [dim] % и поверх — элементы показа; текст и Писание — титрами внизу.
+     * «Чёрный», «Логотип» и «Уйти» убирают всё — на мониторе то, что под окном; «Очистить» оставляет только слой.
+     */
+    private fun overlay(w: Int, h: Int, s: FrameState, dim: Int): BufferedImage {
+        val img = BufferedImage(w.coerceAtLeast(1), h.coerceAtLeast(1), BufferedImage.TYPE_INT_ARGB)
+        if (s.mode != Mode.NORMAL && s.mode != Mode.CLEAR) return img
+        val g = img.createGraphics()
+        try {
+            g.color = Color(0, 0, 0, overlayAlpha(dim))
+            g.fillRect(0, 0, w, h)
+            val c = s.content?.takeIf { s.mode == Mode.NORMAL }?.let { overlayContent(it) } ?: return img
+            g.drawImage(slides.renderOverlay(w, h, c, s.now), 0, 0, null)
+        } finally {
+            g.dispose()
+        }
+        return img
     }
 
     private fun caption(w: Int, h: Int, s: FrameState, chroma: Boolean): BufferedImage {

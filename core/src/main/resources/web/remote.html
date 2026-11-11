@@ -799,6 +799,7 @@ const TR = {
   lStage: ["Сцена", "Sahna", "Stage"],
   lLower: ["Титры", "Titrlar", "Lower third"],
   lChroma: ["Хромакей", "Xromakey", "Chroma"],
+  lOverlay: ["Наложение", "Ustma-ust", "Overlay"],
   netScreens: ["Экраны в сети", "Tarmoqdagi ekranlar", "Network screens"],
   searchingScreens: ["Поиск экранов Deixis…", "Deixis ekranlari qidirilmoqda…", "Looking for Deixis screens…"],
   sameWifi: ["Экран должен быть в этой же сети Wi-Fi", "Ekran shu Wi-Fi tarmog‘ida bo‘lishi kerak", "The screen must be on the same Wi-Fi"],
@@ -2201,7 +2202,7 @@ function renderSetlists() {
 }
 
 // ——— Устройства ———
-const LAYOUTS = () => [["HALL", t.lHall], ["STAGE", t.lStage], ["LOWER_THIRD", t.lLower], ["CHROMA", t.lChroma]];
+const LAYOUTS = () => [["HALL", t.lHall], ["STAGE", t.lStage], ["LOWER_THIRD", t.lLower], ["CHROMA", t.lChroma], ["OVERLAY", t.lOverlay]];
 const netState = (s) => ({ online: t.stOnline, sync: t.stSync, offline: t.stOffline, pin: t.stPin, idle: t.stIdle }[s] || s || "");
 const platformName = (p) => (/desktop/.test(p || "") ? t.pDesktop : p === "android-tv" ? "Deixis TV" : p === "android-screen" ? t.pScreen : "Deixis");
 const qrImg = (text, big) => `<div class="qr ${big ? "big" : ""}"><img src="${esc(qrUrl(text))}" alt="${esc(t.qrCode)}" loading="lazy"></div>`;

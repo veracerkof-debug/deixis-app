@@ -113,6 +113,34 @@ class SlideRenderer(
     }
 
     /**
+     * Слой «Наложения» без фона: только сами элементы — текст, Писание, отсчёт, картинка (с её прозрачностью), страница PDF.
+     * Видео и трансляция в наложение не идут: под окном и так то, что на мониторе.
+     */
+    fun renderOverlay(width: Int, height: Int, content: Content, now: Long = System.currentTimeMillis()): BufferedImage {
+        val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), BufferedImage.TYPE_INT_ARGB)
+        transparentBackground = true
+        val g = img.createGraphics()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            when (content) {
+                is TextContent -> drawText(g, width, height, content, clear = false)
+                is ScriptureContent -> drawScripture(g, width, height, content, clear = false)
+                is app.deixis.core.CountdownContent -> drawCountdown(g, width, height, content, now, clear = false)
+                is ImageContent -> drawFitted(g, width, height, loadImage(content))
+                is PdfContent -> drawFitted(g, width, height, loadPdfPage(content, width, height))
+                else -> Unit
+            }
+        } finally {
+            g.dispose()
+            transparentBackground = false
+        }
+        return img
+    }
+
+    /**
      * Экран ожидания: знак, имя, QR-код и PIN. На широком экране (16:9, 4:3, 32:9) — QR слева от PIN,
      * размеры от высоты 16:9-кадра внутри экрана; на квадратном и вертикальном — всё столбиком по ширине.
      * Строки, которые не помещаются по ширине, уменьшаются, а не обрезаются.

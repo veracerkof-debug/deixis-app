@@ -17,6 +17,7 @@ object Words {
     private fun t(ru: String, uz: String, en: String) = arrayOf(ru, uz, en)[lang]
 
     val logFolder get() = t("Журнал программы…", "Dastur jurnali…", "App log…")
+    val connectCard get() = t("QR и код подключения на экране", "Ulanish QR va kodi ekranda", "Connect QR and code on screen")
     val operatorTitle get() = t("Deixis — пульт", "Deixis — pult", "Deixis — remote")
     val newConnect get() = t("Новое подключение", "Yangi ulanish", "New connection")
     val newConnectAsk get() = t(

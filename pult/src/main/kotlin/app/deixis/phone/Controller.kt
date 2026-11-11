@@ -448,6 +448,23 @@ class Controller(val platform: Platform) {
     suspend fun screenCapture(t: Target, select: String? = null): app.deixis.core.CaptureState? =
         outs.value.firstOrNull { it.target.id == t.id }?.client?.let { runCatching { it.capture(select) }.getOrNull() }
 
+    /** Экран и его QR с кодом: к нему подключается новый телефон или пульт. */
+    data class ConnectInfo(val target: Target, val name: String, val pin: String, val uri: String?, val shown: Boolean)
+
+    /** QR и PIN каждого подключённого экрана Deixis — свой экран компьютера первым. */
+    suspend fun connectInfos(): List<ConnectInfo> = outs.value
+        .filter { it.client.connection.value is Connection.Connected }
+        .sortedBy { if (it.target.kind == Target.Kind.LOCAL) 0 else 1 }
+        .mapNotNull { o ->
+            val p = withContext(Dispatchers.IO) { o.client.pairingInfo() } ?: return@mapNotNull null
+            val name = if (o.target.kind == Target.Kind.LOCAL) L.thisComputerHead else o.info()?.name ?: o.target.name
+            ConnectInfo(o.target, name, p.pin, p.uri, o.client.state.value?.connectCard == true)
+        }
+
+    /** «QR и код на экран» — заставка подключения на экране [t] (или убрать её). false — экран не умеет (старая версия). */
+    suspend fun connectCard(t: Target, on: Boolean): Boolean =
+        outs.value.firstOrNull { it.target.id == t.id }?.client?.let { withContext(Dispatchers.IO) { it.connectCard(on) } } ?: false
+
     /**
      * Диагностика: это устройство и каждый подключённый экран Deixis. Пара — название и отчёт
      * (null — экран не ответил: старая версия или нет связи).

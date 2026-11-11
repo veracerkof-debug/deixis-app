@@ -228,6 +228,10 @@ object T {
     const val slow = 340
     /** Оборот значка «идёт связь» и «передаётся файл». */
     const val spin = 1100
+    /** Как часто открытая шторка «QR и код» перечитывает PIN экранов: он меняется после каждого подключения. */
+    const val refreshMs = 3_000L
+    /** Шаг плотности слоя «Наложения», %. */
+    const val dimStep = 10
     /** Затемнение под ходом передачи на миниатюре: цифры читаются на любом кадре. */
     const val busyDim = 0.6f
     val eOut = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
@@ -315,6 +319,8 @@ private val paths: Map<String, List<Part>> = mapOf(
     // Темы: четыре плитки, одна выбрана.
     "themes" to listOf(Part(rect(4f, 4f, 7f, 7f, 1.5f)), Part(rect(13f, 4f, 7f, 7f, 1.5f)), Part(rect(4f, 13f, 7f, 7f, 1.5f)), Part(rect(13f, 13f, 7f, 7f, 1.5f), fill = true)),
     "onscreen" to listOf(Part(rect(3f, 4f, 18f, 12f, 1.5f)), Part("M8 20h8"), Part("M8.5 10l2.5 2.5 4.5-4.5")),
+    // QR-код: три угловых квадрата и точки.
+    "qr" to listOf(Part(rect(3f, 3f, 7f, 7f, 1f)), Part(rect(14f, 3f, 7f, 7f, 1f)), Part(rect(3f, 14f, 7f, 7f, 1f)), Part("M14 14h3v3M21 14v.01M14 21h.01M17.5 21H21v-3.5")),
 )
 
 private val vectors = mutableMapOf<String, ImageVector>()

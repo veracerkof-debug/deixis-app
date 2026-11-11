@@ -10,9 +10,18 @@ import java.io.File
 /** Монитор, как его видит система: постоянный идентификатор и положение на рабочем столе. */
 data class ScreenInfo(val id: String, val x: Int, val y: Int, val width: Int, val height: Int)
 
+/**
+ * Проектор, который повторяет рабочий стол (Linux, X11: два выхода с одного угла), — не второй монитор:
+ * зал на нём закрыл бы рабочий стол оператора. Мониторы с общим левым верхним углом считаются одним
+ * (остаётся основной); настоящие соседние мониторы никогда не начинаются в одной точке.
+ */
+fun withoutMirrors(screens: List<ScreenInfo>, primaryId: String?): List<ScreenInfo> =
+    screens.groupBy { it.x to it.y }.values.map { same -> same.firstOrNull { it.id == primaryId } ?: same.first() }
+        .sortedBy { s -> screens.indexOf(s) }
+
 /** Выбор оператора для монитора. Хранится только то, что оператор менял сам; остальное — умолчания. */
 @Serializable
-data class SavedMonitor(val enabled: Boolean, val layout: OutputLayout = OutputLayout.HALL)
+data class SavedMonitor(val enabled: Boolean, val layout: OutputLayout = OutputLayout.HALL, val dim: Int = app.deixis.core.OVERLAY_DIM_DEFAULT)
 
 @Serializable
 data class MonitorSettings(val monitors: Map<String, SavedMonitor> = emptyMap())
@@ -57,13 +66,14 @@ fun resolveMonitors(screens: List<ScreenInfo>, primaryId: String?, saved: Monito
             primary = primary,
             layout = choice?.layout ?: OutputLayout.HALL,
             enabled = choice?.enabled ?: (single || !primary),
+            dim = choice?.dim ?: app.deixis.core.OVERLAY_DIM_DEFAULT,
         )
     }
 }
 
 /** Выбор оператора поверх сохранённых настроек. */
 fun MonitorSettings.with(req: MonitorRequest): MonitorSettings =
-    copy(monitors = monitors + (req.id to SavedMonitor(req.enabled, req.layout)))
+    copy(monitors = monitors + (req.id to SavedMonitor(req.enabled, req.layout, (req.dim ?: monitors[req.id]?.dim ?: app.deixis.core.OVERLAY_DIM_DEFAULT).coerceIn(0, 100))))
 
 /** Названия раскладок для меню. */
 val OutputLayout.title: String
@@ -72,4 +82,5 @@ val OutputLayout.title: String
         OutputLayout.STAGE -> "Сцена"
         OutputLayout.LOWER_THIRD -> "Титры"
         OutputLayout.CHROMA -> "Хромакей"
+        OutputLayout.OVERLAY -> "Наложение"
     }

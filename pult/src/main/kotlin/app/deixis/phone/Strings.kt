@@ -288,16 +288,38 @@ object L {
     val outputsNote: String get() = t("Куда экран выводит показ: мониторы компьютера и их раскладка.", "Ekran ko‘rsatuvni qayerga chiqaradi: kompyuter monitorlari va ularning joylashuvi.", "Where the screen sends the show: the computer’s monitors and their layout.")
     val monitors: String get() = t("Мониторы", "Monitorlar", "Monitors")
     val primaryMonitor: String get() = t("основной", "asosiy", "main")
-    val layoutsNote: String get() = t("Зал — слайд целиком. Сцена — текущий и следующий слайд с часами. Титры — текст нижней третью. Хромакей — текст на зелёном для трансляции.", "Zal — slayd to‘liq. Sahna — joriy va keyingi slayd soat bilan. Titrlar — matn pastki uchdan birida. Xromakey — translyatsiya uchun yashil fonda matn.", "Hall — the whole slide. Stage — current and next slide with a clock. Captions — text in the lower third. Chroma key — text on green for streaming.")
+    val layoutsNote: String get() = t("Зал — слайд целиком. Сцена — текущий и следующий слайд с часами. Титры — текст нижней третью. Хромакей — текст на зелёном для трансляции. Наложение — прозрачное окно поверх того, что уже на мониторе: полупрозрачный слой, на нём титры, текст и графика; мышь проходит к программе под ним.", "Zal — slayd to‘liq. Sahna — joriy va keyingi slayd soat bilan. Titrlar — matn pastki uchdan birida. Xromakey — translyatsiya uchun yashil fonda matn. Ustma-ust — monitordagi narsa ustidagi shaffof oyna: yarim shaffof qatlam, unda titrlar, matn va grafika; sichqoncha ostidagi dasturga o‘tadi.", "Hall — the whole slide. Stage — current and next slide with a clock. Captions — text in the lower third. Chroma key — text on green for streaming. Overlay — a transparent window over what is already on the monitor: a see-through layer with captions, text and graphics on it; the mouse goes through to the program underneath.")
     fun layoutName(l: app.deixis.core.OutputLayout): String = when (l) {
         app.deixis.core.OutputLayout.HALL -> t("Зал", "Zal", "Hall")
         app.deixis.core.OutputLayout.STAGE -> t("Сцена", "Sahna", "Stage")
         app.deixis.core.OutputLayout.LOWER_THIRD -> t("Титры", "Titrlar", "Captions")
         app.deixis.core.OutputLayout.CHROMA -> t("Хромакей", "Xromakey", "Chroma")
+        app.deixis.core.OutputLayout.OVERLAY -> t("Наложение", "Ustma-ust", "Overlay")
     }
+    val overlayDim: String get() = t("Плотность слоя", "Qatlam zichligi", "Layer density")
+    val overlayDimSub: String get() = t("0 % — только текст и графика поверх того, что на мониторе", "0 % — monitordagi narsa ustida faqat matn va grafika", "0% — only text and graphics over what is on the monitor")
     val diagnostics: String get() = t("Диагностика", "Diagnostika", "Diagnostics")
     val diagnosticsSub: String get() = t("Проверить это устройство и экраны, отправить журнал", "Bu qurilma va ekranlarni tekshirish, jurnalni yuborish", "Check this device and the screens, send the log")
     val diagNote: String get() = t("Проверка этого устройства и подключённых экранов: сеть, место, память, проигрыватель, мониторы, ошибки в журнале.", "Bu qurilma va ulangan ekranlarni tekshirish: tarmoq, joy, xotira, pleyer, monitorlar, jurnaldagi xatolar.", "Checks this device and the connected screens: network, space, memory, player, monitors, errors in the log.")
+    val connectCodes: String get() = t("QR и код для подключения", "Ulanish uchun QR va kod", "QR and code to connect")
+    val connectCodesSub: String get() = t("Подключить телефон или второй пульт, когда в зале идёт показ", "Zalda namoyish ketayotganda telefon yoki ikkinchi pultni ulash", "Connect a phone or a second remote while the show is running")
+    val connectCodesNote: String get() = t(
+        "Камера телефона на QR-код — откроется пульт. В приложении Deixis — ввести PIN. Новое подключение подтверждается на этом пульте.",
+        "Telefon kamerasini QR-kodga qarating — pult ochiladi. Deixis ilovasida — PIN kiriting. Yangi ulanish shu pultda tasdiqlanadi.",
+        "Point a phone camera at the QR code to open the remote. In the Deixis app, enter the PIN. A new connection is confirmed on this remote.",
+    )
+    val connectCodesNone: String get() = t("Нет подключённых экранов Deixis", "Ulangan Deixis ekranlari yo‘q", "No connected Deixis screens")
+    val pinLabel: String get() = t("PIN", "PIN", "PIN")
+    val connectCodesScan: String get() = t("QR открывает пульт в браузере телефона", "QR telefon brauzerida pultni ochadi", "The QR opens the remote in the phone browser")
+    val connectCodesNoLan: String get() = t("Нет сети: подключиться можно кабелем или по адресу", "Tarmoq yo‘q: kabel yoki manzil orqali ulanish mumkin", "No network: connect by cable or by address")
+    val connectCardShow: String get() = t("QR и код на экран", "QR va kod ekranga", "QR and code on screen")
+    val connectCardHide: String get() = t("Убрать QR с экрана", "QR-ni ekrandan olish", "Remove QR from screen")
+    val connectCardOld: String get() = t("Экран не умеет показывать QR по кнопке — обновите Deixis на нём", "Ekran QR-ni tugma bilan ko‘rsata olmaydi — undagi Deixis-ni yangilang", "This screen cannot show the QR on request — update Deixis on it")
+    val connectCardNote: String get() = t(
+        "На экране QR и PIN видны всем в зале — показ под ними продолжится, когда их убрать или показать следующий слайд.",
+        "Ekranda QR va PIN zaldagi hammaga ko‘rinadi — ularni olib tashlasangiz yoki keyingi slaydni ko‘rsatsangiz, namoyish davom etadi.",
+        "On the screen, the QR and PIN are visible to the whole room — the show continues once they are removed or the next slide is shown.",
+    )
     val diagRunning: String get() = t("Проверяется…", "Tekshirilmoqda…", "Checking…")
     val diagNoAnswer: String get() = t("Экран не ответил: старая версия или нет связи", "Ekran javob bermadi: eski versiya yoki aloqa yo‘q", "The screen did not answer: old version or no connection")
     val diagAgain: String get() = t("Проверить снова", "Qayta tekshirish", "Check again")

@@ -90,6 +90,7 @@ jobs:
           "--- мониторы: " + [System.Windows.Forms.Screen]::AllScreens.Count
           [System.Windows.Forms.Screen]::AllScreens | Format-Table DeviceName, Primary, Bounds
           if ($titles -notmatch "Deixis — (пульт|remote|pult)") { Write-Error "Окно пульта не открылось"; exit 1 }
+          if ([System.Windows.Forms.Screen]::AllScreens.Count -lt 2) { Write-Error "Виртуального монитора нет в системе"; exit 1 }
           # Один дисплей у «Пульта и экрана»: Deixis сам создаёт виртуальный монитор и выводит зал туда.
           if (-not (Select-String -Path "$data\log.txt" -Pattern "зал — на виртуальном мониторе" -Quiet)) { Write-Error "Зал не ушёл на виртуальный монитор"; exit 1 }
           # Повторный запуск при работающей программе открывает её пульт, а не молчит.
@@ -120,4 +121,59 @@ jobs:
         if: always()
         with:
           name: desktop-smoke-${{ matrix.name }}
+          path: smoke/
+
+  # Linux (X11): проектор повторяет рабочий стол — Deixis считает его одним монитором, сам включает свободный
+  # выход видеокарты как виртуальный монитор и выводит зал туда; после выхода монитор убирается.
+  linux:
+    name: Запуск (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Сборка программы
+        env:
+          DEIXIS_SKIP_ANDROID: "1"
+        run: ./gradlew :desktop:installDist
+      - name: Xorg с драйвером-заглушкой
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xserver-xorg-core xserver-xorg-video-dummy x11-xserver-utils openbox wmctrl
+          sudo Xorg :5 -config "$PWD/tools/smoke/xorg-dummy.conf" -noreset -logfile "$RUNNER_TEMP/xorg.log" &
+          sleep 3
+          export DISPLAY=:5
+          openbox &
+          # Проектор в режиме «повтор»: второй выход на том же месте.
+          xrandr --addmode DUMMY1 1920x1080
+          xrandr --output DUMMY1 --mode 1920x1080 --pos 0x0
+          xrandr --listmonitors
+      - name: Запуск, зал на виртуальном мониторе, уборка
+        env:
+          DISPLAY: ":5"
+          LC_ALL: C.UTF-8
+        run: |
+          mkdir -p smoke
+          data="$RUNNER_TEMP/deixis-data"
+          desktop/build/install/deixis/bin/deixis receive --role both --data "$data" &
+          sleep 30
+          echo "--- журнал программы:"; cat "$data/log.txt" || true
+          cp "$data/log.txt" smoke/ || true
+          echo "--- окна:"; wmctrl -lG || true
+          xrandr --listmonitors | tee smoke/monitors.txt
+          grep -q "Окно пульта: открыто" "$data/log.txt"
+          grep -q "зал — на виртуальном мониторе" "$data/log.txt"
+          grep -q "Monitors: 3" smoke/monitors.txt
+          pkill -TERM -f "deixis.*receive"
+          sleep 8
+          xrandr --listmonitors | tee smoke/monitors-after.txt
+          grep -q "Monitors: 2" smoke/monitors-after.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-smoke-Linux
           path: smoke/

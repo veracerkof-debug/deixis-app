@@ -115,6 +115,9 @@ class ReceiverCore(
     var onActivate: (() -> Unit)? = null
 
     /** Вернуть зал из «Уйти с экранов»: показ остаётся тем же. */
+    /** QR и код подключения на экран (по кнопке оператора) или убрать их. */
+    fun connectCard(on: Boolean) = _state.update { it.copy(connectCard = on) }
+
     fun returnToScreens() = _state.update { if (it.mode == Mode.AWAY) it.copy(mode = Mode.NORMAL) else it }
 
     /** Трансляция монитора этого компьютера; null — платформа не умеет (ТВ, телефон). */
@@ -339,6 +342,12 @@ class ReceiverServer(
                     val body = DeixisJson.encodeToString(PairingInfo.serializer(), PairingInfo(core.pairing.pin, core.pairingUri?.invoke(), core.peers.approvalNeeded))
                     call.response.header("Cache-Control", "no-store")
                     call.respondText(body, ContentType.Application.Json)
+                }
+                // QR и код подключения — на экран по кнопке оператора (on=1) и обратно (on=0).
+                post("/api/connect-card") {
+                    if (!call.authorized()) return@post call.respondText("", status = HttpStatusCode.Unauthorized)
+                    core.connectCard(call.request.queryParameters["on"] == "1")
+                    call.respondText("", status = HttpStatusCode.NoContent)
                 }
                 // Второй запуск Deixis на этом компьютере передаёт управление уже работающему.
                 post("/api/activate") {

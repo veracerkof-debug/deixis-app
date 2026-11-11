@@ -99,6 +99,9 @@ interface TrayActions {
     /** Принимает ли экран AirPlay. */
     fun airPlay(): Boolean
     fun setAirPlay(on: Boolean)
+    /** QR и код подключения на экране (поверх показа) — по действию оператора. */
+    fun connectCard(): Boolean
+    fun setConnectCard(on: Boolean)
 }
 
 /**
@@ -108,10 +111,13 @@ interface TrayActions {
 class Tray private constructor(private val actions: TrayActions, private val icon: TrayIcon) {
     private val screens = Menu("Экраны")
     private val airPlay = CheckboxMenuItem(ReceiverApp.AIRPLAY_LABEL)
+    private val connect = CheckboxMenuItem(Words.connectCard)
 
     init {
         val popup = PopupMenu()
         popup.add(item("Открыть пульт") { actions.openOperator() })
+        connect.addItemListener { actions.setConnectCard(connect.state) }
+        popup.add(connect)
         popup.add(screens)
         airPlay.addItemListener { actions.setAirPlay(airPlay.state) }
         popup.add(airPlay)
@@ -129,6 +135,7 @@ class Tray private constructor(private val actions: TrayActions, private val ico
     /** Мониторы сменились или оператор поменял раскладку в пульте. */
     fun rebuild() {
         airPlay.state = actions.airPlay()
+        connect.state = actions.connectCard()
         screens.removeAll()
         for (m in actions.monitors()) {
             val menu = Menu(m.name + " · ${m.width}×${m.height}" + if (m.primary) " · пульт" else "")

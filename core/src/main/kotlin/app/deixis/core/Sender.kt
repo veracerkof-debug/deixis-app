@@ -467,6 +467,20 @@ class SenderClient(
         return DeixisJson.decodeFromString(app.deixis.diag.DiagReport.serializer(), r.bodyAsText())
     }
 
+    /** QR и PIN этого экрана для нового телефона; null — нет сопряжения или старая версия экрана. */
+    suspend fun pairingInfo(): PairingInfo? = runCatching {
+        val t = token ?: return null
+        val r = http.get("${base()}/api/pairing") { header("Authorization", "Bearer $t") }
+        if (r.status != HttpStatusCode.OK) return null
+        DeixisJson.decodeFromString(PairingInfo.serializer(), r.bodyAsText())
+    }.getOrNull()
+
+    /** QR и код подключения на экран этого приёмника (или убрать). false — экран не принял (старая версия). */
+    suspend fun connectCard(on: Boolean): Boolean = runCatching {
+        val t = token ?: return false
+        http.post("${base()}/api/connect-card?on=${if (on) 1 else 0}") { header("Authorization", "Bearer $t") }.status == HttpStatusCode.NoContent
+    }.getOrDefault(false)
+
     /** Журнал экрана целиком (для отправки автору); null — старая версия экрана. */
     suspend fun screenLog(): String? {
         val t = token ?: return null

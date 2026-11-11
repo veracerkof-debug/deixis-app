@@ -206,6 +206,14 @@ fun ScreenOutputs(c: Controller, t: Target) {
                     Seg(layouts.map { L.layoutName(it) }, layouts.indexOf(m.layout), Modifier.fillMaxWidth().padding(start = T.gutter, end = T.gutter, bottom = T.gapS)) { k ->
                         scope.launch { c.screenOutputs(t, app.deixis.core.MonitorRequest(m.id, true, layouts[k]))?.let { st = it } }
                     }
+                    if (m.layout == app.deixis.core.OutputLayout.OVERLAY) {
+                        fun dim(v: Int) = scope.launch {
+                            c.screenOutputs(t, app.deixis.core.MonitorRequest(m.id, true, m.layout, v.coerceIn(0, 100)))?.let { st = it }
+                        }
+                        Cell(L.overlayDim, L.overlayDimSub, chevron = null) {
+                            Stepper("${m.dim} %", onMinus = { dim(m.dim - T.dimStep) }, onPlus = { dim(m.dim + T.dimStep) })
+                        }
+                    }
                 }
             }
         }

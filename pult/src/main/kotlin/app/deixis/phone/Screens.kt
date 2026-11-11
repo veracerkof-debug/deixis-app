@@ -211,6 +211,10 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                 Cell(L.connectScreen, kind = "plus", onClick = { ui.sheet(L.connect) { ConnectSheet(c, ui) } })
                 Sep()
                 Cell(L.preflight, kind = "show", onClick = { ui.toast(c.check()) })
+                if (outputs.any { it.state == OutState.ONLINE }) {
+                    Sep()
+                    Cell(L.connectCodes, L.connectCodesSub, kind = "qr", onClick = { ui.push(L.connectCodes) { ConnectCodesSheet(c, ui) } })
+                }
             }
             // Компьютер среди экранов: его входы (монитор, окно программы, виртуальный экран, AirPlay) и выходы (мониторы).
             outputs.firstOrNull { it.state == OutState.ONLINE && it.info?.platform?.startsWith("desktop") == true }?.let { pc ->

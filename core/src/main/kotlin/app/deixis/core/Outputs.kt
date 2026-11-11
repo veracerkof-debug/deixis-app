@@ -25,7 +25,17 @@ enum class OutputLayout {
     LOWER_THIRD,
     /** Хромакей: текст на зелёном — для трансляции (OBS, vMix). */
     CHROMA,
+    /**
+     * Наложение: прозрачное окно поверх того, что уже на мониторе (другая программа, трансляция, рабочий стол).
+     * Полупрозрачный слой своей плотности ([MonitorOutput.dim], вплоть до полностью прозрачного) и поверх него —
+     * титры, текст, картинки и слой показа (логотип, плашка, бегущая строка, часы). Монитор не перекрывается целиком,
+     * мышь проходит к программе под окном. Только компьютер.
+     */
+    OVERLAY,
 }
+
+/** Плотность слоя «Наложения» по умолчанию, %: текст читается на любом фоне, а под ним всё видно. */
+const val OVERLAY_DIM_DEFAULT = 30
 
 @Serializable
 data class MonitorOutput(
@@ -37,6 +47,8 @@ data class MonitorOutput(
     val primary: Boolean,
     val layout: OutputLayout = OutputLayout.HALL,
     val enabled: Boolean = false,
+    /** Плотность полупрозрачного слоя «Наложения», 0–100 %. */
+    val dim: Int = OVERLAY_DIM_DEFAULT,
 )
 
 @Serializable
@@ -59,7 +71,11 @@ data class OutputsState(
     val webScreenUrl: String? = null,
 )
 
-@Serializable data class MonitorRequest(val id: String, val enabled: Boolean, val layout: OutputLayout = OutputLayout.HALL)
+@Serializable data class MonitorRequest(
+    val id: String, val enabled: Boolean, val layout: OutputLayout = OutputLayout.HALL,
+    /** Плотность слоя «Наложения», 0–100 %; null — прежняя. */
+    val dim: Int? = null,
+)
 @Serializable data class LinkRequest(val id: String, val pin: String? = null, val host: String? = null, val port: Int? = null)
 @Serializable data class UnlinkRequest(val id: String)
 @Serializable data class LinkResult(val ok: Boolean, val error: String? = null, val needPin: Boolean = false)

@@ -55,6 +55,11 @@ enum class WindowMode {
     NATIVE,
     /** Окно без рамки точно по монитору; по желанию поверх остальных окон. */
     COVER,
+    /**
+     * «Наложение»: прозрачное окно без рамки по монитору, поверх всех окон, без фокуса и без мыши —
+     * под ним видна и работает другая программа. Без прозрачных окон в системе — сплошное, как «Титры».
+     */
+    OVERLAY,
 }
 
 /** Что окну вывода нужно от приёмника. */
@@ -98,6 +103,13 @@ class OutputWindow(
 ) {
     var layout: OutputLayout = layout
         private set
+
+    /** Плотность полупрозрачного слоя «Наложения», 0–100 %. */
+    var dim: Int = app.deixis.core.OVERLAY_DIM_DEFAULT
+        set(v) { if (field == v) return; field = v; drawnKey = null; state?.let(::update) }
+
+    /** Окно «Наложения» и система умеет прозрачные окна: кадр без чёрного фона. */
+    private val see = mode == WindowMode.OVERLAY && device?.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT) == true
 
     /**
      * Главный проигрыватель зала: даёт звук и сообщает пульту ход видео и ошибки.
@@ -167,9 +179,20 @@ class OutputWindow(
         cards.add(screen, CARD_SCREEN)
         frame.contentPane = cards
         // Полный экран macOS требует обычного окна с заголовком: система сама убирает рамку.
-        if (mode == WindowMode.EXCLUSIVE || mode == WindowMode.COVER) frame.isUndecorated = true
-        // На выводе курсора нет; на мониторе оператора он появляется, когда двигают мышь.
-        if (mode != WindowMode.WINDOWED) frame.cursor = HIDDEN_CURSOR
+        if (mode == WindowMode.EXCLUSIVE || mode == WindowMode.COVER || mode == WindowMode.OVERLAY) frame.isUndecorated = true
+        if (mode == WindowMode.OVERLAY) {
+            // Без значка на панели задач и без фокуса: под окном работают как обычно.
+            frame.type = java.awt.Window.Type.UTILITY
+            if (see) {
+                frame.background = Color(0, 0, 0, 0)
+                cards.isOpaque = false
+                slide.isOpaque = false
+                screen.isOpaque = false
+            } else app.deixis.diag.Log.w("overlay", "система не умеет прозрачные окна на этом мониторе: наложение — на чёрном")
+        }
+        // На выводе курсора нет; на мониторе оператора он появляется, когда двигают мышь. Над «Наложением» —
+        // курсор программы под ним.
+        if (mode != WindowMode.WINDOWED && mode != WindowMode.OVERLAY) frame.cursor = HIDDEN_CURSOR
         if (mode == WindowMode.NATIVE) MacScreen.allowFullScreen(frame)
         // Окна на мониторах зала не забирают фокус у пульта: щелчок по пульту не сворачивает зал.
         frame.focusableWindowState = focusable
@@ -178,7 +201,7 @@ class OutputWindow(
             // Крестик, Alt+F4, ⌘W: окно, с которым работает оператор, закрывается вместе с программой.
             override fun windowClosing(e: java.awt.event.WindowEvent?) { if (focusable) host.quit() }
         })
-        if (shared) listenMouse(slide)
+        if (shared && mode != WindowMode.OVERLAY) listenMouse(slide)
         slide.addComponentListener(object : ComponentAdapter() {
             override fun componentResized(e: ComponentEvent?) { drawnKey = null; state?.let(::redraw) }
         })
@@ -258,6 +281,13 @@ class OutputWindow(
                     if (frame.isDisplayable && !MacScreen.toggleFullScreen(frame)) System.err.println("Полный экран macOS недоступен: окно по размеру монитора")
                 }.apply { isRepeats = false }.start()
             }
+            mode == WindowMode.OVERLAY -> {
+                frame.bounds = d.defaultConfiguration.bounds
+                frame.isAlwaysOnTop = true
+                frame.focusableWindowState = false
+                frame.isVisible = true
+                SwingUtilities.invokeLater { if (frame.isDisplayable && ClickThrough.apply(frame)) app.deixis.diag.Log.i("overlay", "наложение на ${d.iDstring}: мышь проходит к программе под ним") }
+            }
             mode == WindowMode.EXCLUSIVE -> {
                 frame.bounds = d.defaultConfiguration.bounds
                 frame.isVisible = true
@@ -312,11 +342,12 @@ class OutputWindow(
         val key: Any = when (layout) {
             OutputLayout.HALL -> listOf(s.content, s.mode, s.idle, s.countdownText, s.logo, s.logoImage)
             OutputLayout.STAGE -> listOf(s.copy(now = s.now / 1000), s.countdownText)
+            OutputLayout.OVERLAY -> listOf(s.content, s.mode, s.countdownText, dim)
             else -> s.content to s.mode
         }
         if (key != drawnKey) { drawnKey = key; applyBackdrop(s); redraw(s) }
         // «Чёрный» и «Заставка» убирают слой сразу, без ухода; остальное — плавно.
-        val visible = layout == OutputLayout.HALL && overlaysVisible(s.mode)
+        val visible = (layout == OutputLayout.HALL || layout == OutputLayout.OVERLAY) && overlaysVisible(s.mode)
         setOverlays(if (visible) s.overlays else Overlays(), instant = !visible)
     }
 
@@ -493,10 +524,11 @@ class OutputWindow(
             // и обратный отсчёт с долями секунды не копят отставание в зале).
             if (renderSeq != seq) return@launch
             val img = try {
-                synchronized(frames) { if (renderSeq != seq) null else frames.render(l, pw, ph, s) } ?: return@launch
+                synchronized(frames) { if (renderSeq != seq) null else frames.render(l, pw, ph, s, dim) } ?: return@launch
             } catch (e: Throwable) {
                 if (primary || l != OutputLayout.HALL) host.reportError(e.message ?: "Не удалось показать файл")
-                BufferedImage(pw, ph, BufferedImage.TYPE_INT_RGB).also { blank ->
+                // «Наложение» при сбое — прозрачное: под ним то, что на мониторе, а не чёрный экран поверх работы.
+                BufferedImage(pw, ph, if (l == OutputLayout.OVERLAY && see) BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB).also { blank ->
                     if (l == OutputLayout.CHROMA) blank.createGraphics().run { color = Color(OutputTokens.CHROMA_ARGB.toInt(), true); fillRect(0, 0, pw, ph); dispose() }
                 }
             }
