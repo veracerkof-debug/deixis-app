@@ -97,6 +97,8 @@ class OverlayWindowGuiTest {
             robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
             assertTrue(clicked.await(5, TimeUnit.SECONDS), "щелчок дошёл до программы под наложением")
         } finally {
+            // Курсор — в угол: следующие проверки снимают середину экрана.
+            runCatching { Robot().mouseMove(b.x + b.width - 2, b.y + b.height - 2) }
             SwingUtilities.invokeAndWait { w.dispose(); under.dispose() }
             w.release()
         }

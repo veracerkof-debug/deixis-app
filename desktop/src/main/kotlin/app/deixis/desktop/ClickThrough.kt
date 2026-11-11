@@ -62,16 +62,43 @@ object ClickThrough {
         return true
     }
 
+    /**
+     * macOS: NSWindow окна Java ищется среди окон программы по временному уникальному заголовку
+     * (указатель от JAWT у окон на слоях Core Animation бывает пустым), затем ignoresMouseEvents = YES.
+     */
     private fun mac(w: Window): Boolean {
-        val view = Native.getComponentPointer(w) ?: return false
         val objc = NativeLibrary.getInstance("objc")
         val send = objc.getFunction("objc_msgSend")
         fun sel(n: String): Pointer = objc.getFunction("sel_registerName").invokePointer(arrayOf(n))
-        val ns = send.invokePointer(arrayOf(view, sel("window"))) ?: return false
-        send.invokeVoid(arrayOf(ns, sel("setIgnoresMouseEvents:"), true))
-        return true
+        fun cls(n: String): Pointer = objc.getFunction("objc_getClass").invokePointer(arrayOf(n))
+        fun str(p: Pointer?): String? = p?.let { send.invokePointer(arrayOf(it, sel("UTF8String")))?.getString(0, "UTF-8") }
+        val frame = w as? java.awt.Frame ?: return false
+        val old = frame.title
+        val mark = "deixis-overlay-" + System.nanoTime()
+        frame.title = mark
+        try {
+            val app = send.invokePointer(arrayOf(cls("NSApplication"), sel("sharedApplication"))) ?: return false
+            // Заголовок доходит до NSWindow не сразу: несколько попыток.
+            repeat(MAC_TRIES) {
+                val list = send.invokePointer(arrayOf(app, sel("windows"))) ?: return false
+                val n = send.invokeLong(arrayOf(list, sel("count")))
+                for (i in 0 until n) {
+                    val ns = send.invokePointer(arrayOf(list, sel("objectAtIndex:"), i)) ?: continue
+                    if (str(send.invokePointer(arrayOf(ns, sel("title")))) == mark) {
+                        send.invokeVoid(arrayOf(ns, sel("setIgnoresMouseEvents:"), true))
+                        return true
+                    }
+                }
+                Thread.sleep(MAC_WAIT_MS)
+            }
+            return false
+        } finally {
+            frame.title = old
+        }
     }
 
+    private const val MAC_TRIES = 10
+    private const val MAC_WAIT_MS = 50L
     private const val WS_EX_TRANSPARENT = 0x00000020
     private const val WS_EX_NOACTIVATE = 0x08000000
     private const val WS_EX_TOOLWINDOW = 0x00000080
