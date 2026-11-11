@@ -15,9 +15,6 @@ import app.deixis.core.VideoContent
 import app.deixis.core.style
 import app.deixis.core.layoutSlideText
 import app.deixis.core.qrMatrix
-import org.apache.pdfbox.Loader
-import org.apache.pdfbox.rendering.ImageType
-import org.apache.pdfbox.rendering.PDFRenderer
 import java.awt.AlphaComposite
 import java.awt.BasicStroke
 import java.awt.Color
@@ -46,7 +43,6 @@ class SlideRenderer(
 
     private val frc = FontRenderContext(null, true, true)
     private var imageCache: Pair<String, BufferedImage>? = null
-    private var pdfCache: Pair<String, BufferedImage>? = null
 
     /** Бросает исключение, если файл нельзя прочитать: вызывающий покажет чёрный экран и сообщит пульту. */
     fun render(
@@ -410,17 +406,8 @@ class SlideRenderer(
     }
 
     private fun loadPdfPage(c: PdfContent, w: Int, h: Int): BufferedImage {
-        val key = "${c.file.sha256}:${c.page}:${w}x$h"
-        pdfCache?.let { (k, img) -> if (k == key) return img }
         val file = files.file(c.file.sha256) ?: error("Нет файла «${c.file.name}»")
-        val img = Loader.loadPDF(file).use { doc ->
-            require(c.page in 0 until doc.numberOfPages) { "В «${c.file.name}» нет страницы ${c.page + 1}" }
-            val box = doc.getPage(c.page).cropBox
-            val scale = minOf(w / box.width, h / box.height)
-            PDFRenderer(doc).renderImage(c.page, scale, ImageType.RGB)
-        }
-        pdfCache = key to img
-        return img
+        return PdfPages.page(file, c.page, w, h, c.file.name)
     }
 }
 
@@ -436,12 +423,10 @@ object Fonts {
         Fonts::class.java.getResourceAsStream(path)!!.use { Font.createFont(Font.TRUETYPE_FONT, it) }
 }
 
-/** Страница PDF в PNG для браузеров зрителей. */
-fun renderPdfPagePng(file: java.io.File, page: Int, maxWidth: Int): ByteArray = Loader.loadPDF(file).use { doc ->
-    require(page in 0 until doc.numberOfPages) { "Нет страницы ${page + 1}" }
-    val scale = maxWidth / doc.getPage(page).cropBox.width
-    val img = PDFRenderer(doc).renderImage(page, scale, ImageType.RGB)
-    java.io.ByteArrayOutputStream().also { ImageIO.write(img, "png", it) }.toByteArray()
+/** Страница PDF в PNG для браузеров зрителей (из того же открытого документа, что и зал). */
+fun renderPdfPagePng(file: java.io.File, page: Int, maxWidth: Int): ByteArray {
+    val img = PdfPages.page(file, page, maxWidth, 0)
+    return java.io.ByteArrayOutputStream().also { ImageIO.write(img, "png", it) }.toByteArray()
 }
 
 /** Кегль, которым меряется ширина надписи знака. */

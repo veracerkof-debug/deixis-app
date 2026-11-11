@@ -454,17 +454,22 @@ private fun PdfSlide(runtime: ReceiverRuntime, c: PdfContent) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth
         val h = constraints.maxHeight
-        val bitmap by produceState<Bitmap?>(null, c.file.sha256, c.page, w, h) {
-            value = withContext(Dispatchers.IO) {
-                runCatching {
-                    val file = runtime.core.files.file(c.file.sha256) ?: error("Нет файла «${c.file.name}»")
-                    // На 4K-приставке страница в полный размер — 33 МБ и долгое листание; растягивает её уже экран.
-                    val k = minOf(1f, PDF_MAX_SIDE.toFloat() / maxOf(w, h))
-                    renderPdfPage(file, c.page, (w * k).toInt().coerceAtLeast(1), (h * k).toInt().coerceAtLeast(1))
-                }.onFailure { runtime.core.reportError(it.message ?: "Не удалось открыть PDF") }.getOrNull()
-            }
+        // На 4K-приставке страница в полный размер — 33 МБ и долгое листание; растягивает её уже экран.
+        val k = minOf(1f, PDF_MAX_SIDE.toFloat() / maxOf(w, h))
+        val tw = (w * k).toInt().coerceAtLeast(1)
+        val th = (h * k).toInt().coerceAtLeast(1)
+        // Прежняя страница остаётся на экране, пока не готова новая: при листании зал не мигает чёрным.
+        var shown by remember(c.file.sha256) { mutableStateOf<Bitmap?>(null) }
+        LaunchedEffect(c.file.sha256, c.page, tw, th) {
+            val file = runtime.core.files.file(c.file.sha256)
+            if (file == null) { runtime.core.reportError("Нет файла «${c.file.name}»"); return@LaunchedEffect }
+            PdfPages.cached(file, c.page, tw, th)?.let { shown = it; PdfPages.ahead(file, c.page + 1, tw, th); return@LaunchedEffect }
+            withContext(Dispatchers.IO) {
+                runCatching { PdfPages.page(file, c.page, tw, th) }
+                    .onFailure { runtime.core.reportError(it.message ?: "Не удалось открыть PDF") }.getOrNull()
+            }?.let { shown = it }
         }
-        bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+        shown?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
     }
 }
 
@@ -478,19 +483,7 @@ fun decodeSampled(file: File, maxW: Int, maxH: Int): Bitmap? {
     return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
 }
 
-fun renderPdfPage(file: File, page: Int, maxW: Int, maxH: Int): Bitmap =
-    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-        PdfRenderer(fd).use { renderer ->
-            require(page in 0 until renderer.pageCount) { "В «${file.name}» нет страницы ${page + 1}" }
-            renderer.openPage(page).use { p ->
-                val scale = minOf(maxW.toFloat() / p.width, maxH.toFloat() / p.height)
-                val bmp = Bitmap.createBitmap((p.width * scale).toInt().coerceAtLeast(1), (p.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-                bmp.eraseColor(android.graphics.Color.WHITE)
-                p.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                bmp
-            }
-        }
-    }
+fun renderPdfPage(file: File, page: Int, maxW: Int, maxH: Int): Bitmap = PdfPages.page(file, page, maxW, maxH)
 
 /** Страница PDF для зала рисуется не больше Full HD по длинной стороне. */
 private const val PDF_MAX_SIDE = 1920

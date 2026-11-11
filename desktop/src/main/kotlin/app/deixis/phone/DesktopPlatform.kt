@@ -7,9 +7,6 @@ import app.deixis.core.SqlSource
 import app.deixis.core.mimeOf
 import app.deixis.desktop.JdbcSql
 import app.deixis.desktop.VideoProbe
-import org.apache.pdfbox.Loader
-import org.apache.pdfbox.rendering.ImageType
-import org.apache.pdfbox.rendering.PDFRenderer
 import java.awt.image.BufferedImage
 import java.io.File
 import java.io.InputStream
@@ -54,7 +51,7 @@ class DesktopPlatform(
     override fun keep(uri: String) = Unit
     override fun fileUri(f: File): String = f.toURI().toString()
 
-    override fun pdfPages(uri: String): Int = file(uri)?.let { f -> Loader.loadPDF(f).use { it.numberOfPages } } ?: 0
+    override fun pdfPages(uri: String): Int = file(uri)?.let { f -> app.deixis.desktop.PdfPages.count(f) } ?: 0
 
     override fun videoDurationMs(uri: String): Long = file(uri)?.let(VideoProbe::durationMs) ?: 0L
 
@@ -100,11 +97,8 @@ class DesktopPlatform(
     override fun thumbnail(uri: String, kind: ThumbKind, index: Int, width: Int): ImageBitmap? {
         val f = file(uri)?.takeIf { it.isFile } ?: return null
         val img: BufferedImage = when (kind) {
-            ThumbKind.PAGE -> Loader.loadPDF(f).use { doc ->
-                if (index !in 0 until doc.numberOfPages) return null
-                val scale = width / doc.getPage(index).cropBox.width
-                PDFRenderer(doc).renderImage(index, scale, ImageType.RGB)
-            }
+            // Тот же открытый документ, что у зала этого компьютера; следующая миниатюра готовится заранее.
+            ThumbKind.PAGE -> if (index !in 0 until app.deixis.desktop.PdfPages.count(f)) return null else app.deixis.desktop.PdfPages.page(f, index, width, 0)
             ThumbKind.PHOTO -> scaled(ImageIO.read(f) ?: return null, width)
             ThumbKind.VIDEO -> VideoProbe.frame(f, VIDEO_FRAME_MS, width) ?: return null
         }

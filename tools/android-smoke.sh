@@ -57,6 +57,31 @@ walk_phone() {
   alive $pkg || { echo "=== $pkg упал после «Назад»"; status=1; }
 }
 
+# Сеть экрана на настоящем APK выпуска (после R8): сервер отвечает, шифрованный вход отвечает, пульт с компьютера
+# (DEIXIS_CLI) вводит PIN с экрана и показывает слайд. Ломается молча только здесь — поэтому проверяется отдельно.
+net_check() {
+  adb forward tcp:47820 tcp:47820 > /dev/null
+  info=$(curl -s --max-time 10 http://127.0.0.1:47820/info)
+  if [ -z "$info" ]; then echo "=== ТВ: сервер не отвечает"; status=1; return; fi
+  echo "=== ТВ /info: $info"
+  tp=$(echo "$info" | sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p')
+  if [ -n "$tp" ] && [ "$tp" != 0 ]; then
+    adb forward tcp:$tp tcp:$tp > /dev/null
+    if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ: шифрованный вход отвечает"; else echo "=== ТВ: шифрованный вход НЕ отвечает"; status=1; fi
+  fi
+  [ -n "$DEIXIS_CLI" ] && [ -x "$DEIXIS_CLI" ] || { echo "=== ТВ: показ с пульта не проверен (нет DEIXIS_CLI)"; return; }
+  adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+  pin=$(adb shell cat /sdcard/ui.xml | grep -o 'text="[0-9][0-9][0-9][0-9]"' | head -1 | grep -o '[0-9][0-9][0-9][0-9]')
+  if [ -z "$pin" ]; then echo "=== ТВ: PIN на экране не найден — показ с пульта не проверен"; return; fi
+  if "$DEIXIS_CLI" send --to 127.0.0.1:47820 --pin "$pin" --text "Проверка связи"; then
+    sleep 2
+    adb exec-out screencap -p > smoke/tv-shown.png
+    echo "=== ТВ: пульт подключился по PIN и показал слайд"
+  else
+    echo "=== ТВ: показ с пульта НЕ удался"; status=1
+  fi
+}
+
 for target in tv:MainActivity phone:MainActivity phone:ScreenActivity; do
   app=${target%%:*}
   activity=${target#*:}
@@ -70,6 +95,7 @@ for target in tv:MainActivity phone:MainActivity phone:ScreenActivity; do
   adb exec-out screencap -p > "smoke/$app-$activity.png"
   if alive "$pkg"; then echo "=== $pkg/$activity работает"; else echo "=== $pkg/$activity НЕ РАБОТАЕТ"; status=1; fi
   [ "$target" = phone:MainActivity ] && walk_phone
+  [ "$target" = tv:MainActivity ] && alive "$pkg" && net_check
   adb logcat -d > "smoke/$app-$activity-logcat.txt"
   echo "--- падения $pkg:"
   crash=$(adb logcat -d -b crash | grep -A40 "Process: $pkg")

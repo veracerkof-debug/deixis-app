@@ -59,6 +59,9 @@ class PhoneApp : Application() {
         // Журнал пульта — в файл log.txt (для «Диагностики»), необработанные ошибки — с причиной.
         app.deixis.diag.Log.toFile(filesDir)
         app.deixis.diag.Log.catchUncaught()
+        // Библиотека читается сразу при старте процесса, в фоне, пока создаётся окно: экран пульта не ждёт её
+        // в главном потоке (by lazy — один раз; окно, если успеет раньше, дождётся того же чтения).
+        appScope.launch { runCatching { controller } }
         val file = java.io.File(filesDir, "last-crash.txt")
         lastCrash = file.takeIf { it.isFile }?.readText()?.also { file.delete() }
         val previous = Thread.getDefaultUncaughtExceptionHandler()

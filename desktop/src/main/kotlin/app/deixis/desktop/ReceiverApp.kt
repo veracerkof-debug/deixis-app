@@ -141,7 +141,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         core.holyrics = HolyricsBridge(core.files)
         // Для веб-пульта: модули Библии хранятся здесь, страницы PDF считаются здесь.
         core.bible = BibleStore(File(opts.dataDir, "bible")) { JdbcSql(it) }
-        core.pageCounter = { f -> org.apache.pdfbox.Loader.loadPDF(f).use { it.numberOfPages } }
+        core.pageCounter = { f -> PdfPages.count(f) }
         pdfConverter = OfficeConverter(engines)
         pdfEngines = engines
         core.conversions = Conversions(core, pdfConverter, File(opts.dataDir, "convert"))
@@ -535,6 +535,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         }
         scope.launch(Dispatchers.IO) {
             val token = operatorToken()
+            // Библиотека пульта читается здесь, в фоне: окно пульта открывается без паузы, зал не замирает.
+            runCatching { pultController() }.onFailure { app.deixis.diag.Log.w("pult", "пульт не подготовлен заранее", it) }
             kotlinx.coroutines.withContext(Dispatchers.Swing) {
                 val ok = runCatching { openPult(token) }.onFailure { System.err.println("Окно пульта не открылось:"); it.printStackTrace() }.isSuccess
                 println("Окно пульта: ${if (ok) "открыто" else "запасной путь — браузер"}")
@@ -544,12 +546,16 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         }
     }
 
+    /** Пульт этого компьютера; первый раз читает библиотеку — поэтому зовётся заранее, не из потока окон. */
+    @Synchronized
+    private fun pultController(): app.deixis.phone.Controller = pultController ?: run {
+        val platform = app.deixis.phone.DesktopPlatform(opts.dataDir, pdfConverter, { address?.hostAddress }, { pult?.showing == true }, APP_VERSION, ::desktopChecks)
+        app.deixis.phone.Controller(platform).also { pultController = it }
+    }
+
     /** Открывает (или выводит вперёд) окно пульта и связывает его со своим экраном. Только в потоке окон. */
     private fun openPult(token: String) {
-        val c = pultController ?: run {
-            val platform = app.deixis.phone.DesktopPlatform(opts.dataDir, pdfConverter, { address?.hostAddress }, { pult?.showing == true }, APP_VERSION, ::desktopChecks)
-            app.deixis.phone.Controller(platform).also { pultController = it }
-        }
+        val c = pultController()
         val w = pult ?: run {
             val ui = app.deixis.phone.Ui()
             val host = app.deixis.phone.DesktopHost(c.platform, { app.deixis.phone.HolyricsSource(c.platform, c) }, updates, APP_VERSION) { ui.toast(it) }

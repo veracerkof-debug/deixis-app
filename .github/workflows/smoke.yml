@@ -4,7 +4,7 @@ name: Android smoke
 on:
   workflow_dispatch:
   push:
-    paths: ["android/**", "core/src/main/**", ".github/workflows/smoke.yml", "tools/android-smoke.sh"]
+    paths: ["android/**", "core/src/main/**", "pult/**", ".github/workflows/smoke.yml", "tools/android-smoke.sh"]
 
 concurrency:
   group: smoke-${{ github.ref }}
@@ -27,7 +27,7 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Сборка APK
-        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease
+        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease :desktop:installDist
       - name: KVM для эмулятора
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -41,7 +41,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: ./tools/android-smoke.sh
+          script: DEIXIS_CLI=$PWD/desktop/build/install/deixis/bin/deixis ./tools/android-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

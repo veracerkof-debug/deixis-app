@@ -9,6 +9,8 @@ import java.sql.DriverManager
 class JdbcSql(file: File) : SqlSource {
     private val conn: Connection = DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}?open_mode=1")
 
+    // Одно соединение JDBC — один запрос за раз: стихи готовятся в фоне, пока пульт читает ту же базу.
+    @Synchronized
     override fun query(sql: String, vararg args: Any): List<List<Any?>> = conn.prepareStatement(sql).use { st ->
         args.forEachIndexed { i, a -> st.setObject(i + 1, a) }
         st.executeQuery().use { rs ->
@@ -17,5 +19,5 @@ class JdbcSql(file: File) : SqlSource {
         }
     }
 
-    override fun close() = conn.close()
+    @Synchronized override fun close() = conn.close()
 }

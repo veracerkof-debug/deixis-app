@@ -380,7 +380,10 @@ class Controller(val platform: Platform) {
         // Язык пульта — до первых сообщений; дальше следует за настройками (восстановление копии, другой профиль).
         I18n.apply(store.data.settings.lang)
         scope.launch { settings.collect { I18n.apply(it.lang) } }
-        scope.launch(Dispatchers.IO) { bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList()) }
+        scope.launch(Dispatchers.IO) {
+            bibleModules.value = runCatching { bible.modules() }.getOrDefault(emptyList())
+            warmScripture()
+        }
         watchCountdown()
         if (store.recovered) scope.launch { messages.emit(L.libRecovered) }
         if (store.skippedNewer > 0) scope.launch { messages.emit(L.libNewer(store.skippedNewer)) }
@@ -691,7 +694,19 @@ class Controller(val platform: Platform) {
     }
 
     // ——— Слайды элементов ———
-    private val scriptureCache = mutableMapOf<BiblePick, List<ScriptureContent>>()
+    private val scriptureCache = java.util.concurrent.ConcurrentHashMap<BiblePick, List<ScriptureContent>>()
+
+    /**
+     * Слайды всех мест Писания в библиотеке — заранее, в фоне: иначе первый показ сетлиста с Писанием
+     * читает базу модуля прямо при отрисовке списка, и прокрутка подтормаживает.
+     */
+    private fun warmScripture() {
+        for (it in data.value.items) {
+            val pick = it.bible ?: continue
+            if (scriptureCache.containsKey(pick)) continue
+            runCatching { scripture(pick) }
+        }
+    }
 
     fun slidesOf(item: LibItem): List<Slide> = when (item.kind) {
         Kind.SONG, Kind.TEXT -> item.slides.mapIndexed { i, s -> Slide.Text(s, item.labels.getOrNull(i)) }
@@ -1739,6 +1754,7 @@ class Controller(val platform: Platform) {
             val m = withContext(Dispatchers.IO) { bible.import(uri) }
             bibleModules.value = withContext(Dispatchers.IO) { bible.modules() }
             scriptureCache.clear()
+            withContext(Dispatchers.IO) { warmScripture() }
             messages.emit(L.translationAdded(m.title))
         } catch (e: Exception) {
             messages.emit(e.message ?: L.cantAddModule)
@@ -1750,6 +1766,7 @@ class Controller(val platform: Platform) {
         bible.selected = bible.selected - fileName
         bibleModules.value = bible.modules()
         scriptureCache.clear()
+        scope.launch(Dispatchers.IO) { warmScripture() }
     }
 
     // ——— Демонстрация экрана ———

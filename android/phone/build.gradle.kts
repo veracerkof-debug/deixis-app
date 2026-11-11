@@ -35,7 +35,10 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: меньше APK и быстрее Compose; осторожные правила — android/proguard-deixis.pro (без перемешивания имён).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), rootProject.file("android/proguard-deixis.pro"))
             // Без ключа (проверка на эмуляторе) релиз подписывается отладочным ключом; выпуск без ключа не проходит проверку в release.yml.
             signingConfig = signingConfigs.getByName(if (keystore != null) "release" else "debug")
         }

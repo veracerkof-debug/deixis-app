@@ -88,7 +88,8 @@ class ReceiverRuntime(
         server = ReceiverServer(core, port, if (loopbackOnly) "127.0.0.1" else "0.0.0.0", tls = tlsId)
         core.pageRenderer = PageRenderer { file, page, width ->
             val bmp = renderPdfPage(file, page, width, width * 4)
-            java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it); bmp.recycle() }.toByteArray()
+            // Страница — из общей памяти страниц PDF (её же показывает зал): не освобождается здесь.
+            java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
         }
         // Для веб-пульта (iPhone): модули Библии хранятся на ТВ, страницы PDF считаются здесь.
         core.bible = app.deixis.core.BibleStore(File(dataDir, "bible")) { AndroidSql(it) }
@@ -103,9 +104,7 @@ class ReceiverRuntime(
             app.deixis.diag.Checks.common(dataDir) +
                 listOf(AndroidChecks.device(), AndroidChecks.wifi(appContext), AndroidChecks.screen(appContext), AndroidChecks.player(appContext))
         }
-        core.pageCounter = { f ->
-            android.os.ParcelFileDescriptor.open(f, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { fd -> android.graphics.pdf.PdfRenderer(fd).use { it.pageCount } }
-        }
+        core.pageCounter = { f -> PdfPages.count(f) }
     }
 
     suspend fun start() = withContext(Dispatchers.IO) {

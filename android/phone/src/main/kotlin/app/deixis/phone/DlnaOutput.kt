@@ -193,7 +193,7 @@ class DlnaOutput(private val app: Application) : DlnaOut {
         val w = page.width * scale
         val h = page.height * scale
         canvas.drawBitmap(page, null, RectF((1920 - w) / 2, (1080 - h) / 2, (1920 + w) / 2, (1080 + h) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
-        page.recycle()
+        // Страница — из общей памяти страниц PDF (её же может показывать зал): не освобождается здесь.
         return out
     }
 }
