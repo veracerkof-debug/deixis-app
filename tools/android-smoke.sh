@@ -67,7 +67,12 @@ net_check() {
   tp=$(echo "$info" | sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p')
   if [ -n "$tp" ] && [ "$tp" != 0 ]; then
     adb forward tcp:$tp tcp:$tp > /dev/null
-    if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ: шифрованный вход отвечает"; else echo "=== ТВ: шифрованный вход НЕ отвечает"; status=1; fi
+    if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ: шифрованный вход отвечает"
+    else
+      echo "=== ТВ: шифрованный вход НЕ отвечает"; status=1
+      curl -vk --max-time 10 "https://127.0.0.1:$tp/info" 2>&1 | tail -20
+      adb logcat -d | grep -iE "deixis|ssl|tls|conscrypt" | grep -iE "exception|error|fail" | tail -20
+    fi
   fi
   [ -n "$DEIXIS_CLI" ] && [ -x "$DEIXIS_CLI" ] || { echo "=== ТВ: показ с пульта не проверен (нет DEIXIS_CLI)"; return; }
   adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
@@ -95,7 +100,20 @@ for target in tv:MainActivity phone:MainActivity phone:ScreenActivity; do
   adb exec-out screencap -p > "smoke/$app-$activity.png"
   if alive "$pkg"; then echo "=== $pkg/$activity работает"; else echo "=== $pkg/$activity НЕ РАБОТАЕТ"; status=1; fi
   [ "$target" = phone:MainActivity ] && walk_phone
-  [ "$target" = tv:MainActivity ] && alive "$pkg" && net_check
+  if [ "$target" = tv:MainActivity ] && alive "$pkg"; then
+    net_check
+    # Для сравнения: та же проверка на сборке без R8 (отладочной), если она есть.
+    dbg=$(ls android/tv/build/outputs/apk/debug/*universal*.apk 2>/dev/null | head -1)
+    if [ -z "$APK_DIR" ] && [ -n "$dbg" ]; then
+      echo "=== ТВ без R8 (для сравнения): $dbg"
+      adb uninstall "$pkg" > /dev/null; adb install "$dbg" > /dev/null
+      adb shell am start -W -n "$pkg/$pkg.$activity" > /dev/null; sleep 15
+      tp=$(curl -s --max-time 10 http://127.0.0.1:47820/info | sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p')
+      [ -n "$tp" ] && adb forward tcp:$tp tcp:$tp > /dev/null
+      if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ без R8: шифрованный вход отвечает"; else echo "=== ТВ без R8: шифрованный вход тоже НЕ отвечает"; fi
+      adb uninstall "$pkg" > /dev/null; adb install "$apk" > /dev/null
+    fi
+  fi
   adb logcat -d > "smoke/$app-$activity-logcat.txt"
   echo "--- падения $pkg:"
   crash=$(adb logcat -d -b crash | grep -A40 "Process: $pkg")
