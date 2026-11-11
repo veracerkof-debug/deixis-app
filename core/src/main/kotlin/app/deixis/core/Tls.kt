@@ -172,7 +172,9 @@ class TlsGateway(
             client.soTimeout = 0
             client.tcpNoDelay = true
             inner.tcpNoDelay = true
-            inner.connect(InetSocketAddress(InetAddress.getLoopbackAddress(), target()), CONNECT_TIMEOUT_MS)
+            // Именно 127.0.0.1, как у внутреннего входа сервера: на Android getLoopbackAddress() — это ::1 (IPv6),
+            // и соединение туда отклонялось — шифрованный вход Android-экрана закрывался без ответа.
+            inner.connect(InetSocketAddress(INNER_HOST, target()), CONNECT_TIMEOUT_MS)
             origins[inner.localPort] = client.inetAddress.hostAddress ?: "tls"
             val back = pool.submit { pump(inner.getInputStream(), client.getOutputStream()); runCatching { client.close() } }
             pump(client.getInputStream(), inner.getOutputStream())
@@ -209,6 +211,8 @@ class TlsGateway(
         const val HANDSHAKE_TIMEOUT_MS = 10_000
         const val CONNECT_TIMEOUT_MS = 5_000
         const val BUFFER = 64 * 1024
+        /** Внутренний вход сервера (Receiver: connector на "127.0.0.1"). */
+        val INNER_HOST: InetAddress = InetAddress.getByAddress("localhost", byteArrayOf(127, 0, 0, 1))
     }
 }
 
