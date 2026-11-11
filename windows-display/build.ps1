@@ -19,7 +19,7 @@ Copy-Item $built.FullName, $inf.FullName $out -Force
 # Помощник установки — обычная консольная программа.
 $devcmd = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
 $src = Join-Path $root 'installer\deixis-display.cpp'
-cmd /c "call `"$devcmd`" -arch=amd64 -no_logo && cl /nologo /O2 /EHsc /MT /DUNICODE /D_UNICODE `"$src`" /Fe:`"$out\deixis-display.exe`" /Fo:`"$out\\`" setupapi.lib newdev.lib crypt32.lib"
+cmd /c "call `"$devcmd`" -arch=amd64 -no_logo && cl /nologo /utf-8 /O2 /EHsc /MT /DUNICODE /D_UNICODE `"$src`" /Fe:`"$out\deixis-display.exe`" /Fo:`"$out\\`" setupapi.lib newdev.lib crypt32.lib"
 if ($LASTEXITCODE -ne 0) { throw "помощник не собрался" }
 Remove-Item "$out\*.obj" -ErrorAction SilentlyContinue
 
