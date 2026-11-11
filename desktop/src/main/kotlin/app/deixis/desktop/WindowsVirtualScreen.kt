@@ -52,13 +52,24 @@ object WindowsVirtualScreen {
         find()?.let { return@runCatching it }
         if (!exists) {
             app.deixis.diag.Log.i("virtual", "Windows: ставлю драйвер Deixis Display (окно прав администратора)")
-            val code = elevated("install", File(d, "DeixisDisplay.inf").path, File(d, "DeixisDisplay.cer").path)
+            // Помощник идёт в скрытом окне с правами администратора: свои шаги и ошибки Windows он пишет в файл.
+            val steps = File.createTempFile("deixis-display-", ".log")
+            val code = try {
+                elevated("install", File(d, "DeixisDisplay.inf").path, File(d, "DeixisDisplay.cer").path, "--log", steps.path)
+            } finally {
+                runCatching { steps.readText(Charsets.UTF_8).lines().map { it.trim('\uFEFF', ' ') }.filter { it.isNotEmpty() } }.getOrDefault(emptyList())
+                    .forEach { app.deixis.diag.Log.i("virtual", "Windows: $it") }
+                steps.delete()
+            }
             app.deixis.diag.Log.i("virtual", "Windows: помощник установки завершился, код $code")
             when (code) {
                 0 -> Unit
                 // Окно прав могло остаться под другими окнами: ответ пришёл позже — монитор ещё может появиться.
                 -1 -> if (waitFor(LATE_MS) == null) throw Refused("окно прав администратора осталось без ответа — оно могло открыться под другими окнами")
                 1223 -> throw Refused(DECLINED)
+                2 -> error("Windows не доверила драйверу Deixis Display: сертификат не принят (часто — антивирус) и установка без него не прошла. Подробности — в журнале, строки «virtual»")
+                3 -> error("Windows не завела устройство виртуального монитора (подробности — в журнале)")
+                4 -> error("драйвер виртуального монитора не установился (подробности — в журнале)")
                 else -> error("установка драйвера: код $code")
             }
         }

@@ -33,8 +33,11 @@ jobs:
           # Проверщик WDF для нашего драйвера: при нарушении он пишет, какой вызов неверен.
           New-Item -Force "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" | Out-Null
           Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WUDF\Services\DeixisDisplay\Parameters\Wdf" VerifierOn 1
-          & "$out/deixis-display.exe" install (Resolve-Path "$out/DeixisDisplay.inf") (Resolve-Path "$out/DeixisDisplay.cer")
-          if ($LASTEXITCODE -ne 0) { throw "установка: код $LASTEXITCODE" }
+          & "$out/deixis-display.exe" install (Resolve-Path "$out/DeixisDisplay.inf") (Resolve-Path "$out/DeixisDisplay.cer") --log "$env:RUNNER_TEMP\helper.log"
+          $code = $LASTEXITCODE
+          "--- шаги помощника:"; Get-Content "$env:RUNNER_TEMP\helper.log"
+          if ($code -ne 0) { throw "установка: код $code" }
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\helper.log" -Pattern "драйвер: установлен" -Quiet)) { throw "в журнале помощника нет шага установки драйвера" }
           & "$out/deixis-display.exe" status; if ($LASTEXITCODE -ne 0) { throw "устройство не заведено" }
           $seen = $false
           for ($i = 0; $i -lt 30 -and -not $seen; $i++) { Start-Sleep 1; $seen = (Monitors) -contains 'DXS' }

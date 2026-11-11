@@ -212,8 +212,26 @@ object VirtualScreen {
         else -> LinuxVirtualScreen.created != null
     }
 
-    /** Создаёт (или берёт уже созданный) и возвращает, что снимать. */
-    fun create(): Result<CaptureArea> = when {
+    private val creating = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var failedAt = 0L
+
+    /**
+     * Создаёт (или берёт уже созданный) и возвращает, что снимать. Одновременно — одна попытка, и сразу после
+     * неудачи новая не начинается: повторные нажатия «Создать» не открывают окно прав администратора раз за разом.
+     */
+    fun create(): Result<CaptureArea> {
+        if (System.currentTimeMillis() - failedAt < RETRY_PAUSE_MS) return Result.failure(IllegalStateException(lastError ?: "только что не вышло — попробуйте через несколько секунд"))
+        if (!creating.compareAndSet(false, true)) return Result.failure(IllegalStateException("уже создаётся — ответьте в окне Windows"))
+        try {
+            return createNow().also { if (it.isFailure) failedAt = System.currentTimeMillis() }
+        } finally {
+            creating.set(false)
+        }
+    }
+
+    private const val RETRY_PAUSE_MS = 5_000L
+
+    private fun createNow(): Result<CaptureArea> = when {
         mac -> MacVirtualScreen.create().map { id ->
             // Новый дисплей появляется в списке съёмки не сразу.
             Thread.sleep(1_000)

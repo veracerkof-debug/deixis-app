@@ -150,6 +150,8 @@ fun ScreenInputs(c: Controller, t: Target) {
     val scope = rememberCoroutineScope()
     // Экран компьютера: какой монитор, окно или виртуальный экран транслировать.
     var cap by remember { mutableStateOf<app.deixis.core.CaptureState?>(null) }
+    // Пока экран выполняет выбор (создание виртуального экрана ждёт окна прав Windows), кнопки не жмутся повторно.
+    var busy by remember { mutableStateOf(false) }
     LaunchedEffect(t.id) { while (true) { cap = c.screenCapture(t); delay(5_000) } }
     cap?.let { st ->
         GHead(L.capTitle)
@@ -164,7 +166,10 @@ fun ScreenInputs(c: Controller, t: Target) {
                 }
                 Cell(src.name, sub, kind = if (src.kind == app.deixis.core.CaptureSource.WINDOW) "file" else "show", chevron = null) {
                     Pill(if (on) L.capStop else if (src.kind == app.deixis.core.CaptureSource.NEW_VIRTUAL) L.capCreate else L.capStart, tint = !on) {
-                        scope.launch { c.screenCapture(t, if (on) "" else src.id)?.let { cap = it } }
+                        if (!busy) scope.launch {
+                            busy = true
+                            try { c.screenCapture(t, if (on) "" else src.id)?.let { cap = it } } finally { busy = false }
+                        }
                     }
                 }
             }
