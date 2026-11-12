@@ -12,7 +12,8 @@
 //       помощник идёт с правами администратора в скрытом окне, и Deixis читает причину отсюда, в свой журнал.
 //
 // Коды выхода install: 0 — монитор подключён; 2 — Windows не доверила драйверу (сертификат не принят и
-// установка без него не прошла); 3 — устройство не заведено; 4 — драйвер не встал; 1223 — отказ в окне Windows.
+// установка без него не прошла); 3 — устройство не заведено; 4 — драйвер не встал; 6 — нет файла драйвера
+// (путь пришёл не целым); 1223 — отказ в окне Windows.
 //
 // Запускается Deixis с запросом прав администратора (один раз на включение или выключение).
 // Закрытый ключ сертификата существует только во время сборки в CI и сразу удаляется: подписать им
@@ -25,6 +26,7 @@
 #include <devguid.h>
 #include <wincrypt.h>
 #include <cstdio>
+#include <cwctype>
 #include <string>
 #include <vector>
 
@@ -110,7 +112,26 @@ bool CreateDevice() {
     return ok;
 }
 
+// Устройства, заведённые старыми версиями с разрезанным путём (до 0.10.34): id вида «C:\Program».
+// Настоящий id устройства никогда не начинается с буквы диска — такие убираются без риска для чужих.
+void RemoveBrokenDevices() {
+    HDEVINFO set = SetupDiGetClassDevsW(&GUID_DEVCLASS_DISPLAY, nullptr, nullptr, 0);
+    if (set == INVALID_HANDLE_VALUE) return;
+    SP_DEVINFO_DATA info = {sizeof(info)};
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(set, i, &info); i++) {
+        wchar_t ids[512] = {};
+        if (!SetupDiGetDeviceRegistryPropertyW(set, &info, SPDRP_HARDWAREID, nullptr, reinterpret_cast<BYTE*>(ids), sizeof(ids) - 2, nullptr)) continue;
+        if (!(iswalpha(ids[0]) && ids[1] == L':' && (ids[2] == L'\\' || ids[2] == L'/'))) continue;
+        if (SetupDiCallClassInstaller(DIF_REMOVE, set, &info)) Note((std::wstring(L"убрано битое устройство прошлой попытки: ") + ids).c_str());
+        else Note(L"битое устройство прошлой попытки не убрано", GetLastError());
+    }
+    SetupDiDestroyDeviceInfoList(set);
+}
+
 int Install(const std::wstring& inf, const std::wstring& cer) {
+    RemoveBrokenDevices();
+    // Путь пришёл целым? Иначе дальше всё равно ничего не выйдет, а причина потеряется.
+    if (GetFileAttributesW(inf.c_str()) == INVALID_FILE_ATTRIBUTES) { DWORD e = GetLastError(); Note((L"драйвер: нет файла " + inf).c_str(), e); return 6; }
     // Сертификат не приняли (антивирус, политика компьютера) — не конец: Windows сама спросит,
     // ставить ли драйвер этого издателя, и оператор ответит «Установить».
     DWORD certError = AddCertificate(cer);
