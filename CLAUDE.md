@@ -8,6 +8,7 @@ Deixis (греч. δεῖξις — «показ», от δείκνυμι — «
 - Архитектура, форматы, проверка: [ARCHITECTURE.md](ARCHITECTURE.md).
 - Экраны и роли: [SCREENS.md](SCREENS.md), кликабельный прототип — [prototype/index.html](prototype/index.html).
 - Журнал решений: [DECISIONS.md](DECISIONS.md). Значимое решение записывается туда строкой.
+- Документация для работы: [docs/README.md](docs/README.md) — карта кода, протокол, компьютер, Android, пульт, сборка и выпуск, порядок работы ([docs/dev/WORKFLOW.md](docs/dev/WORKFLOW.md)). Перед правкой «странного» места — [docs/dev/KNOWLEDGE.md](docs/dev/KNOWLEDGE.md): разборы сбоев и почему код устроен так. Новое знание (причина сбоя, обходной приём) записывается туда, а не остаётся в памяти.
 
 ## Жёсткие правила
 
