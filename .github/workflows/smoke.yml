@@ -4,7 +4,7 @@ name: Android smoke
 on:
   workflow_dispatch:
   push:
-    paths: ["android/**", "core/src/main/**", "pult/**", ".github/workflows/smoke.yml", "tools/android-smoke.sh"]
+    paths: ["android/**", "core/src/main/**", "diag/**", "desktop/**", "pult/**", ".github/workflows/smoke.yml", "tools/android-smoke.sh"]
 
 concurrency:
   group: smoke-${{ github.ref }}

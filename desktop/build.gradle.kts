@@ -99,6 +99,11 @@ tasks.test {
     jvmArgs(macExports)
     systemProperty("deixis.compat", rootProject.file("testdata/compat").path)
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+    // Имена файлов с кириллицей (демо, папки Holyrics) под локалью C превращаются в «?????» — только на Linux.
+    if (System.getProperty("os.name").orEmpty().lowercase().contains("linux")) {
+        environment("LC_ALL", "C.UTF-8")
+        environment("LANG", "C.UTF-8")
+    }
     // Проверка настоящих окон (CI на macOS, Windows и Linux с xvfb): -Ddeixis.gui=1.
     System.getProperty("deixis.gui")?.let {
         systemProperty("deixis.gui", it)
