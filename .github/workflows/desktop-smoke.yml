@@ -55,9 +55,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force smoke | Out-Null
+          # Как после установщика: путь с пробелом («Program Files»). Без пробела ошибка 0.10.30–0.10.33 не видна (KNOWLEDGE 1.2).
+          $app = "$env:RUNNER_TEMP\Program Files\Deixis"
+          New-Item -ItemType Directory -Force (Split-Path $app) | Out-Null
+          Copy-Item out\Deixis $app -Recurse
           $data = "$env:RUNNER_TEMP\deixis-data"
           # Тот же запуск, что из меню «Пуск»: без консоли, через запускатель jpackage.
-          $p = Start-Process -FilePath "out\Deixis\Deixis.exe" -ArgumentList @("receive", "--role", "both", "--data", $data) -PassThru
+          $p = Start-Process -FilePath "$app\Deixis.exe" -ArgumentList @("receive", "--role", "both", "--data", $data) -PassThru
           Start-Sleep -Seconds 60
           Add-Type @"
           using System; using System.Text; using System.Runtime.InteropServices; using System.Collections.Generic;
@@ -94,13 +98,13 @@ jobs:
           # Один дисплей у «Пульта и экрана»: Deixis сам создаёт виртуальный монитор и выводит зал туда.
           if (-not (Select-String -Path "$data\log.txt" -Pattern "зал — на виртуальном мониторе" -Quiet)) { Write-Error "Зал не ушёл на виртуальный монитор"; exit 1 }
           # Повторный запуск при работающей программе открывает её пульт, а не молчит.
-          & "out\Deixis\Deixis.exe" receive --role both --data $data
+          & "$app\Deixis.exe" receive --role both --data $data
           Start-Sleep -Seconds 3
           Copy-Item "$data\log.txt" smoke\log-after.txt -ErrorAction SilentlyContinue
           "--- после повторного запуска:"
           [Win]::Titles(0) | Where-Object { $_ -match "Deixis" }
           Get-Process | Where-Object { $_.ProcessName -like "Deixis*" } | Stop-Process -Force
-          & "out\Deixis\deixis-display\deixis-display.exe" remove
+          & "$app\deixis-display\deixis-display.exe" remove
       - name: Запуск и окна (macOS)
         if: runner.os == 'macOS'
         run: |

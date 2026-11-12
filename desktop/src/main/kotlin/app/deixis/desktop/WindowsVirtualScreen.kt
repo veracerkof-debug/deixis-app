@@ -70,6 +70,7 @@ object WindowsVirtualScreen {
                 2 -> error("Windows не доверила драйверу Deixis Display: сертификат не принят (часто — антивирус) и установка без него не прошла. Подробности — в журнале, строки «virtual»")
                 3 -> error("Windows не завела устройство виртуального монитора (подробности — в журнале)")
                 4 -> error("драйвер виртуального монитора не установился (подробности — в журнале)")
+                6 -> error("помощник установки не нашёл файлы драйвера (подробности — в журнале)")
                 else -> error("установка драйвера: код $code")
             }
         }
@@ -129,11 +130,36 @@ object WindowsVirtualScreen {
     /** Запуск помощника с правами администратора (окно UAC); код выхода, -1 — не запустился или отказ. */
     private fun elevated(vararg args: String): Int {
         val exe = helper ?: return -1
+        return run(listOf("powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded(elevateScript(exe.path, args.toList()))), 120)
+    }
+
+    /**
+     * Скрипт PowerShell: помощник с правами администратора. Аргументы помощнику идут одной строкой, каждый в кавычках
+     * по правилам Windows: иначе путь «C:\Program Files\…» режется на пробеле (так было до 0.10.34, см. KNOWLEDGE 1.2).
+     * Отказ в окне прав — исключение PowerShell: код 1223, как у Windows (ERROR_CANCELLED).
+     */
+    internal fun elevateScript(exe: String, args: List<String>): String {
         fun ps(s: String) = "'" + s.replace("'", "''") + "'"
-        val list = args.joinToString(",") { ps("\"$it\"") }
-        // Отказ в окне прав — исключение PowerShell: код 1223, как у Windows (ERROR_CANCELLED).
-        val cmd = "try { \$p = Start-Process -FilePath ${ps(exe.path)} -ArgumentList $list -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit \$p.ExitCode } catch { exit 1223 }"
-        return run(listOf("powershell", "-NoProfile", "-NonInteractive", "-Command", cmd), 120)
+        val line = args.joinToString(" ", transform = ::winArg)
+        return "try { \$p = Start-Process -FilePath ${ps(exe)} -ArgumentList ${ps(line)} -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit \$p.ExitCode } catch { exit 1223 }"
+    }
+
+    /** Скрипт для -EncodedCommand: UTF-16LE в Base64 — так Java и PowerShell не трогают кавычки внутри. */
+    internal fun encoded(script: String): String = java.util.Base64.getEncoder().encodeToString(script.toByteArray(Charsets.UTF_16LE))
+
+    /** Аргумент командной строки Windows в кавычках (правила CommandLineToArgvW: обратные косые перед кавычкой удваиваются). */
+    internal fun winArg(s: String): String {
+        val b = StringBuilder("\"")
+        var slashes = 0
+        for (c in s) {
+            when (c) {
+                '\\' -> slashes++
+                '"' -> { repeat(slashes * 2 + 1) { b.append('\\') }; b.append('"'); slashes = 0 }
+                else -> { repeat(slashes) { b.append('\\') }; slashes = 0; b.append(c) }
+            }
+        }
+        repeat(slashes * 2) { b.append('\\') }
+        return b.append('"').toString()
     }
 
     private fun run(cmd: List<String>, seconds: Long = 15): Int = runCatching {
