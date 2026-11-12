@@ -6,3 +6,4 @@ local.properties
 .DS_Store
 .kotlin/
 hs_err_pid*.log
+__pycache__/

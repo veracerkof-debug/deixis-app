@@ -146,6 +146,7 @@
 |---|---|---|
 | **высокий** | Зал может остаться ни на одном мониторе: `autoVirtualHall` сохраняет физический монитор как выключенный (`monitors.json`), а на Linux и Маке виртуальный убирается при выходе. Если при следующем запуске он не создастся, единственный монитор остаётся выключенным | desktop `ReceiverApp.autoVirtualHall`, `Monitors.kt` |
 | **высокий** | Создание виртуального экрана держит блокировку `DesktopCapture.select()` до 3 минут (окно прав Windows + ожидание): запросы пульта «Входы» в это время висят | desktop `ReceiverApp` (`DesktopCapture`) |
+| **высокий (лицензия)** | В сборке для Google Play AirPlay только выключен флагом `BuildConfig.AIRPLAY`, а код (`core/…/airplay/`, GPL-части UxPlay/playfair) остаётся в APK: `-keep class app.deixis.**` не даёт R8 его вырезать. `CLAUDE.md` требует, чтобы его в этой сборке не было | core `airplay/`, android `build.gradle.kts`, `android/proguard-deixis.pro` |
 | средний | Новое значение enum или новый тип `Content` в состоянии экрана: старый пульт не разбирает `welcome` и переподключается по кругу (`DeixisJson` без `coerceInputValues`); новая команда для старого экрана теряется молча | core `Protocol.kt` |
 | средний | Отпечаток TLS при сопряжении по PIN без QR приходит по открытому HTTP (`/info`): доверие при первом контакте | core `Sender.kt` |
 | средний | Вход с того же устройства (127.0.0.1) — без паузы PIN и сразу «пульт оператора»: любая программа на этом устройстве | core `Pairing.kt`, `Peers.kt` |
@@ -161,6 +162,7 @@
 | низкий | Меню значка в роли «Пульт»: галочка «QR и код подключения» может остаться после щелчка | desktop `Operator.kt` |
 | правило | Строки окон компьютера не через переводы: меню значка, `RoleChooser`, окна обновлений и Holyrics, подсказка заставки, тексты ошибок; кое-где обращение на «вы» («Наведите», «Подключите») | desktop |
 | правило | Числа цвета в коде вместо токенов: `ChooserTokens.cardHover`, альфы белого в `SlideRenderer` | desktop |
+| текст | Устаревший KDoc: класс `ReceiverApp`, двойной KDoc `openOperator()`, `Operator.kt` — описывают пульт в браузере; файл `HdmiOutput.kt` содержит `CastOutput`/`CastActivity`/`CastPresentation` | desktop, android/phone |
 | текст | Подпись роли «Пульт и экран»: «зал в окне» — при одном дисплее зал теперь уходит на виртуальный монитор | desktop `RoleChooser.kt` |
 
 ---
