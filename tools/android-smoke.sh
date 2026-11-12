@@ -76,7 +76,8 @@ net_check() {
   fi
   [ -n "$DEIXIS_CLI" ] && [ -x "$DEIXIS_CLI" ] || { echo "=== ТВ: показ с пульта не проверен (нет DEIXIS_CLI)"; return; }
   adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
-  pin=$(adb shell cat /sdcard/ui.xml | grep -o 'text="[0-9][0-9][0-9][0-9]"' | head -1 | grep -o '[0-9][0-9][0-9][0-9]')
+  # Экран пишет PIN с пробелами между цифрами («1 2 3 4»).
+  pin=$(adb shell cat /sdcard/ui.xml | grep -oE 'text="[0-9]( ?[0-9]){3}"' | head -1 | tr -cd '0-9')
   if [ -z "$pin" ]; then echo "=== ТВ: PIN на экране не найден — показ с пульта не проверен"; return; fi
   if "$DEIXIS_CLI" send --to 127.0.0.1:47820 --pin "$pin" --text "Проверка связи"; then
     sleep 2
@@ -109,9 +110,13 @@ for target in tv:MainActivity phone:MainActivity phone:ScreenActivity; do
       adb uninstall "$pkg" > /dev/null; adb install "$dbg" > /dev/null
       adb shell am start -W -n "$pkg/$pkg.$activity" > /dev/null; sleep 15
       tp=$(curl -s --max-time 10 http://127.0.0.1:47820/info | sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p')
-      [ -n "$tp" ] && adb forward tcp:$tp tcp:$tp > /dev/null
-      if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ без R8: шифрованный вход отвечает"; else echo "=== ТВ без R8: шифрованный вход тоже НЕ отвечает"; fi
+      if [ -z "$tp" ] || [ "$tp" = 0 ]; then echo "=== ТВ без R8: сервер не ответил или нет шифрованного входа"
+      else
+        adb forward tcp:$tp tcp:$tp > /dev/null
+        if curl -sk --max-time 10 "https://127.0.0.1:$tp/info" | grep -q '"id"'; then echo "=== ТВ без R8: шифрованный вход отвечает"; else echo "=== ТВ без R8: шифрованный вход тоже НЕ отвечает"; fi
+      fi
       adb uninstall "$pkg" > /dev/null; adb install "$apk" > /dev/null
+      adb shell am start -W -n "$pkg/$pkg.$activity" > /dev/null; sleep 5
     fi
   fi
   adb logcat -d > "smoke/$app-$activity-logcat.txt"
