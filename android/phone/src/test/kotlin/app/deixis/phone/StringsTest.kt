@@ -27,8 +27,16 @@ class StringsTest {
                     m.parameterTypes.isEmpty() -> listOf(emptyArray())
                     // Строка по значению перечисления (вид элемента, раскладка монитора) — для каждого значения.
                     m.parameterTypes.size == 1 && m.parameterTypes[0].isEnum -> m.parameterTypes[0].enumConstants.map { arrayOf<Any?>(it) }
-                    else -> listOf(1, 2, 5, 11, 22).map { n ->
-                        m.parameterTypes.map { t -> if (t == Int::class.javaPrimitiveType || t == Int::class.javaObjectType) n else "X" }.toTypedArray<Any?>()
+                    else -> listOf(1, 2, 5, 11, 22).mapIndexed { k, n ->
+                        m.parameterTypes.map { t ->
+                            when (t) {
+                                Int::class.javaPrimitiveType, Int::class.javaObjectType -> n
+                                // Логическое (в том числе допускающее null: «зачёт» у итога урока) — все три значения по кругу.
+                                Boolean::class.javaPrimitiveType -> k % 2 == 0
+                                Boolean::class.javaObjectType -> listOf(true, false, null)[k % 3]
+                                else -> "X"
+                            }
+                        }.toTypedArray<Any?>()
                     }
                 }
                 for (args in argSets) {
