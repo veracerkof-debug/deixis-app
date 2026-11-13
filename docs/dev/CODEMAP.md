@@ -463,3 +463,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `core/.../quiz/QuizGame.kt` — движок живой игры (игроки, ответы, очки за скорость, таблица); подключается к сети и экранам отдельным шагом.
 
 Живая игра: `core/.../quiz/QuizPlay.kt` — `QuizHub` (центр игры на приёмнике: зал, игроки, таймер) и сообщения `PlayIn`/`PlayOut`; `core/.../QuizRoutes.kt` — `/play`, `/play/ws`, `/api/quiz/…`; `core/src/main/resources/web/play.html` — страница игрока.
+
+`pult/.../phone/QuizHostSession.kt` — ведущий живой игры на пульте (открыть игру на экране, команды, опрос хода); экран ведущего — `QuizHostPlay` в `QuizUi.kt`. Клиент — `SenderClient.quizOpen/quizCommand/quizState`.

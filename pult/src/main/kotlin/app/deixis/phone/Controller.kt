@@ -1738,6 +1738,12 @@ class Controller(val platform: Platform) {
         for (o in outs.value) if (o.client.connection.value is Connection.Connected) runCatching { o.client.show(content) }
     })
 
+    /** Ведущий живой игры: игра идёт на главном экране, пульт открывает её и шлёт команды. */
+    val quizHost = QuizHostSession(scope, { primary.value?.client }, { viewUrl.value?.replace("/view?k=", "/play?k=") })
+
+    /** Есть ли куда открыть живую игру: подключённый главный экран Deixis. */
+    fun canHostQuiz(): Boolean = primary.value?.client?.connection?.value is Connection.Connected
+
     /** Показывать ли пояснение после ответа — по настройке файла. */
     fun quizShowExplanations(s: QuizSession.State) = s.file.settings.showExplanations
 

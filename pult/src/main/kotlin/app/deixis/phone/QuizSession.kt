@@ -52,10 +52,11 @@ class QuizSession(
     val state: StateFlow<State?> get() = _state
 
     /** Читает и проверяет файл: ошибки возвращаются с путями, на экран ничего не попадает. */
-    fun load(stream: InputStream): QuizReport {
-        val bytes = stream.use { it.readNBytes(QuizValidator.MAX_FILE_BYTES.toInt() + 1) }
-        return QuizValidator.validate(String(bytes, Charsets.UTF_8))
-    }
+    fun load(stream: InputStream): QuizReport = QuizValidator.validate(readText(stream))
+
+    /** Текст файла викторины (не больше предела + 1 байт: больший отвергнет проверка). */
+    fun readText(stream: InputStream): String =
+        String(stream.use { it.readNBytes(QuizValidator.MAX_FILE_BYTES.toInt() + 1) }, Charsets.UTF_8)
 
     fun start(file: QuizFile) {
         timer?.cancel()

@@ -481,6 +481,45 @@ class SenderClient(
         http.post("${base()}/api/connect-card?on=${if (on) 1 else 0}") { header("Authorization", "Bearer $t") }.status == HttpStatusCode.NoContent
     }.getOrDefault(false)
 
+    /** Результат открытия живой игры на экране. */
+    sealed interface QuizOpenResult {
+        data object Ok : QuizOpenResult
+        /** Экран проверил файл и не принял: замечания с путями. */
+        data class Invalid(val issues: List<app.deixis.core.quiz.QuizIssue>) : QuizOpenResult
+        /** Экран не ответил или не умеет живую игру (старая версия). */
+        data object Failed : QuizOpenResult
+    }
+
+    /** Открыть живую игру из файла викторины на этом экране; [join] — адрес, который экран покажет в зале. */
+    suspend fun quizOpen(json: String, join: String?): QuizOpenResult = runCatching {
+        val t = token ?: return QuizOpenResult.Failed
+        val q = if (join != null) "?join=" + java.net.URLEncoder.encode(join, "UTF-8") else ""
+        val r = http.post("${base()}/api/quiz/open$q") { header("Authorization", "Bearer $t"); setBody(json) }
+        when (r.status) {
+            HttpStatusCode.OK -> QuizOpenResult.Ok
+            HttpStatusCode.UnprocessableEntity ->
+                QuizOpenResult.Invalid(DeixisJson.decodeFromString(kotlinx.serialization.builtins.ListSerializer(app.deixis.core.quiz.QuizIssue.serializer()), r.bodyAsText()))
+            else -> QuizOpenResult.Failed
+        }
+    }.getOrDefault(QuizOpenResult.Failed)
+
+    /** Команда ведущему игры: start, close, board, next, end. false — сейчас невозможна или экран не ответил. */
+    suspend fun quizCommand(command: String): Boolean = runCatching {
+        val t = token ?: return false
+        http.post("${base()}/api/quiz/$command") { header("Authorization", "Bearer $t") }.status == HttpStatusCode.NoContent
+    }.getOrDefault(false)
+
+    /** Ход живой игры; null — игры нет, экран старый или нет связи. */
+    suspend fun quizState(): app.deixis.core.quiz.QuizHostState? = runCatching {
+        val t = token ?: return null
+        val r = http.get("${base()}/api/quiz/state") { header("Authorization", "Bearer $t") }
+        if (r.status != HttpStatusCode.OK) return null
+        DeixisJson.decodeFromString(app.deixis.core.quiz.QuizHostState.serializer(), r.bodyAsText())
+    }.getOrNull()
+
+    /** Адрес страницы игрока: по нему игроки заходят с телефонов. */
+    fun playUrl(): String? = _viewKey.value?.let { "http://$host:$port/play?k=$it" }
+
     /** Журнал экрана целиком (для отправки автору); null — старая версия экрана. */
     suspend fun screenLog(): String? {
         val t = token ?: return null

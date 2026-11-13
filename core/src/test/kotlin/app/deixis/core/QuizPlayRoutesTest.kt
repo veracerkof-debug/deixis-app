@@ -122,6 +122,27 @@ class QuizPlayRoutesTest {
     }
 
     @Test
+    fun senderClientHostsAGame() = runBlocking<Unit> {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val client = SenderClient("127.0.0.1", port, "пульт-2", scope)
+        try {
+            client.pair(core.pairing.pin)
+            assertEquals(null, client.quizState(), "игры нет")
+            val bad = client.quizOpen("не json", null)
+            assertIs<SenderClient.QuizOpenResult.Invalid>(bad)
+            assertEquals("bad_json", bad.issues.first().code)
+            assertEquals(SenderClient.QuizOpenResult.Ok, client.quizOpen(quiz, "http://host/play?k=x"))
+            assertEquals(false, client.quizCommand("close"), "вопрос ещё не открыт")
+            assertEquals(true, client.quizCommand("start"))
+            val st = client.quizState()!!
+            assertEquals("Урок", st.title)
+            assertEquals("http://host/play?k=x", st.joinUrl)
+            assertEquals(true, client.quizCommand("end"))
+            assertEquals(null, client.quizState())
+        } finally { client.close(); scope.cancel() }
+    }
+
+    @Test
     fun noGameMeansClosedNotSilence() = runBlocking<Unit> {
         http.webSocket("ws://127.0.0.1:$port/play/ws?k=${core.viewKey}") {
             assertEquals(PlayOut.Closed, next())
