@@ -31,7 +31,8 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Сборка APK
-        run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease :android:tv:assembleDebug :desktop:installDist
+        # --stacktrace: packageRelease изредка падает без причины в журнале («IncrementalSplitterRunnable»), со стеком причина будет видна.
+        run: ./gradlew --stacktrace :android:phone:assembleRelease :android:tv:assembleRelease :android:tv:assembleDebug :desktop:installDist
       - name: KVM для эмулятора
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
