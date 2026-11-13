@@ -457,3 +457,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 Подпапка `core/.../core/quiz/` — викторины ([QUIZ.md](QUIZ.md), [../quiz/FORMAT.md](../quiz/FORMAT.md)): `Quiz.kt` — модель файла; `QuizValidator.kt` — проверка недоверенного файла с путями ошибок; `QuizGrading.kt` — `grade()` и `QuizRun` (самостоятельное прохождение).
 
 В корне `core/.../core/`: `QuizContent.kt` — вопрос на экране (новый `Content`, `quizContent()`), `QuizLayout.kt` — раскладка вопроса и `QuizColors`. Рисуют: `desktop/.../SlideRenderer.kt` (`drawQuiz`), `android/receiver/.../ReceiverScreen.kt` (`QuizSlide`).
+
+`pult/.../phone/QuizSession.kt` — прохождение викторины с пульта (состояние, таймер, показ на экранах); `QuizUi.kt` — шторка «Урок» (открыть файл, играть, итог). Тест — `desktop/src/test/.../phone/QuizSessionTest.kt` (логика пульта без Compose проверяется в desktop).

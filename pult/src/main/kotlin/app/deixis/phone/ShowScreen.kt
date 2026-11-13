@@ -319,6 +319,7 @@ private fun ShowMenu(c: Controller, ui: Ui) {
         add(TileSpec(L.tPhoto, "photo") { ui.sheet(L.tPhoto) { PickSheet(c, ui, PickKind.PHOTO) } })
         add(TileSpec(L.tText, "text") { ui.sheet(L.tText) { TextSheet(c, ui) } })
         add(TileSpec(L.tCountdown, "clock") { ui.sheet(L.countdown) { CountdownSheet(c, ui) } })
+        add(TileSpec(L.tQuiz, "pres") { ui.sheet(L.quizTitle) { QuizSheet(c, ui) } })
         add(TileSpec(L.overlay, "layers") { ui.sheet(L.overlayTitle) { OverlaySheet(c, ui) } })
         if (features.screenShare) add(TileSpec(if (sharing) L.stopScreen else L.screenShare, "phone") {
             if (sharing) { ui.closeAll(); host.platform.stopScreenShare() } else ui.sheet(L.screenShare) { MirrorSheet(c, ui) }

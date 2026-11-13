@@ -67,7 +67,7 @@ import androidx.compose.foundation.selection.toggleable
 data class Palette(
     val bg: Color, val cell: Color, val ink: Color, val l2: Color, val l3: Color,
     val tint: Color, val tintText: Color, val red: Color, val fill: Color,
-    val live: Color = red, val gold: Color = Color(0xFFA87A00), val sep: Color = Color(0x263C372D), val fill2: Color = Color(0x3378736A),
+    val live: Color = red, val ok: Color = Color(0xFF3F7D57), val gold: Color = Color(0xFFA87A00), val sep: Color = Color(0x263C372D), val fill2: Color = Color(0x3378736A),
     val dark: Boolean = false,
 ) {
     /**

@@ -201,6 +201,56 @@ object L {
     val setEmptyHint: String get() = t("Пусто. Элементы добавляются через «Найти» или плитки «Показать».", "Bo‘sh. Elementlar «Topish» yoki «Ko‘rsatish» plitkalari orqali qo‘shiladi.", "Empty. Items are added with “Find” or the “Show” tiles.")
     val recentEmpty: String get() = t("Здесь появится то, что показывали.", "Bu yerda ko‘rsatilganlar chiqadi.", "Things shown appear here.")
     val countdown: String get() = t("Обратный отсчёт", "Teskari sanoq", "Countdown")
+    // ——— Уроки: викторины ———
+    val tQuiz: String get() = t("Урок", "Dars", "Lesson")
+    val quizTitle: String get() = t("Урок: викторина", "Dars: viktorina", "Lesson: quiz")
+    val quizRecent: String get() = t("Файлы уроков", "Dars fayllari", "Lesson files")
+    val quizNote: String get() = t("Файл викторины (.deixis-quiz.json) пишется в редакторе или нейросетью. Он проверяется при открытии, на экран попадает только прошедшее проверку.", "Viktorina fayli (.deixis-quiz.json) muharrirda yoki neyrotarmoq orqali yoziladi. Ochilganda tekshiriladi, ekranga faqat tekshiruvdan o‘tgani chiqadi.", "A quiz file (.deixis-quiz.json) is written in the editor or by an AI. It is checked on opening, and only a valid file reaches the screen.")
+    val quizTrue: String get() = t("Верно", "To‘g‘ri", "True")
+    val quizFalse: String get() = t("Неверно", "Noto‘g‘ri", "False")
+    val quizAnswer: String get() = t("Ответить", "Javob berish", "Answer")
+    val quizNext: String get() = t("Дальше", "Keyingisi", "Next")
+    val quizToResult: String get() = t("Итог", "Natija", "Result")
+    val quizClose: String get() = t("Закончить", "Tugatish", "Finish")
+    val quizAgain: String get() = t("Ещё раз", "Yana bir bor", "Again")
+    val quizRight: String get() = t("Верно", "To‘g‘ri", "Correct")
+    val quizWrong: String get() = t("Неверно", "Noto‘g‘ri", "Incorrect")
+    val quizTimeUp: String get() = t("Время вышло", "Vaqt tugadi", "Time is up")
+    val quizPickMany: String get() = t("Выберите все верные", "To‘g‘rilarining hammasini tanlang", "Select all that apply")
+    val quizPassed: String get() = t("Зачёт", "Qabul qilindi", "Passed")
+    val quizNotPassed: String get() = t("Не зачтено", "Qabul qilinmadi", "Not passed")
+    val quizNoSave: String get() = t("Результат нигде не сохраняется: закроется экран — исчезнет.", "Natija hech qayerda saqlanmaydi: ekran yopilsa — yo‘qoladi.", "The result is not saved anywhere: it disappears when the screen is closed.")
+    val quizBad: String get() = t("Файл не прошёл проверку", "Fayl tekshiruvdan o‘tmadi", "The file did not pass the check")
+    val quizNotFound: String get() = t("Файл не открывается", "Fayl ochilmaydi", "The file cannot be opened")
+    fun quizQuestionN(i: Int, n: Int): String = t("Вопрос $i из $n", "$i-savol, jami $n ta", "Question $i of $n")
+    fun quizScoreOf(e: Int, m: Int): String = t("$e из $m", "$e / $m", "$e of $m")
+    fun quizResultHall(e: Int, m: Int, percent: Int, passed: Boolean?): String {
+        val head = t("Итог: $e из $m · $percent %", "Natija: $e / $m · $percent %", "Result: $e of $m · $percent %")
+        return if (passed == null) head else head + "\n" + (if (passed) quizPassed else quizNotPassed)
+    }
+    /** Замечание проверки файла: понятная фраза по коду и место в файле. */
+    fun quizIssue(code: String, path: String): String {
+        val what = when (code) {
+            "bad_json" -> t("это не JSON", "bu JSON emas", "not valid JSON")
+            "bad_structure" -> t("не хватает обязательного поля", "majburiy maydon yetishmaydi", "a required field is missing")
+            "wrong_format" -> t("это не файл викторины", "bu viktorina fayli emas", "this is not a quiz file")
+            "newer_version" -> t("файл из более новой версии Deixis", "fayl Deixis ning yangiroq versiyasidan", "the file is from a newer Deixis")
+            "no_questions" -> t("нет вопросов", "savollar yo‘q", "no questions")
+            "empty_text" -> t("нет текста", "matn yo‘q", "no text")
+            "empty_title" -> t("нет названия", "nom yo‘q", "no title")
+            "no_correct" -> t("не отмечен верный вариант", "to‘g‘ri variant belgilanmagan", "no correct option marked")
+            "many_correct" -> t("для одного ответа отмечено несколько верных", "bitta javob uchun bir nechta to‘g‘ri belgilangan", "several correct options for a single-answer question")
+            "no_answer" -> t("не указан верный ответ", "to‘g‘ri javob ko‘rsatilmagan", "no correct answer given")
+            "bad_option_count" -> t("вариантов должно быть от 2 до 8", "variantlar 2 dan 8 gacha bo‘lishi kerak", "2 to 8 options are needed")
+            "duplicate_id" -> t("повторяющийся id", "takrorlangan id", "duplicate id")
+            "bad_id" -> t("недопустимый id", "yaroqsiz id", "invalid id")
+            "unsupported_type", "unknown_type" -> t("такой тип вопроса не поддерживается", "bunday savol turi qo‘llab-quvvatlanmaydi", "this question type is not supported")
+            "missing_asset" -> t("нет такой картинки", "bunday rasm yo‘q", "no such picture")
+            "file_too_big", "asset_too_big", "assets_too_big" -> t("слишком большой размер", "hajmi juda katta", "too large")
+            else -> quizBad
+        }
+        return if (path.isBlank()) what else "$path: $what"
+    }
     val overlay: String get() = t("Поверх", "Ustidan", "Overlay")
     val overlayTitle: String get() = t("Поверх показа", "Namoyish ustidan", "Over the show")
     val screenShare: String get() = t("Экран телефона", "Telefon ekrani", "Phone screen")

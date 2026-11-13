@@ -58,6 +58,7 @@ dependencies {
     implementation("org.jetbrains.compose.desktop:desktop-jvm-$composePlatform:${libs.versions.composeDesktop.get()}")
 
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.coroutines.test)
 }
 
 val macExports = if (System.getProperty("os.name").lowercase().contains("mac")) listOf("--add-exports=java.desktop/com.apple.eawt=ALL-UNNAMED") else emptyList()

@@ -1733,6 +1733,14 @@ class Controller(val platform: Platform) {
         goLive(Cue(src, index.coerceIn(0, slides.lastIndex)))
     }
 
+    /** Прохождение викторины: вопросы идут на все подключённые экраны, пульт ведёт игру сам. */
+    val quiz = QuizSession(scope, { content ->
+        for (o in outs.value) if (o.client.connection.value is Connection.Connected) runCatching { o.client.show(content) }
+    })
+
+    /** Показывать ли пояснение после ответа — по настройке файла. */
+    fun quizShowExplanations(s: QuizSession.State) = s.file.settings.showExplanations
+
     fun showImage(ref: FileRef) = showRemote(ref, false)
     fun showVideo(ref: FileRef) = showRemote(ref, true)
 
