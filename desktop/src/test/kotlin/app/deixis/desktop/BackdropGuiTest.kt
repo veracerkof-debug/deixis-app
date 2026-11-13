@@ -65,6 +65,9 @@ class BackdropGuiTest {
             SwingUtilities.invokeAndWait { w.update(FrameState(TextContent("Слайд один", style = style), Mode.NORMAL)) }
             Thread.sleep(3_000)
             val bg = w.backdropForTest ?: error("видеофон не создан")
+            // VLC на загруженном раннере (macOS) стартует с задержкой: ждём, пока видео дойдёт до 1,5 с, а не меряем один раз.
+            val deadline = System.nanoTime() + 12_000_000_000L
+            while (bg.timeMs() <= 1_500 && System.nanoTime() < deadline) Thread.sleep(250)
             val t1 = bg.timeMs()
             assertTrue(t1 > 1_500, "видеофон идёт: $t1 мс")
             val robot = Robot()
