@@ -516,7 +516,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         val file = File(opts.dataDir, "operator-token")
         file.takeIf { it.isFile }?.readText()?.trim()?.takeIf { core.pairing.isValid(it) }?.let { return it }
         val token = (core.pairing.pair(core.pairing.pin, "Этот компьютер") as Pairing.Result.Ok).token
-        runCatching { file.writeText(token) }
+        runCatching {
+            file.writeText(token)
+            file.setReadable(false, false); file.setReadable(true, true)
+        }
         return token
     }
 

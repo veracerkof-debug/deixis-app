@@ -8,6 +8,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
 jobs:
   core-desktop:
     name: Ядро и компьютер

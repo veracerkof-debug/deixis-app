@@ -151,6 +151,8 @@ class FileTokenStore(private val file: File) : TokenStore {
             file.delete()
             tmp.renameTo(file)
         }
+        // Токены читает только владелец (на компьютере; на Android папка приложения и так закрыта), как ключ TLS.
+        runCatching { file.setReadable(false, false); file.setReadable(true, true) }
     }
 }
 

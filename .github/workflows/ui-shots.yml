@@ -20,6 +20,10 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
 jobs:
   shots:
     name: Снимки
@@ -41,13 +45,15 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Снимки
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          EXTRA: ${{ github.event.inputs.extra }}
         with:
           api-level: 33
           arch: x86_64
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: ./tools/android-shots.sh ${{ github.event.inputs.extra }}
+          script: ./tools/android-shots.sh "$EXTRA"
       - name: Снимки в refs/ci/ui-shots
         if: always()
         env:
