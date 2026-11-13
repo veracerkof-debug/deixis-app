@@ -65,6 +65,8 @@ window.bibleSheet = () => A.tab({ id: "bible" });
         shutil.copy(os.path.join(WEB, f), os.path.join(OUT, "assets", f))
     for f in ("shell.html", "app.html", "hub.js", "shim.js"):
         shutil.copy(os.path.join(HERE, f), os.path.join(OUT, f))
+    # pdf.js (Apache-2.0) и qrcode-generator (MIT) лежат рядом: демо не ходит на чужие серверы.
+    shutil.copytree(os.path.join(HERE, "vendor"), os.path.join(OUT, "vendor"))
     shutil.copytree(os.path.join(HERE, "media"), os.path.join(OUT, "media"),
                     ignore=shutil.ignore_patterns("*.pptx", "*.pdf"))
     # Логотипы примеров «Поверх показа» — картинки приложения, без копии в демо.

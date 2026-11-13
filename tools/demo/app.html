@@ -10,8 +10,8 @@
 <link rel="apple-touch-icon" href="assets/remote-icon.png">
 <!-- Демо-экраны в этом же окне (hub.js); PDF.js — только для своего PDF, QR — для экрана зрителей. -->
 <script src="hub.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script defer src="vendor/pdf.min.js"></script>
+<script defer src="vendor/qrcode.js"></script>
 <style>
 /* Приложение Deixis в браузере — копия пульта для Android на демо-данных: вид и устройство экранов —
    android/phone/.../ShowScreen.kt, Screens.kt, Sheets.kt, ThemePanel.kt, OverlayUi.kt. Показ идёт на демо-экраны
@@ -460,7 +460,7 @@ function findHub() {
 const hub = findHub();
 const sim = (() => { try { return parent.DeixisSim || null; } catch (e) { return null; } })();
 const qrLib = () => { try { return window.qrcode || parent.qrcode || null; } catch (e) { return null; } };
-addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; });
+addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js"; });
 
 const I = {
   show: '<path d="M3 5h18v11H3z"/><path d="M8 20h8M12 16v4"/>',

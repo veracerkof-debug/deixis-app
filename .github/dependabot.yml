@@ -1,0 +1,7 @@
+# Обновляет закреплённые по SHA действия GitHub Actions (в комментарии рядом с SHA — версия).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

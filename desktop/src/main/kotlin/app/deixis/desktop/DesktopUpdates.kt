@@ -111,7 +111,9 @@ class DesktopUpdates(
                 }
                 val script = File(dir, "update-install.sh")
                 script.writeText(macScript(file, app, relaunch))
-                ProcessBuilder("/bin/sh", "-c", "nohup /bin/sh '${script.absolutePath}' >/dev/null 2>&1 &").start()
+                // Путь — отдельным аргументом, не строкой для оболочки: кавычка в имени папки ничего не ломает.
+                ProcessBuilder("/usr/bin/nohup", "/bin/sh", script.absolutePath)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectErrorStream(true).start()
                 this.app.exitForUpdate()
             }
             else -> {
@@ -127,8 +129,10 @@ class DesktopUpdates(
             append("@echo off\r\n")
             append("chcp 65001 >nul\r\n")
             append("timeout /t 3 /nobreak >nul\r\n")
-            append("msiexec /i \"${msi.path}\" /passive /norestart\r\n")
-            if (app != null) append("start \"\" \"${app.path}\"\r\n")
+            // В batch-файле «%» раскрывается даже в кавычках, поэтому удваивается.
+            fun bat(f: File) = f.path.replace("%", "%%")
+            append("msiexec /i \"${bat(msi)}\" /passive /norestart\r\n")
+            if (app != null) append("start \"\" \"${bat(app)}\"\r\n")
         }
 
         /** Ждёт выхода программы, заменяет Deixis.app из образа (при сбое возвращает старую) и запускает. */

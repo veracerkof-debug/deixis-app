@@ -188,13 +188,14 @@ class WebRemoteTest {
         val up = put("preview0001", "фото.jpg", data.size.toLong(), 0, data).bodyAsText()
         val ref = DeixisJson.decodeFromString(FileRef.serializer(), DeixisJson.parseToJsonElement(up).jsonObject["file"].toString())
         assertEquals(HttpStatusCode.Unauthorized, http.get(url("/remote/file/${ref.sha256}")).status)
-        // Картинка в превью: токен параметром, раз браузер не шлёт заголовок для <img>.
-        val f = http.get(url("/remote/file/${ref.sha256}?t=$token&n=a.jpg"))
+        // Токен в адресе не принимается (остался бы в истории и журналах); заголовок и cookie — да.
+        assertEquals(HttpStatusCode.Unauthorized, http.get(url("/remote/file/${ref.sha256}?t=$token&n=a.jpg")).status)
+        val f = http.get(url("/remote/file/${ref.sha256}?n=a.jpg")) { header("Authorization", "Bearer $token") }
         assertEquals(HttpStatusCode.OK, f.status)
         assertEquals("image/jpeg", f.headers["Content-Type"])
-        assertEquals(HttpStatusCode.NotFound, http.get(url("/remote/file/${"0".repeat(64)}?t=$token")).status)
+        assertEquals(HttpStatusCode.NotFound, http.get(url("/remote/file/${"0".repeat(64)}")) { header("Authorization", "Bearer $token") }.status)
         // Страница PDF: без рисовальщика на приёмнике — 501, с ним — PNG.
-        assertEquals(HttpStatusCode.NotImplemented, http.get(url("/remote/page/${ref.sha256}/0?t=$token")).status)
+        assertEquals(HttpStatusCode.NotImplemented, http.get(url("/remote/page/${ref.sha256}/0")) { header("Authorization", "Bearer $token") }.status)
         core.pageRenderer = PageRenderer { _, page, w -> byteArrayOf(page.toByte(), (w / 10).toByte()) }
         val png = http.get(url("/remote/page/${ref.sha256}/2?w=320")) { header("Authorization", "Bearer $token") }
         assertEquals(HttpStatusCode.OK, png.status)
@@ -203,6 +204,7 @@ class WebRemoteTest {
         // Сеанс: закрытая cookie вместо токена в адресе картинки.
         val session = http.post(url("/remote/session")) { header("Authorization", "Bearer $token") }
         val cookie = session.headers["Set-Cookie"].orEmpty()
+        assertTrue(cookie.contains("Max-Age=28800"), cookie)
         assertTrue(cookie.startsWith("deixis=") && cookie.contains("HttpOnly") && cookie.contains("SameSite=Strict"), cookie)
         val byCookie = http.get(url("/remote/file/${ref.sha256}?n=a.jpg")) { header("Cookie", cookie.substringBefore(';')) }
         assertEquals(HttpStatusCode.OK, byCookie.status)

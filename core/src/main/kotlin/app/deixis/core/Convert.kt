@@ -88,7 +88,12 @@ class LibreOfficeConverter(private val soffice: File, private val timeoutSec: Lo
 
 /** Переводы презентаций на приёмнике: один и тот же файл не переводится дважды. */
 class Conversions(private val core: ReceiverCore, private val converter: DocConverter, private val work: File) {
-    private val done = mutableMapOf<String, Converted>()
+    /** Уже переведённые файлы; помнятся последние [DONE_LIMIT], чтобы память не росла за долгий сеанс. */
+    private val done = object : LinkedHashMap<String, Converted>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Converted>) = size > DONE_LIMIT
+    }
+
+    private companion object { const val DONE_LIMIT = 50 }
 
     @Synchronized
     fun convert(ref: FileRef): Converted {

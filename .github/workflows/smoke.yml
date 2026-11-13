@@ -24,12 +24,12 @@ jobs:
         api: [26, 30, 33]
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Сборка APK
         run: ./gradlew :android:phone:assembleRelease :android:tv:assembleRelease :android:tv:assembleDebug :desktop:installDist
       - name: KVM для эмулятора
@@ -38,7 +38,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Эмулятор
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: ${{ matrix.api }}
           arch: x86_64
@@ -46,7 +46,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: DEIXIS_CLI=$PWD/desktop/build/install/deixis/bin/deixis ./tools/android-smoke.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: android-smoke-${{ matrix.api }}

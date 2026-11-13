@@ -67,6 +67,38 @@ class PairingTest {
     }
 
     @Test
+    fun tokenExpiresAfterTtlWithoutUse() {
+        var now = 1_000_000L
+        val p = Pairing(MemoryTokenStore(), clock = { now })
+        val token = (p.pair(p.pin, "Телефон") as Pairing.Result.Ok).token
+        now += Pairing.TOKEN_TTL_MS - 1
+        assertTrue(p.isValid(token), "использование продлевает срок")
+        now += Pairing.TOKEN_TTL_MS - 1
+        assertTrue(p.isValid(token))
+        now += Pairing.TOKEN_TTL_MS + 1
+        assertFalse(p.isValid(token), "без использования токен протух")
+        assertTrue(p.senders().isEmpty(), "и забыт")
+    }
+
+    @Test
+    fun forgetAllDropsEveryToken() {
+        val p = Pairing(MemoryTokenStore())
+        val a = (p.pair(p.pin, "а") as Pairing.Result.Ok).token
+        val b = (p.pair(p.pin, "б") as Pairing.Result.Ok).token
+        p.forgetAll()
+        assertFalse(p.isValid(a) || p.isValid(b))
+    }
+
+    @Test
+    fun newAddressSurvivesTrimming() {
+        val p = Pairing(MemoryTokenStore(), clock = { 1_000_000L })
+        repeat(300) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", "10.0.${it / 250}.${it % 250}") }
+        val last = "10.9.9.9"
+        repeat(5) { p.pair(if (p.pin == "0000") "0001" else "0000", "x", last) }
+        assertEquals(Pairing.Result.Denied(DenyReason.TOO_MANY_ATTEMPTS), p.pair(p.pin, "x", last))
+    }
+
+    @Test
     fun tokensSurviveRestart() {
         val file = createTempDirectory("tokens").resolve("tokens.json").toFile()
         val p = Pairing(FileTokenStore(file))

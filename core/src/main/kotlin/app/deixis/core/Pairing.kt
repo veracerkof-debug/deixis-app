@@ -34,7 +34,7 @@ class Pairing(
     fun pair(pin: String, sender: String, from: String? = null, secure: Boolean = false): Result {
         val now = clock()
         val local = from == null || from in LOOPBACK_ADDRESSES
-        val a = if (local) null else attempts.getOrPut(from!!) { Attempts() }.also { trimAttempts() }
+        val a = if (local) null else { if (from!! !in attempts) trimAttempts(); attempts.getOrPut(from) { Attempts() } }
         if (a != null && now < a.lockedUntil) return Result.Denied(DenyReason.TOO_MANY_ATTEMPTS)
         if (!constantTimeEquals(pin, this.pin)) {
             if (a == null) return Result.Denied(DenyReason.WRONG_PIN)
@@ -56,7 +56,7 @@ class Pairing(
     }
 
     private fun trimAttempts() {
-        while (attempts.size > MAX_TRACKED) attempts.remove(attempts.keys.first())
+        while (attempts.size >= MAX_TRACKED) attempts.remove(attempts.keys.first())
     }
 
     /**
@@ -66,7 +66,14 @@ class Pairing(
     fun isValid(token: String?, secure: Boolean = false): Boolean {
         if (token == null) return false
         val s = tokens.all().firstOrNull { constantTimeEquals(it.token, token) } ?: return false
+        val now = clock()
+        // Токен живёт TOKEN_TTL_MS после последнего использования: утёкший и забытый ключ от экрана перестаёт работать.
+        if (now - maxOf(s.pairedAt, s.usedAt) > TOKEN_TTL_MS) {
+            tokens.remove(s.token)
+            return false
+        }
         if (s.secure && !secure) return false
+        if (now - s.usedAt > TOUCH_EVERY_MS) tokens.touch(s.token, now)
         if (secure && !s.secure) tokens.markSecure(s.token)
         return true
     }
@@ -74,6 +81,9 @@ class Pairing(
     fun senders(): List<PairedSender> = tokens.all()
 
     fun forget(token: String) = tokens.remove(token)
+
+    /** Забыть все сопряжения: каждому пульту придётся ввести PIN заново. */
+    fun forgetAll() = tokens.all().forEach { tokens.remove(it.token) }
 
     @Synchronized
     private fun rotate() {
@@ -92,6 +102,10 @@ class Pairing(
         const val MAX_FAILURES = 5
         const val LOCK_FIRST_MS = 30_000L
         const val LOCK_MAX_MS = 10 * 60_000L
+        /** Срок жизни токена без использования: 90 дней. */
+        const val TOKEN_TTL_MS = 90L * 24 * 60 * 60_000L
+        /** Метка использования обновляется не чаще раза в сутки, чтобы не писать файл на каждый запрос. */
+        private const val TOUCH_EVERY_MS = 24L * 60 * 60_000L
         /** Сколько адресов помнится: старые забываются, память не растёт от перебора адресов. */
         private const val MAX_TRACKED = 256
         private val LOOPBACK_ADDRESSES = setOf("127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost")
@@ -105,6 +119,8 @@ data class PairedSender(
     val pairedAt: Long,
     /** Токен получен или уже использован по шифрованному каналу: по открытому HTTP он больше не принимается. */
     val secure: Boolean = false,
+    /** Когда токен использовали в последний раз (0 — ни разу после сопряжения). */
+    val usedAt: Long = 0L,
 )
 
 interface TokenStore {
@@ -118,6 +134,13 @@ interface TokenStore {
         if (s.secure) return
         remove(token)
         add(s.copy(secure = true))
+    }
+
+    /** Запоминает время последнего использования токена. */
+    fun touch(token: String, now: Long) {
+        val s = all().firstOrNull { it.token == token } ?: return
+        remove(token)
+        add(s.copy(usedAt = now))
     }
 }
 

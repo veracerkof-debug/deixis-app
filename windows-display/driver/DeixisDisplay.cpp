@@ -24,6 +24,7 @@
 #include <d3d11_2.h>
 #include <avrt.h>
 #include <wrl/client.h>
+#include <atomic>
 #include <cstdio>
 #include <cstdarg>
 
@@ -222,8 +223,13 @@ private:
 // Один адаптер и один монитор на устройство: состояние — здесь.
 IDDCX_ADAPTER g_adapter = nullptr;
 // Сколько режимов отдавать при разборе EDID: все или только записанный в EDID (запасной вариант).
-UINT g_parseModes = kModeCount;
+// Атомарная: её читает Windows из своего потока, пока ConnectMonitor перебирает варианты.
+std::atomic<UINT> g_parseModes{kModeCount};
 IDDCX_MONITOR g_monitor = nullptr;
+// Монитор уже подключён (под g_connectLock): повторный вызов (запасной поток) второй монитор не создаёт.
+bool g_connected = false;
+// Один ConnectMonitor за раз. Отдельный от g_lock: разбор EDID идёт внутри IddCxMonitorCreate и g_lock не берёт.
+SRWLOCK g_connectLock = SRWLOCK_INIT;
 FrameDrain* g_drain = nullptr;
 SRWLOCK g_lock = SRWLOCK_INIT;
 
@@ -344,6 +350,9 @@ NTSTATUS DeixisAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER
 
 // Подключает монитор, перебирая варианты описания. true — Windows его приняла.
 static bool ConnectMonitor(IDDCX_ADAPTER adapter) {
+    AcquireSRWLockExclusive(&g_connectLock);
+    struct Unlock { ~Unlock() { ReleaseSRWLockExclusive(&g_connectLock); } } unlock;
+    if (g_connected) return true;
 
     // Варианты по очереди, пока Windows не примет монитор: EDID со всеми режимами, EDID с одним режимом,
     // монитор без EDID (режимы даёт драйвер). Какой сработал — в журнале.
@@ -355,7 +364,7 @@ static bool ConnectMonitor(IDDCX_ADAPTER adapter) {
         {false, kModeCount, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INDIRECT_WIRED},
     };
     for (const Variant& v : variants) {
-        g_parseModes = v.modes;
+        g_parseModes.store(v.modes);
         IDDCX_MONITOR_INFO info = {};
         info.Size = sizeof(info);
         info.MonitorType = v.kind;
@@ -380,7 +389,7 @@ static bool ConnectMonitor(IDDCX_ADAPTER adapter) {
         IDARG_OUT_MONITORARRIVAL arrival = {};
         status = IddCxMonitorArrival(out.MonitorObject, &arrival);
         Log("IddCxMonitorArrival %08x target=%u", status, arrival.OsTargetId);
-        if (NT_SUCCESS(status)) { g_monitor = out.MonitorObject; return true; }
+        if (NT_SUCCESS(status)) { g_monitor = out.MonitorObject; g_connected = true; return true; }
         WdfObjectDelete(reinterpret_cast<WDFOBJECT>(out.MonitorObject));
     }
     // Ошибка здесь не должна ронять процесс драйвера: Windows перезапускала бы его по кругу.
@@ -393,7 +402,7 @@ NTSTATUS DeixisCommitModes(IDDCX_ADAPTER, const IDARG_IN_COMMITMODES*) {
 }
 
 NTSTATUS DeixisParseMonitorDescription(const IDARG_IN_PARSEMONITORDESCRIPTION* in, IDARG_OUT_PARSEMONITORDESCRIPTION* out) {
-    const UINT count = g_parseModes;
+    const UINT count = g_parseModes.load();
     Log("ParseMonitorDescription in=%u give=%u", in->MonitorModeBufferInputCount, count);
     out->MonitorModeBufferOutputCount = count;
     out->PreferredMonitorModeIdx = 0;

@@ -23,12 +23,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Сборка программы
         env:
           DEIXIS_SKIP_ANDROID: "1"
@@ -121,7 +121,7 @@ jobs:
           fi
           pkill -f Deixis || true
           grep -q "Окно пульта: открыто" "$data/log.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-smoke-${{ matrix.name }}
@@ -134,12 +134,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Сборка программы
         env:
           DEIXIS_SKIP_ANDROID: "1"
@@ -176,7 +176,7 @@ jobs:
           sleep 8
           xrandr --listmonitors | tee smoke/monitors-after.txt
           grep -q "Monitors: 2" smoke/monitors-after.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: desktop-smoke-Linux

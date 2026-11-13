@@ -17,7 +17,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   LC_ALL: C.UTF-8
@@ -32,12 +32,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Версия
         shell: bash
         run: echo "DEIXIS_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
@@ -97,7 +97,7 @@ jobs:
           done
           ls -la out
           rm -f "$RUNNER_TEMP/deixis-release.jks"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android
           path: out/*.apk
@@ -114,8 +114,8 @@ jobs:
       matrix:
         api: [26, 33]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: android
           path: apk
@@ -125,7 +125,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Эмулятор
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         env:
           APK_DIR: apk
         with:
@@ -135,7 +135,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: ./tools/android-smoke.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: release-smoke-${{ matrix.api }}
@@ -156,12 +156,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Версия
         run: |
           v="${RELEASE_VERSION#v}"
@@ -241,12 +241,14 @@ jobs:
           esac
           jpackage "${args[@]}"
           ls -la out
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-${{ matrix.name }}
           path: out/*
 
   release:
+    permissions:
+      contents: write
     name: Релиз
     # Mac-машины GitHub иногда так и не выдаются; релиз выходит и без .dmg, если APK собраны.
     if: always() && needs.android.result == 'success' && needs.smoke.result == 'success' && (startsWith(github.ref, 'refs/tags/') || inputs.publish)
@@ -254,11 +256,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Только файлы выпуска: снимки экранов проверки (release-smoke-*) в выпуск не попадают.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: android
           path: files
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: desktop-*
           path: files
@@ -269,7 +271,7 @@ jobs:
         run: |
           v="${RELEASE_VERSION#v}"
           echo "v=${v:-0.1.0}" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           path: src
           sparse-checkout: CHANGELOG.md
@@ -313,7 +315,7 @@ jobs:
           json.dump([{"tag_name": f"v{v}", "prerelease": False, "draft": False, "body": body, "assets": assets}],
                     open("files/release.json", "w", encoding="utf-8"), ensure_ascii=False)
           PY
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: v${{ steps.ver.outputs.v }}
           target_commitish: ${{ github.sha }}

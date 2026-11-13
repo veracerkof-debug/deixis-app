@@ -478,9 +478,9 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
         call.respondText("{}", ContentType.Application.Json)
     }
 
-    // Файлы и страницы PDF на этом экране — для превью на пульте: по cookie сеанса (прежние страницы — параметром t).
-    fun ApplicationCall.previewAllowed(): Boolean = authorized() ||
-        core.pairing.isValid(request.cookies[REMOTE_COOKIE]) || core.pairing.isValid(request.queryParameters["t"])
+    // Файлы и страницы PDF на этом экране — для превью на пульте: по cookie сеанса. Токена в адресе нет: он остался бы
+    // в истории браузера и журналах (параметр t убран, страница его давно не шлёт).
+    fun ApplicationCall.previewAllowed(): Boolean = authorized() || core.pairing.isValid(request.cookies[REMOTE_COOKIE])
     get("/remote/file/{sha}") {
         if (!call.previewAllowed()) return@get call.respondText("", status = HttpStatusCode.Unauthorized)
         val file = core.files.file(call.parameters["sha"].orEmpty()) ?: return@get call.respondText("", status = HttpStatusCode.NotFound)
@@ -575,4 +575,4 @@ internal data class OverlaySampleInfo(val name: String, val overlays: Overlays)
 
 /** Cookie сеанса веб-пульта. */
 internal const val REMOTE_COOKIE = "deixis"
-private const val REMOTE_COOKIE_AGE_S = 365 * 24 * 60 * 60
+private const val REMOTE_COOKIE_AGE_S = 8 * 60 * 60

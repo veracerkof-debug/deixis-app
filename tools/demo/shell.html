@@ -2,8 +2,8 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <script src="hub.js"></script>
 <!-- PDF.js нужен только для своего PDF; грузится не мешая показу. -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script defer src="vendor/pdf.min.js"></script>
+<script defer src="vendor/pdf.worker.min.js"></script>
 <style>
 /* Витрина: экран зала слева, телефон с пультом справа; на узком экране — экран сверху, пульт под ним.
    Токены те же, что у пульта (DESIGN.md). */
@@ -145,7 +145,7 @@ document.documentElement.lang = lang.slice(0, 2);
 document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
 
 // Свои PDF рисует PDF.js без отдельного потока: в демо отдельные файлы потоков не загружаются.
-addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; });
+addEventListener("DOMContentLoaded", () => { if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js"; });
 
 const demo = window.DeixisDemo;
 const remote = document.getElementById("remote");

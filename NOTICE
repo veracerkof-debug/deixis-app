@@ -98,3 +98,8 @@ GPL-3.0-or-later. It was written from Microsoft's public IddCx documentation; th
 IndirectDisplay sample (MS-PL) was not used. The release build signs the driver with a self-signed
 certificate whose private key is deleted right after signing; the helper adds that certificate to the
 computer's trusted stores only when the operator creates the virtual screen in Deixis.
+
+
+Web demo (tools/demo/vendor/, shipped only in the GitHub Pages demo):
+  - pdf.js 3.11.174, Apache-2.0 (vendor/pdfjs-LICENSE.txt)
+  - qrcode-generator 1.4.4, MIT (Kazuhiko Arase; licence text in the head of vendor/qrcode.js)
