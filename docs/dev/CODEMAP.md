@@ -2,7 +2,7 @@
 
 Где что лежит: модули, файлы, ресурсы, проверки и вспомогательные папки. Описания взяты из KDoc и объявлений верхнего уровня самих файлов. Общая картина — в [ARCHITECTURE.md](../../ARCHITECTURE.md), дизайн-код — в [DESIGN.md](../../DESIGN.md).
 
-Пакеты: `app.deixis.diag`, `app.deixis.core` (+ `app.deixis.core.airplay`), `app.deixis.phone` (пульт: `pult/`, `android/phone`, а также `desktop/src/main/kotlin/app/deixis/phone`), `app.deixis.desktop`, `app.deixis.receiver`, `app.deixis.tv`.
+Пакеты: `app.deixis.diag`, `app.deixis.core` (+ `app.deixis.core.airplay`, `app.deixis.core.quiz`), `app.deixis.phone` (пульт: `pult/`, `android/phone`, а также `desktop/src/main/kotlin/app/deixis/phone`), `app.deixis.desktop`, `app.deixis.receiver`, `app.deixis.tv`.
 
 ## 1. Модули и зависимости
 
@@ -453,3 +453,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 | Данные прошлых версий | `testdata/compat/`, `tools/compat-fixtures.sh`, проверки `Compat*Test.kt` |
 | Правила R8 | `android/proguard-deixis.pro` |
 | Демо-набор | `android/phone/src/main/assets/demo/` (общий с компьютером), `tools/demo/` (веб-демо) |
+
+Подпапка `core/.../core/quiz/` — викторины ([QUIZ.md](QUIZ.md), [../quiz/FORMAT.md](../quiz/FORMAT.md)): `Quiz.kt` — модель файла; `QuizValidator.kt` — проверка недоверенного файла с путями ошибок; `QuizGrading.kt` — `grade()` и `QuizRun` (самостоятельное прохождение).

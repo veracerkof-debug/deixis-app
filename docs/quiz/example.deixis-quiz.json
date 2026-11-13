@@ -1,0 +1,50 @@
+{
+  "format": "deixis-quiz",
+  "version": 1,
+  "title": "Города и города-герои",
+  "language": "ru",
+  "description": "Короткий пример: три вопроса трёх типов.",
+  "settings": {
+    "passPercent": 60,
+    "shuffleQuestions": false,
+    "shuffleOptions": true,
+    "showExplanations": true,
+    "defaultTimeLimitSec": 30
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "type": "single",
+      "text": "Какая из этих рек самая длинная?",
+      "points": 1,
+      "explanation": "Волга — 3530 км, длиннейшая река Европы.",
+      "options": [
+        { "id": "a", "text": "Волга", "correct": true },
+        { "id": "b", "text": "Дон" },
+        { "id": "c", "text": "Днепр" },
+        { "id": "d", "text": "Урал" }
+      ]
+    },
+    {
+      "id": "q2",
+      "type": "multiple",
+      "text": "Какие из этих чисел простые?",
+      "points": 2,
+      "scoring": "partial",
+      "timeLimitSec": 45,
+      "options": [
+        { "id": "a", "text": "2", "correct": true },
+        { "id": "b", "text": "9" },
+        { "id": "c", "text": "11", "correct": true },
+        { "id": "d", "text": "15" }
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "truefalse",
+      "text": "Земля вращается вокруг Солнца.",
+      "answer": true,
+      "explanation": "Один оборот за год."
+    }
+  ]
+}
