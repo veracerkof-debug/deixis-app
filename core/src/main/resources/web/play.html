@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F2EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>Deixis</title>
+<style>
+@font-face{font-family:"GFS Didot";src:url("/view/assets/GFSDidot-Regular.ttf");font-display:swap}
+:root{
+  --bg:#F3F2EE; --cell:#FFFFFF; --ink:#161514; --l2:#6E6B65; --l3:#C6C3BC; --tint:#9C7242; --on-tint:#fff;
+  --red:#A75750; --ok:#3F7D57; --fill:rgba(120,115,105,.12); --fill2:rgba(120,115,105,.2);
+  --t-fast:140ms; --t-mid:240ms; --e-out:cubic-bezier(.2,.8,.2,1); --e-spring:cubic-bezier(.3,1.35,.55,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000; --cell:#1C1C1E; --ink:#fff; --l2:#8D8D93; --l3:#48484A; --tint:#BC9361; --on-tint:#161514;
+  --red:#B96E65; --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36); color-scheme:dark;}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,"SF Pro Text","Inter",system-ui,"Segoe UI",Roboto,sans-serif;letter-spacing:-.01em}
+button,input{font:inherit;color:inherit;letter-spacing:inherit}
+main{max-width:520px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));min-height:100dvh;display:flex;flex-direction:column;gap:12px}
+.mark{font-family:"GFS Didot",Georgia,serif;letter-spacing:.18em;text-transform:uppercase;font-size:15px;color:var(--l2);text-align:center;padding:6px 0}
+h1{font-size:28px;line-height:1.1;margin:0;letter-spacing:-.02em}
+h2{font-size:22px;line-height:1.25;margin:4px 0 8px}
+.sub{color:var(--l2);font-size:15px}
+.center{text-align:center}
+.card{background:var(--cell);border-radius:12px;padding:12px 16px}
+input[type=text]{width:100%;height:50px;border:0;border-radius:14px;background:var(--cell);padding:0 16px;outline:2px solid transparent;font-size:17px}
+input[type=text]:focus{outline-color:var(--tint)}
+.btn{height:50px;border-radius:14px;border:0;background:var(--fill);font-weight:600;width:100%;cursor:pointer;transition:transform var(--t-fast) var(--e-spring)}
+.btn:active{transform:scale(.97)}
+.btn.tint{background:var(--tint);color:var(--on-tint)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.timer{height:6px;border-radius:99px;background:var(--fill2);overflow:hidden}
+.timer i{display:block;height:100%;background:var(--tint);width:100%;transform-origin:left}
+.ans{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:0;border-radius:14px;background:var(--cell);margin:0 0 10px;text-align:left;min-height:58px;cursor:pointer;transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.ans:active{transform:scale(.98)}
+.ans .k{width:32px;height:32px;border-radius:8px;background:var(--fill);display:grid;place-items:center;font-weight:700;flex:none;font-size:15px}
+.ans.picked{outline:2px solid var(--tint)}
+.ans.right{background:var(--ok);color:#fff}.ans.right .k{background:rgba(255,255,255,.25)}
+.ans.wrong{background:var(--red);color:#fff}.ans.wrong .k{background:rgba(255,255,255,.25)}
+.ans[disabled]{cursor:default}
+.big{font-size:56px;font-weight:700;letter-spacing:-.03em;text-align:center;margin:16px 0 0;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:12px;padding:8px 0}
+.row+.row{border-top:.5px solid var(--l3)}
+.row .n{width:28px;color:var(--l2);font-variant-numeric:tabular-nums}.row .s{margin-left:auto;font-variant-numeric:tabular-nums}
+.row.me{font-weight:700}
+.spacer{flex:1}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<script>
+"use strict";
+const I18N = {
+  ru:{join:"Войти в игру",name:"Имя",go:"Войти",wait:"Ждём начала игры",players:n=>"Игроков: "+n,q:(i,n)=>"Вопрос "+i+" из "+n,many:"Выберите все верные",send:"Ответить",sent:"Ответ принят. Можно изменить, пока идёт время.",
+    right:"Верно",wrong:"Неверно",plus:n=>"+"+n+" очков",score:"Всего",rank:n=>n+" место",board:"Таблица",end:"Игра окончена",you:"Вы",closed:"Игра закрыта ведущим",noGame:"Игра ещё не открыта. Подождите ведущего.",
+    bad_name:"Имя: от 1 до 24 знаков",name_taken:"Такое имя уже занято",full:"Игроков уже максимум",closed2:"Игра уже идёт",unknown_token:"Игра началась заново — войдите ещё раз",bad_choice:"Выберите вариант",not_open:"Приём ответов закрыт",offline:"Нет связи. Подключаемся…",again:"Войти снова"},
+  uz:{join:"O‘yinga kirish",name:"Ism",go:"Kirish",wait:"O‘yin boshlanishini kutamiz",players:n=>"O‘yinchilar: "+n,q:(i,n)=>i+"-savol, jami "+n+" ta",many:"To‘g‘rilarining hammasini tanlang",send:"Javob berish",sent:"Javob qabul qilindi. Vaqt tugamaguncha o‘zgartirish mumkin.",
+    right:"To‘g‘ri",wrong:"Noto‘g‘ri",plus:n=>"+"+n+" ball",score:"Jami",rank:n=>n+"-o‘rin",board:"Jadval",end:"O‘yin tugadi",you:"Siz",closed:"O‘yin boshlovchi tomonidan yopildi",noGame:"O‘yin hali ochilmagan. Boshlovchini kuting.",
+    bad_name:"Ism: 1 dan 24 gacha belgi",name_taken:"Bu ism band",full:"O‘yinchilar soni to‘lgan",closed2:"O‘yin allaqachon boshlangan",unknown_token:"O‘yin qaytadan boshlandi — yana kiring",bad_choice:"Variantni tanlang",not_open:"Javob qabul qilish yopilgan",offline:"Aloqa yo‘q. Ulanmoqda…",again:"Qayta kirish"},
+  en:{join:"Join the game",name:"Name",go:"Join",wait:"Waiting for the game to start",players:n=>"Players: "+n,q:(i,n)=>"Question "+i+" of "+n,many:"Select all that apply",send:"Answer",sent:"Answer received. You can change it until time runs out.",
+    right:"Correct",wrong:"Incorrect",plus:n=>"+"+n+" points",score:"Total",rank:n=>"Place "+n,board:"Leaderboard",end:"Game over",you:"You",closed:"The game was closed by the host",noGame:"The game is not open yet. Please wait for the host.",
+    bad_name:"Name: 1 to 24 characters",name_taken:"That name is taken",full:"The game is full",closed2:"The game has already started",unknown_token:"The game restarted — please join again",bad_choice:"Choose an option",not_open:"Answers are closed",offline:"No connection. Reconnecting…",again:"Join again"},
+};
+let lang = (navigator.language || "ru").slice(0,2); if (!I18N[lang]) lang = "en";
+let t = I18N[lang];
+const $app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,v); }catch(e){} } };
+const key = new URLSearchParams(location.search).get("k") || "";
+let sock = null, state = { screen:"connecting" }, token = store.get("deixis-play-token"), errorText = "", tick = null, fails = 0, picked = new Set(), q = null, shownAt = 0;
+
+function send(o){ if (sock && sock.readyState === 1) sock.send(JSON.stringify(o)); }
+function connect(){
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  sock = new WebSocket(proto + "//" + location.host + "/play/ws?k=" + encodeURIComponent(key));
+  sock.onopen = () => { fails = 0; if (token) send({ type:"rejoin", token }); else go({ screen:"join" }); };
+  sock.onmessage = e => { let m; try{ m = JSON.parse(e.data); }catch(_){ return; } onMsg(m); };
+  sock.onclose = () => { clearInterval(tick); fails++; if (state.screen !== "closed") { errorText = t.offline; render(); } setTimeout(connect, Math.min(1000 * fails, 5000)); };
+}
+function go(s){ state = s; render(); }
+function onMsg(m){
+  switch (m.type) {
+    case "joined": token = m.token; store.set("deixis-play-token", token); if (I18N[m.lang]) { lang = m.lang; t = I18N[lang]; } state.title = m.title; state.name = m.name; errorText = ""; go({ screen:"lobby", players:0, title:m.title, name:m.name }); break;
+    case "lobby": go({ screen:"lobby", players:m.players, title:state.title, name:state.name }); break;
+    case "question": q = m; shownAt = performance.now(); picked = new Set(m.picked); errorText = ""; go({ screen:"question", title:state.title, name:state.name }); startTick(); break;
+    case "accepted": picked = new Set(m.choices); render(); break;
+    case "reveal": clearInterval(tick); go({ screen:"reveal", r:m, title:state.title, name:state.name }); break;
+    case "board": go({ screen:"board", b:m, title:state.title, name:state.name }); break;
+    case "end": clearInterval(tick); go({ screen:"end", b:m, title:state.title, name:state.name }); break;
+    case "closed": clearInterval(tick); token = null; store.set("deixis-play-token", null); go({ screen:"closed" }); break;
+    case "error": errorText = t[m.code === "closed" ? "closed2" : m.code] || m.code; if (m.code === "unknown_token") { token = null; store.set("deixis-play-token", null); go({ screen:"join" }); } else render(); break;
+  }
+}
+function startTick(){
+  clearInterval(tick);
+  if (!q || !q.totalMs) return;
+  tick = setInterval(() => {
+    const bar = document.getElementById("tbar"); if (!bar) return;
+    const left = Math.max(0, q.remainingMs - (performance.now() - shownAt));
+    bar.style.transform = "scaleX(" + Math.min(1, left / q.totalMs) + ")";
+    if (left <= 0) clearInterval(tick);
+  }, 100);
+}
+function row(r, me){ return '<div class="row' + (me && me.name === r.name ? " me" : "") + '"><span class="n">' + r.rank + '</span><span>' + esc(r.name) + '</span><span class="s">' + r.score + '</span></div>'; }
+function render(){
+  const head = '<div class="mark">ΔΕΙΞΙΣ</div>';
+  const err = errorText ? '<div class="card sub" role="alert">' + esc(errorText) + '</div>' : "";
+  let h = head;
+  switch (state.screen) {
+    case "connecting": h += '<p class="center sub">' + esc(t.offline) + '</p>'; break;
+    case "join":
+      h += '<h1>' + esc(t.join) + '</h1><input type="text" id="name" maxlength="24" placeholder="' + esc(t.name) + '" autocomplete="nickname" aria-label="' + esc(t.name) + '">' + err + '<button class="btn tint" id="go">' + esc(t.go) + '</button>'; break;
+    case "lobby":
+      h += '<div class="spacer"></div><h1 class="center">' + esc(state.title || "") + '</h1><p class="center sub">' + esc(state.name || "") + '</p><p class="center">' + esc(t.wait) + '</p><p class="center sub">' + esc(t.players(state.players || 0)) + '</p><div class="spacer"></div>' + err; break;
+    case "question": {
+      const multi = q.multiple;
+      h += '<div class="sub center">' + esc(t.q(q.index + 1, q.total)) + '</div>' + (q.totalMs ? '<div class="timer" aria-hidden="true"><i id="tbar"></i></div>' : "") + '<h2>' + esc(q.text) + '</h2>' + (multi ? '<div class="sub" style="margin:-4px 0 8px">' + esc(t.many) + '</div>' : "")
+        + q.options.map(o => '<button class="ans' + (picked.has(o.id) ? " picked" : "") + '" data-id="' + esc(o.id) + '" aria-pressed="' + picked.has(o.id) + '"><span class="k">' + esc(o.mark) + '</span><span>' + esc(o.text) + '</span></button>').join("")
+        + (multi ? '<button class="btn tint" id="send"' + (picked.size ? "" : " disabled") + '>' + esc(t.send) + '</button>' : "")
+        + (picked.size && !multi ? '<p class="sub center">' + esc(t.sent) + '</p>' : "") + err;
+      break; }
+    case "reveal": {
+      const r = state.r;
+      h += '<div class="sub center">' + esc(t.q(r.index + 1, r.total)) + '</div><h2>' + esc(r.text) + '</h2>' + r.options.map(o => {
+        const right = r.correct.includes(o.id), mine = r.picked.includes(o.id);
+        return '<button class="ans' + (right ? " right" : mine ? " wrong" : "") + '" disabled><span class="k">' + (right ? "✓" : mine ? "✕" : esc(o.mark)) + '</span><span>' + esc(o.text) + '</span></button>'; }).join("")
+        + '<div class="card"><b>' + esc(r.right ? t.right : t.wrong) + '</b>' + (r.earned ? ' · ' + esc(t.plus(r.earned)) : "") + (r.explanation ? '<div class="sub">' + esc(r.explanation) + '</div>' : "") + '</div>'
+        + '<p class="center sub">' + esc(t.score) + ': ' + r.score + ' · ' + esc(t.rank(r.rank)) + '</p>';
+      break; }
+    case "board": go({ screen:"board", b:m, title:state.title, name:state.name }); break;
+    case "end": clearInterval(tick); go({ screen:"end", b:m, title:state.title, name:state.name }); break;
+    case "closed": clearInterval(tick); token = null; store.set("deixis-play-token", null); go({ screen:"closed" }); break;
+    case "error": errorText = t[m.code === "closed" ? "closed2" : m.code] || m.code; if (m.code === "unknown_token") { token = null; store.set("deixis-play-token", null); go({ screen:"join" }); } else render(); break;
+  }
+}
+function startTick(){
+  clearInterval(tick);
+  if (!q || !q.totalMs) return;
+  tick = setInterval(() => {
+    const bar = document.getElementById("tbar"); if (!bar) return;
+    const left = Math.max(0, q.remainingMs - (performance.now() - shownAt));
+    bar.style.transform = "scaleX(" + Math.min(1, left / q.totalMs) + ")";
+    if (left <= 0) clearInterval(tick);
+  }, 100);
+}
+function row(r, me){ return '<div class="row' + (me && me.name === r.name ? " me" : "") + '"><span class="n">' + r.rank + '</span><span>' + esc(r.name) + '</span><span class="s">' + r.score + '</span></div>'; }
+function render(){
+  const head = '<div class="mark">ΔΕΙΞΙΣ</div>';
+  const err = errorText ? '<div class="card sub" role="alert">' + esc(errorText) + '</div>' : "";
+  let h = head;
+  switch (state.screen) {
+    case "connecting": h += '<p class="center sub">' + esc(t.offline) + '</p>'; break;
+    case "join":
+      h += '<h1>' + esc(t.join) + '</h1><input type="text" id="name" maxlength="24" placeholder="' + esc(t.name) + '" autocomplete="nickname" aria-label="' + esc(t.name) + '">' + err + '<button class="btn tint" id="go">' + esc(t.go) + '</button>'; break;
+    case "lobby":
+      h += '<div class="spacer"></div><h1 class="center">' + esc(state.title || "") + '</h1><p class="center sub">' + esc(state.name || "") + '</p><p class="center">' + esc(t.wait) + '</p><p class="center sub">' + esc(t.players(state.players || 0)) + '</p><div class="spacer"></div>' + err; break;
+    case "question": {
+      const multi = q.multiple;
+      h += '<div class="sub center">' + esc(t.q(q.index + 1, q.total)) + '</div>' + (q.totalMs ? '<div class="timer" aria-hidden="true"><i id="tbar"></i></div>' : "") + '<h2>' + esc(q.text) + '</h2>' + (multi ? '<div class="sub" style="margin:-4px 0 8px">' + esc(t.many) + '</div>' : "")
+        + q.options.map(o => '<button class="ans' + (picked.has(o.id) ? " picked" : "") + '" data-id="' + esc(o.id) + '" aria-pressed="' + picked.has(o.id) + '"><span class="k">' + esc(o.mark) + '</span><span>' + esc(o.text) + '</span></button>').join("")
+        + (multi ? '<button class="btn tint" id="send"' + (picked.size ? "" : " disabled") + '>' + esc(t.send) + '</button>' : "")
+        + (picked.size && !multi ? '<p class="sub center">' + esc(t.sent) + '</p>' : "") + err;
+      break; }
+    case "reveal": {
+      const r = state.r;
+      h += '<div class="sub center">' + esc(t.q(q.index + 1, q.total)) + '</div><h2>' + esc(q.text) + '</h2>' + q.options.map(o => {
+        const right = r.correct.includes(o.id), mine = r.picked.includes(o.id);
+        return '<button class="ans' + (right ? " right" : mine ? " wrong" : "") + '" disabled><span class="k">' + (right ? "✓" : mine ? "✕" : esc(o.mark)) + '</span><span>' + esc(o.text) + '</span></button>'; }).join("")
+        + '<div class="card"><b>' + esc(r.right ? t.right : t.wrong) + '</b>' + (r.earned ? ' · ' + esc(t.plus(r.earned)) : "") + (r.explanation ? '<div class="sub">' + esc(r.explanation) + '</div>' : "") + '</div>'
+        + '<p class="center sub">' + esc(t.score) + ': ' + r.score + ' · ' + esc(t.rank(r.rank)) + '</p>';
+      break; }
+    case "board": h += '<h1>' + esc(t.board) + '</h1><div class="card">' + state.b.top.map(r => row(r, state.b.me)).join("") + '</div>' + (state.b.me && !state.b.top.some(r => r.name === state.b.me.name) ? '<div class="card">' + row(state.b.me, state.b.me) + '</div>' : ""); break;
+    case "end": h += '<h1>' + esc(t.end) + '</h1>' + (state.b.me ? '<div class="big">' + state.b.me.score + '</div><p class="center sub">' + esc(t.rank(state.b.me.rank)) + '</p>' : "") + '<div class="card">' + state.b.top.map(r => row(r, state.b.me)).join("") + '</div>'; break;
+    case "closed": h += '<div class="spacer"></div><p class="center">' + esc(t.closed) + '</p><button class="btn" id="again">' + esc(t.again) + '</button><div class="spacer"></div>'; break;
+  }
+  $app.innerHTML = h;
+}
+$app.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "go") { const v = document.getElementById("name").value; errorText = ""; send({ type:"join", name:v }); }
+  else if (b.id === "again") { token = null; go({ screen:"join" }); }
+  else if (b.id === "send") send({ type:"answer", choices:[...picked] });
+  else if (b.dataset.id && state.screen === "question") {
+    const id = b.dataset.id;
+    if (q.multiple) { picked.has(id) ? picked.delete(id) : picked.add(id); render(); }
+    else { picked = new Set([id]); send({ type:"answer", choices:[id] }); render(); }
+  }
+});
+$app.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "name") document.getElementById("go").click(); });
+render(); connect();
+</script>
+</body>
+</html>

@@ -465,6 +465,22 @@ Ktor CIO TLS не умеет, поэтому:
 сравнивается за постоянное время. Ссылка зрителя: `http://<host>:<port>/view?k=<viewKey>` (`SenderClient.viewUrl`)
 или `http://deixis-xxxx.local:<port>/view?k=…` (`viewLocalUrl`).
 
+### 5.5а. Живая игра-викторина (`QuizRoutes.kt`, `quiz/QuizPlay.kt`)
+
+Канал игроков **отдельный** от зрителей: `/view/ws` только смотрит и всё, что шлёт браузер, игнорирует; игрок шлёт ответы.
+
+| Маршрут | Доступ | Назначение |
+|---|---|---|
+| `GET /play` | без ключа | страница игрока (`web/play.html`, три языка, сама ставит язык из браузера и из файла викторины) |
+| `WS /play/ws?k=<viewKey>` | ключ зрителя (как `/view`) | канал игрока; кадр не больше 2 КБ; не больше `MAX_PLAYERS + 20` соединений |
+| `POST /api/quiz/open?join=<адрес>` | токен оператора | тело — JSON викторины; прошла проверку — игра ждёт игроков (зал показывает адрес `join`), не прошла — `422` и список замечаний (`code`, `path`, `message`) |
+| `POST /api/quiz/start`, `/close`, `/board`, `/next`, `/end` | токен оператора | начать; закрыть приём ответов; таблица в зал; следующий вопрос (после последнего — итог); закрыть игру. `204`, `409` — команда сейчас невозможна |
+| `GET /api/quiz/state` | токен оператора | `QuizHostState`: фаза, номер вопроса, игроки, ответившие, счётчики по вариантам, таблица, остаток времени; `204` — игры нет |
+
+Сообщения игрока → экран (`PlayIn`, поле `type`): `join{name}`, `rejoin{token}`, `answer{choices[]}`. Экран → игрок (`PlayOut`): `joined{token,name,title,lang}`, `lobby{players}`, `question{index,total,text,options[{id,text,mark}],multiple,remainingMs,totalMs,picked[]}`, `accepted{choices}`, `reveal{correct,picked,right,earned,score,rank,explanation,index,total,text,options}`, `board{top,me}`, `end{top,me,players}`, `error{code}` (`bad_name`, `name_taken`, `full`, `closed`, `unknown_token`, `bad_choice`, `not_open`), `closed`. Верные ответы есть **только** в `reveal`. Вернувшийся по токену сразу получает снимок текущей фазы. Игры нет — первым приходит `closed`.
+
+Игра живёт на приёмнике (`ReceiverCore.quiz`, `QuizHub`): время, очки и закрытие вопроса по таймеру не зависят от пульта. Зал получает ход как обычные слайды: `QuizContent` (вопрос и результат) и `TextContent` (ожидание игроков, таблица, итог) на языке викторины.
+
 ### 5.6. Cookie веб-пульта
 
 `REMOTE_COOKIE = "deixis"`, ставит `POST /remote/session`, путь `/remote`, `HttpOnly`, `SameSite=Strict`, год.

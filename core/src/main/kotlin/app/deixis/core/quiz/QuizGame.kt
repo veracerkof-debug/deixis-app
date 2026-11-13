@@ -58,6 +58,9 @@ class QuizGame(
     private var openedAt = 0L
     private var limitMs = 0L
 
+    /** Время на текущий вопрос, мс; 0 — без лимита. */
+    val limitMillis: Long get() = limitMs
+
     val total: Int get() = quiz.questions.size
     val question: QuizQuestion? get() = quiz.questions.getOrNull(index)
     val playerCount: Int get() = players.size
@@ -109,8 +112,8 @@ class QuizGame(
         val p = players[token] ?: return AnswerResult.UNKNOWN_PLAYER
         val q = question
         if (phase != GamePhase.QUESTION || q == null) return AnswerResult.NOT_OPEN
-        // Ответ на последней миллисекунде принимается, позже — нет: опоздавший не получает преимущества.
-        if (limitMs > 0 && clock() > openedAt + limitMs) return AnswerResult.NOT_OPEN
+        // Ответ в последнюю долю секунды успевает дойти по сети (запас), позже — нет: опоздавший не получает преимущества.
+        if (limitMs > 0 && clock() > openedAt + limitMs + ANSWER_GRACE_MS) return AnswerResult.NOT_OPEN
         val known = if (q.type == QuizTypes.TRUE_FALSE) setOf(QuizTypes.CHOICE_TRUE, QuizTypes.CHOICE_FALSE) else q.options.map { it.id }.toSet()
         if (chosen.isEmpty() || !known.containsAll(chosen)) return AnswerResult.BAD_CHOICE
         // single и truefalse берут один вариант: лишние не принимаются, чтобы не «угадывать залпом».
@@ -186,6 +189,9 @@ class QuizGame(
         /** Предел игроков: класс — около 60; отдельно от 32 зрителей трансляции. */
         const val MAX_PLAYERS = 60
         const val MAX_NAME = 24
+
+        /** Запас на задержку сети: ответ, отправленный в последнюю долю секунды, успевает дойти. */
+        const val ANSWER_GRACE_MS = 300L
 
         /** Имя: без управляющих знаков, пробелы по краям и повторы схлопнуты, 1–24 знака. */
         fun cleanName(raw: String): String? {

@@ -145,6 +145,12 @@ class ReceiverCore(
     @Volatile
     var holyrics: HolyricsBridge? = null
 
+    /** Живая игра-викторина: игроки заходят на /play, ведущий управляет с пульта. Игра и время живут здесь. */
+    internal val quiz = app.deixis.core.quiz.QuizHub(
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+        { content -> show(content) },
+    )
+
     /** Поток демонстрации экрана от источника; экран зала и зрители подписываются на него сами. */
     val stream = StreamHub()
 
@@ -374,6 +380,7 @@ class ReceiverServer(
                     }
                 }
                 viewerRoutes(core)
+                quizRoutes(core) { authorized() }
                 remoteRoutes(core) { authorized() }
                 outputsRoutes(core) { authorized() }
                 updateRoutes(core) { authorized() }

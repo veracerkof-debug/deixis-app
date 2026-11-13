@@ -6,12 +6,14 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import java.util.Base64
 
+@kotlinx.serialization.Serializable
 enum class IssueLevel { ERROR, WARNING }
 
 /**
  * Замечание к файлу. [code] — стабильный код (для переводов в интерфейсе и для нейросети), [path] — где
  * (`questions[2].options[1].text`), [message] — понятная фраза для автора.
  */
+@kotlinx.serialization.Serializable
 data class QuizIssue(val level: IssueLevel, val code: String, val path: String, val message: String)
 
 /** Итог проверки: [quiz] есть, только если ошибок нет. Предупреждения файл не блокируют. */

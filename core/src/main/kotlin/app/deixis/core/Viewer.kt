@@ -247,5 +247,5 @@ private val viewStreams = java.util.concurrent.atomic.AtomicInteger()
 private const val MAX_VIEW_STREAMS = 32
 
 /** Ключ зрителей сравнивается за постоянное время: по времени ответа его не подобрать. */
-private fun viewKeyOk(given: String?, key: String): Boolean =
+internal fun viewKeyOk(given: String?, key: String): Boolean =
     given != null && java.security.MessageDigest.isEqual(given.toByteArray(), key.toByteArray())

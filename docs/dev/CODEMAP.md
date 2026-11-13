@@ -461,3 +461,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `pult/.../phone/QuizSession.kt` — прохождение викторины с пульта (состояние, таймер, показ на экранах); `QuizUi.kt` — шторка «Урок» (открыть файл, играть, итог). Тест — `desktop/src/test/.../phone/QuizSessionTest.kt` (логика пульта без Compose проверяется в desktop).
 
 `core/.../quiz/QuizGame.kt` — движок живой игры (игроки, ответы, очки за скорость, таблица); подключается к сети и экранам отдельным шагом.
+
+Живая игра: `core/.../quiz/QuizPlay.kt` — `QuizHub` (центр игры на приёмнике: зал, игроки, таймер) и сообщения `PlayIn`/`PlayOut`; `core/.../QuizRoutes.kt` — `/play`, `/play/ws`, `/api/quiz/…`; `core/src/main/resources/web/play.html` — страница игрока.
