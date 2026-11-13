@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deixis — прототип викторин</title>
+<style>
+/* Токены из DESIGN.md (как в index.html) */
+:root{
+  --bg:#F3F2EE; --cell:#FFFFFF; --ink:#161514; --l2:#6E6B65; --l3:#C6C3BC;
+  --tint:#9C7242; --tint-text:#765A38; --red:#A75750; --live:#A75750; --ok:#3F7D57; --gold:#A87A00;
+  --sep:rgba(60,55,45,.15); --fill:rgba(120,115,105,.12); --fill2:rgba(120,115,105,.2);
+  --t-fast:140ms; --t-mid:240ms; --t-slow:340ms;
+  --e-out:cubic-bezier(.2,.8,.2,1); --e-in:cubic-bezier(.4,0,1,1); --e-spring:cubic-bezier(.3,1.35,.55,1);
+  --r-card:12px; --r-btn:14px; color-scheme:light;
+}
+[data-theme="dark"]{
+  --bg:#000; --cell:#1C1C1E; --ink:#fff; --l2:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --live:#B96E65; --ok:#3F7D57; --gold:#FFD43B;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36); color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:17px/1.35 -apple-system,"SF Pro Text","Inter",system-ui,"Segoe UI",Roboto,sans-serif;letter-spacing:-.01em;transition:background var(--t-mid) var(--e-out)}
+button{font:inherit;color:inherit;letter-spacing:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,textarea{font:inherit;color:var(--ink);letter-spacing:inherit}
+svg{display:block}
+.ico{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* Переключатель экранов прототипа — не часть приложения */
+.proto{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:.5px solid var(--sep);padding:8px 12px;display:flex;gap:6px;overflow-x:auto;align-items:center}
+.proto b{font-size:12px;color:var(--l2);text-transform:uppercase;letter-spacing:.04em;margin-right:4px;white-space:nowrap}
+.proto button{height:32px;padding:0 12px;border-radius:999px;background:var(--fill);font-size:14px;font-weight:600;white-space:nowrap}
+.proto button[aria-pressed="true"]{background:var(--tint);color:#fff}
+.stage{display:flex;justify-content:center;padding:16px}
+.phone{width:100%;max-width:420px;min-height:760px;background:var(--bg);border:.5px solid var(--sep);border-radius:28px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.phone.wide{max-width:980px}
+.top{display:flex;align-items:center;gap:8px;padding:12px 16px 8px;min-height:56px}
+.top h1{font-size:28px;line-height:1.1;margin:0;font-weight:700;flex:1;letter-spacing:-.02em}
+.top h2{font-size:17px;margin:0;font-weight:600;flex:1;text-align:center}
+.body{flex:1;overflow:auto;padding:0 16px 24px}
+.iconbtn{width:44px;height:44px;border-radius:999px;display:grid;place-items:center;transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.iconbtn:active{transform:scale(.92);background:var(--fill)}
+.pill{height:36px;padding:0 14px;border-radius:999px;background:var(--fill);font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pill.tint{background:var(--tint);color:#fff}
+.btn{height:50px;border-radius:var(--r-btn);background:var(--fill);font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;transition:transform var(--t-fast) var(--e-spring)}
+.btn:active{transform:scale(.97)}
+.btn.tint{background:var(--tint);color:#fff}
+.btn.red{color:var(--red)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.group{background:var(--cell);border-radius:var(--r-card);overflow:hidden;margin:0 0 20px}
+.ghead{font-size:13px;color:var(--l2);text-transform:uppercase;letter-spacing:.02em;margin:0 0 6px 16px}
+.row{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:44px;width:100%;text-align:left;position:relative}
+.row+.row::before{content:"";position:absolute;top:0;left:52px;right:0;border-top:.5px solid var(--sep)}
+.row .main{flex:1;min-width:0}
+.row .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:14px;color:var(--l2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .kind{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--fill);color:var(--tint-text);flex:none;font-size:13px;font-weight:700}
+.row.sel{background:var(--fill)}
+.chev{color:var(--l3)}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
+.seg button{flex:1;min-height:32px;border-radius:7px;font-size:14px;font-weight:500;padding:0 10px;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--cell);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.field{display:block;background:var(--cell);border-radius:var(--r-card);padding:10px 16px;margin:0 0 12px}
+.field small{display:block;font-size:13px;color:var(--l2);margin-bottom:2px}
+.field input,.field textarea{width:100%;border:0;background:none;outline:none;resize:none;padding:0}
+.switch{width:51px;height:31px;border-radius:999px;background:var(--fill2);position:relative;flex:none;transition:background var(--t-mid) var(--e-out)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:999px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform var(--t-mid) var(--e-spring)}
+.switch[aria-checked="true"]{background:var(--tint)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+.stepper{display:flex;background:var(--fill);border-radius:9px;flex:none}
+.stepper button{width:44px;height:32px;font-size:20px}
+.stepper span{min-width:40px;display:grid;place-items:center;font-variant-numeric:tabular-nums;font-size:15px}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;flex:none;background:var(--fill2);color:var(--tint-text)}
+.tag.live{background:var(--live);color:#fff}
+.tag.ok{background:var(--ok);color:#fff}
+.check{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--l3);display:grid;place-items:center;flex:none;color:#fff;transition:background var(--t-fast),border-color var(--t-fast)}
+.check.round{border-radius:999px}
+.check[aria-checked="true"]{background:var(--ok);border-color:var(--ok)}
+.check .ico{width:16px;height:16px;stroke-width:2.4;opacity:0}
+.check[aria-checked="true"] .ico{opacity:1}
+
+/* Слайд вопроса: тот же вид и в предпросмотре, и в зале. Фон и текст — умолчания вывода */
+.q{position:relative;aspect-ratio:16/9;width:100%;border-radius:8px;overflow:hidden;background:#000;color:#fff;container-type:inline-size;display:flex;flex-direction:column;padding:5.5cqw 5.5cqw 4cqw;gap:2.4cqw;user-select:none}
+.q .qt{font-size:4.4cqw;line-height:1.2;font-weight:600;flex:1;display:flex;align-items:center}
+.q .opts{display:grid;grid-template-columns:1fr 1fr;gap:1.6cqw}
+.q .opt{display:flex;align-items:center;gap:1.6cqw;padding:1.4cqw 2cqw;border-radius:1.6cqw;background:rgba(255,255,255,.12);font-size:2.8cqw;font-weight:500;min-height:7cqw}
+.q .opt .k{width:4.2cqw;height:4.2cqw;border-radius:1cqw;background:rgba(255,255,255,.2);display:grid;place-items:center;font-size:2.4cqw;font-weight:700;flex:none}
+.q .opt.right{background:#2f6243}.q .opt.wrong{background:#7a3b36;opacity:.8}
+.q .opt.picked{outline:.4cqw solid #fff}
+.q .bar{position:absolute;left:0;bottom:0;height:.9cqw;background:#BC9361;width:100%;transform-origin:left}
+.q .meta{position:absolute;right:5.5cqw;top:3cqw;font-size:2.4cqw;opacity:.75;font-variant-numeric:tabular-nums}
+
+/* Ответы на телефоне ученика и в плеере: форма (буква) + текст, не только цвет */
+.ans{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:var(--r-btn);background:var(--cell);margin:0 0 10px;text-align:left;min-height:56px;transition:transform var(--t-fast) var(--e-spring),background var(--t-fast)}
+.ans:active{transform:scale(.98)}
+.ans .k{width:30px;height:30px;border-radius:8px;background:var(--fill);display:grid;place-items:center;font-weight:700;flex:none;font-size:15px}
+.ans.picked{outline:2px solid var(--tint)}
+.ans.right{background:var(--ok);color:#fff}.ans.right .k{background:rgba(255,255,255,.25)}
+.ans.wrong{background:var(--red);color:#fff}.ans.wrong .k{background:rgba(255,255,255,.25)}
+.note{background:var(--cell);border-radius:var(--r-card);padding:12px 16px;margin:0 0 12px;font-size:15px;color:var(--l2)}
+.big{font-size:56px;font-weight:700;letter-spacing:-.03em;text-align:center;margin:24px 0 4px;font-variant-numeric:tabular-nums}
+.center{text-align:center;color:var(--l2)}
+.timer{height:6px;border-radius:99px;background:var(--fill2);overflow:hidden;margin:0 0 12px}
+.timer i{display:block;height:100%;background:var(--tint);width:100%;transform-origin:left}
+.code{font-size:44px;font-weight:700;letter-spacing:.12em;text-align:center;margin:8px 0;font-variant-numeric:tabular-nums}
+.qr{width:140px;height:140px;margin:8px auto;border-radius:12px;background:repeating-conic-gradient(var(--ink) 0 25%,var(--cell) 0 50%) 0 0/28px 28px;border:8px solid var(--cell)}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar-row{display:grid;grid-template-columns:28px 1fr 32px;gap:8px;align-items:center;font-size:14px}
+.bar-row .tr{height:12px;border-radius:99px;background:var(--fill2);overflow:hidden}
+.bar-row .tr i{display:block;height:100%;background:var(--tint);transition:width var(--t-slow) var(--e-out)}
+.bar-row.ok .tr i{background:var(--ok)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 10px;border-radius:999px;background:var(--fill);font-size:14px}
+.chip.done{background:var(--ok);color:#fff}
+.hid{display:none!important}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:760px){.cols{grid-template-columns:1fr}}
+.cap{font-size:13px;color:var(--l2);margin:6px 16px 0;text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="proto" role="tablist" aria-label="Экраны прототипа">
+  <b>Прототип</b>
+  <button data-go="list" aria-pressed="true">Список</button>
+  <button data-go="edit">Редактор</button>
+  <button data-go="prev">Предпросмотр</button>
+  <button data-go="play">Плеер</button>
+  <button data-go="done">Итог</button>
+  <button data-go="host">Ведущий</button>
+  <button data-go="gamer">Игрок</button>
+  <button id="theme" style="margin-left:auto">Тема</button>
+</div>
+<div class="stage" id="stage"></div>
+
+<script>
+const I = {
+  back:'<path d="M15 5l-7 7 7 7"/>', plus:'<path d="M12 5v14M5 12h14"/>', check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  play:'<path d="M7 5l12 7-12 7z"/>', quiz:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17v.01"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  sparkle:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+  trash:'<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>', share:'<path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/>', screen:'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8"/>'
+};
+const ico = n => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+const L = ['A','B','C','D','E','F'];
+
+// Данные — как в docs/quiz/example.deixis-quiz.json
+const quiz = { title:'Города и города-герои', passPercent:60, time:30, questions:[
+  { type:'single', text:'Какая из этих рек самая длинная?', points:1, expl:'Волга — 3530 км, длиннейшая река Европы.', opts:[['Волга',1],['Дон',0],['Днепр',0],['Урал',0]] },
+  { type:'multiple', text:'Какие из этих чисел простые?', points:2, expl:'Простые: 2 и 11.', opts:[['2',1],['9',0],['11',1],['15',0]] },
+  { type:'truefalse', text:'Земля вращается вокруг Солнца.', points:1, expl:'Один оборот за год.', opts:[['Верно',1],['Неверно',0]] },
+]};
+const TYPE = { single:'Один ответ', multiple:'Несколько ответов', truefalse:'Верно / неверно' };
+const S = { screen:'list', sel:0, editType:'single', pi:0, picked:new Set(), revealed:false, score:0, earned:[], tick:null };
+
+const stage = document.getElementById('stage');
+function phone(inner, wide){ return `<div class="phone${wide?' wide':''}">${inner}</div>`; }
+function slideQ(q, state={}){ // state: {picked:Set, reveal:bool, t:0..1, n:'1/3'}
+  const o = q.opts.map((o,i)=>{ const c=[]; if(state.reveal){ c.push(o[1]?'right':(state.picked&&state.picked.has(i)?'wrong':'')); } else if(state.picked&&state.picked.has(i)) c.push('picked');
+    return `<div class="opt ${c.join(' ')}"><span class="k">${q.type==='truefalse'?(i?'✕':'✓'):L[i]}</span>${o[0]}</div>`; }).join('');
+  return `<div class="q"><div class="meta">${state.n||''}</div><div class="qt">${q.text}</div><div class="opts">${o}</div>${state.t!=null?`<div class="bar" style="transform:scaleX(${state.t})"></div>`:''}</div>`;
+}
+
+const screens = {
+  list(){ return phone(`
+    <div class="top"><h1>Уроки</h1><button class="iconbtn" aria-label="Создать" data-go="edit">${ico('plus')}</button></div>
+    <div class="body">
+      <div class="seg" style="margin-bottom:14px"><button aria-pressed="true">Викторины</button><button aria-pressed="false">Опросы</button></div>
+      <div class="ghead">Мои</div>
+      <div class="group">
+        <button class="row" data-go="edit"><span class="kind">${ico('quiz')}</span><span class="main"><div class="t">${quiz.title}</div><div class="s">3 вопроса · 60 % для зачёта</div></span><span class="chev">›</span></button>
+        <button class="row"><span class="kind">${ico('quiz')}</span><span class="main"><div class="t">Таблица умножения</div><div class="s">12 вопросов</div></span><span class="chev">›</span></button>
+      </div>
+      <div class="ghead">Добавить</div>
+      <div class="group">
+        <button class="row"><span class="kind">${ico('plus')}</span><span class="main"><div class="t">Новая викторина</div><div class="s">Написать самому в редакторе</div></span></button>
+        <button class="row"><span class="kind">${ico('share')}</span><span class="main"><div class="t">Открыть файл</div><div class="s">.deixis-quiz.json — от нейросети или другого устройства</div></span></button>
+        <button class="row"><span class="kind">${ico('sparkle')}</span><span class="main"><div class="t">Как попросить нейросеть</div><div class="s">Инструкция для модели — скопировать</div></span></button>
+      </div>
+      <div class="note">Файл проверяется при открытии: ошибка показывается с путём, например «вопрос 2, вариант 1: нет текста». Что не прошло проверку, на экран не выводится.</div>
+    </div>`)},
+
+  edit(){ const q = quiz.questions[S.sel]; const t = q.type;
+    return phone(`
+    <div class="top"><button class="iconbtn" aria-label="Назад" data-go="list">${ico('back')}</button><h2>Редактор</h2><button class="pill" data-go="prev">${ico('eye')}Вид</button></div>
+    <div class="body">
+      <label class="field"><small>Название</small><input value="${quiz.title}"></label>
+      <div class="ghead">Вопросы</div>
+      <div class="group">${quiz.questions.map((x,i)=>`<button class="row ${i===S.sel?'sel':''}" data-sel="${i}"><span class="kind">${i+1}</span><span class="main"><div class="t">${x.text}</div><div class="s">${TYPE[x.type]} · ${x.points} б.</div></span><span class="chev">⋮⋮</span></button>`).join('')}
+        <button class="row" data-add><span class="kind">${ico('plus')}</span><span class="main"><div class="t">Добавить вопрос</div></span></button></div>
+      <div class="ghead">Вопрос ${S.sel+1}</div>
+      <div class="seg" style="margin-bottom:12px">${Object.keys(TYPE).map(k=>`<button data-type="${k}" aria-pressed="${t===k}">${TYPE[k]}</button>`).join('')}</div>
+      <label class="field"><small>Текст вопроса</small><textarea rows="2">${q.text}</textarea></label>
+      <div class="ghead">${t==='truefalse'?'Верный ответ':t==='multiple'?'Варианты · отметьте все верные':'Варианты · отметьте верный'}</div>
+      <div class="group">${q.opts.map((o,i)=>`<div class="row"><button class="check ${t==='single'||t==='truefalse'?'round':''}" role="checkbox" aria-checked="${!!o[1]}" aria-label="Верный" data-ok="${i}">${ico('check')}</button><span class="main">${t==='truefalse'?o[0]:`<input value="${o[0]}" style="width:100%;border:0;background:none;outline:none">`}</span>${t!=='truefalse'?`<button class="iconbtn" aria-label="Убрать" style="width:36px;height:36px">${ico('trash')}</button>`:''}</div>`).join('')}
+        ${t!=='truefalse'?`<button class="row"><span class="kind">${ico('plus')}</span><span class="main"><div class="t">Добавить вариант</div></span></button>`:''}</div>
+      <label class="field"><small>Пояснение после ответа</small><textarea rows="2">${q.expl}</textarea></label>
+      <div class="group">
+        <div class="row"><span class="main">Очки</span><div class="stepper"><button>−</button><span>${q.points}</span><button>+</button></div></div>
+        <div class="row"><span class="main">Время на ответ</span><div class="stepper"><button>−</button><span>${quiz.time} с</span><button>+</button></div></div>
+        ${t==='multiple'?`<div class="row"><span class="main">Очки по доле верных<div class="s">Лишние отмеченные вычитаются</div></span><button class="switch" role="switch" aria-checked="true" data-sw></button></div>`:''}
+      </div>
+      <button class="btn red">${ico('trash')} Удалить вопрос</button>
+    </div>`)},
+
+  prev(){ const q = quiz.questions[S.sel]; return phone(`
+    <div class="top"><button class="iconbtn" aria-label="Назад" data-go="edit">${ico('back')}</button><h2>Как увидит зал</h2><span style="width:44px"></span></div>
+    <div class="body">
+      ${slideQ(q,{n:`${S.sel+1} / ${quiz.questions.length}`,t:1})}
+      <div class="cap">Полоса внизу — оставшееся время. Тот же вид в зале, на ТВ и на компьютере.</div>
+      <div style="height:16px"></div>
+      <div class="seg"><button aria-pressed="true">Вопрос</button><button aria-pressed="false">Результат</button></div>
+      <div style="height:12px"></div>
+      ${slideQ(q,{n:'ответ',reveal:true,picked:new Set([1])})}
+      <div class="cap">Верный вариант светлеет, выбранный неверный темнеет. Не только цвет: у каждого варианта своя буква.</div>
+      <div style="height:16px"></div>
+      <button class="btn tint" data-go="play">${ico('play')} Пройти</button>
+    </div>`)},
+
+  play(){ const q = quiz.questions[S.pi]; const multi=q.type==='multiple';
+    const optsHtml = q.opts.map((o,i)=>{ let c=''; if(S.revealed){ c=o[1]?'right':(S.picked.has(i)?'wrong':''); } else if(S.picked.has(i)) c='picked';
+      return `<button class="ans ${c}" data-pick="${i}" ${S.revealed?'disabled':''}><span class="k">${q.type==='truefalse'?(i?'✕':'✓'):L[i]}</span><span>${o[0]}</span></button>`; }).join('');
+    return phone(`
+    <div class="top"><button class="iconbtn" aria-label="Закрыть" data-go="list">${ico('back')}</button><h2>Вопрос ${S.pi+1} из ${quiz.questions.length}</h2><span class="tag">${S.score} б.</span></div>
+    <div class="body">
+      <div class="timer" aria-hidden="true"><i id="tbar" style="transform:scaleX(${S.revealed?0:1})"></i></div>
+      <h3 style="font-size:22px;line-height:1.25;margin:4px 0 16px">${q.text}</h3>
+      ${multi&&!S.revealed?'<div class="center" style="margin:-8px 0 12px;font-size:14px">Выберите все верные</div>':''}
+      ${optsHtml}
+      ${S.revealed?`<div class="note"><b style="color:var(--ink)">${S.last?'Верно':'Неверно'}.</b> ${quiz.questions[S.pi].expl}</div>`:''}
+      ${S.revealed?`<button class="btn tint" data-next>${S.pi+1<quiz.questions.length?'Дальше':'Итог'}</button>`:`<button class="btn tint" data-answer ${S.picked.size?'':'disabled'}>Ответить</button>`}
+    </div>`)},
+
+  done(){ const max=quiz.questions.reduce((a,q)=>a+q.points,0); const pct=Math.round(S.score*100/max); const pass=pct>=quiz.passPercent;
+    return phone(`
+    <div class="top"><button class="iconbtn" aria-label="Закрыть" data-go="list">${ico('back')}</button><h2>Итог</h2><span style="width:44px"></span></div>
+    <div class="body">
+      <div class="big">${S.score} из ${max}</div>
+      <div class="center" style="margin-bottom:16px">${pct} % · для зачёта ${quiz.passPercent} %</div>
+      <div style="text-align:center;margin-bottom:20px"><span class="tag ${pass?'ok':'live'}" style="font-size:15px;padding:4px 14px">${pass?'Зачёт':'Не зачтено'}</span></div>
+      <div class="group">${quiz.questions.map((q,i)=>`<div class="row"><span class="kind">${i+1}</span><span class="main"><div class="t">${q.text}</div></span><span class="tag ${S.earned[i]===q.points?'ok':''}">${S.earned[i]??0} / ${q.points}</span></div>`).join('')}</div>
+      <div class="note">Результат нигде не сохраняется и никуда не отправляется: закроется экран — исчезнет.</div>
+      <button class="btn tint" data-restart>Ещё раз</button>
+    </div>`)},
+
+  host(){ const q = quiz.questions[0];
+    return `<div class="phone wide"><div class="top"><button class="iconbtn" aria-label="Назад" data-go="list">${ico('back')}</button><h2>Живая игра · пульт ведущего</h2><span class="tag live">Идёт</span></div>
+    <div class="body"><div class="cols">
+      <div>
+        <div class="ghead">В зале</div>
+        ${slideQ(q,{n:'1 / 3',t:.58})}
+        <div class="cap">Зал показывает вопрос; ответы игроков видны только здесь.</div>
+        <div style="height:12px"></div>
+        <div class="ghead">Ход ответов · 18 из 24</div>
+        <div class="group" style="padding:14px 16px"><div class="bars">
+          ${q.opts.map((o,i)=>`<div class="bar-row ${o[1]?'ok':''}"><b>${L[i]}</b><div class="tr"><i style="width:${[56,22,11,11][i]}%"></i></div><span>${[10,4,2,2][i]}</span></div>`).join('')}
+        </div><div class="s" style="font-size:13px;color:var(--l2);margin-top:8px">Верный вариант отмечен зелёным у ведущего; игроки и зал его пока не видят.</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button class="btn">Закрыть приём</button><button class="btn tint">Показать результат</button>
+        </div>
+      </div>
+      <div>
+        <div class="ghead">Подключиться</div>
+        <div class="group" style="padding:12px 16px 16px"><div class="qr" role="img" aria-label="QR-код"></div><div class="code">4821</div><div class="center" style="font-size:14px">В браузере телефона: адрес экрана и код. QR — на экране зала («QR и код на экран»)</div></div>
+        <div class="ghead">Игроки · 24</div>
+        <div class="chips">${['Аня','Борис','Вика','Гриша','Дина','Егор','Жанна','Зарина','Илья','Камила','Лев','Мадина'].map((n,i)=>`<span class="chip ${i<9?'done':''}">${n}</span>`).join('')}<span class="chip">ещё 12</span></div>
+        <div class="cap" style="text-align:left;margin:8px 0 0">Зелёные — уже ответили. Имена живут в памяти экрана, пока идёт игра.</div>
+        <div style="height:16px"></div>
+        <button class="btn red">Завершить игру</button>
+      </div></div></div></div>`},
+
+  gamer(){ return phone(`
+    <div class="top"><h2 style="text-align:left">Урок · Борис</h2><span class="tag">0 б.</span></div>
+    <div class="body">
+      <div class="timer"><i style="transform:scaleX(.58)"></i></div>
+      <div class="center" style="margin:0 0 14px">Вопрос 1 из 3</div>
+      <h3 style="font-size:22px;line-height:1.25;margin:0 0 16px">Какая из этих рек самая длинная?</h3>
+      ${['Волга','Дон','Днепр','Урал'].map((n,i)=>`<button class="ans ${i===0?'picked':''}"><span class="k">${L[i]}</span><span>${n}</span></button>`).join('')}
+      <div class="note center">Ответ принят. Можно изменить, пока идёт время. Верный ответ появится, когда ведущий откроет результат.</div>
+    </div>`)}
+};
+
+function render(){
+  document.querySelectorAll('.proto [data-go]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.go===S.screen));
+  stage.innerHTML = screens[S.screen]();
+  clearInterval(S.tick);
+  if(S.screen==='play' && !S.revealed){ const bar=document.getElementById('tbar'); let t=1; S.tick=setInterval(()=>{ t-=1/(quiz.time*10); if(bar) bar.style.transform=`scaleX(${Math.max(t,0)})`; if(t<=0){ clearInterval(S.tick); answer(true);} },100); }
+}
+function go(s){ S.screen=s; if(s==='play'){ startRun(); } render(); }
+function startRun(){ S.pi=0; S.picked=new Set(); S.revealed=false; S.score=0; S.earned=[]; }
+function answer(timeout){
+  const q=quiz.questions[S.pi]; const right=new Set(q.opts.map((o,i)=>o[1]?i:-1).filter(i=>i>=0));
+  const picked=timeout?new Set():S.picked; const exact=picked.size===right.size&&[...picked].every(i=>right.has(i));
+  const e=exact?q.points:0; S.earned[S.pi]=e; S.score+=e; S.last=exact; S.revealed=true; render();
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.go) return go(t.dataset.go);
+  if(t.id==='theme'){ document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'':'dark'; return; }
+  if(t.dataset.sel!==undefined){ S.sel=+t.dataset.sel; return render(); }
+  if(t.dataset.type){ quiz.questions[S.sel].type=t.dataset.type; const q=quiz.questions[S.sel];
+    if(t.dataset.type==='truefalse') q.opts=[['Верно',1],['Неверно',0]]; else if(q.opts.length<3) q.opts=[['Вариант 1',1],['Вариант 2',0],['Вариант 3',0]]; return render(); }
+  if(t.dataset.ok!==undefined){ const q=quiz.questions[S.sel]; const i=+t.dataset.ok; if(q.type==='multiple') q.opts[i][1]^=1; else q.opts.forEach((o,j)=>o[1]=j===i?1:0); return render(); }
+  if(t.hasAttribute('data-sw')){ t.setAttribute('aria-checked', t.getAttribute('aria-checked')!=='true'); return; }
+  if(t.dataset.pick!==undefined&&!S.revealed){ const i=+t.dataset.pick; if(quiz.questions[S.pi].type==='multiple'){ S.picked.has(i)?S.picked.delete(i):S.picked.add(i); } else S.picked=new Set([i]); return render(); }
+  if('answer' in t.dataset) return answer(false);
+  if('next' in t.dataset){ if(S.pi+1<quiz.questions.length){ S.pi++; S.picked=new Set(); S.revealed=false; render(); } else go('done'); return; }
+  if('restart' in t.dataset) return go('play');
+  if('add' in t.dataset){ quiz.questions.push({type:'single',text:'Новый вопрос',points:1,expl:'',opts:[['Вариант 1',1],['Вариант 2',0]]}); S.sel=quiz.questions.length-1; return render(); }
+});
+render();
+</script>
+</body>
+</html>
