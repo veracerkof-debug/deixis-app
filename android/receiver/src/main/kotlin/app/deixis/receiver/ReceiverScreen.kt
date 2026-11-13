@@ -139,6 +139,7 @@ fun ReceiverScreen(
             content is TextContent -> TextSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             content is ScriptureContent -> ScriptureSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             content is app.deixis.core.CountdownContent -> CountdownSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
+            content is app.deixis.core.QuizContent -> QuizSlide(runtime, content, clear = mode == Mode.CLEAR, overscan)
             mode == Mode.CLEAR -> Box(Modifier.fillMaxSize().background(Color.Black))
             content is ImageContent -> ImageSlide(runtime, content)
             content is PdfContent -> PdfSlide(runtime, content)
@@ -377,6 +378,69 @@ private fun CountdownSlide(runtime: ReceiverRuntime, c: app.deixis.core.Countdow
             c.label?.takeIf { it.isNotBlank() }?.let { label ->
                 paint.typeface = sans
                 drawStyledText(nc, if (c.style.caps) label.uppercase() else label, l.labelX, l.labelBaseline, l.labelSize, paint, c.style)
+            }
+        }
+    }
+}
+
+/**
+ * Вопрос викторины. Раскладку считает core ([app.deixis.core.layoutQuiz]) — та же, что на компьютере; здесь только
+ * рисование. Полоса времени идёт от часов этого экрана, поэтому слайд перерисовывается несколько раз в секунду.
+ */
+@Composable
+private fun QuizSlide(runtime: ReceiverRuntime, c: app.deixis.core.QuizContent, clear: Boolean, overscan: Boolean) {
+    val context = LocalContext.current
+    val sans = remember { context.resources.getFont(R.font.noto_sans_semibold) }
+    val bg = rememberBackground(runtime, c.style)
+    val now by produceState(System.currentTimeMillis(), c) {
+        while (true) {
+            delay(if (c.running && c.totalMs > 0) 100L else 1000L)
+            value = System.currentTimeMillis()
+        }
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        drawStyleBackground(c.style, bg)
+        if (clear) return@Canvas
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = sans }
+        val l = app.deixis.core.layoutQuiz(
+            c, size.width, size.height, now,
+            measure = { s, sz -> paint.textSize = sz; paint.measureText(s) },
+            ascent = { sz -> paint.textSize = sz; -paint.fontMetrics.ascent },
+            overscan = overscan,
+        )
+        val ink = c.style.color.toInt()
+        fun withAlpha(argb: Int, a: Float) = (argb and 0x00FFFFFF) or ((((argb ushr 24) and 0xFF) * a).toInt().coerceIn(0, 255) shl 24)
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        drawIntoCanvas { canvas ->
+            val nc = canvas.nativeCanvas
+            fun rect(r: app.deixis.core.QuizRect, radius: Float, color: Int, stroke: Float = 0f) {
+                fill.style = if (stroke > 0f) Paint.Style.STROKE else Paint.Style.FILL
+                fill.strokeWidth = stroke
+                fill.color = color
+                nc.drawRoundRect(r.left, r.top, r.right, r.bottom, radius, radius, fill)
+            }
+            fun line(text: String, x: Float, y: Float, sz: Float, argb: Int) = drawStyledText(nc, text, x, y, sz, paint, c.style.copy(color = argb.toLong() and 0xFFFFFFFFL))
+            for (q in l.question) line(q.text, q.x, q.baseline, l.questionSize, ink)
+            for (o in l.options) {
+                val dim = o.state == app.deixis.core.QuizOptionState.DIM
+                val k = if (dim) app.deixis.core.QuizColors.DIM_ALPHA else 1f
+                val textColor = if (dim) withAlpha(ink, app.deixis.core.QuizColors.DIM_ALPHA) else ink
+                val plate = when (o.state) {
+                    app.deixis.core.QuizOptionState.RIGHT -> app.deixis.core.QuizColors.RIGHT.toInt()
+                    app.deixis.core.QuizOptionState.WRONG -> app.deixis.core.QuizColors.WRONG.toInt()
+                    else -> withAlpha(ink, app.deixis.core.QuizColors.PLATE_ALPHA * k)
+                }
+                val radius = o.box.height * 0.22f
+                rect(o.box, radius, plate)
+                if (o.state == app.deixis.core.QuizOptionState.PICKED) rect(o.box, radius, app.deixis.core.QuizColors.PICKED_OUTLINE.toInt(), o.box.height * 0.05f)
+                rect(o.badge, o.badge.height * 0.3f, withAlpha(ink, app.deixis.core.QuizColors.BADGE_ALPHA * k))
+                line(o.mark, o.markX, o.markBaseline, o.markSize, textColor)
+                for (t in o.lines) line(t.text, t.x, t.baseline, o.size, textColor)
+            }
+            l.meta?.let { line(it.text, it.x, it.baseline, l.metaSize, withAlpha(ink, 0.75f)) }
+            if (c.totalMs > 0) {
+                rect(l.barTrack, l.barTrack.height, withAlpha(ink, app.deixis.core.QuizColors.TRACK_ALPHA))
+                rect(l.bar, l.bar.height, app.deixis.core.QuizColors.BAR.toInt())
             }
         }
     }

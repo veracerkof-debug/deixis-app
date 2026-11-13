@@ -111,6 +111,7 @@ tasks.test {
         forkEvery = 1
     }
     // Для ручной проверки раскладок мониторов: -Ddeixis.outputsPng=папка сохраняет кадры в PNG.
+    System.getProperty("deixis.shots")?.let { systemProperty("deixis.shots", it) }
     System.getProperty("deixis.outputsPng")?.let { systemProperty("deixis.outputsPng", it) }
     System.getProperty("deixis.trayPng")?.let { systemProperty("deixis.trayPng", it) }
 }

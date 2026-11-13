@@ -305,6 +305,7 @@ val Content.style: TextStyle?
         is TextContent -> style
         is ScriptureContent -> style
         is CountdownContent -> style
+        is QuizContent -> style
         else -> null
     }
 
@@ -317,4 +318,5 @@ val Content.file: FileRef?
         is ScriptureContent -> null
         is ScreenContent -> null
         is CountdownContent -> null
+        is QuizContent -> null
     }

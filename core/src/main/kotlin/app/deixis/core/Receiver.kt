@@ -199,7 +199,8 @@ class ReceiverCore(
         }
         if (showStartedAt == null) showStartedAt = System.currentTimeMillis()
         // Отсчёт привязывается к часам этого экрана; уйдя из зала, он остаётся в «Сцене».
-        val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis()) ?: content
+        val shown = (content as? CountdownContent)?.anchored(System.currentTimeMillis())
+            ?: (content as? QuizContent)?.anchored(System.currentTimeMillis()) ?: content
         _state.update { ReceiverState(content = shown, mode = Mode.NORMAL, video = null, viewers = it.viewers, next = next, timer = (shown as? CountdownContent) ?: it.timer, overlays = it.overlays, logo = it.logo, logoImage = it.logoImage) }
         return null
     }

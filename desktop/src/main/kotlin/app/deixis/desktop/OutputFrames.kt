@@ -305,7 +305,7 @@ class OutputFrames(files: FileStore) {
                 blit(g, readableContent(c), x, y, w, h)
             }
             // Отсчёт меняется каждый миг: рисуется сразу, без запаса готовых картинок.
-            is app.deixis.core.CountdownContent -> runCatching { slides.render(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), c, Mode.NORMAL, null, now) }
+            is app.deixis.core.CountdownContent, is app.deixis.core.QuizContent -> runCatching { slides.render(w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), c, Mode.NORMAL, null, now) }
                 .getOrNull()?.let { g.drawImage(it, x.toInt(), y.toInt(), null) }
             // Фото и страница вписываются в окно со своими пропорциями: на любом формате монитора без обрезки.
             is ImageContent, is PdfContent -> blit(g, c, x, y, w, h)

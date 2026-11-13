@@ -73,6 +73,7 @@ class SlideRenderer(
                 content is TextContent -> drawText(g, width, height, content, clear = mode == Mode.CLEAR)
                 content is ScriptureContent -> drawScripture(g, width, height, content, clear = mode == Mode.CLEAR)
                 content is app.deixis.core.CountdownContent -> drawCountdown(g, width, height, content, now, clear = mode == Mode.CLEAR)
+                content is app.deixis.core.QuizContent -> drawQuiz(g, width, height, content, now, clear = mode == Mode.CLEAR)
                 mode == Mode.CLEAR -> Unit
                 content is ImageContent -> drawFitted(g, width, height, loadImage(content))
                 content is PdfContent -> drawFitted(g, width, height, loadPdfPage(content, width, height))
@@ -125,6 +126,7 @@ class SlideRenderer(
                 is TextContent -> drawText(g, width, height, content, clear = false)
                 is ScriptureContent -> drawScripture(g, width, height, content, clear = false)
                 is app.deixis.core.CountdownContent -> drawCountdown(g, width, height, content, now, clear = false)
+                is app.deixis.core.QuizContent -> drawQuiz(g, width, height, content, now, clear = false)
                 is ImageContent -> drawFitted(g, width, height, loadImage(content))
                 is PdfContent -> drawFitted(g, width, height, loadPdfPage(content, width, height))
                 else -> Unit
@@ -352,6 +354,52 @@ class SlideRenderer(
         c.label?.takeIf { it.isNotBlank() }?.let { label ->
             val text2 = if (c.style.caps) label.uppercase() else label
             drawStyledLine(g, TextLayout(text2, Fonts.slide.deriveFont(l.labelSize), frc), l.labelX, l.labelBaseline, Color(c.style.color.toInt(), true), l.labelSize, c.style)
+        }
+    }
+
+    /** Вопрос викторины: раскладку считает core ([app.deixis.core.layoutQuiz]), здесь только рисование. */
+    private fun drawQuiz(g: Graphics2D, w: Int, h: Int, c: app.deixis.core.QuizContent, now: Long, clear: Boolean) {
+        drawBackground(g, w, h, c.style)
+        if (clear) return
+        val base = Fonts.slide
+        val l = app.deixis.core.layoutQuiz(
+            c, w.toFloat(), h.toFloat(), now,
+            measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
+            ascent = { size -> base.deriveFont(size).getLineMetrics("0", frc).ascent },
+        )
+        val ink = Color(c.style.color.toInt(), true)
+        fun alpha(color: Color, a: Float) = Color(color.red, color.green, color.blue, (color.alpha * a).toInt().coerceIn(0, 255))
+        fun round(r: app.deixis.core.QuizRect, radius: Float) = java.awt.geom.RoundRectangle2D.Float(r.left, r.top, r.width, r.height, radius, radius)
+        fun line(text: String, x: Float, y: Float, size: Float, color: Color) =
+            drawStyledLine(g, TextLayout(text, base.deriveFont(size), frc), x, y, color, size, c.style)
+        for (q in l.question) line(q.text, q.x, q.baseline, l.questionSize, ink)
+        for (o in l.options) {
+            val radius = o.box.height * 0.22f
+            val st = o.state
+            val dim = st == app.deixis.core.QuizOptionState.DIM
+            val textColor = if (dim) alpha(ink, app.deixis.core.QuizColors.DIM_ALPHA) else ink
+            g.color = when (st) {
+                app.deixis.core.QuizOptionState.RIGHT -> Color(app.deixis.core.QuizColors.RIGHT.toInt(), true)
+                app.deixis.core.QuizOptionState.WRONG -> Color(app.deixis.core.QuizColors.WRONG.toInt(), true)
+                else -> alpha(ink, app.deixis.core.QuizColors.PLATE_ALPHA * (if (dim) app.deixis.core.QuizColors.DIM_ALPHA else 1f))
+            }
+            g.fill(round(o.box, radius))
+            if (st == app.deixis.core.QuizOptionState.PICKED) {
+                g.color = Color(app.deixis.core.QuizColors.PICKED_OUTLINE.toInt(), true)
+                g.stroke = BasicStroke(o.box.height * 0.05f)
+                g.draw(round(o.box, radius))
+            }
+            g.color = alpha(ink, app.deixis.core.QuizColors.BADGE_ALPHA * (if (dim) app.deixis.core.QuizColors.DIM_ALPHA else 1f))
+            g.fill(round(o.badge, o.badge.height * 0.3f))
+            line(o.mark, o.markX, o.markBaseline, o.markSize, textColor)
+            for (t in o.lines) line(t.text, t.x, t.baseline, o.size, textColor)
+        }
+        l.meta?.let { line(it.text, it.x, it.baseline, l.metaSize, alpha(ink, 0.75f)) }
+        if (c.totalMs > 0) {
+            g.color = alpha(ink, app.deixis.core.QuizColors.TRACK_ALPHA)
+            g.fill(round(l.barTrack, l.barTrack.height))
+            g.color = Color(app.deixis.core.QuizColors.BAR.toInt(), true)
+            g.fill(round(l.bar, l.bar.height))
         }
     }
 

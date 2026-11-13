@@ -349,6 +349,7 @@ class ScreenRelay(
             val shown = when (content) {
                 is VideoContent -> content.copy(startMs = live.video?.positionMs ?: content.startMs)
                 is CountdownContent -> content.forWire(System.currentTimeMillis())
+                is QuizContent -> content.forWire(System.currentTimeMillis())
                 else -> content
             }
             if (!client.show(shown, m.next)) return
