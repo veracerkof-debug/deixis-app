@@ -38,7 +38,10 @@ import java.io.InputStream
  * Приём файла из браузера. На странице HTTP браузер не умеет считать SHA-256 (WebCrypto только на HTTPS),
  * поэтому файл принимается по номеру загрузки, а хэш считает приёмник. Докачка — с того же места.
  */
-class UploadArea(private val files: FileStore, private val dir: File) {
+/** Потолок недокачанных загрузок из браузера по умолчанию: 2 ГБ. */
+const val UPLOADS_LIMIT_BYTES = 2L * 1024 * 1024 * 1024
+
+class UploadArea(private val files: FileStore, private val dir: File, private val limitBytes: Long = UPLOADS_LIMIT_BYTES) {
     init { dir.mkdirs() }
 
     private fun part(id: String): File {
@@ -62,6 +65,10 @@ class UploadArea(private val files: FileStore, private val dir: File) {
     fun append(id: String, name: String, size: Long, offset: Long, input: InputStream): FileRef? {
         val p = part(id)
         if (!writing.add(id)) throw StoreException("busy", "Файл уже передаётся")
+        if (writing.size > MAX_UPLOADS) {
+            writing.remove(id)
+            throw StoreException("limit", "Слишком много загрузок сразу: дождитесь окончания")
+        }
         try { return appendLocked(id, p, name, size, offset, input) } finally { writing.remove(id) }
     }
 
@@ -69,6 +76,11 @@ class UploadArea(private val files: FileStore, private val dir: File) {
         val have = received(id)
         if (offset != have) throw StoreException("offset", "Ожидалось смещение $have, получено $offset")
         if (size > FILE_LIMIT_BYTES) throw StoreException("size", "Файл больше 1 ГБ: покажите его с компьютера")
+        // Общий потолок недокачанного: пульт не забьёт диск приёмника параллельными загрузками.
+        val partial = dir.listFiles()?.sumOf { if (it.isFile) it.length() else 0L } ?: 0L
+        if (partial + (size - have).coerceAtLeast(0) > limitBytes) {
+            throw StoreException("limit", "Место для загрузок из браузера занято: дождитесь окончания других")
+        }
         FileOutputStream(p, true).use { out ->
             val buf = ByteArray(64 * 1024)
             var total = have
@@ -90,6 +102,7 @@ class UploadArea(private val files: FileStore, private val dir: File) {
 
     private companion object {
         val ID = Regex("^[A-Za-z0-9_-]{8,64}$")
+        const val MAX_UPLOADS = 4
     }
 }
 
@@ -326,7 +339,11 @@ internal fun Route.remoteRoutes(core: ReceiverCore, authorized: ApplicationCall.
             if (ref == null) call.respondText("""{"bytes":${area.received(id)}}""", ContentType.Application.Json)
             else call.respondText("""{"file":${DeixisJson.encodeToString(FileRef.serializer(), ref)}}""", ContentType.Application.Json)
         } catch (e: StoreException) {
-            call.respondText(e.message.orEmpty(), status = if (e.code == "offset" || e.code == "busy") HttpStatusCode.Conflict else HttpStatusCode.BadRequest)
+            call.respondText(e.message.orEmpty(), status = when (e.code) {
+                "offset", "busy" -> HttpStatusCode.Conflict
+                "limit" -> HttpStatusCode.TooManyRequests
+                else -> HttpStatusCode.BadRequest
+            })
         }
     }
 
