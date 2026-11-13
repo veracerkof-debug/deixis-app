@@ -459,3 +459,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 В корне `core/.../core/`: `QuizContent.kt` — вопрос на экране (новый `Content`, `quizContent()`), `QuizLayout.kt` — раскладка вопроса и `QuizColors`. Рисуют: `desktop/.../SlideRenderer.kt` (`drawQuiz`), `android/receiver/.../ReceiverScreen.kt` (`QuizSlide`).
 
 `pult/.../phone/QuizSession.kt` — прохождение викторины с пульта (состояние, таймер, показ на экранах); `QuizUi.kt` — шторка «Урок» (открыть файл, играть, итог). Тест — `desktop/src/test/.../phone/QuizSessionTest.kt` (логика пульта без Compose проверяется в desktop).
+
+`core/.../quiz/QuizGame.kt` — движок живой игры (игроки, ответы, очки за скорость, таблица); подключается к сети и экранам отдельным шагом.
