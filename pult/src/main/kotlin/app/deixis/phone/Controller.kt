@@ -1035,7 +1035,9 @@ class Controller(val platform: Platform) {
         if (ref.sha256 in o.delivered) return st
         val uri = data.value.localFiles[ref.sha256] ?: run {
             // Файл фона потерян (переустановка, очистка): слайд идёт без картинки — об этом пишем, а не молчим.
+            // i18n:off — запись журнала: его читает разработчик, а не оператор
             app.deixis.diag.Log.w("theme", "фон «${ref.name}» не найден на телефоне — слайд без картинки")
+            // i18n:on
             return st.copy(backgroundImage = null)
         }
         return try {
@@ -1049,7 +1051,9 @@ class Controller(val platform: Platform) {
             o.delivered += ref.sha256
             st
         } catch (e: Exception) {
+            // i18n:off — запись журнала: его читает разработчик, а не оператор
             app.deixis.diag.Log.w("theme", "фон «${ref.name}» не передан на «${o.target.name}»", e)
+            // i18n:on
             messages.emit(L.themeBgNotSent(e.message))
             st.copy(backgroundImage = null)
         }
@@ -1069,7 +1073,9 @@ class Controller(val platform: Platform) {
             o.delivered += ref.sha256
             true
         } catch (e: Exception) {
+            // i18n:off — запись журнала: его читает разработчик, а не оператор
             app.deixis.diag.Log.w("theme", "файл «${ref.name}» не передан на «${o.target.name}»", e)
+            // i18n:on
             messages.emit(L.fileNotSent(ref.name, e.message))
             false
         }
@@ -1150,7 +1156,9 @@ class Controller(val platform: Platform) {
             val dir = File(platform.filesDir, "backgrounds").apply { mkdirs() }
             val out = File(dir, "bg-${Store.newId()}-$jpegName")
             if (!platform.heicToJpeg(uri, out)) {
+                // i18n:off — запись журнала: его читает разработчик, а не оператор
                 app.deixis.diag.Log.w("theme", "фон «$name»: HEIC не удалось перевести в JPEG")
+                // i18n:on
                 error(L.cantRead(name))
             }
             val sha = out.inputStream().use { hashWithProgress(it, out.length()) {} }
