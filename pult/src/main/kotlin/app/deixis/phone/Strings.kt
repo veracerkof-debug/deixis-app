@@ -270,6 +270,17 @@ object L {
     val overlay: String get() = t("Поверх", "Ustidan", "Overlay")
     val overlayTitle: String get() = t("Поверх показа", "Namoyish ustidan", "Over the show")
     val screenShare: String get() = t("Экран телефона", "Telefon ekrani", "Phone screen")
+    val mirrorHere: String get() = t("Показать экран телефона", "Telefon ekranini ko‘rsatish", "Show the phone screen")
+    val mirrorHereSub: String get() = t("Всё, что на экране телефона, уйдёт на подключённые экраны", "Telefon ekranidagi hamma narsa ulangan ekranlarga chiqadi", "Everything on the phone screen goes to the connected screens")
+    val mirrorHelpTitle: String get() = t("Экран телефона на этом компьютере", "Telefon ekrani shu kompyuterda", "Phone screen on this computer")
+    val mirrorHelpSteps: String get() = t(
+        "Трансляция начинается на телефоне, не здесь.\n1. Поставьте Deixis на телефон Android и подключите его к этому компьютеру: ниже «QR и код для подключения».\n2. На телефоне: «Показать» (плюс рядом с поиском) → «Экран телефона» → «Начать трансляцию».\n3. Экран телефона появится здесь, на весь монитор зала.",
+        "Translyatsiya telefonda boshlanadi, bu yerda emas.\n1. Android telefoningizga Deixis ni o‘rnating va uni shu kompyuterga ulang: pastda «Ulanish uchun QR va kod».\n2. Telefonda: «Ko‘rsatish» (qidiruv yonidagi plyus) → «Telefon ekrani» → «Translyatsiyani boshlash».\n3. Telefon ekrani bu yerda, zal monitorida to‘liq ko‘rinadi.",
+        "The broadcast starts on the phone, not here.\n1. Install Deixis on an Android phone and connect it to this computer: “QR and code to connect” below.\n2. On the phone: “Show” (the plus next to search) → “Phone screen” → “Start sharing”.\n3. The phone screen appears here, full screen on the hall monitor.")
+    val mirrorHelpApple: String get() = t(
+        "iPhone, iPad и Mac: включите «Принимать AirPlay» (значок Deixis в трее или «Устройства» → этот компьютер), затем на устройстве Apple «Повтор экрана» → Deixis. Все устройства — в одной сети Wi-Fi.",
+        "iPhone, iPad va Mac: «AirPlay qabul qilish» ni yoqing (trayda Deixis belgisi yoki «Qurilmalar» → shu kompyuter), keyin Apple qurilmasida «Ekran takrori» → Deixis. Hamma qurilma bitta Wi-Fi tarmog‘ida bo‘lishi kerak.",
+        "iPhone, iPad and Mac: turn on “Receive AirPlay” (the Deixis tray icon or Devices → this computer), then on the Apple device choose Screen Mirroring → Deixis. All devices on the same Wi-Fi.")
     val stopScreen: String get() = t("Остановить экран", "Ekranni to‘xtatish", "Stop the screen")
     val sendSetAhead: String get() = t("Файлы сетлиста — на экраны заранее", "Ro‘yxat fayllari — ekranlarga oldindan", "Setlist files to the screens in advance")
     val noScreens: String get() = t("Нет подключённых экранов", "Ulangan ekranlar yo‘q", "No connected screens")

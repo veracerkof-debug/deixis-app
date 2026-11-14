@@ -197,6 +197,7 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     val st by c.settings.collectAsState()
     val holyrics by h.status.collectAsState()
     val host = LocalHost.current
+    val sharing by c.sharing.collectAsState()
     Column(Modifier.fillMaxSize()) {
         Header(L.tabDevices) { Gear(c, ui) }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
@@ -208,6 +209,12 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                     OutputCell(c, o)
                 }
                 if (outputs.isNotEmpty()) Sep()
+                // Экран телефона на подключённые экраны — сразу здесь, а не только в «Показать» → «Экран телефона».
+                if (host.platform.features.screenShare && outputs.any { it.state == OutState.ONLINE }) {
+                    Cell(if (sharing) L.stopScreen else L.mirrorHere, if (sharing) null else L.mirrorHereSub, kind = "phone",
+                        onClick = { if (sharing) host.platform.stopScreenShare() else ui.sheet(L.screenShare) { MirrorSheet(c, ui) } })
+                    Sep()
+                }
                 Cell(L.connectScreen, kind = "plus", onClick = { ui.sheet(L.connect) { ConnectSheet(c, ui) } })
                 Sep()
                 Cell(L.preflight, kind = "show", onClick = { ui.toast(c.check()) })

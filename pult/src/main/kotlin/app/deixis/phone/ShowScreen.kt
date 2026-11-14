@@ -324,6 +324,8 @@ private fun ShowMenu(c: Controller, ui: Ui) {
         if (features.screenShare) add(TileSpec(if (sharing) L.stopScreen else L.screenShare, "phone") {
             if (sharing) { ui.closeAll(); host.platform.stopScreenShare() } else ui.sheet(L.screenShare) { MirrorSheet(c, ui) }
         })
+        // Компьютер сам не транслирует телефон: плитка нужна, чтобы объяснить, откуда это начинается (иначе кнопки «нет»).
+        else if (features.desktop) add(TileSpec(L.screenShare, "phone") { ui.sheet(L.mirrorHelpTitle) { PhoneMirrorHelp(c, ui) } })
         add(TileSpec(L.tFile, "file") { ui.sheet(L.tFile) { PickSheet(c, ui, PickKind.FILE) } })
         // Тяжёлые файлы службы — на экраны заранее, пока в зале идёт другое.
         add(TileSpec(L.sendSetAhead, "send") {
@@ -681,3 +683,11 @@ private val MONITOR_CHROME = 72.dp
 
 /** Показ виден в зале: не «Чёрный» и не «Ушёл с экранов» — по этому отмечается слайд «в зале». */
 fun Mode.inHall(): Boolean = this != Mode.BLACK && this != Mode.AWAY
+
+/** На компьютере: как показать сюда экран телефона (Android — с телефона по QR, Apple — AirPlay). */
+@Composable
+fun PhoneMirrorHelp(c: Controller, ui: Ui) {
+    Note(L.mirrorHelpSteps, Modifier)
+    Btn(L.connectCodes, Modifier.padding(top = T.gap), icon = "qr", kind = BtnKind.TINT) { ui.push(L.connectCodes) { ConnectCodesSheet(c, ui) } }
+    Note(L.mirrorHelpApple, Modifier.padding(top = T.gap))
+}
