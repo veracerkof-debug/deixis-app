@@ -35,4 +35,17 @@ class DiagnosticsTest {
         val en = Diagnostics.run(listOf(Checks.memory()), Lang("en"), "x", "y")
         assertEquals("Memory", en.checks.single().title)
     }
+
+    @Test
+    fun previousRunLogIsFoundNextToTheCurrentOne() {
+        val dir = createTempDirectory("diag-old").toFile()
+        Log.toFile(dir) // журнал уже привязан к папке первого теста, если он шёл раньше: берём его папку
+        val cur = Log.logFile!!.parentFile
+        val old = java.io.File(cur, "log.old.txt")
+        old.delete()
+        assertEquals(null, Log.previousFile, "прошлого запуска нет — блока в отчёте нет")
+        old.writeText("прошлый запуск\n")
+        assertEquals(old, Log.previousFile)
+        old.delete()
+    }
 }

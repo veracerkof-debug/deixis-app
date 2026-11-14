@@ -43,6 +43,12 @@ object Log {
     /** Файл журнала (если пишется). */
     val logFile: File? get() = file
 
+    /**
+     * Журнал прошлого запуска (log.old.txt). Новый запуск начинает журнал заново, поэтому после обновления или
+     * перезапуска всё, что было до него, лежит здесь: в отчёт идёт и он.
+     */
+    val previousFile: File? get() = file?.parentFile?.let { File(it, OLD) }?.takeIf { it.isFile }
+
     fun i(tag: String, message: String) = add(Level.INFO, tag, message)
     fun w(tag: String, message: String, e: Throwable? = null) = add(Level.WARN, tag, message + (e?.let { ": " + it.brief() } ?: ""))
     fun e(tag: String, message: String, e: Throwable? = null) =

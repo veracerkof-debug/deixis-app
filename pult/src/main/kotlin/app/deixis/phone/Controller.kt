@@ -497,6 +497,15 @@ class Controller(val platform: Platform) {
         appendLine("===== ${L.diagLogOf(platform.deviceName)} =====")
         appendLine(app.deixis.diag.Log.logFile?.takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }
             ?: app.deixis.diag.Log.recent().joinToString("\n"))
+        // Новый запуск (в том числе после обновления) начинает журнал заново: прежний — отдельным блоком, а не потерян.
+        app.deixis.diag.Log.previousFile?.let { f ->
+            val old = runCatching { f.readText() }.getOrNull()?.takeLast(MAX_SCREEN_LOG)?.takeIf { it.isNotBlank() }
+            if (old != null) {
+                appendLine()
+                appendLine("===== ${L.diagPrevLogOf(platform.deviceName)} =====")
+                appendLine(old)
+            }
+        }
         for (o in outs.value.filter { it.client.connection.value is Connection.Connected }) {
             val log = withContext(Dispatchers.IO) { runCatching { o.client.screenLog() }.getOrNull() } ?: continue
             appendLine()
@@ -1024,7 +1033,11 @@ class Controller(val platform: Platform) {
         val st = style.backgroundVideo?.let { v -> if (deliverLocal(o, v)) style else style.copy(backgroundVideo = null) } ?: style
         val ref = st.backgroundImage ?: return st
         if (ref.sha256 in o.delivered) return st
-        val uri = data.value.localFiles[ref.sha256] ?: return st.copy(backgroundImage = null)
+        val uri = data.value.localFiles[ref.sha256] ?: run {
+            // Файл фона потерян (переустановка, очистка): слайд идёт без картинки — об этом пишем, а не молчим.
+            app.deixis.diag.Log.w("theme", "фон «${ref.name}» не найден на телефоне — слайд без картинки")
+            return st.copy(backgroundImage = null)
+        }
         return try {
             val src = object : UploadSource {
                 override val name = ref.name
@@ -1036,6 +1049,7 @@ class Controller(val platform: Platform) {
             o.delivered += ref.sha256
             st
         } catch (e: Exception) {
+            app.deixis.diag.Log.w("theme", "фон «${ref.name}» не передан на «${o.target.name}»", e)
             messages.emit(L.themeBgNotSent(e.message))
             st.copy(backgroundImage = null)
         }
@@ -1055,6 +1069,7 @@ class Controller(val platform: Platform) {
             o.delivered += ref.sha256
             true
         } catch (e: Exception) {
+            app.deixis.diag.Log.w("theme", "файл «${ref.name}» не передан на «${o.target.name}»", e)
             messages.emit(L.fileNotSent(ref.name, e.message))
             false
         }
@@ -1129,6 +1144,21 @@ class Controller(val platform: Platform) {
         platform.keep(uri)
         val meta = platform.meta(uri)
         val name = meta.name.ifBlank { "background.jpg" }
+        // HEIC/HEIF компьютер и многие экраны не читают: фон сразу становится JPEG, чтобы тема на них не осталась чёрной.
+        if (name.lowercase().let { it.endsWith(".heic") || it.endsWith(".heif") } || meta.mime?.lowercase()?.let { it == "image/heic" || it == "image/heif" } == true) {
+            val jpegName = name.substringBeforeLast('.') + ".jpg"
+            val dir = File(platform.filesDir, "backgrounds").apply { mkdirs() }
+            val out = File(dir, "bg-${Store.newId()}-$jpegName")
+            if (!platform.heicToJpeg(uri, out)) {
+                app.deixis.diag.Log.w("theme", "фон «$name»: HEIC не удалось перевести в JPEG")
+                error(L.cantRead(name))
+            }
+            val sha = out.inputStream().use { hashWithProgress(it, out.length()) {} }
+            val ref = FileRef(sha, jpegName, out.length(), "image/jpeg")
+            val converted = platform.fileUri(out)
+            withContext(Dispatchers.Main) { edit { d -> d.copy(localFiles = d.localFiles + (sha to converted)) } }
+            return@withContext ref
+        }
         var size = 0L
         val sha = (platform.open(uri) ?: error(L.cantOpenFile)).use { input ->
             val counted = object : java.io.FilterInputStream(input) {

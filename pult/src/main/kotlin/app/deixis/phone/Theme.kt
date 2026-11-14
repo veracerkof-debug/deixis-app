@@ -402,9 +402,12 @@ fun Btn(text: String, modifier: Modifier = Modifier, icon: String? = null, kind:
     val p = P.current
     val bg = when (kind) { BtnKind.TINT -> p.tint; BtnKind.DANGER -> p.red; else -> p.fill }
     val fg = when (kind) { BtnKind.TINT -> p.onTint; BtnKind.DANGER -> Color.White; BtnKind.RED -> p.red; else -> p.ink }
+    // Нажатие (масштаб) и «выключена» (прозрачность) — на всю кнопку: слой стоит снаружи заливки. Раньше он шёл после
+    // заливки и менял только текст: у выключенной кнопки заливка оставалась яркой, а нажатая — не сжималась.
     Row(
-        modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(T.rBtn)).background(bg)
-            .then(if (enabled) Modifier.press(scaleTo = 0.97f, label = text, onClick = onClick) else Modifier.alpha(T.disabled)),
+        modifier.fillMaxWidth().height(height)
+            .then(if (enabled) Modifier.press(scaleTo = 0.97f, label = text, onClick = onClick) else Modifier.alpha(T.disabled))
+            .clip(RoundedCornerShape(T.rBtn)).background(bg),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
     ) {
         icon?.let { Icon(it, fg); Spacer(Modifier.width(T.gapS)) }

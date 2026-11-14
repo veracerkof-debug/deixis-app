@@ -69,4 +69,59 @@ object SongText {
             SongSlide(if (i == 0) s.label else null, part.joinToString("\n"))
         }.ifEmpty { listOf(s) }
     }
+
+    /** Грубая ширина строки (Noto Sans SemiBold: в среднем 0,58 кегля на знак) — когда настоящей меры текста под рукой нет. */
+    val approxMeasure: (String, Float) -> Float = { text, size -> text.length * size * 0.58f }
+
+    /** Наименьший кегль при автоделении — доля предельного кегля темы: ниже текст в зале уже плохо читается. */
+    const val MIN_SIZE_OF_CAP = 0.45f
+
+    /**
+     * Делит слайды по теме оформления [style]: слайд, который не помещается при читаемом кегле, режется на части
+     * (по строкам; одна длинная строка — по словам). Размер зала берётся 16:9 ([width]×[height]) с полями темы: наименьший
+     * читаемый кегль — [MIN_SIZE_OF_CAP] от предельного кегля темы, межстрочный — из темы. Слайды, которые и так
+     * помещаются, не трогаются; подпись остаётся у первой части. [measure] — ширина строки при данном кегле
+     * (на экране — настоящая мера платформы, по умолчанию — [approxMeasure]).
+     */
+    fun autoSplit(
+        slides: List<SongSlide>,
+        style: TextStyle,
+        width: Float = 1920f,
+        height: Float = 1080f,
+        measure: (String, Float) -> Float = approxMeasure,
+    ): List<SongSlide> {
+        val area = safeArea(width, height, false, style.margins)
+        val boxW = area.width * 0.985f
+        val boxH = area.height
+        val size = maxFontSize(width, height, style) * MIN_SIZE_OF_CAP
+        val lh = style.lineHeight
+        fun fits(lines: List<String>): Boolean {
+            if (lines.isEmpty()) return true
+            val text = lines.map { styledText(it, style) }
+            if (text.any { l -> l.split(' ').any { w -> measure(w, size) > boxW } }) return false
+            return text.sumOf { wrapLine(it, boxW) { s -> measure(s, size) }.size } * size * lh <= boxH
+        }
+        // Одна строка, которая не помещается сама, — по словам, пока части не станут помещаться.
+        fun pieces(line: String): List<String> {
+            if (fits(listOf(line))) return listOf(line)
+            val out = mutableListOf<String>()
+            var cur = ""
+            for (w in line.split(' ').filter { it.isNotEmpty() }) {
+                val next = if (cur.isEmpty()) w else "$cur $w"
+                if (cur.isNotEmpty() && !fits(listOf(next))) { out += cur; cur = w } else cur = next
+            }
+            if (cur.isNotEmpty()) out += cur
+            return out
+        }
+        return slides.flatMap { sl ->
+            val lines = sl.text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+            if (lines.isEmpty() || fits(lines)) return@flatMap listOf(sl)
+            val parts = mutableListOf<MutableList<String>>(mutableListOf())
+            for (u in lines.flatMap(::pieces)) {
+                if (parts.last().isNotEmpty() && !fits(parts.last() + u)) parts += mutableListOf<String>()
+                parts.last() += u
+            }
+            parts.mapIndexed { i, p -> SongSlide(if (i == 0) sl.label else null, p.joinToString("\n")) }
+        }
+    }
 }

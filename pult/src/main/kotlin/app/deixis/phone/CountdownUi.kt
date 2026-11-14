@@ -96,9 +96,11 @@ fun CountdownSheet(c: Controller, ui: Ui, edit: LibItem? = null) {
             val cue = Cue(c.sourceOf(item), 0)
             if (live) { c.goLive(cue); ui.toast(L.countdownLive) } else c.toPreview(cue)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-            Btn(L.toPreview, Modifier.weight(1f)) { go(false) }
-            Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT) { go(true) }
+        SheetFooter {
+            Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
+                Btn(L.toPreview, Modifier.weight(1f)) { go(false) }
+                Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT) { go(true) }
+            }
         }
     }
 }

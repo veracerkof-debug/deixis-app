@@ -396,6 +396,7 @@ object L {
     val thisDevice: String get() = t("Это устройство", "Bu qurilma", "This device")
     val failedShort: String get() = t("Не вышло", "Bo‘lmadi", "Failed")
     fun diagLogOf(name: Any?): String = t("Журнал: $name", "Jurnal: $name", "Log: $name")
+    fun diagPrevLogOf(name: String): String = t("Журнал прошлого запуска: $name", "Oldingi ishga tushirish jurnali: $name", "Log of the previous run: $name")
     val chooseFiles: String get() = t("Выбрать файлы", "Fayllarni tanlash", "Choose files")
     val chooseFolder: String get() = t("Папка для копий", "Nusxalar uchun jild", "Folder for backups")
     val desktopShareHint: String get() = t(
@@ -613,6 +614,9 @@ object L {
     val slide: String get() = t("Слайд", "Slayd", "Slide")
     val by2: String get() = t("По 2 строки", "2 qatordan", "2 lines each")
     val by4: String get() = t("По 4 строки", "4 qatordan", "4 lines each")
+    val byTheme: String get() = t("По теме", "Mavzu bo‘yicha", "By theme")
+    val splitByTheme: String get() = t("Разбить по теме", "Mavzu bo‘yicha bo‘lish", "Split to fit the theme")
+    val splitByThemeNote: String get() = t("Вставьте сплошной текст — «Разбить по теме» сама порежет его на слайды так, чтобы он читался в зале при выбранном оформлении. Деление можно поправить вручную.", "Yaxlit matnni qo‘ying — «Mavzu bo‘yicha bo‘lish» uni tanlangan dizaynda zalda o‘qiladigan slaydlarga o‘zi bo‘ladi. Bo‘linishni qo‘lda tuzatish mumkin.", "Paste a solid block of text — “Split to fit the theme” cuts it into slides that stay readable in the hall with the chosen theme. You can adjust the split by hand.")
     val splitNote: String get() = t("Курсор в тексте и «Разделить» — новый слайд с этого места. Подпись — касанием по ней.", "Matndagi kursor va «Bo‘lish» — shu joydan yangi slayd. Yorliq — ustiga bosib.", "The cursor in the text and “Split” start a new slide from there. Tap a label to change it.")
     val emptyYet: String get() = t("Пока пусто", "Hozircha bo‘sh", "Empty so far")
     val saveToLib: String get() = t("Сохранить в библиотеку", "Kutubxonaga saqlash", "Save to library")

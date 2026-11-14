@@ -95,6 +95,24 @@ enum class AppTab(val icon: String) {
 /** Шторка: заголовок и содержимое. */
 class SheetSpec(val title: String, val content: @Composable ColumnScope.() -> Unit)
 
+/** Куда шторка принимает закреплённую панель действий ([SheetFooter]); null — шторки нет. */
+internal val LocalSheetFooter = androidx.compose.runtime.compositionLocalOf<androidx.compose.runtime.MutableState<(@Composable () -> Unit)?>?> { null }
+
+/**
+ * Главные кнопки шторки («Сохранить», «В зал»): закрепляются у нижнего края и не уезжают вместе с длинным списком —
+ * иначе их приходится искать в самом конце. Вне шторки рисуются на месте.
+ */
+@Composable
+fun SheetFooter(content: @Composable () -> Unit) {
+    val slot = LocalSheetFooter.current
+    if (slot == null) { content(); return }
+    val latest = androidx.compose.runtime.rememberUpdatedState(content)
+    androidx.compose.runtime.DisposableEffect(slot) {
+        slot.value = { latest.value() }
+        onDispose { slot.value = null }
+    }
+}
+
 /** Слайд во весь экран: «Сейчас», «Предпросмотр» или элемент библиотеки со своим указателем. */
 sealed interface FullSpec {
     data object Live : FullSpec
@@ -341,12 +359,22 @@ private fun SheetHost(ui: Ui) {
                             fadeOut(tween(T.fast, easing = T.eIn)) using SizeTransform(clip = false) { _, _ -> tween(T.mid, easing = T.eOut) }
                     },
                 ) { cur ->
+                    val footer = remember(cur) { mutableStateOf<(@Composable () -> Unit)?>(null) }
                     Column {
                         Row(Modifier.fillMaxWidth().then(if (wide) Modifier else drag).padding(start = T.gutter, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Txt(cur.title, T.fSheet, weight = FontWeight.Bold, modifier = Modifier.weight(1f), lines = 1)
                             IconBtn("close", L.close) { ui.close() }
                         }
-                        Column(Modifier.verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) { cur.content(this) }
+                        // Прокручивается только содержимое; панель действий (если есть) остаётся под ним на виду.
+                        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(start = T.gutter, end = T.gutter, bottom = 20.dp)) {
+                            CompositionLocalProvider(LocalSheetFooter provides footer) { cur.content(this) }
+                        }
+                        footer.value?.let { f ->
+                            Box(Modifier.fillMaxWidth().background(p.bg)) {
+                                Sep(0.dp)
+                                Box(Modifier.fillMaxWidth().padding(start = T.gutter, end = T.gutter, top = T.gap, bottom = T.gap)) { f() }
+                            }
+                        }
                     }
                 }
             }

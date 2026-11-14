@@ -63,7 +63,11 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
         }
         if (asText) {
             EditorField(whole, L.songHint, minLines = 10) { whole = it }
+            Btn(L.splitByTheme, icon = "edit", enabled = whole.text.isNotBlank()) {
+                whole = TextFieldValue(SongText.format(SongText.autoSplit(SongText.parse(whole.text), style)))
+            }
             Note(L.songNote)
+            Note(L.splitByThemeNote)
         } else {
             slides.forEachIndexed { i, s ->
                 SlideCard(
@@ -81,6 +85,7 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
                 Pill(L.slide, "plus") { slides = slides + ed(SongSlide()) }
                 Pill(L.by2) { set(SongText.rechunk(slides.map { it.slide }, 2)) }
                 Pill(L.by4) { set(SongText.rechunk(slides.map { it.slide }, 4)) }
+                Pill(L.byTheme) { set(SongText.autoSplit(slides.map { it.slide }, style)) }
             }
             Note(L.splitNote)
         }
@@ -93,19 +98,22 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
             c.saveItem(saved)
             saved
         }
-        if (quick) {
-            val go = { live: Boolean ->
-                val source = if (save) c.sourceOf(keep())
-                else Source(null, title.ifBlank { L.tText }, kind, result.map { Slide.Text(it.text, it.label) })
-                ui.closeAll()
-                if (live) { c.goLive(Cue(source, 0)); ui.toast(L.inHall) } else c.toPreview(Cue(source, 0))
+        // Главные кнопки закреплены внизу шторки: список слайдов длинный, а «Сохранить» не должна прятаться в его конце.
+        SheetFooter {
+            if (quick) {
+                val go = { live: Boolean ->
+                    val source = if (save) c.sourceOf(keep())
+                    else Source(null, title.ifBlank { L.tText }, kind, result.map { Slide.Text(it.text, it.label) })
+                    ui.closeAll()
+                    if (live) { c.goLive(Cue(source, 0)); ui.toast(L.inHall) } else c.toPreview(Cue(source, 0))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
+                    Btn(L.toPreview, Modifier.weight(1f), enabled = result.isNotEmpty()) { go(false) }
+                    Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT, enabled = result.isNotEmpty()) { go(true) }
+                }
+            } else {
+                Btn(L.save, kind = BtnKind.TINT, enabled = result.isNotEmpty()) { keep(); ui.closeAll(); ui.toast(L.saved) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(T.gap)) {
-                Btn(L.toPreview, Modifier.weight(1f), enabled = result.isNotEmpty()) { go(false) }
-                Btn(L.toHall, Modifier.weight(1f), kind = BtnKind.TINT, enabled = result.isNotEmpty()) { go(true) }
-            }
-        } else {
-            Btn(L.save, kind = BtnKind.TINT, enabled = result.isNotEmpty()) { keep(); ui.closeAll(); ui.toast(L.saved) }
         }
     }
 }

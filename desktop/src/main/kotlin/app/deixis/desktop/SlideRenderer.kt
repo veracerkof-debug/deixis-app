@@ -264,7 +264,10 @@ class SlideRenderer(
         g.color = Color(style.background.toInt(), true)
         g.fillRect(0, 0, w, h)
         val ref = style.backgroundImage ?: return
-        val img = runCatching { loadCached(ref.sha256, ref.name) }.getOrNull() ?: return
+        val img = runCatching { loadCached(ref.sha256, ref.name) }.onFailure { e ->
+            // Фон не читается (нет файла, формат не поддерживается): зал остаётся с цветом темы. Пишем один раз на файл.
+            if (badBackgrounds.add(ref.sha256)) app.deixis.diag.Log.w("render", "фон темы «${ref.name}» не нарисован: ${e.message}")
+        }.getOrNull() ?: return
         val scale = maxOf(w.toDouble() / img.width, h.toDouble() / img.height)
         val dw = (img.width * scale).toInt()
         val dh = (img.height * scale).toInt()
@@ -442,6 +445,8 @@ class SlideRenderer(
     private val backgrounds = object : LinkedHashMap<String, BufferedImage>(4, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BufferedImage>?) = size > 3
     }
+
+    private val badBackgrounds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private fun loadCached(sha: String, name: String): BufferedImage {
         imageCache?.let { (key, img) -> if (key == sha) return img }
