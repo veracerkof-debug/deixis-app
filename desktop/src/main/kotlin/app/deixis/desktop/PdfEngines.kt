@@ -109,7 +109,18 @@ class MsOfficeEngine(private val apps: Set<String>, private val timeoutSec: Long
             return apps.takeIf { it.isNotEmpty() }?.let { MsOfficeEngine(it) }
         }
 
+        /**
+         * Запись в реестре читается напрямую: запуск `reg.exe` стоил по несколько сотен миллисекунд на каждую
+         * из трёх программ, и запуск Deixis ждал их по очереди (антивирус проверяет каждый запуск процесса).
+         * `reg.exe` остаётся запасным путём, если прямое чтение не вышло.
+         */
         private fun registered(progId: String): Boolean = runCatching {
+            com.sun.jna.platform.win32.Advapi32Util.registryKeyExists(
+                com.sun.jna.platform.win32.WinReg.HKEY_CLASSES_ROOT, "$progId\\CLSID",
+            )
+        }.getOrElse { registeredByReg(progId) }
+
+        private fun registeredByReg(progId: String): Boolean = runCatching {
             val p = ProcessBuilder("reg", "query", "HKEY_CLASSES_ROOT\\$progId\\CLSID").redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
             p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0

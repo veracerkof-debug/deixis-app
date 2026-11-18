@@ -89,6 +89,9 @@ class PultWindow(
         return true
     }
 
+    /** Окно невидимо сейчас же (выход из программы); закрытие по-настоящему — [close]. Только в потоке окон. */
+    fun hideNow() { window?.isVisible = false }
+
     fun close(notify: Boolean) {
         val w = window ?: return
         window = null

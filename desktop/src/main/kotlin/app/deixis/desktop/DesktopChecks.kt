@@ -23,11 +23,11 @@ object DesktopChecks {
             val why = runCatching { VirtualScreen.unsupported }.getOrElse { it.message }
             val err = VirtualScreen.lastError
             when {
-                runCatching { VirtualScreen.exists }.getOrDefault(false) -> CheckResult("virtual", title, Status.OK, l.t("есть", "bor", "present"))
                 why != null -> CheckResult("virtual", title, Status.WARN, why,
                     l.t("Без него зал на единственном мониторе идёт в окне. Зрители по QR и экраны в сети видят его всё равно.", "Usiz yagona monitordagi zal oynada ko‘rsatiladi. QR orqali tomoshabinlar va tarmoqdagi ekranlar baribir ko‘radi.", "Without it, the hall on a single monitor runs in a window. QR viewers and network screens still see it."))
                 err != null -> CheckResult("virtual", title, Status.WARN, err,
                     l.t("«Устройства» → «Входы» → «Создать виртуальный экран» — попробовать снова. Причина — в журнале (строки «virtual»).", "«Qurilmalar» → «Kirishlar» → «Virtual ekran yaratish» — qayta urinish. Sababi jurnalda («virtual» qatorlari).", "Devices → Inputs → Create virtual screen to try again. The reason is in the log (lines “virtual”)."))
+                runCatching { VirtualScreen.exists }.getOrDefault(false) -> CheckResult("virtual", title, Status.OK, l.t("есть", "bor", "present"))
                 else -> CheckResult("virtual", title, Status.OK, l.t("не создан — создаётся в «Устройства» → «Входы»", "yaratilmagan — «Qurilmalar» → «Kirishlar»da yaratiladi", "not created — create it in Devices → Inputs"))
             }
         },

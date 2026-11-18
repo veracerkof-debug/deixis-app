@@ -3,6 +3,9 @@ package app.deixis.desktop
 import java.io.File
 import kotlin.system.exitProcess
 
+/** Выход не дольше этого: если закрытие чего-то зависло, процесс завершается принудительно. */
+private const val HARD_EXIT_MS = 3_000L
+
 private const val USAGE = """Deixis для компьютера
 
   deixis [receive] [--name ИМЯ] [--port ПОРТ] [--screen N] [--windowed] [--operator | --no-operator]
@@ -61,6 +64,7 @@ fun main(args: Array<String>) {
                     "both" -> Role.BOTH
                     else -> null
                 },
+                hardExitMs = HARD_EXIT_MS,
                 askRole = listOf("screen", "windowed", "operator", "no-operator").none { it in opts },
             ),
         ).run()

@@ -60,6 +60,8 @@ data class ReceiverOptions(
     val askRole: Boolean = true,
     /** Выход из процесса (в проверках — без выхода). */
     val exit: (Int) -> Unit = { exitProcess(it) },
+    /** Через сколько после начала выхода процесс завершается принудительно, если что-то зависло. 0 — без этого (проверки). */
+    val hardExitMs: Long = 0,
 )
 
 /**
@@ -814,8 +816,25 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     private fun exitNow() {
+        // Окна гаснут сразу, до остальной уборки: оператор видит, что программа закрылась, а не ждёт.
+        hideWindowsNow()
+        if (opts.hardExitMs > 0) Thread {
+            runCatching { Thread.sleep(opts.hardExitMs) }
+            app.deixis.diag.Log.w("exit", "выход завис дольше ${opts.hardExitMs} мс — завершаю принудительно")
+            Runtime.getRuntime().halt(0)
+        }.apply { isDaemon = true; start() }
         shutdown()
         opts.exit(0)
+    }
+
+    /** Все окна — невидимыми сейчас же (без освобождения видео и т. п.: оно дальше, в [shutdown]). */
+    private fun hideWindowsNow() {
+        val hide = Runnable {
+            windows.values.forEach { runCatching { it.hideNow() } }
+            runCatching { pult?.hideNow() }
+            runCatching { approval.hide() }
+        }
+        if (SwingUtilities.isEventDispatchThread()) hide.run() else runCatching { SwingUtilities.invokeAndWait(hide) }
     }
 
     /** Папка с журналом программы: log.txt (и прошлый запуск — log.old.txt) — переслать автору. */
@@ -848,14 +867,20 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         // Свой виртуальный монитор (Linux, Мак) — первым: иначе после выхода остаётся пустой монитор, куда уходят окна.
         runCatching { VirtualScreen.releaseOnExit() }
         browsing?.cancel()
-        runCatching { relay.close() }
-        runCatching { advertisement?.close() }
-        runCatching { airPlay.close() }
-        runCatching { (core.capture as? DesktopCapture)?.close() }
-        runCatching { server.stop() }
         runCatching { tray?.remove() }
-        SwingUtilities.invokeLater { pult?.close(notify = false); approval.hide() }
-        windows.values.toList().forEach { it.release() }
+        // Медленные закрытия (поиск в сети, AirPlay, сервер, видео) — рядом друг с другом, а не по очереди:
+        // выход занимает время самого медленного, и не дольше SHUTDOWN_WAIT_MS.
+        val jobs = listOf<() -> Unit>(
+            { relay.close() },
+            { advertisement?.close() },
+            { airPlay.close() },
+            { (core.capture as? DesktopCapture)?.close() },
+            { server.stop() },
+            { windows.values.toList().forEach { it.release() } },
+        ).map { job -> Thread { runCatching(job) }.apply { isDaemon = true; start() } }
+        val end = System.currentTimeMillis() + SHUTDOWN_WAIT_MS
+        jobs.forEach { runCatching { it.join((end - System.currentTimeMillis()).coerceAtLeast(1)) } }
+        SwingUtilities.invokeLater { pult?.close(notify = false) }
         // В проверках процесс не завершается: окна закрываются сами.
         SwingUtilities.invokeLater { windows.values.forEach { it.dispose() }; windows.clear() }
     }
@@ -885,6 +910,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         private const val VIDEO_REPORT_MS = 500
         private const val CLOCK_MS = 1_000
         private const val INSTALL_WAIT_MS = 60_000L
+        /** Сколько выход ждёт медленные закрытия (сеть, сервер, видео), прежде чем идти дальше. */
+        private const val SHUTDOWN_WAIT_MS = 1_200L
         private const val COUNTDOWN_MS = 40
         private const val COUNTDOWN_SLOW_MS = 250L
         private val isWindows = System.getProperty("os.name").orEmpty().lowercase().contains("win")

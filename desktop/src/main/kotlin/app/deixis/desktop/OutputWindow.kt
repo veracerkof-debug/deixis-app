@@ -561,6 +561,12 @@ class OutputWindow(
         frame.dispose()
     }
 
+    /** Окно невидимо сейчас же; освобождение — потом ([release], [dispose]). Только в потоке окон. */
+    fun hideNow() {
+        overlayWindow?.dispose()
+        frame.isVisible = false
+    }
+
     /** Освобождение при выходе из приложения (не из потока окна). */
     fun release() {
         runCatching { video?.release() }

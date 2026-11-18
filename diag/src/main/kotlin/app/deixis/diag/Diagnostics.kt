@@ -138,13 +138,17 @@ object Checks {
         else CheckResult("memory", title, Status.OK, detail)
     }
 
-    /** Ошибки в журнале с запуска: сколько и последняя. */
+    /** Ошибки и предупреждения в журнале с запуска: сколько и последняя (предупреждение — тоже сигнал, не «всё чисто»). */
     fun journal() = Check("journal", { it.t("Журнал ошибок", "Xatolar jurnali", "Error log") }) { l ->
-        val errs = Log.recent().filter { it.level == Log.Level.ERROR }
         val title = l.t("Журнал ошибок", "Xatolar jurnali", "Error log")
-        if (errs.isEmpty()) CheckResult("journal", title, Status.OK, l.t("ошибок нет", "xato yo‘q", "no errors"))
-        else CheckResult("journal", title, Status.WARN, l.t("ошибок: ${errs.size}; последняя: ", "xatolar: ${errs.size}; oxirgisi: ", "errors: ${errs.size}; last: ") + errs.last().message.lines().first().take(LINE),
-            l.t("Если что-то не работает, отправьте отчёт автору.", "Agar biror narsa ishlamasa, hisobotni muallifga yuboring.", "If something does not work, send the report to the author."))
+        val errs = Log.recent().filter { it.level == Log.Level.ERROR }
+        val warns = Log.recent().filter { it.level == Log.Level.WARN }
+        val hint = l.t("Если что-то не работает, отправьте отчёт автору.", "Agar biror narsa ishlamasa, hisobotni muallifga yuboring.", "If something does not work, send the report to the author.")
+        when {
+            errs.isNotEmpty() -> CheckResult("journal", title, Status.WARN, l.t("ошибок: ${errs.size}; последняя: ", "xatolar: ${errs.size}; oxirgisi: ", "errors: ${errs.size}; last: ") + errs.last().message.lines().first().take(LINE), hint)
+            warns.isNotEmpty() -> CheckResult("journal", title, Status.WARN, l.t("ошибок нет, предупреждений: ${warns.size}; последнее: ", "xato yo‘q, ogohlantirishlar: ${warns.size}; oxirgisi: ", "no errors, warnings: ${warns.size}; last: ") + warns.last().message.lines().first().take(LINE), hint)
+            else -> CheckResult("journal", title, Status.OK, l.t("ошибок нет", "xato yo‘q", "no errors"))
+        }
     }
 
     /** Общие проверки для папки данных [dataDir]. */
