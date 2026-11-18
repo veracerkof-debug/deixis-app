@@ -201,6 +201,8 @@ fun DevicesScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.fillMaxSize()) {
         Header(L.tabDevices) { Gear(c, ui) }
         Column(wide.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = T.gutter)) {
+            // Без сети телефон не подключить — но показ идёт: пульт на самом компьютере работает без сети.
+            if (host.platform.features.desktop && host.platform.lanAddress == null) Note(L.noNetworkDesktop, Modifier.padding(top = T.gap))
             if (st.church) WorkModeSwitch(c, ui, h)
             GHead(L.screens)
             Group {

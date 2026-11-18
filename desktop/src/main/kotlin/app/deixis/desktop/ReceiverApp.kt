@@ -73,6 +73,9 @@ data class ReceiverOptions(
  */
 class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
 
+    /** Когда начался запуск: от этой метки считаются «timing» в журнале. */
+    private val bootAt = System.currentTimeMillis()
+
     override val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     override val snapshotDir: File? get() = opts.snapshotDir
     private val core: ReceiverCore
@@ -224,6 +227,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         browsing = scope.launch {
             runCatching { Discovery.browse(address).collect { relay.found(it) } }
         }
+        app.deixis.diag.Log.i("timing", "сервер запущен: ${System.currentTimeMillis() - bootAt} мс после начала")
         println("Deixis: «${core.info.name}» на ${address?.hostAddress ?: "127.0.0.1"}:$port, PIN ${core.pairing.pin}")
         val chosen = opts.role ?: roleStore.load() ?: if (opts.askRole && !GraphicsEnvironment.isHeadless()) askRole(null) else Role.SCREEN
         if (chosen == null) { quit(); return }
@@ -251,6 +255,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         // Пульт при запуске — всегда, когда ему есть место не на зале: роль «Экран» с монитором оператора тоже.
         // Только компьютер-экран, где все мониторы показывают зал, открывает пульт лишь из значка.
         val withOperator = opts.operator ?: (role != Role.SCREEN || onEdt { operatorArea() } != null)
+        app.deixis.diag.Log.i("timing", "окна и значок готовы: ${System.currentTimeMillis() - bootAt} мс после начала")
         println("Роль: $role, мониторов: ${screens.size}, пульт при запуске: ${if (withOperator) "да" else "нет"}")
         if (withOperator) openOperator()
     }
@@ -465,6 +470,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     private fun startTimers() {
+        UiWatchdog.start()
         // Мониторы подключают и отключают на ходу: окна следуют за ними.
         Timer(HOTPLUG_MS) {
             val before = Triple(screens, primaryId, sawSeveralScreens)
@@ -504,11 +510,27 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         )
         // «QR и код на экран»: заставка подключения вместо слайда, пока оператор её не убрал.
         if (st.connectCard) return FrameState(null, app.deixis.core.Mode.NORMAL, st.next, null, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo, st.logoImage)
-        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle, st.timer, st.overlays, st.logo, st.logoImage)
+        return FrameState(st.content, st.mode, st.next, st.video, core.showStartedAt, System.currentTimeMillis(), idle.takeIf { idleInHall() }, st.timer, st.overlays, st.logo, st.logoImage)
     }
 
+    /**
+     * QR и PIN подключения на экране ожидания в зале — только там, где без них не обойтись: компьютер-«Экран»,
+     * которому ещё ни один пульт не подключился (иначе его нечем управлять). Там, где оператор сидит за этим
+     * компьютером, а тем более когда пульт уже подключён, зал QR и PIN не показывает: в зале их видит кто угодно
+     * и может подключиться или засыпать запросами (DECISIONS 2026-11-18). Оператору они всегда доступны в пульте
+     * («QR и код для подключения»), а в зал выводятся его кнопкой «QR и код на экран».
+     */
+    private fun idleInHall(): Boolean = role == Role.SCREEN && core.pairing.senders().none { it.sender != THIS_COMPUTER }
+
     private fun observe() {
-        scope.launch(Dispatchers.Swing) { core.peers.state.collect { updateApproval() } }
+        scope.launch(Dispatchers.Swing) {
+            core.peers.state.collect {
+                updateApproval()
+                // Подключился первый пульт — QR и PIN уходят с экрана ожидания в зале.
+                val fs = frameState()
+                windows.values.forEach { w -> w.update(fs) }
+            }
+        }
         scope.launch(Dispatchers.Swing) {
             core.videoCommands.collect { cmd ->
                 windows.values.forEach { it.videoCommand(cmd) }
@@ -541,7 +563,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     private fun operatorToken(): String {
         val file = File(opts.dataDir, "operator-token")
         file.takeIf { it.isFile }?.readText()?.trim()?.takeIf { core.pairing.isValid(it) }?.let { return it }
-        val token = (core.pairing.pair(core.pairing.pin, "Этот компьютер") as Pairing.Result.Ok).token
+        val token = (core.pairing.pair(core.pairing.pin, THIS_COMPUTER) as Pairing.Result.Ok).token
         runCatching {
             file.writeText(token)
             file.setReadable(false, false); file.setReadable(true, true)
@@ -836,6 +858,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     private fun exitNow() {
+        val exitAt = System.currentTimeMillis()
         // Окна гаснут сразу, до остальной уборки: оператор видит, что программа закрылась, а не ждёт.
         hideWindowsNow()
         if (opts.hardExitMs > 0) Thread {
@@ -844,6 +867,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             Runtime.getRuntime().halt(0)
         }.apply { isDaemon = true; start() }
         shutdown()
+        app.deixis.diag.Log.i("timing", "выход: уборка заняла ${System.currentTimeMillis() - exitAt} мс")
         opts.exit(0)
     }
 
@@ -923,6 +947,8 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         private const val AUTO_VIRTUAL_OFF = "virtual-auto-off"
         private const val VIRTUAL_WAIT_MS = 20_000L
         private const val VIRTUAL_POLL_MS = 1_000L
+        /** Имя, под которым пульт этого же компьютера сопряжён со своим экраном. */
+        private const val THIS_COMPUTER = "Этот компьютер"
         /** Версия программы из метки выпуска (вшита при сборке). */
         val APP_VERSION: String = ReceiverApp::class.java.getResourceAsStream("/deixis-version.txt")?.use { it.readBytes().decodeToString().trim() } ?: "0.1.0"
         private const val WINDOWED_ID = "window"

@@ -15,7 +15,7 @@ object DesktopChecks {
             val hall = list.filter { it.enabled }
             val detail = list.joinToString { "${it.name} ${it.width}×${it.height}" + if (it.enabled) " — ${it.layout.title}" else "" }
             if (hall.isEmpty()) CheckResult("monitors", title, Status.WARN, detail,
-                l.t("Зал не выведен ни на один монитор: включите монитор в «Устройства» → «Выходы».", "Zal hech bir monitorga chiqarilmagan: «Qurilmalar» → «Chiqishlar»da monitorni yoqing.", "The hall is on no monitor: turn one on in Devices → Outputs."))
+                l.t("Зал не выведен ни на один монитор: включите монитор в «Устройства» → «Транслировать на экран».", "Zal hech bir monitorga chiqarilmagan: «Qurilmalar» → «Ekranga translyatsiya»da monitorni yoqing.", "The hall is on no monitor: turn one on in Devices → Broadcast to a screen."))
             else CheckResult("monitors", title, Status.OK, detail)
         },
         Check("virtual", { it.t("Виртуальный монитор Deixis", "Deixis virtual monitori", "Deixis virtual monitor") }) { l ->
@@ -26,9 +26,9 @@ object DesktopChecks {
                 why != null -> CheckResult("virtual", title, Status.WARN, why,
                     l.t("Без него зал на единственном мониторе идёт в окне. Зрители по QR и экраны в сети видят его всё равно.", "Usiz yagona monitordagi zal oynada ko‘rsatiladi. QR orqali tomoshabinlar va tarmoqdagi ekranlar baribir ko‘radi.", "Without it, the hall on a single monitor runs in a window. QR viewers and network screens still see it."))
                 err != null -> CheckResult("virtual", title, Status.WARN, err,
-                    l.t("«Устройства» → «Входы» → «Создать виртуальный экран» — попробовать снова. Причина — в журнале (строки «virtual»).", "«Qurilmalar» → «Kirishlar» → «Virtual ekran yaratish» — qayta urinish. Sababi jurnalda («virtual» qatorlari).", "Devices → Inputs → Create virtual screen to try again. The reason is in the log (lines “virtual”)."))
+                    l.t("«Устройства» → «Транслировать с экрана» → «Создать виртуальный экран» — попробовать снова. Причина — в журнале (строки «virtual»).", "«Qurilmalar» → «Ekrandan translyatsiya» → «Virtual ekran yaratish» — qayta urinish. Sababi jurnalda («virtual» qatorlari).", "Devices → Broadcast from a screen → Create virtual screen to try again. The reason is in the log (lines “virtual”)."))
                 runCatching { VirtualScreen.exists }.getOrDefault(false) -> CheckResult("virtual", title, Status.OK, l.t("есть", "bor", "present"))
-                else -> CheckResult("virtual", title, Status.OK, l.t("не создан — создаётся в «Устройства» → «Входы»", "yaratilmagan — «Qurilmalar» → «Kirishlar»da yaratiladi", "not created — create it in Devices → Inputs"))
+                else -> CheckResult("virtual", title, Status.OK, l.t("не создан — создаётся в «Устройства» → «Транслировать с экрана»", "yaratilmagan — «Qurilmalar» → «Ekrandan translyatsiya»da yaratiladi", "not created — create it in Devices → Broadcast from a screen"))
             }
         },
         Check("vlc", { it.t("Проигрыватель видео (VLC)", "Video pleyer (VLC)", "Video player (VLC)") }) { l ->

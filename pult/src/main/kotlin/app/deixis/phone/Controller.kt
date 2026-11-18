@@ -144,6 +144,8 @@ fun mb(bytes: Long): String {
 @OptIn(ExperimentalCoroutinesApi::class)
 class Controller(val platform: Platform) {
 
+    init { L.onComputer = platform.features.desktop }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val prefs = platform.prefs("tokens")
     private val deviceName = platform.deviceName

@@ -47,6 +47,9 @@ object I18n {
  * функции — шаблоны с числами и именами. Без обращения на «ты» и «вы»: инфинитив и безличные формы.
  */
 object L {
+    /** Пульт работает на компьютере: «файлы телефона» становятся «файлами компьютера» (задаёт Controller при создании). */
+    @Volatile var onComputer = false
+
     private fun t(ru: String, uz: String, en: String): String = when (I18n.lang) {
         Lang.RU -> ru
         Lang.UZ -> uz
@@ -294,7 +297,7 @@ object L {
     // ——— Библиотека ———
 
     val libSearch: String get() = t("Поиск по названию и тексту", "Nomi va matni bo‘yicha qidirish", "Search titles and text")
-    val libEmpty: String get() = t("Библиотека пуста. «+» добавляет песни, тексты, места из Библии и файлы телефона: презентации, видео, фото.", "Kutubxona bo‘sh. «+» qo‘shiqlar, matnlar, Bibliyadan joylar va telefon fayllarini qo‘shadi: taqdimotlar, video, rasmlar.", "The library is empty. “+” adds songs, texts, Bible passages and phone files: presentations, videos, photos.")
+    val libEmpty: String get() = if (onComputer) t("Библиотека пуста. «+» добавляет песни, тексты, места из Библии и файлы с этого компьютера: презентации, видео, фото.", "Kutubxona bo‘sh. «+» qo‘shiqlar, matnlar, Bibliyadan joylar va shu kompyuterdagi fayllarni qo‘shadi: taqdimotlar, video, rasmlar.", "The library is empty. “+” adds songs, texts, Bible passages and files from this computer: presentations, videos, photos.") else t("Библиотека пуста. «+» добавляет песни, тексты, места из Библии и файлы телефона: презентации, видео, фото.", "Kutubxona bo‘sh. «+» qo‘shiqlar, matnlar, Bibliyadan joylar va telefon fayllarini qo‘shadi: taqdimotlar, video, rasmlar.", "The library is empty. “+” adds songs, texts, Bible passages and phone files: presentations, videos, photos.")
     val libNote: String get() = t("Удержание элемента — править, удалить, в сетлист. Значок экрана со стрелкой — отправить файл на экраны заранее: в зале ничего не меняется.", "Elementni bosib turish — tahrirlash, o‘chirish, ro‘yxatga. Strelkali ekran belgisi — faylni ekranlarga oldindan yuborish: zalda hech narsa o‘zgarmaydi.", "Hold an item to edit, delete or add it to a setlist. The screen icon with an arrow sends the file to the screens in advance: nothing changes in the hall.")
     val queued: String get() = t("в очереди", "navbatda", "queued")
     val preparingLower: String get() = t("готовится", "tayyorlanmoqda", "preparing")
@@ -306,8 +309,8 @@ object L {
     val newText: String get() = t("Новый текст", "Yangi matn", "New text")
     val biblePlace: String get() = t("Место из Библии", "Bibliyadan joy", "Bible passage")
     val biblePlaceSub: String get() = t("Вкладка «Библия» → «В сетлист»", "«Bibliya» bo‘limi → «Ro‘yxatga»", "Bible tab → “To setlist”")
-    val phoneFiles: String get() = t("Файлы телефона", "Telefon fayllari", "Phone files")
-    val phoneFilesDots: String get() = t("Файлы телефона…", "Telefon fayllari…", "Phone files…")
+    val phoneFiles: String get() = if (onComputer) t("Файлы компьютера", "Kompyuter fayllari", "Computer files") else t("Файлы телефона", "Telefon fayllari", "Phone files")
+    val phoneFilesDots: String get() = if (onComputer) t("Добавить файлы…", "Fayllar qo‘shish…", "Add files…") else t("Файлы телефона…", "Telefon fayllari…", "Phone files…")
     val phoneFilesSub: String get() = t("PDF, PPTX, видео, фото, TXT, DOCX", "PDF, PPTX, video, rasm, TXT, DOCX", "PDF, PPTX, video, photo, TXT, DOCX")
     val fullScreen: String get() = t("Во весь экран", "To‘liq ekranda", "Full screen")
     val editSlides: String get() = t("Править слайды", "Slaydlarni tahrirlash", "Edit slides")
@@ -321,7 +324,7 @@ object L {
     val inSet: String get() = t("В сетлисте", "Ro‘yxatda", "In setlist")
     val addedToSet: String get() = t("Добавлено в сетлист", "Ro‘yxatga qo‘shildi", "Added to setlist")
     val deleteFromLib: String get() = t("Удалить из библиотеки", "Kutubxonadan o‘chirish", "Delete from library")
-    val deleteItemNote: String get() = t("Элемент уберётся из библиотеки и всех сетлистов. Файл на телефоне останется.", "Element kutubxonadan va barcha ro‘yxatlardan olib tashlanadi. Telefondagi fayl qoladi.", "The item is removed from the library and all setlists. The file stays on the phone.")
+    val deleteItemNote: String get() = if (onComputer) t("Элемент уберётся из библиотеки и всех сетлистов. Файл на компьютере останется.", "Element kutubxonadan va barcha ro‘yxatlardan olib tashlanadi. Kompyuterdagi fayl qoladi.", "The item is removed from the library and all setlists. The file stays on the computer.") else t("Элемент уберётся из библиотеки и всех сетлистов. Файл на телефоне останется.", "Element kutubxonadan va barcha ro‘yxatlardan olib tashlanadi. Telefondagi fayl qoladi.", "The item is removed from the library and all setlists. The file stays on the phone.")
     val findHint: String get() = t("Песня, стих, файл", "Qo‘shiq, oyat, fayl", "Song, verse, file")
     val findNote: String get() = t("Найденное открывается в предпросмотре — его можно показать, даже если в сетлисте этого нет.", "Topilgani oldindan ko‘rishda ochiladi — ro‘yxatda bo‘lmasa ham ko‘rsatish mumkin.", "Found items open in preview and can be shown even if they are not in the setlist.")
     val cantOpenPicker: String get() = t("Не удалось открыть выбор файлов", "Fayl tanlashni ochib bo‘lmadi", "Could not open the file picker")
@@ -359,10 +362,10 @@ object L {
     val viewers: String get() = t("Зрители", "Tomoshabinlar", "Viewers")
     val nearby: String get() = t("Рядом в сети", "Tarmoqda yaqin", "Nearby on the network")
     val loading: String get() = t("Загрузка…", "Yuklanmoqda…", "Loading…")
-    val inputs: String get() = t("Входы", "Kirishlar", "Inputs")
-    val inputsNote: String get() = t("Откуда ещё картинка приходит на экран: монитор или окно программы компьютера, виртуальный экран, AirPlay.", "Ekranga rasm yana qayerdan keladi: kompyuter monitori yoki dastur oynasi, virtual ekran, AirPlay.", "Other sources the screen can show: a computer monitor or program window, the virtual screen, AirPlay.")
-    val outputs: String get() = t("Выходы", "Chiqishlar", "Outputs")
-    val outputsNote: String get() = t("Куда экран выводит показ: мониторы компьютера и их раскладка.", "Ekran ko‘rsatuvni qayerga chiqaradi: kompyuter monitorlari va ularning joylashuvi.", "Where the screen sends the show: the computer’s monitors and their layout.")
+    val inputs: String get() = t("Транслировать с экрана", "Ekrandan translyatsiya", "Broadcast from a screen")
+    val inputsNote: String get() = t("Показать в зале то, что есть на этом компьютере: монитор или окно программы, виртуальный экран, AirPlay с iPhone. Картинка идёт в зал, на экраны в сети и зрителям.", "Shu kompyuterdagini zalda ko‘rsatish: monitor yoki dastur oynasi, virtual ekran, iPhone’dan AirPlay. Tasvir zalga, tarmoqdagi ekranlarga va tomoshabinlarga boradi.", "Show in the hall what is on this computer: a monitor or program window, a virtual screen, AirPlay from an iPhone. The picture goes to the hall, to screens on the network and to viewers.")
+    val outputs: String get() = t("Транслировать на экран", "Ekranga translyatsiya", "Broadcast to a screen")
+    val outputsNote: String get() = t("Куда идёт показ: на каком мониторе этого компьютера зал и в какой раскладке. QR и код подключения в зал сами не выводятся — их показывает кнопка «QR и код для подключения».", "Ko‘rsatuv qayerga boradi: shu kompyuterning qaysi monitorida zal va qanday joylashuvda. Ulanish QR va kodi zalga o‘zi chiqmaydi — ularni «Ulanish uchun QR va kod» tugmasi chiqaradi.", "Where the show goes: which monitor of this computer shows the hall, and in which layout. The connect QR and code are not shown in the hall by themselves — the “QR and code to connect” button does that.")
     val monitors: String get() = t("Мониторы", "Monitorlar", "Monitors")
     val primaryMonitor: String get() = t("основной", "asosiy", "main")
     val layoutsNote: String get() = t("Зал — слайд целиком. Сцена — текущий и следующий слайд с часами. Титры — текст нижней третью. Хромакей — текст на зелёном для трансляции. Наложение — прозрачное окно поверх того, что уже на мониторе: полупрозрачный слой, на нём титры, текст и графика; мышь проходит к программе под ним.", "Zal — slayd to‘liq. Sahna — joriy va keyingi slayd soat bilan. Titrlar — matn pastki uchdan birida. Xromakey — translyatsiya uchun yashil fonda matn. Ustma-ust — monitordagi narsa ustidagi shaffof oyna: yarim shaffof qatlam, unda titrlar, matn va grafika; sichqoncha ostidagi dasturga o‘tadi.", "Hall — the whole slide. Stage — current and next slide with a clock. Captions — text in the lower third. Chroma key — text on green for streaming. Overlay — a transparent window over what is already on the monitor: a see-through layer with captions, text and graphics on it; the mouse goes through to the program underneath.")
@@ -388,6 +391,7 @@ object L {
     val connectCodesNone: String get() = t("Нет подключённых экранов Deixis", "Ulangan Deixis ekranlari yo‘q", "No connected Deixis screens")
     val pinLabel: String get() = t("PIN", "PIN", "PIN")
     val connectCodesScan: String get() = t("QR открывает пульт в браузере телефона", "QR telefon brauzerida pultni ochadi", "The QR opens the remote in the phone browser")
+    val noNetworkDesktop: String get() = t("Компьютер не в сети: телефон сейчас подключить нельзя. Показ идёт без сети — ведите его отсюда мышью и клавишами. Подключится к Wi-Fi — телефон найдёт компьютер сам.", "Kompyuter tarmoqda emas: telefonni hozir ulab bo‘lmaydi. Ko‘rsatuv tarmoqsiz ketadi — uni shu yerdan sichqoncha va klavishlar bilan boshqaring. Wi-Fi’ga ulansa, telefon kompyuterni o‘zi topadi.", "This computer is offline: a phone cannot connect right now. The show works without a network — run it from here with the mouse and keys. Once it joins Wi-Fi, the phone finds it by itself.")
     val connectCodesNoLan: String get() = t("Нет сети: подключиться можно кабелем или по адресу", "Tarmoq yo‘q: kabel yoki manzil orqali ulanish mumkin", "No network: connect by cable or by address")
     val connectCardShow: String get() = t("QR и код на экран", "QR va kod ekranga", "QR and code on screen")
     val connectCardHide: String get() = t("Убрать QR с экрана", "QR-ni ekrandan olish", "Remove QR from screen")
