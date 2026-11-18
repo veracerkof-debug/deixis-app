@@ -62,6 +62,8 @@ data class ReceiverOptions(
     val exit: (Int) -> Unit = { exitProcess(it) },
     /** Через сколько после начала выхода процесс завершается принудительно, если что-то зависло. 0 — без этого (проверки). */
     val hardExitMs: Long = 0,
+    /** Сам создать виртуальный монитор при одном дисплее (проверки CI). Людям — только кнопкой в пульте. */
+    val autoVirtual: Boolean = false,
 )
 
 /**
@@ -226,13 +228,14 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             javax.swing.JPopupMenu.setDefaultLightWeightPopupEnabled(false)
             refreshScreens()
             applyRole(chosen, changed = false)
+            healHallOff()
             tray = Tray.install(trayActions)
             if (MacScreen.isMac) MacScreen.install(::quit, ::openOperator, dockMenu())
             reconcile()
             startTimers()
         }
         observe()
-        autoVirtualHall()
+        if (opts.autoVirtual) autoVirtualHall()
         updates.start()
         // «Что нового» — окно интерфейса: на компьютере-экране с одним монитором оно открылось бы поверх зала.
         if (!GraphicsEnvironment.isHeadless() && !(role == Role.SCREEN && screens.size <= 1)) {
@@ -248,6 +251,7 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
     }
 
     /**
+     * Только с ключом `--auto-virtual` (проверки CI; у людей — кнопкой «Создать» в пульте, DECISIONS 2026-11-18).
      * Один дисплей у «Пульта и экрана» (проектор дублирует рабочий стол): зал закрывал бы рабочий стол оператора.
      * Deixis создаёт свой виртуальный монитор 1920×1080 и выводит зал туда — рабочий стол свободен, зал идёт
      * зрителям по QR и на экраны в сети. На Windows права администратора — один раз, при первом создании.
@@ -293,6 +297,21 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             }
             app.deixis.diag.Log.w("virtual", "виртуальный монитор не появился в списке мониторов")
         }
+    }
+
+    /**
+     * Старые версии сами создавали виртуальный монитор и записывали единственный настоящий монитор как выключенный.
+     * Виртуальный монитор потом не создавался — и зал оставался ни на одном мониторе (так было у автора 18.11).
+     * Зал без монитора не нужен ни одной роли, кроме «Пульта»: такая запись сбрасывается. Только в потоке окон.
+     */
+    private fun healHallOff() {
+        if (role == Role.REMOTE || screenOverride != null) return
+        if (screens.isEmpty() || monitors().any { it.enabled }) return
+        val saved = settings.monitors
+        if (screens.none { it.id in saved }) return
+        settings = MonitorSettings(settings.monitors - screens.map { it.id }.toSet())
+        runCatching { monitorStore.save(settings) }
+        app.deixis.diag.Log.i("monitors", "зал был выключен на всех мониторах — включён снова")
     }
 
     /** Просит уже запущенный Deixis этого компьютера вернуться на экраны. true — он ответил. */
@@ -715,14 +734,10 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
             when {
                 id == null -> return
                 id == app.deixis.core.CaptureSource.ID_REMOVE_VIRTUAL -> {
-                    // Убрали сами — Deixis больше не создаёт его при запуске.
-                    runCatching { File(opts.dataDir, AUTO_VIRTUAL_OFF).writeText("1") }
                     VirtualScreen.remove(); return
                 }
                 id == app.deixis.core.CaptureSource.ID_NEW_VIRTUAL || id == VIRTUAL_ID -> {
                     val area = VirtualScreen.create().getOrElse { error = "Виртуальный экран не создан: ${it.message}"; return }
-                    // Создали сами — значит, он нужен: при одном дисплее Deixis снова создаёт его при запуске.
-                    runCatching { File(opts.dataDir, AUTO_VIRTUAL_OFF).delete() }
                     // Если Java увидит новый монитор, Deixis не должен ставить на него свой зал.
                     scope.launch(Dispatchers.Swing) {
                         kotlinx.coroutines.delay(1_500)
@@ -897,12 +912,12 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         private const val VIRTUAL_ID = "virtual"
         /** iPhone, iPad и Mac показывают экран здесь без отдельных программ. */
         const val AIRPLAY_LABEL = "Принимать AirPlay (iPhone, iPad, Mac)"
+        /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */
+        private const val SINGLE_TAKES_HALL_AFTER_MS = 15_000L
         /** Флаг в папке данных: свой виртуальный монитор для зала при одном дисплее больше не создавать. */
         private const val AUTO_VIRTUAL_OFF = "virtual-auto-off"
         private const val VIRTUAL_WAIT_MS = 20_000L
         private const val VIRTUAL_POLL_MS = 1_000L
-        /** Сколько один монитор должен оставаться один, чтобы снова взять зал. */
-        private const val SINGLE_TAKES_HALL_AFTER_MS = 15_000L
         /** Версия программы из метки выпуска (вшита при сборке). */
         val APP_VERSION: String = ReceiverApp::class.java.getResourceAsStream("/deixis-version.txt")?.use { it.readBytes().decodeToString().trim() } ?: "0.1.0"
         private const val WINDOWED_ID = "window"

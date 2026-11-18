@@ -61,7 +61,7 @@ jobs:
           Copy-Item out\Deixis $app -Recurse
           $data = "$env:RUNNER_TEMP\deixis-data"
           # Тот же запуск, что из меню «Пуск»: без консоли, через запускатель jpackage.
-          $p = Start-Process -FilePath "$app\Deixis.exe" -ArgumentList @("receive", "--role", "both", "--data", $data) -PassThru
+          $p = Start-Process -FilePath "$app\Deixis.exe" -ArgumentList @("receive", "--role", "both", "--auto-virtual", "--data", $data) -PassThru
           Start-Sleep -Seconds 60
           Add-Type @"
           using System; using System.Text; using System.Runtime.InteropServices; using System.Collections.Generic;
@@ -98,7 +98,7 @@ jobs:
           # Один дисплей у «Пульта и экрана»: Deixis сам создаёт виртуальный монитор и выводит зал туда.
           if (-not (Select-String -Path "$data\log.txt" -Pattern "зал — на виртуальном мониторе" -Quiet)) { Write-Error "Зал не ушёл на виртуальный монитор"; exit 1 }
           # Повторный запуск при работающей программе открывает её пульт, а не молчит.
-          & "$app\Deixis.exe" receive --role both --data $data
+          & "$app\Deixis.exe" receive --role both --auto-virtual --data $data
           Start-Sleep -Seconds 3
           Copy-Item "$data\log.txt" smoke\log-after.txt -ErrorAction SilentlyContinue
           "--- после повторного запуска:"
@@ -110,7 +110,7 @@ jobs:
         run: |
           mkdir -p smoke
           data="$RUNNER_TEMP/deixis-data"
-          out/Deixis.app/Contents/MacOS/Deixis receive --role both --data "$data" &
+          out/Deixis.app/Contents/MacOS/Deixis receive --role both --auto-virtual --data "$data" &
           sleep 60
           screencapture -x smoke/macos.png || true
           echo "--- журнал программы:"; cat "$data/log.txt" || true
@@ -163,7 +163,7 @@ jobs:
         run: |
           mkdir -p smoke
           data="$RUNNER_TEMP/deixis-data"
-          desktop/build/install/deixis/bin/deixis receive --role both --data "$data" &
+          desktop/build/install/deixis/bin/deixis receive --role both --auto-virtual --data "$data" &
           sleep 30
           echo "--- журнал программы:"; cat "$data/log.txt" || true
           cp "$data/log.txt" smoke/ || true

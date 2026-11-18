@@ -184,7 +184,7 @@
 
 | Риск | Что | Где |
 |---|---|---|
-| **высокий** | Зал может остаться ни на одном мониторе: `autoVirtualHall` сохраняет физический монитор как выключенный (`monitors.json`), а на Linux и Маке виртуальный убирается при выходе. Если при следующем запуске он не создастся, единственный монитор остаётся выключенным | desktop `ReceiverApp.autoVirtualHall`, `Monitors.kt` |
+| ~~высокий~~ исправлено 2026-11-18 (автосоздание только по `--auto-virtual`, `healHallOff()` сбрасывает старую запись) | Зал может остаться ни на одном мониторе: `autoVirtualHall` сохраняет физический монитор как выключенный (`monitors.json`), а на Linux и Маке виртуальный убирается при выходе. Если при следующем запуске он не создастся, единственный монитор остаётся выключенным | desktop `ReceiverApp.autoVirtualHall`, `Monitors.kt` |
 | **высокий** | Создание виртуального экрана держит блокировку `DesktopCapture.select()` до 3 минут (окно прав Windows + ожидание): запросы пульта «Входы» в это время висят | desktop `ReceiverApp` (`DesktopCapture`) |
 | **высокий (лицензия)** | В сборке для Google Play AirPlay только выключен флагом `BuildConfig.AIRPLAY`, а код (`core/…/airplay/`, GPL-части UxPlay/playfair) остаётся в APK: `-keep class app.deixis.**` не даёт R8 его вырезать. `CLAUDE.md` требует, чтобы его в этой сборке не было | core `airplay/`, android `build.gradle.kts`, `android/proguard-deixis.pro` |
 | средний | Новое значение enum или новый тип `Content` в состоянии экрана: старый пульт не разбирает `welcome` и переподключается по кругу (`DeixisJson` без `coerceInputValues`); новая команда для старого экрана теряется молча | core `Protocol.kt` |

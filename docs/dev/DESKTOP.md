@@ -65,7 +65,7 @@
 9. Роль: `--role` → `RoleStore(role).load()` → окно `RoleChooser` (если `askRole` и есть экран) → `Role.SCREEN`. Закрыли окно без выбора — `quit()`. Выбранное в окне сохраняется в файл `role` (если роль не пришла из `--role`).
 10. В потоке окон (`invokeAndWait`): `JPopupMenu.setDefaultLightWeightPopupEnabled(false)` (меню над «тяжёлым» окном VLC), `refreshScreens()`, `applyRole(...)`, `Tray.install(trayActions)`, на Маке `MacScreen.install(quit, openOperator, dockMenu())`, `reconcile()`, `startTimers()`.
 11. `observe()` — подписки на `core.peers.state`, `core.videoCommands`, `connectCard`, `core.state + pinFlow` → `update(frameState())` во все окна.
-12. `autoVirtualHall()` (см. §4.6), `updates.start()`.
+12. `autoVirtualHall()` — **только с ключом `--auto-virtual`** (проверки CI; людям — кнопкой в пульте, DECISIONS 2026-11-18; см. §4.6), `updates.start()`. Перед этим в потоке окон — `healHallOff()`: если старая версия оставила все мониторы выключенными, запись сбрасывается.
 13. «Что нового» (`UpdatesWindow.whatsNew`) — если это не компьютер-экран с одним монитором (окно открылось бы поверх зала).
 14. `addShutdownHook { shutdown() }`.
 15. Пульт при запуске: `opts.operator ?: (role != SCREEN || operatorArea() != null)`. В журнал: `Роль: …, мониторов: …, пульт при запуске: да/нет`.
@@ -269,6 +269,8 @@
 Удаляется, когда оператор сам нажал «Создать» в пульте. Любая другая неудача (окно UAC без ответа, драйвер, xrandr) не запоминается — при следующем запуске попытка снова (DECISIONS 2026-11-11).
 
 ### 4.6. `autoVirtualHall()`
+
+**С 2026-11-18 не запускается сам.** Только `--auto-virtual` (`ReceiverOptions.autoVirtual`): так CI проверяет, что зал уходит на виртуальный монитор. Людям виртуальный монитор создаётся кнопкой «Создать» в «Устройства» → «Входы»: автосоздание на Windows ждало драйвер и перезагрузку, а старая версия при этом отключала единственный настоящий монитор — зал оставался нигде.
 
 Условия (иначе в журнал `virtual: сам не создаю: <причина>`): есть экран и нет `--windowed`; роль `BOTH`; ровно один монитор (после `withoutMirrors`); нет `virtual-auto-off`; `VirtualScreen.unsupported == null`.
 

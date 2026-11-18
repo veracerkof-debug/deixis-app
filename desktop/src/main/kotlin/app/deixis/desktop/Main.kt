@@ -65,6 +65,7 @@ fun main(args: Array<String>) {
                     else -> null
                 },
                 hardExitMs = HARD_EXIT_MS,
+                autoVirtual = "auto-virtual" in opts,
                 askRole = listOf("screen", "windowed", "operator", "no-operator").none { it in opts },
             ),
         ).run()
