@@ -459,6 +459,14 @@ class SenderClient(
         return DeixisJson.decodeFromString(OutputsState.serializer(), r.bodyAsText())
     }
 
+    /** Библиотека и сетлисты пульта этого компьютера (текст `library.json`); null — не компьютер, старая версия или нет связи. */
+    suspend fun library(): String? = runCatching {
+        val t = token ?: return null
+        val r = http.get("${base()}/api/library") { header("Authorization", "Bearer $t") }
+        if (r.status != HttpStatusCode.OK) return null
+        r.bodyAsText()
+    }.getOrNull()
+
     /** Диагностика экрана на языке [lang]; null — старая версия экрана. */
     suspend fun diagnostics(lang: String?): app.deixis.diag.DiagReport? {
         val t = token ?: return null

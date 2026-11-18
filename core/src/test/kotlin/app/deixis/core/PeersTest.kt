@@ -185,3 +185,31 @@ class DiagnosticsRouteTest {
         }
     }
 }
+
+/** Библиотека компьютера для телефона: только сопряжённым; без библиотеки на экране — null, а не ошибка. */
+class LibraryRouteTest {
+    @Test
+    fun screenHandsOverItsLibrary() = runBlocking<Unit> {
+        val dir = createTempDirectory("libroute").toFile()
+        val core = ReceiverCore(ReceiverInfo("pc", "Компьютер", "desktop-windows", "1"), FileStore(File(dir, "files")), Pairing(MemoryTokenStore()))
+        val server = ReceiverServer(core, port = 0)
+        val port = server.start()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val c = SenderClient("127.0.0.1", port, "Телефон", scope)
+            val token = c.pair(core.pairing.pin)
+            c.connect(token)
+            withTimeout(5_000) { while (c.connection.value !is Connection.Connected) delay(20) }
+            assertEquals(null, c.library(), "библиотеки на экране нет")
+            core.library = { """{"setlists":[]}""" }
+            assertEquals("""{"setlists":[]}""", c.library())
+            c.close()
+            val stranger = HttpClient(CIO)
+            val code = stranger.get("http://127.0.0.1:$port/api/library").status.value
+            stranger.close()
+            assertEquals(401, code, "без сопряжения — нет")
+        } finally {
+            scope.cancel(); server.stop()
+        }
+    }
+}

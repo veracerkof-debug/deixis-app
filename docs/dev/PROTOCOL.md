@@ -409,6 +409,7 @@ Ktor CIO TLS не умеет, поэтому:
 | `POST /api/update` | токен | `UpdateRequest{action, mode?, channel?}`; `action` = `"check"`, `"install"` или любое другое (только настройки) | `UpdateState` | `Updates.kt` |
 | `GET /api/diagnostics?lang=ru\|uz\|en` | токен | — | `DiagReport{device, app, system, at, checks: [CheckResult{id, title, status: OK/WARN/FAIL, detail, advice?}], problems}` | `DiagRoutes.kt` |
 | `GET /api/diagnostics/log` | токен | — | журнал экрана, `text/plain; charset=utf-8`, `Content-Disposition: attachment; filename="deixis-<platform>-log.txt"` | `DiagRoutes.kt` |
+| `GET /api/library` | токен | — | `library.json` пульта компьютера как есть (`StoreData`, формат `DeixisJson`); 404 — на экране библиотеки нет (ТВ, телефон) | `LibraryRoutes.kt`, `ReceiverCore.library` |
 
 `phase`: `idle`, `checking`, `uptodate`, `available`, `downloading`, `ready`, `installing`, `error`.
 Сам приём AirPlay (RTSP, FairPlay, `_airplay._tcp`, `_raop._tcp`) — отдельный протокол Apple в `core/.../airplay/`,

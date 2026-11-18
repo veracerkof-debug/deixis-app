@@ -128,6 +128,11 @@ class ReceiverCore(
      * Проверки площадки для диагностики экрана (/api/diagnostics): общие ([app.deixis.diag.Checks.common]) и свои —
      * мониторы и VLC на компьютере, проигрыватель и Wi-Fi на ТВ. Задаёт площадка.
      */
+    /**
+     * Библиотека и сетлисты пульта этого компьютера (`library.json`) — для телефона, который хочет их показывать
+     * и вести сам (GET /api/library). null — на этом экране библиотеки нет (ТВ, телефон).
+     */
+    @Volatile var library: () -> String? = { null }
     @Volatile var diagChecks: () -> List<app.deixis.diag.Check> = { emptyList() }
 
     /** Кто подключён и кто ждёт подтверждения оператора. */
@@ -387,6 +392,7 @@ class ReceiverServer(
                 airPlayRoutes(core) { authorized() }
                 captureRoutes(core) { authorized() }
                 diagRoutes(core) { authorized() }
+                libraryRoutes(core) { authorized() }
             }
         }
         s.start(wait = false)

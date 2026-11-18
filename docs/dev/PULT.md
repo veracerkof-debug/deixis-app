@@ -158,6 +158,7 @@
 - `data: MutableStateFlow<StoreData>`; все изменения — через `private fun edit(change)` → `store.update`. `editIn(profileId, change)` — результат долгой операции ложится в профиль, где её начали, даже если профиль уже сменили.
 - `importFiles(uris, preferPresentation, then)`, `saveItem`, `deleteItem`, `importBible`, `removeBible`, демо-набор (`restoreDemo`, `removeDemo`, `hasDemo`).
 - Сетлисты: `activeSet`, `pickSet`, `newSet`, `saveSet`, `duplicateSet`, `deleteSet`, `addToSet`, `moveInSet`, `removeFromSet`.
+- Библиотека компьютера на телефоне: `importComputerLibrary(target)` берёт `GET /api/library` экрана-компьютера (`SenderClient.library()`), создаёт профиль «<имя компьютера>» и кладёт туда библиотеку (`localFiles` сброшены: пути компьютера на телефоне не значат ничего; `refreshStored` спрашивает экран, какие файлы у него есть). Кнопка — «Устройства» → компьютер → «Сетлисты и песни компьютера» (`ScreenLibrary`, `UpdatesUi.kt`). Компьютер отдаёт живую библиотеку своего пульта (`Controller.libraryText()`). Это **снимок, а не общая библиотека**: правки на телефоне компьютер не увидит и наоборот; файлы показываются, пока лежат в хранилище экрана (сутки).
 - `settings: StateFlow<AppSettings>` и `setSettings(change)`: язык применяется сразу, смена вида логотипа и регистра сразу уходит в зал.
 - Профили: `profiles`, `switchProfile`, `createProfile`, `editProfile`, `deleteProfile`. Копии: `backups`, `backupNow(reason)` (зовётся и перед обновлением APK из `PhoneApp.updater`), `restore(d)`.
 

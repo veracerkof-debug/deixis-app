@@ -121,6 +121,7 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         }
     }
     fun send(req: UpdateRequest) { scope.launch { c.screenUpdate(t, req)?.let { s = it } } }
+    ScreenLibrary(c, t)
     ScreenInputs(c, t)
     val st = s
     if (st == null) {
@@ -139,6 +140,34 @@ fun ScreenUpdateSheet(c: Controller, t: Target) {
         Btn(label, Modifier.fillMaxWidth().padding(top = T.gap), kind = if (action == "install") BtnKind.TINT else BtnKind.PLAIN) { send(UpdateRequest(action)) }
     }
     Note(L.screenUpdateNote)
+}
+
+/**
+ * Библиотека компьютера на этом телефоне: песни, тексты, Писание и сетлисты компьютера отдельным профилем.
+ * Только у компьютера (не ТВ и не телефона): у них своей библиотеки нет.
+ */
+@Composable
+fun ScreenLibrary(c: Controller, t: Target) {
+    if (!t.platform.startsWith("desktop")) return
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<Boolean?>(null) }
+    GHead(L.computerLibrary)
+    Group {
+        Cell(L.computerLibraryTake, L.computerLibrarySub, chevron = null) {
+            Pill(L.computerLibraryTakeBtn, tint = true) {
+                if (!busy) scope.launch {
+                    busy = true
+                    try { result = c.importComputerLibrary(t) } finally { busy = false }
+                }
+            }
+        }
+    }
+    when (result) {
+        true -> Note(L.computerLibraryDone)
+        false -> Note(L.computerLibraryFail)
+        null -> Note(L.computerLibraryNote)
+    }
 }
 
 /**

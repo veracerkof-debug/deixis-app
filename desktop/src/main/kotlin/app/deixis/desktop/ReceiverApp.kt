@@ -161,6 +161,11 @@ class ReceiverApp(private val opts: ReceiverOptions) : OutputHost {
         airPlay = AirPlayHost(core, opts.dataDir) { address }
         core.airPlay = airPlay
         core.capture = DesktopCapture()
+        // Телефон берёт библиотеку и сетлисты этого компьютера: живая — из пульта, иначе файл на диске.
+        core.library = {
+            pultController?.libraryText()
+                ?: File(File(opts.dataDir, "pult"), "library.json").takeIf { it.isFile }?.readText()
+        }
         core.diagChecks = { app.deixis.diag.Checks.common(opts.dataDir) + desktopChecks() }
     }
 

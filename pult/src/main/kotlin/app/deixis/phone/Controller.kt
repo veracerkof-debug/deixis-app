@@ -1,6 +1,7 @@
 package app.deixis.phone
 
 import app.deixis.core.Connection
+import app.deixis.core.DeixisJson
 import app.deixis.core.Content
 import app.deixis.core.FileStatus
 import app.deixis.core.AfterZero
@@ -224,6 +225,30 @@ class Controller(val platform: Platform) {
     }
 
     fun deleteProfile(id: String) { profiles.value = profileStore.delete(profiles.value, id) }
+
+    /** Библиотека и сетлисты этого пульта текстом `library.json`: компьютер отдаёт их телефону (`GET /api/library`). */
+    fun libraryText(): String = DeixisJson.encodeToString(StoreData.serializer(), data.value)
+
+    /**
+     * Взять библиотеку и сетлисты компьютера [t] на этот телефон: отдельный профиль «<имя компьютера>», чтобы
+     * ничего своего не затереть. Песни, тексты, Писание и сетлисты — целиком; файлы (фото, видео, PDF) лежат на
+     * компьютере и показываются оттуда, пока лежат в хранилище экрана (до суток). false — компьютер не ответил.
+     */
+    suspend fun importComputerLibrary(t: Target): Boolean {
+        val o = outs.value.firstOrNull { it.target.id == t.id } ?: return false
+        val text = withContext(Dispatchers.IO) { runCatching { o.client.library() }.getOrNull() } ?: return false
+        val read = withContext(Dispatchers.Default) { StoreRead.read(text) } ?: return false
+        val name = o.info()?.name ?: t.name
+        val lang = data.value.settings.lang
+        // Пути к файлам — пути компьютера: на телефоне они ничего не значат.
+        val imported = read.data.copy(localFiles = emptyMap(), settings = read.data.settings.copy(lang = lang))
+        withContext(Dispatchers.Main) {
+            createProfile(name, ProfileKind.WORK, Accent.BLUE)
+            data.value = store.replace(imported)
+            outs.value.filter { it.client.connection.value is Connection.Connected }.forEach { refreshStored(it) }
+        }
+        return true
+    }
 
     /** Копия сейчас (кнопка в настройках или перед обновлением). */
     fun backupNow(reason: String = "manual"): String = backups.save(store.data, reason)
