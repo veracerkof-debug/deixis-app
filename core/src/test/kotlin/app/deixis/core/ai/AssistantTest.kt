@@ -196,3 +196,20 @@ class SceneEditorTest {
         assertNotNull(ids)
     }
 }
+
+class AssistantPromptTest {
+    @Test
+    fun resourceCopyMatchesTheDocument() {
+        val doc = java.io.File("../docs/ai/SCENE_PROMPT.md")
+        assertTrue(AssistantPrompt.text.length > 500, "инструкция должна лежать в ресурсах")
+        if (doc.exists()) assertEquals(doc.readText(), AssistantPrompt.text, "обновите core/src/main/resources/ai/scene_prompt.md из docs/ai/SCENE_PROMPT.md")
+    }
+
+    @Test
+    fun withSceneRoundTrips() {
+        val bg = app.deixis.core.SceneBackground("evening")
+        val s = SceneLooks.load("evening")
+        val out = SceneEditor.withScene(bg, s)
+        assertEquals(s.layers.map { it.id }, app.deixis.core.effects.SceneText.sceneFor(out)!!.layers.map { it.id })
+    }
+}

@@ -21,6 +21,10 @@ object SceneEditor {
         return bg.copy(scene = json)
     }
 
+    /** Положить готовую сцену [scene] в оформление [bg] (результат принятого предложения). */
+    fun withScene(bg: SceneBackground, scene: Scene): SceneBackground =
+        bg.copy(scene = DeixisJson.encodeToString(JsonObject.serializer(), SceneOps.toTree(scene)))
+
     /** Свободный id для копии слоя: `copy1`, `copy2`… (до 20 знаков, как у остальных). */
     fun freeId(scene: Scene, base: String = "copy"): String =
         generateSequence(1) { it + 1 }.map { "$base$it" }.first { id -> scene.layers.none { it.id == id } }
@@ -50,5 +54,12 @@ object SceneEditor {
             else { m[a as String] = kotlinx.serialization.json.JsonPrimitive(kv[i + 1] as String); i += 2 }
         }
         return JsonObject(m)
+    }
+}
+
+/** Инструкция помощнику (docs/ai/SCENE_PROMPT.md): лежит в ресурсах ядра, тест сверяет копию с документом. */
+object AssistantPrompt {
+    val text: String by lazy {
+        AssistantPrompt::class.java.getResourceAsStream("/ai/scene_prompt.md")?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
     }
 }

@@ -155,6 +155,10 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
             Cell(L.liveQuiet, L.liveQuietSub, chevron = null) {
                 Stepper("${pct(quiet)}", { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, 10)))) })
             }
+            Sep(T.gutter)
+            Cell(L.assistant, L.assistantSub, kind = "media", onClick = {
+                ui.push(L.assistant) { AssistantSheet(c, ui, sb) { next -> onChange(st.copy(backgroundScene = next)) } }
+            })
             // Редактор слоёв: те же операции, что у помощника (SceneEditor). Первая правка копирует готовую сцену в свою.
             var layersOpen by remember { mutableStateOf(false) }
             Sep(T.gutter)
