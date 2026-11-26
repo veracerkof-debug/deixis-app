@@ -178,3 +178,20 @@ class ShowTimeline(val song: ShowSong, durationScale: Double = 1.0) {
         return minOf(1.0, Energy.ramp(s.e0, s.e1, fraction(index, pos)) * cap * power)
     }
 }
+
+/** Песня из `deixis-show` для библиотеки: слайды (текст) и подписи; части без строк (вступление «только фон») пропускаются. */
+object ShowImport {
+    class Slides(val title: String, val texts: List<String>, val labels: List<String?>)
+
+    fun slides(song: ShowSong): Slides {
+        val parts = song.sections.filter { it.lines.any { l -> l.isNotBlank() } }
+        return Slides(song.title, parts.map { it.lines.joinToString("\n").trim() }, parts.map { it.tag.takeIf { t -> t.isNotBlank() } })
+    }
+
+    /** Файл целиком: проверка и список песен; ошибки — понятным текстом с путём. */
+    fun parse(text: String): Pair<List<Slides>, List<String>> {
+        val r = ShowValidator.validate(text)
+        val show = r.show ?: return emptyList<Slides>() to r.errors.map { "${it.path}: ${it.message}" }
+        return show.songs.map(::slides).filter { it.texts.isNotEmpty() } to emptyList()
+    }
+}

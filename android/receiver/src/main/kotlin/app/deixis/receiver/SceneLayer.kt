@@ -33,7 +33,7 @@ fun SceneLayer(bg: SceneBackground) {
     val metrics = LocalContext.current.resources.displayMetrics
     var tick by remember { mutableLongStateOf(0L) }
     val holder = remember { arrayOfNulls<Bitmap>(1) }
-    LaunchedEffect(bg.key, bg.energy, bg.quiet) {
+    LaunchedEffect(bg.key, bg.energy, bg.quiet, bg.energyTo, bg.rampSec) {
         val scene = SceneText.sceneFor(bg) ?: return@LaunchedEffect
         val governor = QualityGovernor()
         var renderer: SceneRenderer? = null
@@ -45,6 +45,7 @@ fun SceneLayer(bg: SceneBackground) {
         var last = statNs
         var fps = 0.0
         var built = false
+        val rampStart = System.nanoTime()
         try {
             withContext(Dispatchers.Default) {
                 while (isActive) {
@@ -65,7 +66,7 @@ fun SceneLayer(bg: SceneBackground) {
                     }
                     val r = renderer ?: break
                     r.quiet = bg.quiet?.toDouble() ?: scene.quiet
-                    r.advance((t0 - last) / 1e9, bg.energy.toDouble().coerceIn(0.0, 1.0))
+                    r.advance((t0 - last) / 1e9, bg.energyAt((t0 - rampStart) / 1e9).coerceIn(0.0, 1.0))
                     last = t0
                     r.render(pixels, null)
                     val bmp = holder[0]

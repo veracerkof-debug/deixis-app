@@ -631,6 +631,10 @@ object L {
     }
     val studioEnergy: String get() = t("Яркость", "Yorqinlik", "Energy")
     val studioMotionHint: String get() = t("Значок справа от ползунка оживляет параметр", "Sirpanchiq o‘ngidagi belgi parametrni jonlantiradi", "The icon beside a slider animates that parameter")
+    val showImport: String get() = t("Песни из файла", "Fayldan qo‘shiqlar", "Songs from a file")
+    val showImportSub: String get() = t("Файл deixis-show: части песни станут слайдами с подписями", "deixis-show fayli: qo‘shiq qismlari sarlavhali slaydlarga aylanadi", "A deixis-show file: song sections become labeled slides")
+    val showImportEmpty: String get() = t("В файле нет песен", "Faylda qo‘shiq yo‘q", "No songs in the file")
+    fun showImported(n: Int): String = t("Песен добавлено: $n", "Qo‘shilgan qo‘shiqlar: $n", "Songs added: $n")
     val back: String get() = t("Назад", "Orqaga", "Back")
     val studioSample: String get() = t("Слава в вышних Богу", "Xudoga ulug‘lik", "Glory to God in the highest")
     val studio: String get() = t("Студия фона", "Fon studiyasi", "Background studio")

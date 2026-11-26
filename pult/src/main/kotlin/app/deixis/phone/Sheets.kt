@@ -207,6 +207,16 @@ fun SettingsSheet(c: Controller) {
         SwitchRow(L.church, st.church, L.churchSub) { v -> c.setSettings { it.copy(church = v) } }
     }
     @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
+    // Песни из файла deixis-show (их пишет нейросеть или человек): части становятся слайдами с подписями.
+    val showPick = rememberFilePicker { uris ->
+        val uri = uris.firstOrNull() ?: return@rememberFilePicker
+        val text = runCatching { c.platform.open(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
+        val (songs, errors) = if (text == null) emptyList<app.deixis.core.effects.ShowImport.Slides>() to listOf(L.pictureNotOpened) else app.deixis.core.effects.ShowImport.parse(text)
+        if (songs.isEmpty()) ui.toast(errors.firstOrNull() ?: L.showImportEmpty)
+        else { songs.forEach { c.saveItem(LibItem(Store.newId(), Kind.SONG, it.title, slides = it.texts, labels = it.labels)) }; ui.toast(L.showImported(songs.size)) }
+    }
+    GHead(L.showImport)
+    Group { Cell(L.showImport, L.showImportSub, kind = "song", onClick = { showPick.launch(arrayOf("*/*")) }) }
     GHead(L.demo)
     Group {
         if (c.hasDemo()) {

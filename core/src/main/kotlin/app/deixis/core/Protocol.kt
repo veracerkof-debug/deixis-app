@@ -221,9 +221,21 @@ data class Margins(val left: Float, val top: Float, val right: Float, val bottom
  * 0…1, null — как в сцене.
  */
 @Serializable
-data class SceneBackground(val look: String, val energy: Float = 0.6f, val quiet: Float? = null, val scene: String? = null) {
+data class SceneBackground(
+    val look: String, val energy: Float = 0.6f, val quiet: Float? = null, val scene: String? = null,
+    /** Плавная кривая части песни: за [rampSec] секунд после показа слайда энергия идёт от [energy] к [energyTo]. */
+    val energyTo: Float? = null, val rampSec: Float = 0f,
+) {
     /** Ключ сцены: меняется, когда сменилась готовая сцена или правка своей, — по нему экран решает, что перестроить. */
     val key: String get() = if (scene == null) look else "$look#${scene.hashCode()}"
+
+    /** Энергия через [elapsedSec] секунд после показа слайда: без кривой — постоянная [energy]. */
+    fun energyAt(elapsedSec: Double): Double {
+        val to = energyTo
+        if (to == null || rampSec <= 0f) return energy.toDouble()
+        val f = (elapsedSec / rampSec).coerceIn(0.0, 1.0)
+        return energy + (to - energy) * f
+    }
 }
 
 /**

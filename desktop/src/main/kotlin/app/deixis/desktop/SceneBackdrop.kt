@@ -29,6 +29,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
 
     @Volatile private var cfg: Config? = null
     private val exec = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "scene-backdrop").apply { isDaemon = true } }
+    @Volatile private var rampStart = System.nanoTime()
     private var task: ScheduledFuture<*>? = null
     private var released = false
 
@@ -61,6 +62,8 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     @Synchronized
     fun show(bg: SceneBackground, w: Int, h: Int, text: TextBox?) {
         if (released || w < 16 || h < 16) return
+        val prev = cfg?.bg
+        if (prev == null || prev.energy != bg.energy || prev.energyTo != bg.energyTo || prev.rampSec != bg.rampSec) rampStart = System.nanoTime()
         cfg = Config(bg, bg.key, bg.energy.toDouble().coerceIn(0.0, 1.0), bg.quiet?.toDouble(), w, h, text)
         if (task == null) {
             lastNs = System.nanoTime(); statNs = lastNs; frames = 0
@@ -93,7 +96,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
             val dt = (t0 - lastNs) / 1e9
             lastNs = t0
             r.quiet = c.quiet ?: r.scene.quiet
-            r.advance(dt, c.energy)
+            r.advance(dt, c.bg.energyAt((t0 - rampStart) / 1e9).coerceIn(0.0, 1.0))
             r.render(pixels, c.text)
             val img = buffers[next] ?: return
             System.arraycopy(pixels, 0, (img.raster.dataBuffer as DataBufferInt).data, 0, pixels.size)
