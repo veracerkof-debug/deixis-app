@@ -1,0 +1,61 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "plain",
+ "title": "Чистый",
+ "about": "Только текст: тёмная подложка и едва заметное движение. Когда слова — всё.",
+ "seed": 2,
+ "bpm": 0,
+ "speed": 0.3,
+ "quiet": 0.4,
+ "palette": [
+  "#8A94B8",
+  "#6F7BA6",
+  "#5A6690",
+  "#A8A0C0",
+  "#7C86AA"
+ ],
+ "mods": [],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "radial",
+    "c1": "#10131c",
+    "c2": "#05060a",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 3,
+    "size": 0.8,
+    "speed": 0.25,
+    "soft": 0.18,
+    "spread": 0.6,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.5,
+    "y": 0.45,
+    "size": 4.4
+   },
+   "blend": "source-over"
+  }
+ ]
+}

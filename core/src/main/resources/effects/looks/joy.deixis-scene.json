@@ -1,0 +1,173 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "joy",
+ "title": "Радость",
+ "about": "Прославление: тёплые и яркие цвета с одной холодной нотой, вифлеемская звезда, быстрые волны и лучи. Движение, а не мигание.",
+ "seed": 7,
+ "bpm": 118,
+ "speed": 1.3,
+ "quiet": 0.2,
+ "palette": [
+  "#F4B942",
+  "#F2784B",
+  "#E8507A",
+  "#2BB3B1",
+  "#FFE3A3"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.1,
+   "shape": "sine",
+   "phase": 0
+  },
+  {
+   "id": "noise1",
+   "type": "noise",
+   "rate": 0.25,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#140c20",
+    "c2": "#2a1230",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 8,
+    "size": 0.5,
+    "speed": 1.3,
+    "soft": 0.5,
+    "spread": 1.2,
+    "move": "lissajous"
+   },
+   "bind": {
+    "speed": {
+     "src": "energy",
+     "amt": 0.3
+    }
+   }
+  },
+  {
+   "id": "rays",
+   "type": "rays",
+   "name": "Лучи",
+   "prio": 2,
+   "p": {
+    "count": 20,
+    "len": 1.0,
+    "width": 0.0035,
+    "inner": 0.12,
+    "ox": 0.74,
+    "oy": 0.42,
+    "spin": 12,
+    "alpha": 0.22,
+    "c": 4,
+    "avoid": 0.9
+   }
+  },
+  {
+   "id": "star",
+   "type": "shape",
+   "name": "Звезда",
+   "prio": 5,
+   "p": {
+    "kind": "starburst",
+    "x": 0.74,
+    "y": 0.42,
+    "size": 0.55,
+    "c": 0.3,
+    "glow": 28,
+    "spin": 6,
+    "alpha": 0.95,
+    "avoid": 0.55
+   },
+   "bind": {
+    "size": {
+     "src": "beat",
+     "amt": 0.025
+    }
+   }
+  },
+  {
+   "id": "wave",
+   "type": "contour",
+   "name": "Волны от звезды",
+   "prio": 3,
+   "p": {
+    "src": "star",
+    "rings": 40,
+    "irid": 0.35,
+    "strength": 0.7,
+    "speed": 1.4,
+    "reach": 1.5
+   }
+  },
+  {
+   "id": "th",
+   "type": "thread",
+   "name": "Нити",
+   "prio": 2,
+   "p": {
+    "kind": "wave",
+    "lines": 2,
+    "amp": 0.05,
+    "freq": 1.4,
+    "y": 0.9,
+    "thick": 2,
+    "glow": 10,
+    "alpha": 0.35,
+    "cspread": 0.5,
+    "speed": 1.2
+   }
+  },
+  {
+   "id": "spark",
+   "type": "emitter",
+   "name": "Огоньки",
+   "prio": 1,
+   "p": {
+    "count": 36,
+    "size": 0.014,
+    "speed": 1.4,
+    "alpha": 0.55
+   },
+   "bind": {
+    "count": {
+     "src": "energy",
+     "amt": 0.5
+    }
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

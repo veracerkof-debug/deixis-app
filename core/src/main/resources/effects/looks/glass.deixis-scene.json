@@ -1,0 +1,144 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "glass",
+ "title": "Витраж",
+ "about": "Повторитель: венец из лепестков цветного стекла вокруг звезды. Для праздников и больших частей.",
+ "seed": 3,
+ "bpm": 84,
+ "speed": 0.9,
+ "quiet": 0.25,
+ "palette": [
+  "#D9A441",
+  "#B5382F",
+  "#2F6BA8",
+  "#2E8F6B",
+  "#7A4BA0"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.07,
+   "shape": "tri",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#0a0714",
+    "c2": "#14102a",
+    "angle": 80
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 5,
+    "size": 0.55,
+    "speed": 0.7,
+    "soft": 0.36,
+    "spread": 2.2
+   }
+  },
+  {
+   "id": "petals",
+   "type": "shape",
+   "name": "Лепестки",
+   "prio": 3,
+   "p": {
+    "kind": "drop",
+    "x": 0.74,
+    "y": 0.5,
+    "size": 0.13,
+    "copies": 12,
+    "layout": "circle",
+    "spread": 0.5,
+    "stepRot": 30,
+    "fade": 0.4,
+    "cstep": 0.17,
+    "glow": 8,
+    "fill": 0.35,
+    "stroke": 1.5,
+    "spin": 4,
+    "alpha": 0.78,
+    "avoid": 0.7
+   },
+   "bind": {
+    "size": {
+     "src": "",
+     "amt": 0,
+     "expr": "base*(0.82+0.36*sin(i*0.9+t*1.1))"
+    },
+    "spread": {
+     "src": "lfo1",
+     "amt": 0.12
+    }
+   },
+   "fx": [
+    {
+     "type": "bloom",
+     "p": {
+      "r": 12,
+      "amt": 0.4
+     }
+    }
+   ]
+  },
+  {
+   "id": "core",
+   "type": "shape",
+   "name": "Центр",
+   "prio": 5,
+   "p": {
+    "kind": "star",
+    "pn": 8,
+    "x": 0.74,
+    "y": 0.5,
+    "size": 0.15,
+    "c": 0.2,
+    "glow": 18,
+    "fill": 0.85,
+    "spin": -6,
+    "alpha": 0.85
+   },
+   "blend": "screen"
+  },
+  {
+   "id": "dust",
+   "type": "emitter",
+   "name": "Искры",
+   "prio": 1,
+   "p": {
+    "count": 24,
+    "kind": "star",
+    "size": 0.012,
+    "speed": 0.7,
+    "alpha": 0.5
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

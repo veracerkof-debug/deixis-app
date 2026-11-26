@@ -1,0 +1,117 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "evening",
+ "title": "Тихий вечер",
+ "about": "Универсальная: тёмная глубина, золото и серо-синий, крест справа, тонкие волны от его границ.",
+ "seed": 5,
+ "bpm": 66,
+ "speed": 0.5,
+ "quiet": 0.3,
+ "palette": [
+  "#C9A45C",
+  "#7E8FB8",
+  "#5F6FA8",
+  "#B88A5A",
+  "#8C7BA6"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.05,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "radial",
+    "c1": "#141a2c",
+    "c2": "#06080f",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 4,
+    "size": 0.65,
+    "speed": 0.5,
+    "soft": 0.38,
+    "spread": 0.8,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "cross",
+   "type": "shape",
+   "name": "Крест",
+   "prio": 5,
+   "p": {
+    "kind": "cross",
+    "x": 0.74,
+    "y": 0.48,
+    "size": 0.5,
+    "c": 0,
+    "glow": 30,
+    "alpha": 0.8,
+    "avoid": 0.5
+   },
+   "bind": {
+    "y": {
+     "src": "lfo1",
+     "amt": 0.02
+    }
+   }
+  },
+  {
+   "id": "wave",
+   "type": "contour",
+   "name": "Волны от креста",
+   "prio": 3,
+   "p": {
+    "src": "cross",
+    "rings": 30,
+    "irid": 0.15,
+    "strength": 0.45,
+    "speed": 0.5,
+    "reach": 2
+   }
+  },
+  {
+   "id": "dust",
+   "type": "emitter",
+   "name": "Огоньки",
+   "prio": 1,
+   "p": {
+    "count": 14,
+    "size": 0.012,
+    "speed": 0.4,
+    "alpha": 0.4
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

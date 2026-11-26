@@ -1,0 +1,139 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "water",
+ "title": "Вода",
+ "about": "Крещение, покой, благодарность: бирюзовые тона, круги на воде, капля.",
+ "seed": 19,
+ "bpm": 54,
+ "speed": 0.5,
+ "quiet": 0.25,
+ "palette": [
+  "#2A9D8F",
+  "#5FB7C7",
+  "#2B6E9E",
+  "#A9DCE3",
+  "#E6F2F0"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.04,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#04141c",
+    "c2": "#082a36",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 5,
+    "size": 0.7,
+    "speed": 0.4,
+    "soft": 0.34,
+    "spread": 1,
+    "move": "orbit"
+   }
+  },
+  {
+   "id": "rings",
+   "type": "rings",
+   "name": "Круги",
+   "prio": 2,
+   "p": {
+    "count": 8,
+    "gap": 0.11,
+    "width": 0.003,
+    "speed": 0.3,
+    "ox": 0.74,
+    "oy": 0.45,
+    "alpha": 0.3,
+    "c": 1
+   }
+  },
+  {
+   "id": "drop",
+   "type": "shape",
+   "name": "Капля",
+   "prio": 5,
+   "p": {
+    "kind": "drop",
+    "x": 0.74,
+    "y": 0.45,
+    "size": 0.34,
+    "c": 3,
+    "glow": 22,
+    "alpha": 0.75,
+    "avoid": 0.5
+   },
+   "bind": {
+    "y": {
+     "src": "lfo1",
+     "amt": 0.02
+    }
+   }
+  },
+  {
+   "id": "wave",
+   "type": "contour",
+   "name": "Волны от капли",
+   "prio": 3,
+   "p": {
+    "src": "drop",
+    "rings": 34,
+    "irid": 0.35,
+    "strength": 0.5,
+    "speed": 0.5,
+    "reach": 1.8
+   }
+  },
+  {
+   "id": "th",
+   "type": "thread",
+   "name": "Волна",
+   "prio": 2,
+   "p": {
+    "kind": "wave",
+    "lines": 3,
+    "amp": 0.06,
+    "freq": 1.2,
+    "y": 0.82,
+    "thick": 2,
+    "glow": 10,
+    "alpha": 0.4,
+    "cspread": 0.5,
+    "speed": 0.5
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

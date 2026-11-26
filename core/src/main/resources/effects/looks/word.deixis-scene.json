@@ -1,0 +1,104 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "word",
+ "title": "Слово",
+ "about": "Чтение Писания: тёплая бумага и тень, раскрытая книга, пылинки света. Тихо.",
+ "seed": 23,
+ "bpm": 0,
+ "speed": 0.35,
+ "quiet": 0.35,
+ "palette": [
+  "#D4A857",
+  "#8A6D3B",
+  "#C9B896",
+  "#5E4B2B",
+  "#EBD9B0"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.03,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "radial",
+    "c1": "#17110a",
+    "c2": "#0a0805",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 4,
+    "size": 0.7,
+    "speed": 0.3,
+    "soft": 0.28,
+    "spread": 0.7,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "book",
+   "type": "shape",
+   "name": "Книга",
+   "prio": 5,
+   "p": {
+    "kind": "book",
+    "x": 0.75,
+    "y": 0.5,
+    "size": 0.46,
+    "c": 0,
+    "glow": 22,
+    "alpha": 0.8,
+    "avoid": 0.5
+   },
+   "bind": {
+    "y": {
+     "src": "lfo1",
+     "amt": 0.015
+    }
+   }
+  },
+  {
+   "id": "dust",
+   "type": "emitter",
+   "name": "Пылинки",
+   "prio": 1,
+   "p": {
+    "count": 18,
+    "size": 0.009,
+    "speed": 0.25,
+    "alpha": 0.45,
+    "c": 4
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.8
+   },
+   "blend": "source-over"
+  }
+ ]
+}

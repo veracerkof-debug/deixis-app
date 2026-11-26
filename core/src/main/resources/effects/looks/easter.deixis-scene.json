@@ -1,0 +1,131 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "easter",
+ "title": "Воскресение",
+ "about": "Пасха: тёплый свет и тёмная глубина, лучи от креста, белое и золото. Торжественно и светло.",
+ "seed": 29,
+ "bpm": 72,
+ "speed": 0.6,
+ "quiet": 0.25,
+ "palette": [
+  "#FFF1C9",
+  "#F2C879",
+  "#E8A84C",
+  "#A9C1E0",
+  "#FFFFFF"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.03,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "radial",
+    "c1": "#2b2438",
+    "c2": "#0d0b16",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 5,
+    "size": 0.7,
+    "speed": 0.5,
+    "soft": 0.32,
+    "spread": 1,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "rays",
+   "type": "rays",
+   "name": "Лучи",
+   "prio": 2,
+   "p": {
+    "count": 24,
+    "len": 1.25,
+    "width": 0.0035,
+    "inner": 0.15,
+    "ox": 0.74,
+    "oy": 0.45,
+    "spin": 2,
+    "alpha": 0.2,
+    "c": 1,
+    "avoid": 0.9
+   }
+  },
+  {
+   "id": "cross",
+   "type": "shape",
+   "name": "Крест",
+   "prio": 5,
+   "p": {
+    "kind": "cross",
+    "x": 0.74,
+    "y": 0.45,
+    "size": 0.56,
+    "c": 0,
+    "glow": 50,
+    "alpha": 0.95,
+    "avoid": 0.4
+   }
+  },
+  {
+   "id": "wave",
+   "type": "contour",
+   "name": "Волны от креста",
+   "prio": 3,
+   "p": {
+    "src": "cross",
+    "rings": 32,
+    "irid": 0.1,
+    "strength": 0.45,
+    "speed": 0.7,
+    "reach": 1.6,
+    "c": 1
+   }
+  },
+  {
+   "id": "dust",
+   "type": "emitter",
+   "name": "Огоньки",
+   "prio": 1,
+   "p": {
+    "count": 22,
+    "size": 0.012,
+    "speed": 0.45,
+    "alpha": 0.5,
+    "c": 1
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

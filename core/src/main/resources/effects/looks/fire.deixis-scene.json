@@ -1,0 +1,111 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "fire",
+ "title": "Огонь",
+ "about": "Пятидесятница: веер языков пламени, тёплые тона, поднимающиеся искры.",
+ "seed": 13,
+ "bpm": 100,
+ "speed": 1.0,
+ "quiet": 0.25,
+ "palette": [
+  "#F2A33A",
+  "#E8613A",
+  "#D43D4E",
+  "#FFD27A",
+  "#7A2E5A"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.08,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#14080c",
+    "c2": "#2c0e10",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 6,
+    "size": 0.5,
+    "speed": 0.9,
+    "soft": 0.45,
+    "spread": 1.5,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "flames",
+   "type": "shape",
+   "name": "Языки пламени",
+   "prio": 5,
+   "p": {
+    "kind": "flame",
+    "x": 0.76,
+    "y": 0.6,
+    "size": 0.42,
+    "copies": 5,
+    "layout": "line",
+    "spread": 0.27,
+    "fade": 0.25,
+    "cstep": 0.12,
+    "glow": 22,
+    "fill": 0.85,
+    "alpha": 0.82,
+    "avoid": 0.5
+   },
+   "bind": {
+    "size": {
+     "src": "",
+     "amt": 0,
+     "expr": "base*(1-0.4*abs(i-(n-1)/2)/((n-1)/2))*(0.95+0.05*sin(t*2.2+i*1.7))"
+    }
+   }
+  },
+  {
+   "id": "spark",
+   "type": "emitter",
+   "name": "Искры",
+   "prio": 1,
+   "p": {
+    "count": 36,
+    "size": 0.012,
+    "speed": 1.1,
+    "dir": 270,
+    "spread": 30,
+    "alpha": 0.6
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.45,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

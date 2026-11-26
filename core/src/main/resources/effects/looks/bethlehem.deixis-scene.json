@@ -1,0 +1,125 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "bethlehem",
+ "title": "Вифлеем",
+ "about": "Рождество: ночное небо, золотая звезда, тихие искры. Спокойное и торжественное.",
+ "seed": 17,
+ "bpm": 60,
+ "speed": 0.45,
+ "quiet": 0.25,
+ "palette": [
+  "#E9C46A",
+  "#9DB4E0",
+  "#5C6BC0",
+  "#F4E3B2",
+  "#7E8FCF"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.03,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#050818",
+    "c2": "#101a3a",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Туманность",
+   "prio": 4,
+   "p": {
+    "count": 3,
+    "size": 0.85,
+    "speed": 0.3,
+    "soft": 0.28,
+    "spread": 1.4,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "star",
+   "type": "shape",
+   "name": "Звезда",
+   "prio": 5,
+   "p": {
+    "kind": "starburst",
+    "x": 0.72,
+    "y": 0.34,
+    "size": 0.56,
+    "c": 0,
+    "glow": 40,
+    "alpha": 0.95,
+    "avoid": 0.5,
+    "spin": 1.5
+   },
+   "bind": {
+    "y": {
+     "src": "lfo1",
+     "amt": 0.015
+    }
+   }
+  },
+  {
+   "id": "wave",
+   "type": "contour",
+   "name": "Лучи света",
+   "prio": 3,
+   "p": {
+    "src": "star",
+    "rings": 34,
+    "irid": 0.25,
+    "strength": 0.5,
+    "speed": 0.5,
+    "reach": 1.6,
+    "c": 3
+   }
+  },
+  {
+   "id": "sky",
+   "type": "emitter",
+   "name": "Звёзды",
+   "prio": 2,
+   "p": {
+    "count": 50,
+    "kind": "star",
+    "size": 0.007,
+    "speed": 0.12,
+    "dir": 0,
+    "spread": 180,
+    "twinkle": 0.4,
+    "alpha": 0.6,
+    "c": 3,
+    "cspread": 0.5
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.34,
+    "y": 0.5,
+    "size": 3.9
+   },
+   "blend": "source-over"
+  }
+ ]
+}

@@ -1,0 +1,123 @@
+{
+ "format": "deixis-scene",
+ "version": 1,
+ "id": "dawn",
+ "title": "Рассвет",
+ "about": "Тёплый восход: сливовое небо, янтарное солнце у горизонта, мягкие лучи. Для утра, надежды, начала.",
+ "seed": 21,
+ "bpm": 72,
+ "speed": 0.6,
+ "quiet": 0.25,
+ "palette": [
+  "#F3B97A",
+  "#E8836B",
+  "#C96B7E",
+  "#8E5A9A",
+  "#F6D9A8"
+ ],
+ "mods": [
+  {
+   "id": "lfo1",
+   "type": "lfo",
+   "rate": 0.03,
+   "shape": "sine",
+   "phase": 0
+  }
+ ],
+ "layers": [
+  {
+   "id": "bg",
+   "type": "gradient",
+   "name": "Подложка",
+   "prio": 5,
+   "p": {
+    "kind": "linear",
+    "c1": "#120d1f",
+    "c2": "#4a2a2c",
+    "angle": 90
+   },
+   "blend": "source-over"
+  },
+  {
+   "id": "paint",
+   "type": "field",
+   "name": "Краски",
+   "prio": 4,
+   "p": {
+    "count": 5,
+    "size": 0.6,
+    "speed": 0.5,
+    "soft": 0.4,
+    "spread": 1.1,
+    "move": "drift"
+   }
+  },
+  {
+   "id": "rays",
+   "type": "rays",
+   "name": "Лучи",
+   "prio": 2,
+   "p": {
+    "count": 16,
+    "len": 1.15,
+    "width": 0.003,
+    "inner": 0.2,
+    "ox": 0.5,
+    "oy": 1.0,
+    "spin": 2.5,
+    "alpha": 0.16,
+    "c": 4,
+    "avoid": 0.85
+   }
+  },
+  {
+   "id": "sun",
+   "type": "shape",
+   "name": "Солнце",
+   "prio": 5,
+   "p": {
+    "kind": "circle",
+    "x": 0.5,
+    "y": 1.0,
+    "size": 0.5,
+    "c": 0,
+    "glow": 70,
+    "alpha": 0.55,
+    "fill": 1,
+    "avoid": 0.7
+   },
+   "bind": {
+    "size": {
+     "src": "lfo1",
+     "amt": 0.02
+    }
+   }
+  },
+  {
+   "id": "dust",
+   "type": "emitter",
+   "name": "Огоньки",
+   "prio": 1,
+   "p": {
+    "count": 16,
+    "size": 0.011,
+    "speed": 0.35,
+    "alpha": 0.4,
+    "c": 0
+   }
+  },
+  {
+   "id": "lyr",
+   "type": "text",
+   "name": "Текст",
+   "prio": 5,
+   "p": {
+    "text": "Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение",
+    "x": 0.5,
+    "y": 0.4,
+    "size": 4.2
+   },
+   "blend": "source-over"
+  }
+ ]
+}
