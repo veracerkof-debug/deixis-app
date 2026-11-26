@@ -1,0 +1,1021 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<title>Сцена Deixis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Раскладка: сцена и источники слева, слои и параметры справа; на телефоне друг под другом.
+   Токены — из prototype/index.html (светлая и тёмная темы Deixis). */
+:root{
+  --bg:#F3F2EE; --cell:#FFFFFF; --ink:#161514; --mut:#6C6963; --l3:#C6C3BC;
+  --tint:#9C7242; --tint-text:#765A38; --red:#A75750; --ok:#4F7A57;
+  --sep:rgba(60,55,45,.15); --fill:rgba(120,115,105,.12); --fill2:rgba(120,115,105,.2);
+  --t-fast:140ms; --r-card:12px; --r-btn:10px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mark:"GFS Didot","Gentium Book Plus",Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000000; --cell:#1C1C1E; --ink:#FFFFFF; --mut:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --ok:#7FAE88;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000000; --cell:#1C1C1E; --ink:#FFFFFF; --mut:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --ok:#7FAE88;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+.mark{font-family:var(--mark);letter-spacing:.18em;font-size:20px}
+header p{margin:0;color:var(--mut)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}
+@media (max-width:980px){.app{grid-template-columns:minmax(0,1fr)}}
+.left,.panel{display:flex;flex-direction:column;gap:12px;min-width:0}
+.view{position:relative;background:#000;border-radius:var(--r-card);overflow:hidden;max-width:100%}
+.view:fullscreen{display:flex;flex-direction:column;justify-content:center;border-radius:0}
+.view canvas{width:100%;height:auto;aspect-ratio:16/9;display:block}
+.grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;pointer-events:none}
+.bar{position:absolute;top:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.bar button{background:rgba(0,0,0,.45);color:#fff;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-radius:var(--r-btn);padding:6px 12px;font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--tint);outline-offset:2px}
+.card{background:var(--cell);border-radius:var(--r-card);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600}
+h3{margin:4px 0 0;font-size:13px;font-weight:600}
+.hint{color:var(--mut);font-size:12px;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--fill);color:var(--ink);border:0;border-radius:var(--r-btn);padding:6px 11px;font:inherit;cursor:pointer;transition:background var(--t-fast)}
+.chip:hover{background:var(--fill2)}
+.chip[aria-pressed="true"]{background:var(--tint);color:#fff}
+.chip.danger:hover{background:var(--red);color:#fff}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--cell);border-radius:var(--r-card);padding:10px 12px;min-width:0}
+.stat small{display:block;color:var(--mut);font-size:12px}
+.stat b{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.track{height:8px;border-radius:4px;background:var(--fill);overflow:hidden}
+.fillbar{height:100%;width:0;background:var(--ok);border-radius:4px}
+.fillbar.warn{background:var(--red)}
+.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px}
+.sl output{color:var(--mut);font-variant-numeric:tabular-nums}
+.sl input{grid-column:1/-1}
+input[type=range]{width:100%;accent-color:var(--tint);margin:2px 0}
+input[type=text],input[type=number],select,textarea{background:var(--fill);color:var(--ink);border:1px solid var(--sep);border-radius:var(--r-btn);padding:6px 9px;font:inherit;min-width:0;width:100%}
+input[type=color]{width:44px;height:30px;padding:0;border:1px solid var(--sep);border-radius:var(--r-btn);background:var(--fill)}
+textarea{min-height:64px;resize:vertical}
+.layers{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ly{display:flex;align-items:stretch;border:1px solid var(--sep);border-radius:var(--r-btn);overflow:hidden}
+.ly[aria-current="true"]{border-color:var(--tint);background:var(--fill)}
+.ly.off .nm{opacity:.45}
+.ly .nm{flex:1;min-width:0;text-align:left;background:transparent;color:var(--ink);border:0;padding:6px 8px;font:inherit;cursor:pointer;display:flex;flex-direction:column}
+.ly .nm strong{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ly .nm span{color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ly .ib{background:transparent;color:var(--mut);border:0;width:27px;cursor:pointer;font:inherit;font-size:13px;padding:0}
+.ly .ib:hover{color:var(--ink);background:var(--fill2)}
+.ly .ib:disabled{opacity:.3;cursor:default}
+.ly .tag{align-self:center;font-size:10px;color:var(--mut);border:1px solid var(--sep);border-radius:6px;padding:0 4px;margin-right:4px}
+.ly .tag.cut{border-color:var(--red);color:var(--red)}
+.prm{display:flex;flex-direction:column;gap:3px;padding:4px 0;border-top:1px solid var(--sep)}
+.prm:first-of-type{border-top:0}
+.prm .top{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.prm .top label{font-size:13px}
+.prm .top output{color:var(--mut);font-variant-numeric:tabular-nums;font-size:12px}
+.prm .lk{background:transparent;border:1px solid var(--sep);color:var(--mut);border-radius:8px;padding:0 6px;cursor:pointer;font:inherit;font-size:12px}
+.prm .lk[aria-pressed="true"]{border-color:var(--tint);color:var(--tint-text)}
+.bd{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 0 2px}
+.bd .wide{grid-column:1/-1}
+.bd small{display:block;color:var(--mut);font-size:11px}
+.err{color:var(--red);font-size:12px}
+.fxbox{border:1px solid var(--sep);border-radius:var(--r-btn);padding:8px;display:flex;flex-direction:column;gap:4px}
+.fxbox .hd{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.pf{display:flex;flex-direction:column;gap:4px}
+.pfr{display:grid;grid-template-columns:minmax(0,1fr) 90px 52px;gap:8px;align-items:center;font-size:12px}
+.pfr .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pfr.cut .nm{color:var(--red);text-decoration:line-through}
+.dot2{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--l3);margin-right:6px}
+.dot2.on{background:var(--ok)}.dot2.err{background:var(--red)}
+.evl{margin:0;padding:0;list-style:none;font-size:12px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+details summary{cursor:pointer;color:var(--mut)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Playfair+Display:wght@500;600&family=Lora:wght@500;600&family=Marck+Script&family=GFS+Didot&display=swap" rel="stylesheet">
+
+<div class="wrap">
+  <header>
+    <span class="mark">DEIXIS</span>
+    <p>Сцена фона · прототип пула инструментов: слои, образы, эффекты, источники движения, формулы, проверка цены.</p>
+  </header>
+  <div class="app">
+    <div class="left">
+      <div class="view" id="view">
+        <canvas id="out" width="960" height="540" aria-label="Сцена"></canvas>
+        <div class="grain" id="grain"></div>
+        <div class="bar"><button id="pauseB" type="button">Пауза</button><button id="fullB" type="button">На весь экран</button></div>
+      </div>
+
+      <div class="card">
+        <div class="sl"><label for="enS">Энергия</label><output id="enO">0,50</output><input id="enS" type="range" min="0" max="100" value="50"></div>
+        <div class="chips"><button class="chip" id="enAuto" type="button" aria-pressed="true">Авто: песня за 60 с</button></div>
+        <div class="grid2">
+          <div class="sl"><label for="bpmS">Темп, уд/мин</label><output id="bpmO">96</output><input id="bpmS" type="range" min="0" max="180" value="96"></div>
+          <div class="sl"><label for="spdS">Скорость</label><output id="spdO">100 %</output><input id="spdS" type="range" min="10" max="250" value="100"></div>
+        </div>
+        <h2>Разрешение мягких слоёв</h2>
+        <div class="chips" id="softChips"></div>
+        <h2>Бюджет кадра</h2>
+        <div class="chips" id="budChips"></div>
+        <h2>Частота кадров</h2>
+        <div class="chips" id="fpsChips"></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><small>Измерено, мс</small><b id="sMs">—</b></div>
+        <div class="stat"><small>Кадров в секунду</small><b id="sFps">—</b></div>
+        <div class="stat"><small>Оценка сцены, мс</small><b id="sPred">—</b></div>
+        <div class="stat"><small>Слоёв работает</small><b id="sAct">—</b></div>
+      </div>
+
+      <section class="card">
+        <h2>Проверка сцены (preflight)</h2>
+        <div class="track"><div class="fillbar" id="pfBar"></div></div>
+        <p class="hint" id="pfTxt">—</p>
+        <div class="pf" id="pfList"></div>
+        <p class="hint" id="pfCut"></p>
+      </section>
+
+      <section class="card">
+        <h2>Источники движения</h2>
+        <p class="hint">Готовые: «энергия» и «доля» (beat). Свои: плавные волны (LFO) и шум. Любой параметр слоя можно привязать к источнику кнопкой ⚡.</p>
+        <div id="modList"></div>
+        <div class="chips"><button class="chip" id="modLfo" type="button">+ LFO</button><button class="chip" id="modNoise" type="button">+ Шум</button></div>
+      </section>
+    </div>
+
+    <div class="panel">
+      <section class="card">
+        <h2>Слои (снизу вверх)</h2>
+        <ul class="layers" id="layerList"></ul>
+        <div class="chips">
+          <select id="addType" aria-label="Тип слоя" style="width:auto;flex:1"></select>
+          <button class="chip" id="addBtn" type="button">Добавить</button>
+        </div>
+        <p class="hint">Слой «Текст» всегда рисуется последним. Метка «ЧЁТ» — векторный слой в полном разрешении, «МЯГ» — в малом разрешении.</p>
+      </section>
+
+      <section class="card" id="lyCard"></section>
+
+      <section class="card">
+        <h2>Сцена</h2>
+        <div class="chips" id="looks"></div>
+        <h3>Палитра</h3>
+        <div class="chips" id="palette"></div>
+        <details>
+          <summary>JSON сцены: показать, править, применить</summary>
+          <textarea id="jsonTxt" rows="10" spellcheck="false"></textarea>
+          <div class="chips" style="margin-top:6px"><button class="chip" id="jsonShow" type="button">Показать</button><button class="chip" id="jsonApply" type="button">Применить</button></div>
+          <div class="err" id="jsonErr"></div>
+        </details>
+        <p class="hint"><span class="dot2" id="sDot"></span><span id="saveStat">Изменений нет</span></p>
+      </section>
+
+      <section class="card">
+        <h2>Журнал и заметки</h2>
+        <p class="hint"><span class="dot2" id="lDot"></span><span id="lStat">Журнал запускается…</span></p>
+        <textarea id="noteTxt" maxlength="1500" placeholder="Что получилось, что не хватает, что лагает"></textarea>
+        <div class="chips"><button class="chip" id="noteBtn" type="button">Сохранить заметку</button></div>
+        <ul class="evl" id="evl"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const fmt=(n,d=1)=>n.toLocaleString('ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});
+const W=960,H=540,TAU=Math.PI*2,sin=Math.sin,cos=Math.cos;
+const el=(tag,cls,txt)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; };
+const hash=(i,s)=>{ const x=Math.sin(i*127.1+s*311.7+13.37)*43758.5453; return x-Math.floor(x); };
+const vnoise=x=>{ const i=Math.floor(x), f=x-i, u=f*f*(3-2*f); return hash(i,1)*(1-u)+hash(i+1,1)*u; };
+const sstep=(a,b,x)=>{ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); };
+
+/* ================= образы (векторные контуры) ================= */
+const EMB_DEF={
+  cross:{name:'Крест',draw(x){
+    x.fillRect(-.1,-1,.2,2.05); x.fillRect(-.48,-.54,.96,.19);
+  }},
+  dove:{name:'Голубь',draw(x){
+    const poly=(pts)=>{ x.beginPath(); x.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) x.lineTo(pts[i][0],pts[i][1]); x.closePath(); x.fill(); };
+    // голова и клюв
+    x.beginPath(); x.arc(-.5,-.2,.13,0,Math.PI*2); x.fill();
+    poly([[-.61,-.26],[-.84,-.15],[-.61,-.11]]);
+    // тело с хвостом
+    x.beginPath();
+    x.moveTo(-.42,-.1);
+    x.bezierCurveTo(-.1,-.05,.3,0,.62,.2);
+    x.lineTo(1.0,.46); x.lineTo(.9,.5); x.lineTo(1.02,.6); x.lineTo(.88,.62); x.lineTo(.96,.74); x.lineTo(.55,.56);
+    x.bezierCurveTo(.3,.5,.1,.5,-.15,.46);
+    x.bezierCurveTo(-.45,.4,-.62,.2,-.6,-.06);
+    x.closePath(); x.fill();
+    // дальнее крыло
+    poly([[.12,.02],[.3,-.3],[.7,-.52],[1.0,-.46],[.88,-.36],[.98,-.28],[.8,-.24],[.86,-.14],[.68,-.1],[.72,0],[.5,.1]]);
+    // ближнее крыло
+    x.beginPath();
+    x.moveTo(-.22,.02);
+    x.bezierCurveTo(-.3,-.45,.08,-.85,.56,-1.0);
+    x.lineTo(.42,-.86); x.lineTo(.54,-.74); x.lineTo(.34,-.7); x.lineTo(.46,-.58); x.lineTo(.26,-.52);
+    x.lineTo(.38,-.4); x.lineTo(.18,-.34); x.lineTo(.28,-.22); x.lineTo(.08,-.16); x.lineTo(.14,-.02); x.lineTo(.3,.1);
+    x.closePath(); x.fill();
+  }},
+  angel:{name:'Ангел',draw(x){
+    const wing=s=>{
+      x.beginPath();
+      x.moveTo(s*.1,-.38);
+      x.bezierCurveTo(s*.45,-.95,s*.95,-.95,s*1.05,-.5);
+      x.bezierCurveTo(s*1.1,-.25,s*.9,-.05,s*.78,.02);
+      x.lineTo(s*.82,.12); x.lineTo(s*.62,.1); x.lineTo(s*.66,.22); x.lineTo(s*.46,.18); x.lineTo(s*.48,.3);
+      x.lineTo(s*.28,.2); x.lineTo(s*.2,.0);
+      x.closePath(); x.fill();
+    };
+    wing(1); wing(-1);
+    // нимб
+    x.lineWidth=.045; x.strokeStyle='#fff'; x.beginPath(); x.ellipse(0,-.78,.2,.065,0,0,Math.PI*2); x.stroke();
+    // голова
+    x.beginPath(); x.arc(0,-.6,.13,0,Math.PI*2); x.fill();
+    // одеяние
+    x.beginPath();
+    x.moveTo(-.1,-.46); x.lineTo(.1,-.46);
+    x.bezierCurveTo(.2,-.4,.24,-.3,.3,-.12);       // правое плечо и рукав
+    x.lineTo(.52,.1); x.lineTo(.4,.16); x.lineTo(.22,-.02);
+    x.bezierCurveTo(.26,.3,.36,.6,.5,.95);
+    x.lineTo(-.5,.95);
+    x.bezierCurveTo(-.36,.6,-.26,.3,-.22,-.02);
+    x.lineTo(-.4,.16); x.lineTo(-.52,.1); x.lineTo(-.3,-.12);
+    x.bezierCurveTo(-.24,-.3,-.2,-.4,-.1,-.46);
+    x.closePath(); x.fill();
+  }},
+  flame:{name:'Пламя',draw(x){
+    x.beginPath();
+    x.moveTo(.02,-1.05);
+    x.bezierCurveTo(.12,-.72,.52,-.5,.52,-.02);
+    x.bezierCurveTo(.52,.4,.28,.7,0,.7);
+    x.bezierCurveTo(-.3,.7,-.52,.42,-.52,-.02);
+    x.bezierCurveTo(-.52,-.3,-.38,-.42,-.32,-.62);
+    x.bezierCurveTo(-.18,-.52,-.1,-.72,.02,-1.05);
+    x.closePath(); x.fill();
+    x.shadowBlur=0; x.fillStyle='rgba(0,0,0,.5)';
+    x.beginPath();
+    x.moveTo(.02,-.42);
+    x.bezierCurveTo(.08,-.24,.3,-.12,.3,.12);
+    x.bezierCurveTo(.3,.38,.16,.55,0,.55);
+    x.bezierCurveTo(-.17,.55,-.3,.38,-.3,.12);
+    x.bezierCurveTo(-.3,-.05,-.18,-.1,-.14,-.25);
+    x.bezierCurveTo(-.07,-.2,-.04,-.3,.02,-.42);
+    x.closePath(); x.fill();
+  }},
+  star:{name:'Звезда',draw(x){
+    x.beginPath();
+    for(let i=0;i<16;i++){
+      const a=-Math.PI/2+i*Math.PI/8;
+      const outer=i%2===0, k=i/2|0;
+      const r=outer?(k%2===0?(k%4===0?1.05:.78):.46):.13;
+      x.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    x.closePath(); x.fill();
+  }},
+  book:{name:'Книга',draw(x){
+    x.beginPath();
+    x.moveTo(0,.32);
+    x.bezierCurveTo(-.3,.14,-.7,.12,-.95,.26);
+    x.lineTo(-.95,-.5);
+    x.bezierCurveTo(-.7,-.62,-.3,-.6,0,-.34);
+    x.bezierCurveTo(.3,-.6,.7,-.62,.95,-.5);
+    x.lineTo(.95,.26);
+    x.bezierCurveTo(.7,.12,.3,.14,0,.32);
+    x.closePath(); x.fill();
+    x.beginPath();
+    x.moveTo(-1.0,.36); x.bezierCurveTo(-.7,.22,-.3,.22,0,.46);
+    x.bezierCurveTo(.3,.22,.7,.22,1.0,.36); x.lineTo(1.0,.44);
+    x.bezierCurveTo(.7,.3,.3,.3,0,.54); x.bezierCurveTo(-.3,.3,-.7,.3,-1.0,.44);
+    x.closePath(); x.fill();
+  }}
+};
+
+
+/* ================= палитра и цвет ================= */
+const PALS={
+  praise:['#F2B134','#E5407A','#38A8F0','#F2862B','#8A5FE0'],
+  worship:['#3F78C4','#E3B866','#6A62D0','#38A6BE','#9AB8E8'],
+  glass:['#E8B04A','#C2372F','#2F6FB5','#2E9A73','#7A3FA0']
+};
+const hex2rgb=h=>{ const v=parseInt(h.slice(1),16); return [(v>>16)&255,(v>>8)&255,v&255]; };
+let PAL=PALS.praise.map(hex2rgb);
+function colorAt(ci){
+  const n=PAL.length, x=((ci%n)+n)%n, i=Math.floor(x), f=x-i, a=PAL[i], b=PAL[(i+1)%n];
+  return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];
+}
+const rgba=(c,a)=>'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+','+clamp(a,0,1).toFixed(3)+')';
+
+/* ================= схемы слоёв и эффектов ================= */
+const N=(k,label,min,max,step,def)=>({k,label,t:'n',min,max,step,def});
+const C=(k,label,def)=>({k,label,t:'c',min:0,max:5,step:.05,def});
+const S=(k,label,opts,def)=>({k,label,t:'s',opts,def});
+const X=(k,label,def)=>({k,label,t:'x',def});
+const HX=(k,label,def)=>({k,label,t:'h',def});
+const COMMON=[N('opacity','Непрозрачность',0,1,.01,1),N('avoid','Не мешать тексту',0,1,.01,0)];
+const BLENDS=[['screen','screen (осветление)'],['source-over','обычный'],['lighter','сложение'],['multiply','умножение'],['overlay','overlay'],['soft-light','мягкий свет']];
+const SHAPES=[['circle','Круг'],['ring','Кольцо'],['rect','Прямоугольник'],['polygon','Многоугольник'],['star','Звезда с лучами'],['heart','Сердце'],['drop','Капля'],['moon','Месяц'],
+  ['cross','Крест'],['dove','Голубь'],['angel','Ангел'],['flame','Пламя'],['starburst','Вифлеемская звезда'],['book','Книга']];
+const LAYOUTS=[['line','Линия'],['circle','Окружность'],['grid','Сетка'],['spiral','Спираль'],['scatter','Разброс'],['fan','Веер']];
+const FONTS=[['"Cormorant Garamond",Georgia,serif','Cormorant'],['"Playfair Display",Georgia,serif','Playfair'],['Lora,Georgia,serif','Lora'],['"Marck Script",Georgia,cursive','Marck Script']];
+
+const LAYER_TYPES={
+  gradient:{name:'Подложка (градиент)',kind:'soft',params:[S('kind','Вид',[['linear','Линейный'],['radial','Радиальный']],'linear'),HX('c1','Цвет 1','#0d0a1c'),HX('c2','Цвет 2','#1b1238'),N('angle','Угол, °',0,360,1,90)]},
+  field:{name:'Краски (мягкие пятна)',kind:'soft',params:[N('count','Число пятен',1,12,1,6),N('size','Размер',.1,1,.01,.45),N('speed','Скорость',0,3,.05,1),N('soft','Яркость пятен',.1,1,.01,.7),C('c','Цвет',0),N('spread','Разброс цвета',0,3,.05,1.4),S('move','Движение',[['lissajous','Лиссажу'],['orbit','Орбита'],['drift','Дрейф']],'lissajous')]},
+  shape:{name:'Образ / фигура (чёткая)',kind:'crisp',params:[S('kind','Форма',SHAPES,'cross'),N('x','Положение x',0,1,.005,.5),N('y','Положение y',0,1,.005,.5),N('size','Размер',.02,1.4,.005,.3),N('rot','Поворот, °',-180,180,1,0),N('spin','Вращение, °/с',-180,180,1,0),
+    C('c','Цвет',0),N('cstep','Цвет на копию',0,1,.01,0),N('alpha','Яркость',0,1,.01,1),N('fill','Заливка',0,1,.01,1),N('stroke','Обводка, px',0,20,.5,0),N('glow','Свечение, px',0,80,1,0),N('pn','Углов / лучей',3,12,1,5),
+    N('copies','Число копий',1,64,1,1),S('layout','Раскладка',LAYOUTS,'circle'),N('spread','Размах раскладки',0,1.5,.01,.5),N('stepRot','Поворот на копию, °',-90,90,.5,0),N('stepScale','Размер на копию',.6,1.4,.01,1),N('fade','Затухание по копиям',0,1,.01,0),N('jitter','Дрожь положения',0,1,.01,0)]},
+  emitter:{name:'Излучатель (огоньки, искры)',kind:'crisp',params:[N('count','Число',1,200,1,40),S('kind','Форма',[['dot','Огонёк'],['star','Звезда'],['cross','Крест'],['ring','Кольцо']],'dot'),N('size','Размер',.004,.08,.001,.02),N('speed','Скорость',0,3,.05,1),N('dir','Направление, °',0,360,1,270),N('spread','Разброс, °',0,180,1,40),C('c','Цвет',1),N('cspread','Разброс цвета',0,3,.05,1),N('twinkle','Мерцание',0,1,.01,0),N('alpha','Яркость',0,1,.01,.7)]},
+  rays:{name:'Лучи',kind:'crisp',params:[N('count','Число',3,48,1,16),N('len','Длина',.1,1.4,.01,.9),N('width','Толщина',.001,.05,.001,.004),N('inner','Внутренний радиус',0,.6,.01,.1),N('ox','Центр x',0,1,.005,.5),N('oy','Центр y',0,1,.005,.5),N('spin','Вращение, °/с',-90,90,.5,10),C('c','Цвет',0),N('alpha','Яркость',0,1,.01,.4)]},
+  rings:{name:'Кольца-волны',kind:'crisp',params:[N('count','Число',1,16,1,6),N('gap','Шаг',.02,.3,.005,.09),N('width','Толщина',.001,.03,.001,.004),N('speed','Скорость',-2,2,.05,.6),N('ox','Центр x',0,1,.005,.5),N('oy','Центр y',0,1,.005,.5),N('dash','Штрих',0,1,.01,0),C('c','Цвет',2),N('alpha','Яркость',0,1,.01,.6)]},
+  thread:{name:'Нити и волны (линии)',kind:'crisp',params:[S('kind','Вид',[['wave','Волна'],['lissajous','Лиссажу']],'wave'),N('lines','Число нитей',1,12,1,3),N('amp','Размах',0,.45,.005,.12),N('freq','Частота',.3,8,.05,1.5),N('speed','Скорость',0,3,.05,1),N('y','Положение y',0,1,.005,.5),N('thick','Толщина, px',1,14,.5,3),C('c','Цвет',0),N('cspread','Разброс цвета',0,2,.05,.4),N('glow','Свечение, px',0,60,1,14),N('alpha','Яркость',0,1,.01,.8)]},
+  contour:{name:'Контур: волны от границ образа',kind:'soft',params:[S('src','Источник (слой-фигура)',[],''),N('rings','Кольца',10,120,1,46),N('speed','Скорость',0,3,.05,1),N('reach','Затухание наружу',.3,5,.05,1.5),N('irid','Перелив',0,1,.01,.45),C('c','Цвет',0),N('strength','Сила',0,1.5,.01,1)]},
+  text:{name:'Текст (всегда сверху)',kind:'text',params:[X('text','Текст','Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение'),N('size','Размер, % ширины',2,9,.1,4.1),N('x','Положение x',0,1,.005,.5),N('y','Положение y',0,1,.005,.45),S('font','Шрифт',FONTS,FONTS[0][0]),N('shadow','Тень',0,1,.01,.7)]}
+};
+const SCH={}; Object.keys(LAYER_TYPES).forEach(t=>{ SCH[t]=COMMON.concat(LAYER_TYPES[t].params); });
+
+const FX_TYPES={
+  blur:{name:'Размытие',cost:1.5,params:[N('r','Радиус, px',0,40,.5,6)]},
+  bloom:{name:'Свечение (bloom)',cost:2,params:[N('r','Радиус, px',1,60,1,16),N('amt','Сила',0,1,.01,.6)]},
+  color:{name:'Цвет слоя',cost:.8,params:[N('hue','Оттенок, °',-180,180,1,0),N('sat','Насыщенность, %',0,300,1,100),N('bri','Яркость, %',20,200,1,100)]},
+  warp:{name:'Деформация (по пикселям)',cost:3,pixel:true,params:[N('amt','Сила',0,1,.01,.5),N('freq','Частота',.5,12,.1,4),N('speed','Скорость',0,3,.05,1)]},
+  kaleido:{name:'Калейдоскоп',cost:.5,params:[N('n','Сегменты',2,12,1,6),N('cx','Центр x',0,1,.01,.5),N('cy','Центр y',0,1,.01,.5)]},
+  trails:{name:'Следы',cost:2.5,pixel:true,params:[N('decay','Затухание',0,.96,.01,.85),N('zoom','Масштаб за кадр',.95,1.05,.001,1.01),N('rot','Поворот за кадр, °',-3,3,.05,0)]}
+};
+
+/* ================= ограничения ================= */
+const LIM={layers:12,fx:4,mods:8,pixelFx:3,expr:64,exprLen:200};
+
+/* ================= безопасные формулы ================= */
+const FN={sin:Math.sin,cos:Math.cos,abs:Math.abs,min:Math.min,max:Math.max,pow:Math.pow,sqrt:Math.sqrt,floor:Math.floor,
+  fract:x=>x-Math.floor(x),clamp:(x,a,b)=>Math.min(Math.max(x,a),b),mix:(a,b,t)=>a+(b-a)*t,noise:x=>vnoise(x),
+  smooth:(a,b,x)=>sstep(a,b,x),if:(c,a,b)=>c?a:b,sign:Math.sign};
+function compileExpr(src){
+  const toks=String(src).match(/\d+\.?\d*|\.\d+|[A-Za-z_]\w*|<=|>=|==|!=|[-+*/%^(),<>]/g)||[];
+  let p=0,nodes=0; const peek=()=>toks[p], next=()=>toks[p++];
+  const cnt=()=>{ if(++nodes>LIM.expr) throw new Error('выражение длиннее '+LIM.expr+' узлов'); };
+  function prim(){
+    cnt(); const t=next(); if(t===undefined) throw new Error('выражение оборвано');
+    if(/^[\d.]/.test(t)){ const v=parseFloat(t); return ()=>v; }
+    if(t==='('){ const e=cmp(); if(next()!==')') throw new Error('нет закрывающей скобки'); return e; }
+    if(t==='-'){ const e=prim(); return env=>-e(env); }
+    if(/^[A-Za-z_]/.test(t)){
+      if(peek()==='('){
+        next(); const args=[]; if(peek()!==')'){ do{ args.push(cmp()); }while(peek()===','&&next()); }
+        if(next()!==')') throw new Error('нет закрывающей скобки');
+        const f=FN[t]; if(!f) throw new Error('функции «'+t+'» нет');
+        return env=>f(...args.map(a=>a(env)));
+      }
+      return env=>{ const v=env[t]; return v===undefined?0:v; };
+    }
+    throw new Error('неожиданный знак «'+t+'»');
+  }
+  function pw(){ const l=prim(); if(peek()==='^'){ next(); const r=pw(); return env=>Math.pow(l(env),r(env)); } return l; }
+  function mul(){ let l=pw(); while(['*','/','%'].includes(peek())){ const o=next(), r=pw(), L=l;
+    l=o==='*'?env=>L(env)*r(env):o==='/'?env=>{ const d=r(env); return d?L(env)/d:0; }:env=>{ const d=r(env); return d?L(env)%d:0; }; } return l; }
+  function add(){ let l=mul(); while(['+','-'].includes(peek())){ const o=next(), r=mul(), L=l; l=o==='+'?env=>L(env)+r(env):env=>L(env)-r(env); } return l; }
+  function cmp(){ let l=add(); while(['<','>','<=','>=','==','!='].includes(peek())){ const o=next(), r=add(), L=l;
+    l=env=>{ const a=L(env), b=r(env); return (o==='<'?a<b:o==='>'?a>b:o==='<='?a<=b:o==='>='?a>=b:o==='=='?a===b:a!==b)?1:0; }; } return l; }
+  const e=cmp(); if(p<toks.length) throw new Error('лишнее: «'+toks[p]+'»'); return e;
+}
+
+/* ================= сцена: данные, проверка ================= */
+let SC=null, counter=1;
+const newId=()=>'L'+(counter++);
+function defaults(sch){ const o={}; sch.forEach(d=>{ o[d.k]=d.def; }); return o; }
+function mkLayer(type,over){
+  const T=LAYER_TYPES[type], L={id:newId(),type,name:T.name.split(' (')[0],on:true,prio:3,blend:'screen',p:defaults(SCH[type]),bind:{},fx:[]};
+  if(type==='gradient'||type==='text') L.blend='source-over';
+  if(type==='gradient'||type==='text') L.prio=5;
+  if(over){ if(over.p){ Object.assign(L.p,over.p); } Object.keys(over).forEach(k=>{ if(k!=='p') L[k]=over[k]; }); }
+  return L;
+}
+function normalizeScene(raw){
+  const errors=[]; const sc={seed:7,bpm:96,speed:1,palette:PALS.praise.slice(),mods:[],layers:[]};
+  if(!raw||typeof raw!=='object'){ errors.push('сцена: ожидался объект'); return {sc,errors}; }
+  sc.seed=Math.round(clamp(+raw.seed||7,0,9999)); sc.bpm=Math.round(clamp(raw.bpm==null?96:+raw.bpm,0,240)); sc.speed=clamp(raw.speed==null?1:+raw.speed,.1,2.5);
+  if(Array.isArray(raw.palette)&&raw.palette.length===5&&raw.palette.every(h=>/^#[0-9a-fA-F]{6}$/.test(h))) sc.palette=raw.palette.slice(); else if(raw.palette) errors.push('palette: нужно ровно 5 цветов вида #rrggbb');
+  (Array.isArray(raw.mods)?raw.mods:[]).slice(0,LIM.mods).forEach((m,i)=>{
+    const type=m&&m.type==='noise'?'noise':'lfo';
+    sc.mods.push({id:(m&&/^[a-z]+\d+$/.test(m.id))?m.id:type+(i+1),type,rate:clamp(+m.rate||.2,.01,5),shape:['sine','tri','saw'].includes(m.shape)?m.shape:'sine',phase:clamp(+m.phase||0,0,1)});
+  });
+  if(raw.mods&&raw.mods.length>LIM.mods) errors.push('mods: не больше '+LIM.mods);
+  const rl=Array.isArray(raw.layers)?raw.layers:[]; if(rl.length>LIM.layers) errors.push('layers: не больше '+LIM.layers+' слоёв, лишние отброшены');
+  let pix=0; const ids=new Set();
+  rl.slice(0,LIM.layers).forEach((r,i)=>{
+    const path='layers['+i+']';
+    if(!r||!LAYER_TYPES[r.type]){ errors.push(path+'.type: неизвестный тип «'+(r&&r.type)+'»'); return; }
+    const L=mkLayer(r.type); L.id=(typeof r.id==='string'&&/^[A-Za-z0-9_-]{1,20}$/.test(r.id)&&!ids.has(r.id))?r.id:L.id; ids.add(L.id);
+    L.name=String(r.name||L.name).slice(0,40); L.on=r.on!==false; L.prio=Math.round(clamp(+r.prio||3,1,5));
+    L.blend=BLENDS.some(b=>b[0]===r.blend)?r.blend:L.blend;
+    SCH[r.type].forEach(d=>{ const v=r.p&&r.p[d.k];
+      if(v===undefined) return;
+      if(d.t==='n'||d.t==='c'){ const x=+v; if(!isFinite(x)){ errors.push(path+'.p.'+d.k+': ожидалось число'); return; } L.p[d.k]=clamp(x,d.min,d.max); if(x<d.min||x>d.max) errors.push(path+'.p.'+d.k+': вне пределов '+d.min+'…'+d.max+', приведено'); }
+      else if(d.t==='s'){ if(d.k==='src'||d.opts.some(o=>o[0]===v)) L.p[d.k]=v; else errors.push(path+'.p.'+d.k+': недопустимое значение «'+v+'»'); }
+      else if(d.t==='h'){ if(/^#[0-9a-fA-F]{6}$/.test(v)) L.p[d.k]=v; else errors.push(path+'.p.'+d.k+': нужен цвет #rrggbb'); }
+      else if(d.t==='x') L.p[d.k]=String(v).slice(0,600);
+    });
+    const bk=r.bind||{};
+    Object.keys(bk).forEach(k=>{ const d=SCH[r.type].find(x=>x.k===k); const b=bk[k]; if(!d||(d.t!=='n'&&d.t!=='c')||!b) return;
+      const nb={src:'',amt:clamp(+b.amt||0,-1,1),expr:''};
+      if(typeof b.expr==='string'&&b.expr.trim()){ if(b.expr.length>LIM.exprLen) errors.push(path+'.bind.'+k+'.expr: длиннее '+LIM.exprLen+' знаков'); else{ try{ compileExpr(b.expr); nb.expr=b.expr; }catch(e){ errors.push(path+'.bind.'+k+'.expr: '+e.message); } } }
+      if(typeof b.src==='string'&&b.src) nb.src=b.src;
+      if(nb.expr||nb.src) L.bind[k]=nb; });
+    (Array.isArray(r.fx)?r.fx:[]).slice(0,LIM.fx).forEach((f,j)=>{
+      if(!f||!FX_TYPES[f.type]){ errors.push(path+'.fx['+j+'].type: неизвестный эффект'); return; }
+      if(FX_TYPES[f.type].pixel&&++pix>LIM.pixelFx){ errors.push(path+'.fx['+j+']: пиксельных эффектов на сцену не больше '+LIM.pixelFx); return; }
+      const e={type:f.type,off:f.off===true,p:defaults(FX_TYPES[f.type].params),bind:{}};
+      FX_TYPES[f.type].params.forEach(d=>{ const v=f.p&&f.p[d.k]; if(v!==undefined&&isFinite(+v)) e.p[d.k]=clamp(+v,d.min,d.max); });
+      const fb=f.bind||{}; Object.keys(fb).forEach(k=>{ const d=FX_TYPES[f.type].params.find(x=>x.k===k); const b=fb[k]; if(!d||!b) return; const nb={src:typeof b.src==='string'?b.src:'',amt:clamp(+b.amt||0,-1,1),expr:''};
+        if(typeof b.expr==='string'&&b.expr.trim()){ try{ compileExpr(b.expr); nb.expr=b.expr.slice(0,LIM.exprLen); }catch(er){ errors.push(path+'.fx['+j+'].bind.'+k+'.expr: '+er.message); } }
+        if(nb.src||nb.expr) e.bind[k]=nb; });
+      L.fx.push(e);
+    });
+    sc.layers.push(L);
+  });
+  if(!sc.layers.length) errors.push('layers: нужен хотя бы один слой');
+  // проверка ссылок
+  const modIds=new Set(['energy','beat'].concat(sc.mods.map(m=>m.id)));
+  sc.layers.forEach((L,i)=>{ Object.keys(L.bind).forEach(k=>{ const b=L.bind[k]; if(b.src&&!modIds.has(b.src)){ errors.push('layers['+i+'].bind.'+k+'.src: источника «'+b.src+'» нет'); b.src=''; if(!b.expr) delete L.bind[k]; } });
+    if(L.type==='contour'&&!sc.layers.some(S2=>S2.id===L.p.src&&S2.type==='shape')) errors.push('layers['+i+'].p.src: нужен id слоя-фигуры'); });
+  return {sc,errors};
+}
+function plainScene(sc){
+  return JSON.parse(JSON.stringify(sc,(k,v)=>k.startsWith('_')?undefined:v));
+}
+const layerById=id=>SC.layers.find(L=>L.id===id);
+
+/* ================= источники движения ================= */
+const ENV={t:0,energy:.5,beat:0,pi:Math.PI,base:0,i:0,n:1};
+let T=0, energy=.5, beatPh=0, bpmSm=96;
+function lfoVal(m,t){ const ph=(m.rate*t+m.phase); const f=ph-Math.floor(ph);
+  return m.type==='noise'?vnoise(ph*3+m.phase*17):m.shape==='tri'?1-Math.abs(f*2-1):m.shape==='saw'?f:.5+.5*sin(f*TAU); }
+function updateEnv(){
+  ENV.t=T; ENV.energy=energy; ENV.beat=SC.bpm>0?Math.pow(.5+.5*cos(beatPh*TAU),2):0;
+  SC.mods.forEach(m=>{ ENV[m.id]=lfoVal(m,T); });
+}
+function applyBind(d,base,b,i,n){
+  let v=base;
+  if(b.expr){ if(!b._fn){ try{ b._fn=compileExpr(b.expr); }catch(e){ b._fn=()=>NaN; } }
+    ENV.base=base; ENV.i=i; ENV.n=n; v=b._fn(ENV); if(!isFinite(v)) v=base; }
+  else if(b.src){ const s=ENV[b.src]; if(s===undefined) return base; v=base+s*b.amt*(d.max-d.min); }
+  if(d.t==='c') return v;
+  return clamp(v,d.min,d.max);
+}
+function evalParams(L,i,n){
+  const q={}, sch=SCH[L.type];
+  for(let k=0;k<sch.length;k++){ const d=sch[k]; let v=L.p[d.k]; if((d.t==='n'||d.t==='c')&&L.bind[d.k]) v=applyBind(d,v,L.bind[d.k],i||0,n||1); q[d.k]=v; }
+  return q;
+}
+function evalFx(L,e){
+  const q={}; FX_TYPES[e.type].params.forEach(d=>{ let v=e.p[d.k]; if(e.bind&&e.bind[d.k]) v=applyBind(d,v,e.bind[d.k],0,1); q[d.k]=v; }); return q;
+}
+
+/* ================= холсты ================= */
+const out=$('#out'), ctx=out.getContext('2d');
+const mk=(w,h,willRead)=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d',willRead?{willReadFrequently:true}:undefined); return c; };
+const tA=mk(W,H), tB=mk(W,H), tC=mk(W,H);
+let LW=192,LH=108, low1=null, low2=null, maskC=null, sdfA=null, sdfB=null, sdf=null;
+const FILTER_OK=('filter' in ctx);
+function resizeSoft(){
+  LH=Math.round(LW*9/16); low1=mk(LW,LH,true); low2=mk(LW,LH,true); maskC=mk(LW,LH,true);
+  const n=LW*LH; sdfA=new Float32Array(n); sdfB=new Float32Array(n); sdf=new Float32Array(n);
+  SC&&SC.layers.forEach(L=>{ L._buf=null; L._img=null; });
+}
+function softBuf(L){ if(!L._buf){ L._buf=mk(LW,LH); L._bx=L._buf.getContext('2d'); L._img=L._bx.createImageData(LW,LH); } return L._buf; }
+
+/* ================= рисование слоёв ================= */
+const WORLD={tx:.34,ty:.45};
+function heartPath(c){ c.beginPath(); c.moveTo(0,.9); c.bezierCurveTo(-1.25,.1,-.9,-.85,0,-.35); c.bezierCurveTo(.9,-.85,1.25,.1,0,.9); c.closePath(); }
+function dropPath(c){ c.beginPath(); c.moveTo(0,-1); c.bezierCurveTo(.2,-.5,.8,-.1,.8,.4); c.bezierCurveTo(.8,.8,.45,1,0,1); c.bezierCurveTo(-.45,1,-.8,.8,-.8,.4); c.bezierCurveTo(-.8,-.1,-.2,-.5,0,-1); c.closePath(); }
+function moonPath(c){ c.beginPath(); c.arc(0,0,1,.6,TAU-.6); c.arc(.45,0,.82,TAU-.95,.95,true); c.closePath(); }
+function polyPath(c,n,star){ c.beginPath(); const m=star?n*2:n; for(let i=0;i<m;i++){ const a=-Math.PI/2+i*TAU/m, r=star&&i%2?.45:1; c.lineTo(Math.cos(a)*r,Math.sin(a)*r); } c.closePath(); }
+function glyph(c,kind,q,col,alpha,s,mask){
+  const SYMS={cross:'cross',dove:'dove',angel:'angel',flame:'flame',starburst:'star',book:'book'};
+  if(SYMS[kind]){ c.fillStyle=mask?'#fff':rgba(col,alpha*q.fill); if(q.fill>0||mask) EMB_DEF[SYMS[kind]].draw(c); return; }
+  if(kind==='circle'){ c.beginPath(); c.arc(0,0,1,0,TAU); }
+  else if(kind==='ring'){ c.beginPath(); c.arc(0,0,1,0,TAU); }
+  else if(kind==='rect'){ c.beginPath(); c.rect(-1,-.7,2,1.4); }
+  else if(kind==='polygon') polyPath(c,Math.round(q.pn),false);
+  else if(kind==='star') polyPath(c,Math.round(q.pn),true);
+  else if(kind==='heart') heartPath(c); else if(kind==='drop') dropPath(c); else if(kind==='moon') moonPath(c);
+  if(mask){ c.fillStyle='#fff'; c.strokeStyle='#fff'; c.lineWidth=Math.max(q.stroke,kind==='ring'?4:0)/s; if(kind==='ring'){ c.stroke(); } else c.fill(); return; }
+  if(kind!=='ring'&&q.fill>0){ c.fillStyle=rgba(col,alpha*q.fill); c.fill(); }
+  const sw=kind==='ring'?Math.max(q.stroke,2):q.stroke;
+  if(sw>0){ c.lineWidth=sw/s; c.strokeStyle=rgba(col,alpha); c.stroke(); }
+}
+function layoutOff(layout,k,n,spread,seed,q){
+  switch(layout){
+    case 'line': return n<2?[0,0,0]:[((k/(n-1))-.5)*spread*W,0,0];
+    case 'circle': { const a=k/n*TAU; return [cos(a)*spread*H*.5,sin(a)*spread*H*.5,0]; }
+    case 'grid': { const cols=Math.max(1,Math.ceil(Math.sqrt(n*W/H))), rows=Math.ceil(n/cols), cx=k%cols, cy=Math.floor(k/cols); return [(cx-(cols-1)/2)*spread*W/cols,(cy-(rows-1)/2)*spread*H/rows,0]; }
+    case 'spiral': { const r=spread*H*.5*Math.sqrt((k+.5)/n), a=k*2.39996; return [cos(a)*r,sin(a)*r,0]; }
+    case 'scatter': return [(hash(k,seed)-.5)*spread*W,(hash(k,seed+9)-.5)*spread*H,0];
+    case 'fan': return [0,0,(k-(n-1)/2)*spread*60];
+  }
+  return [0,0,0];
+}
+function drawShape(c,L,q0,mask){
+  const n=Math.max(1,Math.round(q0.copies)), perCopy=!!L._perCopy;
+  for(let k=0;k<n;k++){
+    const q=perCopy?evalParams(L,k,n):q0;
+    const off=layoutOff(L.p.layout,k,n,q.spread,SC.seed,q);
+    const jx=q.jitter?(hash(k,SC.seed+3)-.5)*q.jitter*W*.1:0, jy=q.jitter?(hash(k,SC.seed+4)-.5)*q.jitter*H*.1:0;
+    const s=Math.max(.5,q.size*H/2*Math.pow(q.stepScale,k));
+    const rot=(q.rot+q.stepRot*k+q.spin*T+off[2])*Math.PI/180;
+    const alpha=q.alpha*(1-q.fade*(n>1?k/(n-1):0));
+    const col=colorAt(q.c+q.cstep*k);
+    c.save(); c.translate(q.x*W+off[0]+jx,q.y*H+off[1]+jy); c.rotate(rot); c.scale(s,s);
+    if(!mask&&q.glow>0){ c.shadowBlur=q.glow; c.shadowColor=rgba(col,Math.min(1,alpha)); }
+    glyph(c,L.p.kind,q,col,alpha,s,mask);
+    c.restore();
+  }
+}
+function drawEmitter(c,L,q){
+  const n=Math.round(q.count), col0=q.c, a0=q.dir*Math.PI/180;
+  for(let i=0;i<n;i++){
+    const h1=hash(i,SC.seed), h2=hash(i,SC.seed+1), h3=hash(i,SC.seed+2), h4=hash(i,SC.seed+3), h5=hash(i,SC.seed+4), h6=hash(i,SC.seed+5);
+    const sp=.35+h2*.65, u=((h3+T*.05*q.speed*sp)%1+1)%1;
+    const a=a0+(h4-.5)*q.spread*Math.PI/180, dx=cos(a), dy=sin(a), px=-dy, py=dx;
+    const x=W/2+(-dx*.75*H+px*(h1-.5)*1.5*H)+dx*u*1.5*H+sin(T*.4+h6*TAU)*.01*H;
+    const y=H/2+(-dy*.75*H+py*(h1-.5)*1.5*H)+dy*u*1.5*H;
+    if(x<-40||x>W+40||y<-40||y>H+40) continue;
+    const r=q.size*H*(.5+h5), fadeIO=sin(Math.PI*u), tw=1-q.twinkle+q.twinkle*(.5+.5*sin(T*3+h6*TAU));
+    const al=q.alpha*fadeIO*tw; if(al<.01) continue;
+    const col=colorAt(col0+q.cspread*h6);
+    if(q.kind==='dot'){
+      const g=c.createRadialGradient(x,y,0,x,y,r*2.2); g.addColorStop(0,rgba([255,255,255],al)); g.addColorStop(.35,rgba(col,al*.6)); g.addColorStop(1,rgba(col,0));
+      c.fillStyle=g; c.fillRect(x-r*2.2,y-r*2.2,r*4.4,r*4.4);
+    }else{
+      c.save(); c.translate(x,y); c.rotate(T*.3+h6*TAU); c.scale(r*1.4,r*1.4); const qq={fill:1,stroke:q.kind==='ring'?1.5:0,pn:4};
+      glyph(c,q.kind==='star'?'star':q.kind==='cross'?'cross':'ring',qq,col,al,r*1.4,false); c.restore();
+    }
+  }
+}
+function drawRays(c,L,q){
+  const n=Math.round(q.count), ox=q.ox*W, oy=q.oy*H, col=colorAt(q.c);
+  c.lineCap='round'; c.strokeStyle=rgba(col,q.alpha); c.lineWidth=Math.max(1,q.width*H);
+  c.beginPath();
+  for(let i=0;i<n;i++){ const a=i/n*TAU+q.spin*T*Math.PI/180; c.moveTo(ox+cos(a)*q.inner*H,oy+sin(a)*q.inner*H); c.lineTo(ox+cos(a)*q.len*H,oy+sin(a)*q.len*H); }
+  c.stroke();
+}
+function drawRings(c,L,q){
+  const n=Math.round(q.count), ox=q.ox*W, oy=q.oy*H, col=colorAt(q.c);
+  c.lineWidth=Math.max(1,q.width*H); if(q.dash>0) c.setLineDash([q.dash*40+4,q.dash*30+4]);
+  for(let k=0;k<n;k++){ const u=(((k/n)+T*.08*q.speed)%1+1)%1, r=u*q.gap*n*H; if(r<1) continue;
+    c.strokeStyle=rgba(col,q.alpha*(1-u)); c.beginPath(); c.arc(ox,oy,r,0,TAU); c.stroke(); }
+  c.setLineDash([]);
+}
+function drawThread(c,L,q){
+  const lines=Math.round(q.lines); c.lineCap='round'; c.lineJoin='round'; c.lineWidth=q.thick;
+  for(let j=0;j<lines;j++){
+    const col=colorAt(q.c+q.cspread*j); c.strokeStyle=rgba(col,q.alpha); c.shadowBlur=q.glow; c.shadowColor=rgba(col,q.alpha);
+    c.beginPath(); const M=90;
+    for(let s=0;s<=M;s++){ const u=s/M;
+      let x,y;
+      if(q.kind==='wave'){ x=(u*1.1-.05)*W; y=q.y*H+sin(u*TAU*q.freq+T*q.speed*1.2+j*.9)*q.amp*H*(.6+.4*sin(T*.3+j)); }
+      else{ const ang=u*TAU; x=W/2+sin(ang*q.freq+T*q.speed*.5+j)*q.amp*H*1.6; y=q.y*H+sin(ang*(q.freq*.5+1)+T*q.speed*.4)*q.amp*H*1.2+ (j-lines/2)*6; }
+      if(s===0) c.moveTo(x,y); else c.lineTo(x,y); }
+    c.stroke();
+  }
+  c.shadowBlur=0;
+}
+function drawGradient(c,L,q){
+  const a=hex2rgb(L.p.c1), b=hex2rgb(L.p.c2); let g;
+  if(L.p.kind==='radial'){ g=c.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.hypot(W,H)/2); }
+  else{ const an=q.angle*Math.PI/180, dx=cos(an)*W/2, dy=sin(an)*H/2; g=c.createLinearGradient(W/2-dx,H/2-dy,W/2+dx,H/2+dy); }
+  g.addColorStop(0,rgba(a,1)); g.addColorStop(1,rgba(b,1)); c.fillStyle=g; c.fillRect(0,0,W,H);
+}
+function drawField(c,L,q){
+  softBuf(L); const bx=L._bx; bx.globalCompositeOperation='source-over'; bx.clearRect(0,0,LW,LH); bx.globalCompositeOperation='screen';
+  const n=Math.round(q.count), k=LW/W;
+  for(let i=0;i<n;i++){
+    const h1=hash(i,SC.seed+20), h2=hash(i,SC.seed+21), h3=hash(i,SC.seed+22), h4=hash(i,SC.seed+23), h5=hash(i,SC.seed+24);
+    const tt=T*q.speed; let x,y;
+    if(L.p.move==='orbit'){ const a=tt*.15*(h1+.4)+h2*TAU, r=.15+h3*.3; x=.5+cos(a)*r*H/W*1.6; y=.5+sin(a)*r; }
+    else if(L.p.move==='drift'){ x=((h1+tt*.012*(h2+.3))%1.3)-.15; y=.5+sin(tt*.2*(h3+.3)+h4*TAU)*.28; }
+    else{ x=h1*.7+.15+sin(tt*(.1+h2*.16)+h3*TAU)*.22; y=h4*.6+.2+cos(tt*(.09+h3*.14)*1.3+h5*TAU)*.2; }
+    const rad=q.size*LH*(.6+h5*.6)*(1+.1*sin(tt*.5+h4*TAU)), col=colorAt(q.c+q.spread*h2*3);
+    const g=bx.createRadialGradient(x*LW,y*LH,0,x*LW,y*LH,rad), cs=(col[0]|0)+','+(col[1]|0)+','+(col[2]|0);
+    g.addColorStop(0,'rgba('+cs+','+q.soft.toFixed(3)+')'); g.addColorStop(.5,'rgba('+cs+','+(q.soft*.42).toFixed(3)+')'); g.addColorStop(1,'rgba('+cs+',0)');
+    bx.fillStyle=g; bx.fillRect(x*LW-rad,y*LH-rad,rad*2,rad*2);
+  }
+  c.imageSmoothingEnabled=true; c.drawImage(L._buf,0,0,W,H);
+}
+/* контур: расстояние до границы фигуры, считается каждый кадр в малом разрешении */
+function chamfer(a,w,h){
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; let v=a[i];
+    if(x>0&&a[i-1]+1<v) v=a[i-1]+1;
+    if(y>0){ if(a[i-w]+1<v) v=a[i-w]+1; if(x>0&&a[i-w-1]+1.414<v) v=a[i-w-1]+1.414; if(x<w-1&&a[i-w+1]+1.414<v) v=a[i-w+1]+1.414; }
+    a[i]=v; }
+  for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){ const i=y*w+x; let v=a[i];
+    if(x<w-1&&a[i+1]+1<v) v=a[i+1]+1;
+    if(y<h-1){ if(a[i+w]+1<v) v=a[i+w]+1; if(x<w-1&&a[i+w+1]+1.414<v) v=a[i+w+1]+1.414; if(x>0&&a[i+w-1]+1.414<v) v=a[i+w-1]+1.414; }
+    a[i]=v; }
+}
+function drawContour(c,L,q){
+  const S2=layerById(L.p.src); if(!S2||S2.type!=='shape'||!S2.on) return;
+  const mx=maskC.getContext('2d');
+  mx.setTransform(1,0,0,1,0,0); mx.fillStyle='#000'; mx.fillRect(0,0,LW,LH);
+  mx.setTransform(LW/W,0,0,LH/H,0,0); drawShape(mx,S2,evalParams(S2,0,1),true); mx.setTransform(1,0,0,1,0,0);
+  const d=mx.getImageData(0,0,LW,LH).data, n=LW*LH;
+  for(let i=0;i<n;i++){ const inside=d[i*4]>110; sdfA[i]=inside?0:1e6; sdfB[i]=inside?1e6:0; }
+  chamfer(sdfA,LW,LH); chamfer(sdfB,LW,LH);
+  softBuf(L); const px=L._img.data; let o=0;
+  const ring=q.rings, irid=q.irid, str=q.strength, reach=q.reach;
+  for(let i=0;i<n;i++){
+    const dd=(sdfA[i]-sdfB[i])/LH, ad=dd<0?-dd:dd, edge=Math.exp(-ad*38);
+    const rip=.5+.5*sin(dd*ring-T*2.2*q.speed), fall=Math.exp(-(dd>0?dd:0)*reach)*(dd<0?.5:1);
+    const val=(.5*edge+.95*rip*rip*fall);
+    const ph=dd*1.3-T*.07*q.speed, pc=colorAt(q.c+ph*3);
+    const rr=(127+128*cos(TAU*ph*1.6))*.75+64, rg=(127+128*cos(TAU*(ph*1.6+.33)))*.75+64, rb=(127+128*cos(TAU*(ph*1.6+.67)))*.75+64;
+    let r=pc[0]+(rr-pc[0])*irid, g=pc[1]+(rg-pc[1])*irid, b=pc[2]+(rb-pc[2])*irid; const hl=edge*.55;
+    r+=(255-r)*hl; g+=(255-g)*hl; b+=(255-b)*hl;
+    px[o]=r*val*str; px[o+1]=g*val*str; px[o+2]=b*val*str; px[o+3]=255; o+=4;
+  }
+  L._bx.putImageData(L._img,0,0); c.imageSmoothingEnabled=true; c.drawImage(L._buf,0,0,W,H);
+}
+function drawText(c,L,q){
+  const lines=String(L.p.text||'').split('\n').filter(s=>s.length||true);
+  if(!lines.join('').trim()) return;
+  const size=q.size/100*W; c.save(); c.font='600 '+size+'px '+L.p.font; c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#FFF8EE';
+  const lh=size*1.22, y0=q.y*H-(lines.length-1)*lh/2;
+  c.shadowColor='rgba(0,0,0,'+(q.shadow*.85).toFixed(2)+')'; c.shadowBlur=size*.5; c.shadowOffsetY=size*.04;
+  lines.forEach((s,i)=>c.fillText(s,q.x*W,y0+i*lh,W*.9)); c.restore();
+}
+function renderBody(c,L,q){
+  switch(L.type){
+    case 'gradient': return drawGradient(c,L,q);
+    case 'field': return drawField(c,L,q);
+    case 'shape': return drawShape(c,L,q,false);
+    case 'emitter': return drawEmitter(c,L,q);
+    case 'rays': return drawRays(c,L,q);
+    case 'rings': return drawRings(c,L,q);
+    case 'thread': return drawThread(c,L,q);
+    case 'contour': return drawContour(c,L,q);
+    case 'text': return drawText(c,L,q);
+  }
+}
+
+/* ---- эффекты на временных холстах ---- */
+function warpPass(cv,eq){
+  const l1=low1.getContext('2d'), l2=low2.getContext('2d');
+  l1.clearRect(0,0,LW,LH); l1.imageSmoothingEnabled=true; l1.drawImage(cv,0,0,LW,LH);
+  const s=l1.getImageData(0,0,LW,LH).data, o=l2.createImageData(LW,LH), d=o.data, sw=LW-1, sh=LH-1;
+  const a=eq.amt, f=eq.freq, tt=T*eq.speed; let q=0;
+  for(let y=0;y<LH;y++){ const v=(y+.5)/LH;
+    for(let x=0;x<LW;x++){ const u=(x+.5)/LW;
+      const p=sin(v*f+tt*.8+1.7*sin(u*f*.75-tt*.6)), r=cos(u*f-tt*.7+1.7*cos(v*f*.75+tt*.5));
+      let X=(u+a*.12*p)*sw, Y=(v+a*.12*r)*sh; if(X<0)X=0;else if(X>sw)X=sw; if(Y<0)Y=0;else if(Y>sh)Y=sh;
+      const x0=X|0,y0=Y|0,x1=x0<sw?x0+1:x0,y1=y0<sh?y0+1:y0,fx=X-x0,fy=Y-y0, i00=(y0*LW+x0)*4,i10=(y0*LW+x1)*4,i01=(y1*LW+x0)*4,i11=(y1*LW+x1)*4;
+      const w00=(1-fx)*(1-fy),w10=fx*(1-fy),w01=(1-fx)*fy,w11=fx*fy;
+      d[q]=s[i00]*w00+s[i10]*w10+s[i01]*w01+s[i11]*w11; d[q+1]=s[i00+1]*w00+s[i10+1]*w10+s[i01+1]*w01+s[i11+1]*w11;
+      d[q+2]=s[i00+2]*w00+s[i10+2]*w10+s[i01+2]*w01+s[i11+2]*w11; d[q+3]=s[i00+3]*w00+s[i10+3]*w10+s[i01+3]*w01+s[i11+3]*w11; q+=4; } }
+  l2.putImageData(o,0,0); const c=cv.getContext('2d'); c.clearRect(0,0,W,H); c.imageSmoothingEnabled=true; c.drawImage(low2,0,0,W,H);
+}
+function kaleidoPass(src,dst,eq){
+  const x=dst.getContext('2d'); x.clearRect(0,0,W,H); const n=Math.round(eq.n), cx=eq.cx*W, cy=eq.cy*H, a=TAU/n;
+  for(let k=0;k<n;k++){ x.save(); x.translate(cx,cy); x.rotate(k*a); x.beginPath(); x.moveTo(0,0); x.arc(0,0,W*1.3,0,a); x.closePath(); x.clip();
+    if(k%2){ x.rotate(a/2); x.scale(1,-1); x.rotate(-a/2); } x.drawImage(src,-cx,-cy); x.restore(); }
+}
+function trailPass(L,src,eq){
+  if(!L._tr){ L._tr=mk(W,H); }
+  const x=L._tr.getContext('2d'), t=tC.getContext('2d');
+  t.clearRect(0,0,W,H); t.save(); t.globalAlpha=eq.decay; t.translate(W/2,H/2); t.rotate(eq.rot*Math.PI/180); t.scale(eq.zoom,eq.zoom); t.drawImage(L._tr,-W/2,-H/2); t.restore();
+  x.clearRect(0,0,W,H); x.drawImage(tC,0,0); x.globalCompositeOperation='lighter'; x.drawImage(src,0,0); x.globalCompositeOperation='source-over';
+  const s=src.getContext('2d'); s.clearRect(0,0,W,H); s.drawImage(L._tr,0,0);
+}
+function avoidPass(cv,amt){
+  const x=cv.getContext('2d'); x.save(); x.globalCompositeOperation='destination-out'; x.translate(WORLD.tx*W,WORLD.ty*H); x.scale(1,.62);
+  const rx=W*.3, g=x.createRadialGradient(0,0,0,0,0,rx); g.addColorStop(0,'rgba(0,0,0,'+Math.min(.95,amt*.95)+')'); g.addColorStop(.65,'rgba(0,0,0,'+(amt*.6)+')'); g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g; x.fillRect(-rx,-rx,rx*2,rx*2); x.restore();
+}
+function drawLayer(L){
+  const q=evalParams(L,0,1), opacity=q.opacity, fx=L.fx.filter(e=>!e.off);
+  const needTmp=q.avoid>0||fx.length>0;
+  L._perCopy=L.type==='shape'&&Object.keys(L.bind).some(k=>L.bind[k].expr&&/\b(i|n)\b/.test(L.bind[k].expr));
+  if(!needTmp){
+    ctx.save(); ctx.globalCompositeOperation=L.blend; ctx.globalAlpha=opacity; renderBody(ctx,L,q); ctx.restore(); return;
+  }
+  let cur=tA, oth=tB; const cx=cur.getContext('2d'); cx.setTransform(1,0,0,1,0,0); cx.globalAlpha=1; cx.globalCompositeOperation='source-over'; cx.clearRect(0,0,W,H);
+  renderBody(cx,L,q);
+  const filt=[]; let bloomR=0,bloomA=0;
+  for(const e of fx){ const eq=evalFx(L,e);
+    if(e.type==='warp') warpPass(cur,eq);
+    else if(e.type==='kaleido'){ kaleidoPass(cur,oth,eq); const t=cur; cur=oth; oth=t; }
+    else if(e.type==='trails') trailPass(L,cur,eq);
+    else if(e.type==='blur') filt.push('blur('+eq.r+'px)');
+    else if(e.type==='color') filt.push('hue-rotate('+eq.hue+'deg) saturate('+eq.sat+'%) brightness('+eq.bri+'%)');
+    else if(e.type==='bloom'){ bloomR=eq.r; bloomA=eq.amt; }
+  }
+  if(q.avoid>0) avoidPass(cur,q.avoid);
+  ctx.save();
+  if(bloomA>0&&FILTER_OK){ ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=bloomA*opacity; ctx.filter='blur('+bloomR+'px)'; ctx.drawImage(cur,0,0); }
+  ctx.globalCompositeOperation=L.blend; ctx.globalAlpha=opacity; if(FILTER_OK) ctx.filter=filt.length?filt.join(' '):'none'; ctx.drawImage(cur,0,0);
+  ctx.restore();
+}
+
+/* ================= цена, проверка, деградация ================= */
+let BUDGET=0, CAL=1, planDrop=new Set();
+function layerCost(L){
+  const p=L.p, ss=(LW*LH)/(192*108); let c=0;
+  switch(L.type){
+    case 'gradient': c=.3; break;
+    case 'field': c=.4+.08*p.count*ss; break;
+    case 'shape': c=.05+.03*p.copies*(p.glow>0?3:1)*(['cross','dove','angel','flame','starburst','book'].includes(p.kind)?1.5:1); break;
+    case 'emitter': c=.1+.012*p.count; break;
+    case 'rays': c=.1+.02*p.count; break;
+    case 'rings': c=.1+.04*p.count; break;
+    case 'thread': c=.1+.12*p.lines+(p.glow>0?.2*p.lines:0); break;
+    case 'contour': c=3*ss+.4; break;
+    case 'text': c=.3; break;
+  }
+  L.fx.forEach(e=>{ if(e.off) return; const f=FX_TYPES[e.type]; c+=f.cost*(f.pixel?ss:1)*(e.type==='kaleido'?e.p.n/6:1); });
+  if(L.p.avoid>0) c+=1.2;
+  return c;
+}
+function replan(){
+  planDrop=new Set(); const act=SC.layers.filter(L=>L.on);
+  let total=act.reduce((s,L)=>s+layerCost(L),0);
+  if(BUDGET>0){
+    const cand=act.filter(L=>L.prio<5&&L.type!=='text'&&L.type!=='gradient').sort((a,b)=>a.prio-b.prio||layerCost(b)-layerCost(a));
+    for(const L of cand){ if(total*CAL<=BUDGET) break; // сначала упростить нечем: отключаем слой целиком
+      planDrop.add(L.id); total-=layerCost(L); }
+  }
+  return total;
+}
+function renderPreflight(){
+  const act=SC.layers.filter(L=>L.on), total=act.reduce((s,L)=>s+layerCost(L),0), kept=act.filter(L=>!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+  const tgt=BUDGET>0?BUDGET:33, pc=clamp(kept*CAL/tgt*100,0,100);
+  $('#pfBar').style.width=pc+'%'; $('#pfBar').classList.toggle('warn',pc>70);
+  $('#pfTxt').textContent='Оценка сцены: '+fmt(total*CAL,1)+' мс (по калибровке ×'+fmt(CAL,2)+'); работает '+fmt(kept*CAL,1)+' мс из '+(BUDGET>0?BUDGET:'∞ (цель 33)')+' мс.';
+  const host=$('#pfList'); host.textContent='';
+  const mx=Math.max(.01,...act.map(layerCost));
+  act.slice().sort((a,b)=>layerCost(b)-layerCost(a)).forEach(L=>{ const r=el('div','pfr'+(planDrop.has(L.id)?' cut':''));
+    r.appendChild(el('span','nm',L.name)); const tr=el('div','track'); const fb=el('div','fillbar'); fb.style.width=(layerCost(L)/mx*100)+'%'; tr.appendChild(fb); r.appendChild(tr);
+    r.appendChild(el('span','',fmt(layerCost(L)*CAL,1)+' мс')); host.appendChild(r); });
+  $('#pfCut').textContent=planDrop.size?'Отключено ради бюджета (самые низкие приоритеты и самые дорогие): '+[...planDrop].map(id=>layerById(id).name).join(', ')+'. Подложка и текст не отключаются.':'';
+}
+
+/* ================= кадр ================= */
+let paused=false, fps=30, lastDraw=0, ema=0, frames=0, fpsT=performance.now(), statT=0, autoEnergy=true, manualE=.5, planT=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(now-lastDraw<1000/fps-3) return;
+  const dt=Math.min((now-lastDraw)/1000,.1); lastDraw=now;
+  if(!paused){ T+=dt*SC.speed; bpmSm+=(SC.bpm-bpmSm)*(1-Math.exp(-dt/.4)); beatPh=(beatPh+dt*bpmSm/60)%1; }
+  const tgt=autoEnergy?(.5-.5*cos(TAU*((T/SC.speed)%60)/60)):manualE; energy+=(tgt-energy)*(1-Math.exp(-dt/1.2));
+  if(autoEnergy){ $('#enS').value=Math.round(energy*100); $('#enO').textContent=fmt(energy,2); }
+  updateEnv();
+  const t0=performance.now();
+  ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); if(FILTER_OK) ctx.filter='none';
+  const txt=SC.layers.find(L=>L.type==='text'&&L.on); if(txt){ WORLD.tx=txt.p.x; WORLD.ty=txt.p.y; }
+  let nAct=0;
+  SC.layers.forEach(L=>{ if(!L.on||L.type==='text'||planDrop.has(L.id)) return; try{ drawLayer(L); nAct++; }catch(e){ L._err=e.message; } });
+  SC.layers.forEach(L=>{ if(!L.on||L.type!=='text') return; try{ drawLayer(L); nAct++; }catch(e){ L._err=e.message; } });
+  const ms=performance.now()-t0; ema=ema?ema*.9+ms*.1:ms; frames++;
+  if(now-statT>500){
+    const sec=(performance.now()-fpsT)/1000, fpsNow=frames/sec;
+    $('#sMs').textContent=fmt(ema,1); $('#sFps').textContent=fmt(fpsNow,0); $('#sAct').textContent=nAct+' из '+SC.layers.filter(L=>L.on).length;
+    const pred=SC.layers.filter(L=>L.on&&!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+    if(pred>.5&&!paused&&!document.hidden&&now-planT>1500){ CAL=clamp(CAL*.7+(ema/pred)*.3,.25,6); }
+    $('#sPred').textContent=fmt(pred*CAL,1);
+    if(now-planT>1500){ planT=now; replan(); renderPreflight(); }
+    logMeasure(ema,fpsNow,nAct);
+    frames=0; fpsT=performance.now(); statT=now;
+  }
+}
+
+/* ================= интерфейс ================= */
+let selId=null;
+function srcOptions(){ return [['','— нет —'],['energy','энергия'],['beat','доля (beat)']].concat(SC.mods.map(m=>[m.id,(m.type==='noise'?'шум ':'LFO ')+m.id])); }
+function paramRow(d,obj,bindObj,onChange,nobind){
+  const row=el('div','prm');
+  if(d.t==='n'||d.t==='c'){
+    const top=el('div','top'), lab=el('label','',d.label), out=el('output','');
+    const id='p_'+Math.random().toString(36).slice(2,8); lab.htmlFor=id;
+    const inp=el('input'); inp.type='range'; inp.id=id; inp.min=d.min; inp.max=d.max; inp.step=d.step; inp.value=obj[d.k]; out.textContent=fmt(+obj[d.k],d.step<.1?2:d.step<1?1:0);
+    const lk=el('button','lk','⚡'); lk.type='button'; lk.title='Привязать к источнику или формуле'; lk.setAttribute('aria-pressed',String(!!bindObj[d.k]));
+    if(nobind) top.append(lab,out); else top.append(lab,out,lk); row.append(top,inp);
+    inp.oninput=()=>{ obj[d.k]=+inp.value; out.textContent=fmt(+inp.value,d.step<.1?2:d.step<1?1:0); onChange(d.k); };
+    const bd=el('div','bd'); bd.hidden=!bindObj[d.k]; row.appendChild(bd);
+    const buildBd=()=>{ bd.textContent=''; const b=bindObj[d.k]||(bindObj[d.k]={src:'',amt:.3,expr:''});
+      const s1=el('div'); s1.appendChild(el('small','','Источник')); const sel=el('select'); srcOptions().forEach(o=>{ const op=el('option','',o[1]); op.value=o[0]; sel.appendChild(op); }); sel.value=b.src||''; s1.appendChild(sel);
+      const s2=el('div'); s2.appendChild(el('small','','Сила (доля диапазона)')); const am=el('input'); am.type='range'; am.min=-1; am.max=1; am.step=.01; am.value=b.amt; s2.appendChild(am);
+      const s3=el('div','wide'); s3.appendChild(el('small','','Формула вместо источника (t, energy, beat, lfo1, noise1, base, i, n; sin cos abs min max clamp mix pow sqrt floor fract noise smooth if)'));
+      const ex=el('input'); ex.type='text'; ex.placeholder='например: base+sin(t*2)*0.1*energy'; ex.value=b.expr||''; s3.appendChild(ex); const er=el('div','err'); s3.appendChild(er);
+      bd.append(s1,s2,s3);
+      const upd=()=>{ b.src=sel.value; b.amt=+am.value; b.expr=ex.value.trim(); b._fn=null; er.textContent='';
+        if(b.expr){ if(b.expr.length>LIM.exprLen){ er.textContent='Длиннее '+LIM.exprLen+' знаков'; b.expr=''; } else { try{ compileExpr(b.expr); }catch(e){ er.textContent=e.message; b.expr=''; } } }
+        if(!b.src&&!b.expr) lk.setAttribute('aria-pressed','false'); else lk.setAttribute('aria-pressed','true'); onChange(d.k,true); };
+      sel.onchange=upd; am.oninput=upd; ex.oninput=upd; };
+    lk.onclick=()=>{ if(bd.hidden){ bd.hidden=false; buildBd(); } else{ bd.hidden=true; delete bindObj[d.k]; lk.setAttribute('aria-pressed','false'); onChange(d.k,true); } };
+    if(bindObj[d.k]) buildBd();
+  }else{
+    const top=el('div','top'), lab=el('label','',d.label); top.appendChild(lab); row.appendChild(top);
+    let inp;
+    if(d.t==='s'){ inp=el('select'); const opts=d.k==='src'?SC.layers.filter(L=>L.type==='shape').map(L=>[L.id,L.name+' ('+L.id+')']):d.opts; opts.forEach(o=>{ const op=el('option','',o[1]); op.value=o[0]; inp.appendChild(op); }); inp.value=obj[d.k]; inp.onchange=()=>{ obj[d.k]=inp.value; onChange(d.k); }; }
+    else if(d.t==='h'){ inp=el('input'); inp.type='color'; inp.value=obj[d.k]; inp.oninput=()=>{ obj[d.k]=inp.value; onChange(d.k); }; }
+    else{ inp=el('textarea'); inp.rows=3; inp.value=obj[d.k]; inp.oninput=()=>{ obj[d.k]=inp.value.slice(0,600); onChange(d.k); }; }
+    row.appendChild(inp);
+  }
+  return row;
+}
+function renderLayerList(){
+  const ul=$('#layerList'); ul.textContent='';
+  SC.layers.forEach((L,i)=>{
+    const li=el('li','ly'+(L.on?'':' off')); li.setAttribute('aria-current',String(L.id===selId));
+    const eye=el('button','ib',L.on?'●':'○'); eye.type='button'; eye.title='Включить/выключить'; eye.setAttribute('aria-label','Включить или выключить слой'); eye.onclick=()=>{ L.on=!L.on; changed('слой '+(L.on?'включён':'выключен')+': '+L.name); renderLayerList(); };
+    const nm=el('button','nm'); nm.type='button'; nm.appendChild(el('strong','',L.name)); nm.appendChild(el('span','',LAYER_TYPES[L.type].name+(planDrop.has(L.id)?' · отключён бюджетом':''+(L._err?' · ошибка: '+L._err:''))));
+    nm.onclick=()=>{ selId=L.id; renderLayerList(); renderLayerCard(); };
+    li.append(eye,nm);
+    const kind=LAYER_TYPES[L.type].kind; if(kind==='crisp'||kind==='soft') li.appendChild(el('span','tag'+(kind==='crisp'?' cut':''),kind==='crisp'?'ЧЁТ':'МЯГ'));
+    const mkb=(t,l,fn,dis)=>{ const b=el('button','ib',t); b.type='button'; b.title=l; b.setAttribute('aria-label',l); b.disabled=!!dis; b.onclick=e=>{ e.stopPropagation(); fn(); }; li.appendChild(b); };
+    mkb('↑','Ниже в стопке',()=>moveL(i,-1),i===0); mkb('↓','Выше в стопке',()=>moveL(i,1),i===SC.layers.length-1); mkb('⧉','Копия',()=>dupL(i),SC.layers.length>=LIM.layers); mkb('✕','Удалить',()=>delL(i,li),SC.layers.length<2);
+    ul.appendChild(li);
+  });
+}
+function moveL(i,d){ const j=i+d; [SC.layers[i],SC.layers[j]]=[SC.layers[j],SC.layers[i]]; changed('слой перемещён'); renderLayerList(); }
+function dupL(i){ const c=JSON.parse(JSON.stringify(plainScene({layers:[SC.layers[i]]}).layers[0])); const n=normalizeScene({layers:[c],mods:SC.mods}).sc.layers[0]; if(!n) return; n.id=newId(); n.name+=' (копия)'; SC.layers.splice(i+1,0,n); selId=n.id; changed('слой скопирован'); renderLayerList(); renderLayerCard(); }
+const confirmT={};
+function delL(i,li){ const b=li.querySelector('.ib[aria-label="Удалить"]'); const key='d'+SC.layers[i].id;
+  if(confirmT[key]){ clearTimeout(confirmT[key].t); delete confirmT[key]; const L=SC.layers[i]; SC.layers.splice(i,1); if(selId===L.id) selId=SC.layers[Math.max(0,i-1)].id; changed('слой удалён: '+L.name); renderLayerList(); renderLayerCard(); return; }
+  const old=b.textContent; b.textContent='?'; confirmT[key]={t:setTimeout(()=>{ delete confirmT[key]; b.textContent=old; },3000)}; }
+function renderLayerCard(){
+  const card=$('#lyCard'); card.textContent=''; const L=layerById(selId); if(!L){ card.appendChild(el('p','hint','Слой не выбран.')); return; }
+  card.appendChild(el('h2','','Параметры слоя'));
+  const nm=el('input'); nm.type='text'; nm.value=L.name; nm.maxLength=40; nm.setAttribute('aria-label','Название слоя'); nm.oninput=()=>{ L.name=nm.value; renderLayerList(); }; card.appendChild(nm);
+  const g=el('div','grid2'); const bl=el('select'); BLENDS.forEach(b=>{ const o=el('option','',b[1]); o.value=b[0]; bl.appendChild(o); }); bl.value=L.blend; bl.onchange=()=>{ L.blend=bl.value; changed('режим наложения: '+L.name); }; bl.setAttribute('aria-label','Режим наложения');
+  const pr=el('select'); [1,2,3,4,5].forEach(n=>{ const o=el('option','','приоритет '+n+(n===5?' (не отключать)':n===1?' (отключать первым)':'')); o.value=n; pr.appendChild(o); }); pr.value=L.prio; pr.onchange=()=>{ L.prio=+pr.value; changed('приоритет: '+L.name); replan(); renderPreflight(); }; pr.setAttribute('aria-label','Приоритет');
+  g.append(bl,pr); card.appendChild(g);
+  const params=el('div'); SCH[L.type].forEach(d=>params.appendChild(paramRow(d,L.p,L.bind,(k,structural)=>{ if(structural){ replan(); renderPreflight(); } if(k==='kind'||k==='src') changedSoft(); else touch(); }))); card.appendChild(params);
+  card.appendChild(el('h3','','Эффекты слоя'));
+  const fxHost=el('div'); fxHost.style.display='flex'; fxHost.style.flexDirection='column'; fxHost.style.gap='6px'; card.appendChild(fxHost);
+  const buildFx=()=>{ fxHost.textContent=''; L.fx.forEach((e,j)=>{ const f=FX_TYPES[e.type], box=el('div','fxbox'); const hd=el('div','hd'); hd.appendChild(el('strong','',f.name+(f.pixel?' · по пикселям':'')));
+      const bt=el('div','chips'); const on=el('button','chip',e.off?'выкл':'вкл'); on.type='button'; on.onclick=()=>{ e.off=!e.off; on.textContent=e.off?'выкл':'вкл'; changed('эффект: '+f.name); replan(); renderPreflight(); };
+      const del=el('button','chip danger','✕'); del.type='button'; del.setAttribute('aria-label','Удалить эффект'); del.onclick=()=>{ L.fx.splice(j,1); changed('эффект удалён'); buildFx(); replan(); renderPreflight(); };
+      bt.append(on,del); hd.appendChild(bt); box.appendChild(hd);
+      f.params.forEach(d=>box.appendChild(paramRow(d,e.p,e.bind,(k,s)=>{ if(s){ replan(); renderPreflight(); } touch(); }))); fxHost.appendChild(box); }); };
+  buildFx();
+  const add=el('div','chips'); const sel=el('select'); sel.style.width='auto'; sel.style.flex='1'; Object.keys(FX_TYPES).forEach(k=>{ const o=el('option','',FX_TYPES[k].name); o.value=k; sel.appendChild(o); });
+  const ab=el('button','chip','Добавить эффект'); ab.type='button';
+  ab.onclick=()=>{ if(L.fx.length>=LIM.fx){ setSave('Не больше '+LIM.fx+' эффектов на слой','err'); return; }
+    const f=FX_TYPES[sel.value]; if(f.pixel&&SC.layers.reduce((s,x)=>s+x.fx.filter(e=>FX_TYPES[e.type].pixel).length,0)>=LIM.pixelFx){ setSave('Пиксельных эффектов на сцену не больше '+LIM.pixelFx,'err'); return; }
+    L.fx.push({type:sel.value,off:false,p:defaults(f.params),bind:{}}); changed('эффект добавлен: '+f.name); buildFx(); replan(); renderPreflight(); };
+  add.append(sel,ab); card.appendChild(add);
+}
+function renderMods(){
+  const host=$('#modList'); host.textContent='';
+  SC.mods.forEach((m,i)=>{ const row=el('div','fxbox'); const hd=el('div','hd'); hd.appendChild(el('strong','',(m.type==='noise'?'Шум ':'LFO ')+m.id));
+    const del=el('button','chip danger','✕'); del.type='button'; del.setAttribute('aria-label','Удалить источник'); del.onclick=()=>{ SC.mods.splice(i,1); changed('источник удалён: '+m.id); renderMods(); renderLayerCard(); }; hd.appendChild(del); row.appendChild(hd);
+    row.appendChild(paramRow(N('rate','Частота, Гц',.01,2,.01,.2),m,{},()=>touch(),true));
+    if(m.type==='lfo'){ const sh=el('select'); [['sine','Синус'],['tri','Треугольник'],['saw','Пила']].forEach(o=>{ const op=el('option','',o[1]); op.value=o[0]; sh.appendChild(op); }); sh.value=m.shape; sh.onchange=()=>{ m.shape=sh.value; touch(); }; row.appendChild(sh); }
+    row.appendChild(paramRow(N('phase','Фаза',0,1,.01,0),m,{},()=>touch(),true));
+    host.appendChild(row); });
+}
+function addMod(type){ if(SC.mods.length>=LIM.mods){ setSave('Не больше '+LIM.mods+' источников','err'); return; } let k=1; while(SC.mods.some(m=>m.id===type+k)) k++;
+  SC.mods.push({id:type+k,type,rate:.2,shape:'sine',phase:0}); changed('источник добавлен: '+type+k); renderMods(); renderLayerCard(); }
+function renderPalette(){
+  const host=$('#palette'); host.textContent='';
+  SC.palette.forEach((h,i)=>{ const inp=el('input'); inp.type='color'; inp.value=h; inp.setAttribute('aria-label','Цвет палитры '+(i+1)); inp.oninput=()=>{ SC.palette[i]=inp.value; PAL=SC.palette.map(hex2rgb); touch(); }; host.appendChild(inp); });
+}
+function changedSoft(){ touch(); renderLayerCard(); }
+
+/* ================= Looks ================= */
+const CROSS_TEXT='Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение';
+const LOOKS={
+  praise:{name:'Прославление',scene:{seed:7,bpm:118,speed:1.4,palette:PALS.praise,mods:[{id:'lfo1',type:'lfo',rate:.12,shape:'sine'},{id:'noise1',type:'noise',rate:.25}],layers:[
+    {id:'bg',type:'gradient',name:'Подложка',prio:5,p:{c1:'#0d0a1c',c2:'#1b1238'}},
+    {id:'paint',type:'field',name:'Краски',prio:4,p:{count:7,size:.5,speed:1.2,soft:.7,spread:1.4},bind:{speed:{src:'energy',amt:.35}}},
+    {id:'cross',type:'shape',name:'Крест',prio:5,blend:'source-over',p:{kind:'cross',x:.76,y:.5,size:.62,c:.4,glow:22,avoid:.55},bind:{size:{src:'beat',amt:.03}}},
+    {id:'wave',type:'contour',name:'Волны от креста',prio:3,p:{src:'cross',rings:46,irid:.45,strength:1}},
+    {id:'rays',type:'rays',name:'Лучи',prio:2,p:{count:16,ox:.76,oy:.5,spin:14,alpha:.3,len:.9,avoid:.85}},
+    {id:'sparks',type:'emitter',name:'Огоньки',prio:1,p:{count:40,size:.02,speed:1.3},bind:{count:{src:'energy',amt:.8}}},
+    {id:'lyr',type:'text',name:'Текст',p:{text:CROSS_TEXT,x:.34,y:.45}}]}},
+  worship:{name:'Поклонение',scene:{seed:11,bpm:60,speed:.45,palette:PALS.worship,mods:[{id:'lfo1',type:'lfo',rate:.05,shape:'sine'}],layers:[
+    {id:'bg',type:'gradient',name:'Подложка',prio:5,p:{kind:'radial',c1:'#101a33',c2:'#03050c'}},
+    {id:'paint',type:'field',name:'Краски',prio:4,p:{count:5,size:.62,speed:.7,soft:.55,spread:1,move:'orbit'}},
+    {id:'dove',type:'shape',name:'Голубь',prio:5,blend:'source-over',p:{kind:'dove',x:.74,y:.46,size:.42,c:1,glow:26,avoid:.5,alpha:.95},bind:{y:{src:'lfo1',amt:.03}}},
+    {id:'wave',type:'contour',name:'Волны от голубя',prio:3,p:{src:'dove',rings:38,irid:.3,strength:.9,speed:.6,reach:1.1}},
+    {id:'rings',type:'rings',name:'Кольца света',prio:2,p:{count:6,ox:.76,oy:.46,speed:.35,alpha:.35,gap:.1}},
+    {id:'sparks',type:'emitter',name:'Огоньки',prio:1,p:{count:22,size:.015,speed:.6,alpha:.5}},
+    {id:'lyr',type:'text',name:'Текст',p:{text:'Свете тихий святыя славы,\nБезсмертнаго Отца Небеснаго,\nСвятаго Блаженнаго,\nИисусе Христе',x:.34,y:.45,size:3.7}}]}},
+  glass:{name:'Витраж (повторитель)',scene:{seed:3,bpm:84,speed:1,palette:PALS.glass,mods:[{id:'lfo1',type:'lfo',rate:.08,shape:'tri'},{id:'lfo2',type:'lfo',rate:.21,shape:'sine'}],layers:[
+    {id:'bg',type:'gradient',name:'Подложка',prio:5,p:{c1:'#0a0714',c2:'#16102a'}},
+    {id:'paint',type:'field',name:'Краски',prio:4,p:{count:6,size:.5,speed:.8,soft:.6,spread:2.2}},
+    {id:'petals',type:'shape',name:'Лепестки (повторитель)',prio:3,p:{kind:'drop',x:.5,y:.5,size:.16,copies:14,layout:'circle',spread:.62,stepRot:25.7,fade:.4,cstep:.14,glow:10,fill:.55,stroke:2,spin:6,alpha:.9},
+      bind:{size:{src:'',amt:0,expr:'base*(0.8+0.4*sin(i*0.9+t*1.2))'},spread:{src:'lfo1',amt:.2}},fx:[{type:'bloom',p:{r:14,amt:.5}}]},
+    {id:'core',type:'shape',name:'Центр',prio:5,blend:'source-over',p:{kind:'star',pn:8,x:.5,y:.5,size:.2,c:.3,glow:20,fill:.9,spin:-10,alpha:.9}},
+    {id:'th',type:'thread',name:'Нити',prio:2,p:{lines:3,amp:.1,freq:1.4,y:.82,thick:2.5,glow:12,alpha:.7}},
+    {id:'sparks',type:'emitter',name:'Искры',prio:1,p:{count:30,kind:'star',size:.015,speed:1,alpha:.6}},
+    {id:'lyr',type:'text',name:'Текст',p:{text:'',x:.5,y:.5}}]}}
+};
+function loadLook(k){ const r=normalizeScene(LOOKS[k].scene); applyScene(r.sc); logEvent('Look',LOOKS[k].name); if(r.errors.length) $('#jsonErr').textContent=r.errors.join('\n'); }
+function applyScene(sc){
+  SC=sc; PAL=SC.palette.map(hex2rgb); selId=(SC.layers.find(L=>L.type==='shape')||SC.layers[0]).id; bpmSm=SC.bpm;
+  $('#bpmS').value=SC.bpm; $('#bpmO').textContent=SC.bpm; $('#spdS').value=Math.round(SC.speed*100); $('#spdO').textContent=Math.round(SC.speed*100)+' %';
+  SC.layers.forEach(L=>{ L._buf=null; }); resizeSoft(); renderLayerList(); renderLayerCard(); renderMods(); renderPalette(); replan(); renderPreflight(); touch();
+}
+
+/* ================= сохранение и журнал ================= */
+const LOG={id:'s_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),t0:Date.now(),events:[],measures:{},dirty:false,busy:false,doc:null,notes:null,env:null,key:'',skip:0,db:null,scDoc:null};
+function setSave(t,c){ $('#saveStat').textContent=t; $('#sDot').className='dot2 '+(c||''); }
+function setL(t,c){ $('#lStat').textContent=t; $('#lDot').className='dot2 '+(c||''); }
+let saveT=null,saveBusy=false;
+function touch(){ clearTimeout(saveT); saveT=setTimeout(saveScene,900); setSave('Есть несохранённые изменения'); }
+function changed(msg){ logEvent('правка',msg); replan(); renderPreflight(); touch(); }
+async function saveScene(){
+  if(saveBusy){ saveT=setTimeout(saveScene,800); return; } saveBusy=true;
+  const payload={v:1,by:LOG.id,rev:Date.now(),scene:plainScene(SC)};
+  try{ localStorage.setItem('deixis-scene-v1',JSON.stringify(payload)); }catch(e){}
+  if(LOG.scDoc){ try{ await LOG.scDoc.set(payload); setSave('Сохранено в хранилище страницы','on'); }catch(e){ setSave('В хранилище не записалось ('+(e&&e.code||'ошибка')+'), копия на устройстве','err'); } }
+  else setSave('Сохранено на этом устройстве','on');
+  saveBusy=false;
+}
+function logEvent(k,v){ LOG.events.push({t:+((Date.now()-LOG.t0)/1000).toFixed(1),k,v:String(v)}); if(LOG.events.length>300) LOG.events.shift(); LOG.dirty=true;
+  const ul=$('#evl'); ul.textContent=''; LOG.events.slice(-5).reverse().forEach(e=>ul.appendChild(el('li','',e.t+' с · '+e.k+': '+e.v))); }
+function logMeasure(ms,fpsNow,nAct){
+  if(paused||document.hidden) return;
+  const key=LW+'x'+LH+'|'+fps+'к/с|бюджет '+(BUDGET||'∞')+'|слоёв '+nAct+'|эффектов '+SC.layers.reduce((s,L)=>s+L.fx.filter(e=>!e.off).length,0);
+  if(key!==LOG.key){ LOG.key=key; LOG.skip=3; return; } if(LOG.skip>0){ LOG.skip--; return; }
+  const m=LOG.measures[key]||(LOG.measures[key]={n:0,ms:0,max:0,fps:0,pred:0});
+  const pred=SC.layers.filter(L=>L.on&&!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+  m.ms=+((m.ms*m.n+ms)/(m.n+1)).toFixed(2); m.fps=+((m.fps*m.n+fpsNow)/(m.n+1)).toFixed(1); m.pred=+((m.pred*m.n+pred)/(m.n+1)).toFixed(2); m.max=+Math.max(m.max,ms).toFixed(2); m.n++; LOG.dirty=true;
+}
+async function flushLog(){
+  if(!LOG.doc||LOG.busy||!LOG.dirty) return; LOG.busy=true; LOG.dirty=false;
+  try{ await LOG.doc.set({id:LOG.id,started:new Date(LOG.t0).toISOString(),updated:new Date().toISOString(),env:LOG.env,cal:+CAL.toFixed(2),events:LOG.events,measures:LOG.measures,scene:plainScene(SC)}); setL('Журнал пишется · '+LOG.id,'on'); }
+  catch(e){ LOG.dirty=true; setL('Журнал не записался ('+(e&&e.code||'ошибка')+')','err'); }
+  LOG.busy=false;
+}
+function envInfo(){ let gpu=''; try{ const c=document.createElement('canvas'), gl=c.getContext('webgl'), e=gl&&gl.getExtension('WEBGL_debug_renderer_info'); gpu=e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):(gl?'webgl':'нет webgl'); }catch(e){ gpu='ошибка'; }
+  return {ua:navigator.userAgent,screen:screen.width+'x'+screen.height,dpr:window.devicePixelRatio||1,cores:navigator.hardwareConcurrency||0,mem:navigator.deviceMemory||0,gpu:String(gpu),win:innerWidth+'x'+innerHeight}; }
+async function initStore(){
+  LOG.env=envInfo(); let saved=null;
+  try{ const t=localStorage.getItem('deixis-scene-v1'); if(t) saved=JSON.parse(t); }catch(e){}
+  try{
+    const db=window.claude&&await window.claude.use('db');
+    if(!db){ setL('Журнал недоступен: нет доступа к хранилищу страницы'); }
+    else{
+      LOG.doc=db.collection('log').doc(LOG.id); LOG.notes=db.collection('notes'); LOG.scDoc=db.doc('scenes/main');
+      try{ const sn=await LOG.scDoc.get(); if(sn.exists) saved=sn.data(); }catch(e){}
+      logEvent('старт',LOG.env.win+' · '+LOG.env.gpu); setInterval(flushLog,5000); document.addEventListener('visibilitychange',()=>{ if(document.hidden) flushLog(); });
+      try{ LOG.scDoc.onSnapshot(sn=>{ if(!sn.exists||sn.metadata.hasPendingWrites) return; const d=sn.data(); if(!d||d.by===LOG.id||(d.rev||0)<=(LOG.rev||0)) return; LOG.rev=d.rev; const r=normalizeScene(d.scene); applyScene(r.sc); setSave('Сцена обновлена извне','on'); },()=>{}); }catch(e){}
+      flushLog();
+    }
+  }catch(e){ setL('Журнал недоступен'); }
+  if(saved&&saved.scene&&!userTouched){ const r=normalizeScene(saved.scene); LOG.rev=saved.rev||0; if(r.sc.layers.length){ applyScene(r.sc); setSave('Сцена загружена','on'); } }
+}
+let userTouched=false;
+$('#noteBtn').onclick=async()=>{ const t=$('#noteTxt').value.trim(); if(!t) return; if(!LOG.notes){ setL('Заметку некуда сохранить: нет доступа к хранилищу','err'); return; }
+  try{ await LOG.notes.add({session:LOG.id,at:new Date().toISOString(),text:t,energy:+energy.toFixed(2),ms:+ema.toFixed(2),cal:+CAL.toFixed(2),res:LW+'x'+LH,budget:BUDGET,scene:plainScene(SC)}); logEvent('заметка',t.slice(0,80)); $('#noteTxt').value=''; flushLog(); setL('Заметка сохранена','on'); }
+  catch(e){ setL('Заметка не сохранилась ('+(e&&e.code||'ошибка')+')','err'); } };
+
+/* ================= панель управления ================= */
+function chipsInto(host,items,get,set){ items.forEach(([v,t])=>{ const b=el('button','chip',t); b.type='button'; b.setAttribute('aria-pressed',String(get()===v)); b.onclick=()=>{ set(v); host.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); }; host.appendChild(b); }); }
+chipsInto($('#softChips'),[[96,'96×54'],[192,'192×108'],[320,'320×180'],[480,'480×270']],()=>LW,v=>{ LW=v; resizeSoft(); replan(); renderPreflight(); logEvent('разрешение мягких слоёв',v+'×'+Math.round(v*9/16)); });
+chipsInto($('#budChips'),[[0,'Без ограничения'],[8,'8 мс'],[16,'16 мс'],[33,'33 мс']],()=>BUDGET,v=>{ BUDGET=v; replan(); renderPreflight(); logEvent('бюджет кадра',v||'без ограничения'); });
+chipsInto($('#fpsChips'),[[30,'30 к/с'],[60,'60 к/с']],()=>fps,v=>{ fps=v; });
+$('#enS').oninput=e=>{ autoEnergy=false; $('#enAuto').setAttribute('aria-pressed','false'); manualE=+e.target.value/100; $('#enO').textContent=fmt(manualE,2); };
+$('#enAuto').onclick=e=>{ autoEnergy=!autoEnergy; e.target.setAttribute('aria-pressed',String(autoEnergy)); logEvent('энергия',autoEnergy?'авто':'вручную'); };
+$('#bpmS').oninput=e=>{ SC.bpm=+e.target.value; $('#bpmO').textContent=SC.bpm; touch(); };
+$('#spdS').oninput=e=>{ SC.speed=+e.target.value/100; $('#spdO').textContent=e.target.value+' %'; touch(); };
+$('#pauseB').onclick=e=>{ paused=!paused; e.target.textContent=paused?'Продолжить':'Пауза'; logEvent('показ',paused?'пауза':'продолжение'); };
+$('#fullB').onclick=()=>{ try{ ($('#view').requestFullscreen||$('#view').webkitRequestFullscreen).call($('#view')).catch(()=>{}); }catch(e){} };
+$('#modLfo').onclick=()=>addMod('lfo'); $('#modNoise').onclick=()=>addMod('noise');
+const addSel=$('#addType'); Object.keys(LAYER_TYPES).forEach(k=>{ const o=el('option','',LAYER_TYPES[k].name); o.value=k; addSel.appendChild(o); });
+$('#addBtn').onclick=()=>{ if(SC.layers.length>=LIM.layers){ setSave('Не больше '+LIM.layers+' слоёв','err'); return; }
+  const L=mkLayer(addSel.value); if(L.type==='contour'){ const s=SC.layers.find(x=>x.type==='shape'); L.p.src=s?s.id:''; } if(L.type==='text'){ const i=SC.layers.length; SC.layers.push(L); } else{ const ti=SC.layers.findIndex(x=>x.type==='text'); if(ti<0) SC.layers.push(L); else SC.layers.splice(ti,0,L); }
+  selId=L.id; userTouched=true; changed('слой добавлен: '+L.name); renderLayerList(); renderLayerCard(); };
+Object.keys(LOOKS).forEach(k=>{ const b=el('button','chip',LOOKS[k].name); b.type='button'; b.onclick=()=>{ userTouched=true; loadLook(k); }; $('#looks').appendChild(b); });
+$('#jsonShow').onclick=()=>{ $('#jsonTxt').value=JSON.stringify(plainScene(SC),null,1); $('#jsonErr').textContent=''; };
+$('#jsonApply').onclick=()=>{ try{ const r=normalizeScene(JSON.parse($('#jsonTxt').value)); if(!r.sc.layers.length){ $('#jsonErr').textContent=r.errors.join('\n'); return; } userTouched=true; applyScene(r.sc); $('#jsonErr').textContent=r.errors.length?'Принято с замечаниями:\n'+r.errors.join('\n'):''; logEvent('сцена','применён JSON'); }
+  catch(e){ $('#jsonErr').textContent='Не удалось прочитать JSON: проверить скобки и запятые.'; } };
+document.addEventListener('keydown',e=>{ const t=e.target&&e.target.tagName; if(t==='TEXTAREA'||t==='INPUT'||t==='SELECT') return; if(e.key===' '){ e.preventDefault(); $('#pauseB').click(); } });
+try{ const gc=document.createElement('canvas'); gc.width=gc.height=128; const gx=gc.getContext('2d'), gd=gx.createImageData(128,128);
+  for(let i=0;i<gd.data.length;i+=4){ const v=Math.random()*255; gd.data[i]=gd.data[i+1]=gd.data[i+2]=v; gd.data[i+3]=255; } gx.putImageData(gd,0,0); $('#grain').style.backgroundImage='url('+gc.toDataURL()+')'; }catch(e){}
+
+/* ================= старт ================= */
+SC=normalizeScene(LOOKS.praise.scene).sc; applyScene(SC); logEvent('Look','Прославление');
+try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches){ paused=true; $('#pauseB').textContent='Продолжить'; } }catch(e){}
+requestAnimationFrame(frame);
+initStore();
+})();
+</script>
