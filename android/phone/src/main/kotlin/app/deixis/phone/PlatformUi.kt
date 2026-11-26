@@ -52,7 +52,7 @@ fun LogoFull(style: LogoStyle = LogoStyle.WORDMARK, color: Color = Color.White) 
 
 @Composable
 fun TextSlideCanvas(text: String, ref: String?, style: SlideStyle, clear: Boolean = false, overscan: Boolean = false, drawBackground: Boolean = true) =
-    app.deixis.receiver.TextSlideCanvas(text, ref, style, clear, overscan, drawBackground = drawBackground)
+    app.deixis.receiver.TextSlideCanvas(text, ref, app.deixis.core.effects.SceneText.styled(style), clear, overscan, drawBackground = drawBackground)
 
 @Composable
 fun ScriptureSlideCanvas(c: ScriptureContent, clear: Boolean = false, overscan: Boolean = false, drawBackground: Boolean = true) =
