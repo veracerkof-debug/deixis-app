@@ -120,6 +120,8 @@ details summary{cursor:pointer;color:var(--mut)}
       </div>
 
       <div class="card">
+        <div class="sl"><label for="quS">Тише (мастер: насыщенность, яркость эффектов, огоньки, скорость)</label><output id="quO">35 %</output><input id="quS" type="range" min="0" max="100" value="35"></div>
+        <div class="chips"><button class="chip" id="strictB" type="button" aria-pressed="false">Строгий режим: подложка, краски, один образ, текст</button></div>
         <div class="sl"><label for="enS">Энергия</label><output id="enO">0,50</output><input id="enS" type="range" min="0" max="100" value="50"></div>
         <div class="chips"><button class="chip" id="enAuto" type="button" aria-pressed="true">Авто: песня за 60 с</button></div>
         <div class="grid2">
@@ -319,7 +321,9 @@ const hex2rgb=h=>{ const v=parseInt(h.slice(1),16); return [(v>>16)&255,(v>>8)&2
 let PAL=PALS.praise.map(hex2rgb);
 function colorAt(ci){
   const n=PAL.length, x=((ci%n)+n)%n, i=Math.floor(x), f=x-i, a=PAL[i], b=PAL[(i+1)%n];
-  return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];
+  let r=a[0]+(b[0]-a[0])*f, g=a[1]+(b[1]-a[1])*f, bl=a[2]+(b[2]-a[2])*f;
+  if(QUIET>0){ const l=.3*r+.59*g+.11*bl, k=QUIET*.6; r+=(l-r)*k; g+=(l-g)*k; bl+=(l-bl)*k; }
+  return [r,g,bl];
 }
 const rgba=(c,a)=>'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+','+clamp(a,0,1).toFixed(3)+')';
 
@@ -408,9 +412,9 @@ function mkLayer(type,over){
   return L;
 }
 function normalizeScene(raw){
-  const errors=[]; const sc={seed:7,bpm:96,speed:1,palette:PALS.praise.slice(),mods:[],layers:[]};
+  const errors=[]; const sc={seed:7,bpm:96,speed:1,quiet:.35,strict:false,palette:PALS.praise.slice(),mods:[],layers:[]};
   if(!raw||typeof raw!=='object'){ errors.push('сцена: ожидался объект'); return {sc,errors}; }
-  sc.seed=Math.round(clamp(+raw.seed||7,0,9999)); sc.bpm=Math.round(clamp(raw.bpm==null?96:+raw.bpm,0,240)); sc.speed=clamp(raw.speed==null?1:+raw.speed,.1,2.5);
+  sc.seed=Math.round(clamp(+raw.seed||7,0,9999)); sc.bpm=Math.round(clamp(raw.bpm==null?96:+raw.bpm,0,240)); sc.speed=clamp(raw.speed==null?1:+raw.speed,.1,2.5); sc.quiet=clamp(raw.quiet==null?.35:+raw.quiet,0,1); sc.strict=raw.strict===true;
   if(Array.isArray(raw.palette)&&raw.palette.length===5&&raw.palette.every(h=>/^#[0-9a-fA-F]{6}$/.test(h))) sc.palette=raw.palette.slice(); else if(raw.palette) errors.push('palette: нужно ровно 5 цветов вида #rrggbb');
   (Array.isArray(raw.mods)?raw.mods:[]).slice(0,LIM.mods).forEach((m,i)=>{
     const type=m&&m.type==='noise'?'noise':'lfo';
@@ -461,10 +465,15 @@ function plainScene(sc){
   return JSON.parse(JSON.stringify(sc,(k,v)=>k.startsWith('_')?undefined:v));
 }
 const layerById=id=>SC.layers.find(L=>L.id===id);
+const firstShapeId=()=>{ const s=SC.layers.find(L=>L.type==='shape'&&L.on); return s?s.id:''; };
+const strictOK=L=>L.type==='gradient'||L.type==='field'||L.type==='text'||(L.type==='shape'&&L.id===firstShapeId());
+const skippedByStrict=L=>STRICT&&!strictOK(L);
+const activeLayers=()=>SC.layers.filter(L=>L.on&&!skippedByStrict(L));
 
 /* ================= источники движения ================= */
 const ENV={t:0,energy:.5,beat:0,pi:Math.PI,base:0,i:0,n:1};
-let T=0, energy=.5, beatPh=0, bpmSm=96;
+let T=0, energy=.5, beatPh=0, bpmSm=96, QUIET=.35, STRICT=false;
+const CALMK={field:.45,contour:.6,emitter:.8,rays:.8,rings:.6,thread:.5};
 function lfoVal(m,t){ const ph=(m.rate*t+m.phase); const f=ph-Math.floor(ph);
   return m.type==='noise'?vnoise(ph*3+m.phase*17):m.shape==='tri'?1-Math.abs(f*2-1):m.shape==='saw'?f:.5+.5*sin(f*TAU); }
 function updateEnv(){
@@ -549,7 +558,7 @@ function drawShape(c,L,q0,mask){
   }
 }
 function drawEmitter(c,L,q){
-  const n=Math.round(q.count), col0=q.c, a0=q.dir*Math.PI/180;
+  const n=Math.round(q.count*(1-.6*QUIET)), col0=q.c, a0=q.dir*Math.PI/180;
   for(let i=0;i<n;i++){
     const h1=hash(i,SC.seed), h2=hash(i,SC.seed+1), h3=hash(i,SC.seed+2), h4=hash(i,SC.seed+3), h5=hash(i,SC.seed+4), h6=hash(i,SC.seed+5);
     const sp=.35+h2*.65, u=((h3+T*.05*q.speed*sp)%1+1)%1;
@@ -708,7 +717,7 @@ function avoidPass(cv,amt){
   x.fillStyle=g; x.fillRect(-rx,-rx,rx*2,rx*2); x.restore();
 }
 function drawLayer(L){
-  const q=evalParams(L,0,1), opacity=q.opacity, fx=L.fx.filter(e=>!e.off);
+  const q=evalParams(L,0,1), opacity=q.opacity*(1-QUIET*(CALMK[L.type]||0)), fx=L.fx.filter(e=>!e.off);
   const needTmp=q.avoid>0||fx.length>0;
   L._perCopy=L.type==='shape'&&Object.keys(L.bind).some(k=>L.bind[k].expr&&/\b(i|n)\b/.test(L.bind[k].expr));
   if(!needTmp){
@@ -752,7 +761,7 @@ function layerCost(L){
   return c;
 }
 function replan(){
-  planDrop=new Set(); const act=SC.layers.filter(L=>L.on);
+  planDrop=new Set(); const act=activeLayers();
   let total=act.reduce((s,L)=>s+layerCost(L),0);
   if(BUDGET>0){
     const cand=act.filter(L=>L.prio<5&&L.type!=='text'&&L.type!=='gradient').sort((a,b)=>a.prio-b.prio||layerCost(b)-layerCost(a));
@@ -762,7 +771,7 @@ function replan(){
   return total;
 }
 function renderPreflight(){
-  const act=SC.layers.filter(L=>L.on), total=act.reduce((s,L)=>s+layerCost(L),0), kept=act.filter(L=>!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+  const act=activeLayers(), total=act.reduce((s,L)=>s+layerCost(L),0), kept=act.filter(L=>!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
   const tgt=BUDGET>0?BUDGET:33, pc=clamp(kept*CAL/tgt*100,0,100);
   $('#pfBar').style.width=pc+'%'; $('#pfBar').classList.toggle('warn',pc>70);
   $('#pfTxt').textContent='Оценка сцены: '+fmt(total*CAL,1)+' мс (по калибровке ×'+fmt(CAL,2)+'); работает '+fmt(kept*CAL,1)+' мс из '+(BUDGET>0?BUDGET:'∞ (цель 33)')+' мс.';
@@ -780,7 +789,7 @@ function frame(now){
   requestAnimationFrame(frame);
   if(now-lastDraw<1000/fps-3) return;
   const dt=Math.min((now-lastDraw)/1000,.1); lastDraw=now;
-  if(!paused){ T+=dt*SC.speed; bpmSm+=(SC.bpm-bpmSm)*(1-Math.exp(-dt/.4)); beatPh=(beatPh+dt*bpmSm/60)%1; }
+  if(!paused){ T+=dt*SC.speed*(1-.45*QUIET); bpmSm+=(SC.bpm-bpmSm)*(1-Math.exp(-dt/.4)); beatPh=(beatPh+dt*bpmSm/60)%1; }
   const tgt=autoEnergy?(.5-.5*cos(TAU*((T/SC.speed)%60)/60)):manualE; energy+=(tgt-energy)*(1-Math.exp(-dt/1.2));
   if(autoEnergy){ $('#enS').value=Math.round(energy*100); $('#enO').textContent=fmt(energy,2); }
   updateEnv();
@@ -788,13 +797,13 @@ function frame(now){
   ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); if(FILTER_OK) ctx.filter='none';
   const txt=SC.layers.find(L=>L.type==='text'&&L.on); if(txt){ WORLD.tx=txt.p.x; WORLD.ty=txt.p.y; }
   let nAct=0;
-  SC.layers.forEach(L=>{ if(!L.on||L.type==='text'||planDrop.has(L.id)) return; try{ drawLayer(L); nAct++; }catch(e){ L._err=e.message; } });
+  SC.layers.forEach(L=>{ if(!L.on||L.type==='text'||planDrop.has(L.id)||skippedByStrict(L)) return; try{ drawLayer(L); nAct++; }catch(e){ L._err=e.message; } });
   SC.layers.forEach(L=>{ if(!L.on||L.type!=='text') return; try{ drawLayer(L); nAct++; }catch(e){ L._err=e.message; } });
   const ms=performance.now()-t0; ema=ema?ema*.9+ms*.1:ms; frames++;
   if(now-statT>500){
     const sec=(performance.now()-fpsT)/1000, fpsNow=frames/sec;
     $('#sMs').textContent=fmt(ema,1); $('#sFps').textContent=fmt(fpsNow,0); $('#sAct').textContent=nAct+' из '+SC.layers.filter(L=>L.on).length;
-    const pred=SC.layers.filter(L=>L.on&&!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+    const pred=activeLayers().filter(L=>!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
     if(pred>.5&&!paused&&!document.hidden&&now-planT>1500){ CAL=clamp(CAL*.7+(ema/pred)*.3,.25,6); }
     $('#sPred').textContent=fmt(pred*CAL,1);
     if(now-planT>1500){ planT=now; replan(); renderPreflight(); }
@@ -901,6 +910,13 @@ function changedSoft(){ touch(); renderLayerCard(); }
 /* ================= Looks ================= */
 const CROSS_TEXT='Слава в вышних Богу,\nи на земли мир,\nв человецех благоволение';
 const LOOKS={
+  calm:{name:'Тихий вечер',scene:{seed:5,bpm:66,speed:.5,quiet:.3,palette:['#C9A45C','#7E8FB8','#5F6FA8','#B88A5A','#8C7BA6'],mods:[{id:'lfo1',type:'lfo',rate:.04,shape:'sine'}],layers:[
+    {id:'bg',type:'gradient',name:'Подложка',prio:5,p:{kind:'radial',c1:'#141a2c',c2:'#06080f'}},
+    {id:'paint',type:'field',name:'Краски',prio:4,p:{count:4,size:.65,speed:.5,soft:.38,spread:.8,move:'drift'}},
+    {id:'cross',type:'shape',name:'Крест',prio:5,blend:'screen',p:{kind:'cross',x:.74,y:.48,size:.5,c:0,glow:30,avoid:.5,alpha:.8},bind:{y:{src:'lfo1',amt:.02}}},
+    {id:'wave',type:'contour',name:'Волны от креста',prio:3,p:{src:'cross',rings:30,irid:.15,strength:.45,speed:.5,reach:2}},
+    {id:'sparks',type:'emitter',name:'Огоньки',prio:1,p:{count:14,size:.012,speed:.4,alpha:.4}},
+    {id:'lyr',type:'text',name:'Текст',p:{text:'Свете тихий святыя славы,\nБезсмертнаго Отца Небеснаго,\nСвятаго Блаженнаго,\nИисусе Христе',x:.34,y:.45,size:3.8}}]}},
   praise:{name:'Прославление',scene:{seed:7,bpm:118,speed:1.4,palette:PALS.praise,mods:[{id:'lfo1',type:'lfo',rate:.12,shape:'sine'},{id:'noise1',type:'noise',rate:.25}],layers:[
     {id:'bg',type:'gradient',name:'Подложка',prio:5,p:{c1:'#0d0a1c',c2:'#1b1238'}},
     {id:'paint',type:'field',name:'Краски',prio:4,p:{count:7,size:.5,speed:1.2,soft:.7,spread:1.4},bind:{speed:{src:'energy',amt:.35}}},
@@ -929,7 +945,7 @@ const LOOKS={
 };
 function loadLook(k){ const r=normalizeScene(LOOKS[k].scene); applyScene(r.sc); logEvent('Look',LOOKS[k].name); if(r.errors.length) $('#jsonErr').textContent=r.errors.join('\n'); }
 function applyScene(sc){
-  SC=sc; PAL=SC.palette.map(hex2rgb); selId=(SC.layers.find(L=>L.type==='shape')||SC.layers[0]).id; bpmSm=SC.bpm;
+  SC=sc; QUIET=SC.quiet; STRICT=SC.strict; $('#quS').value=Math.round(QUIET*100); $('#quO').textContent=Math.round(QUIET*100)+' %'; $('#strictB').setAttribute('aria-pressed',String(STRICT)); PAL=SC.palette.map(hex2rgb); selId=(SC.layers.find(L=>L.type==='shape')||SC.layers[0]).id; bpmSm=SC.bpm;
   $('#bpmS').value=SC.bpm; $('#bpmO').textContent=SC.bpm; $('#spdS').value=Math.round(SC.speed*100); $('#spdO').textContent=Math.round(SC.speed*100)+' %';
   SC.layers.forEach(L=>{ L._buf=null; }); resizeSoft(); renderLayerList(); renderLayerCard(); renderMods(); renderPalette(); replan(); renderPreflight(); touch();
 }
@@ -944,7 +960,7 @@ function changed(msg){ logEvent('правка',msg); replan(); renderPreflight()
 async function saveScene(){
   if(saveBusy){ saveT=setTimeout(saveScene,800); return; } saveBusy=true;
   const payload={v:1,by:LOG.id,rev:Date.now(),scene:plainScene(SC)};
-  try{ localStorage.setItem('deixis-scene-v1',JSON.stringify(payload)); }catch(e){}
+  try{ localStorage.setItem('deixis-scene-v2',JSON.stringify(payload)); }catch(e){}
   if(LOG.scDoc){ try{ await LOG.scDoc.set(payload); setSave('Сохранено в хранилище страницы','on'); }catch(e){ setSave('В хранилище не записалось ('+(e&&e.code||'ошибка')+'), копия на устройстве','err'); } }
   else setSave('Сохранено на этом устройстве','on');
   saveBusy=false;
@@ -956,7 +972,7 @@ function logMeasure(ms,fpsNow,nAct){
   const key=LW+'x'+LH+'|'+fps+'к/с|бюджет '+(BUDGET||'∞')+'|слоёв '+nAct+'|эффектов '+SC.layers.reduce((s,L)=>s+L.fx.filter(e=>!e.off).length,0);
   if(key!==LOG.key){ LOG.key=key; LOG.skip=3; return; } if(LOG.skip>0){ LOG.skip--; return; }
   const m=LOG.measures[key]||(LOG.measures[key]={n:0,ms:0,max:0,fps:0,pred:0});
-  const pred=SC.layers.filter(L=>L.on&&!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
+  const pred=activeLayers().filter(L=>!planDrop.has(L.id)).reduce((s,L)=>s+layerCost(L),0);
   m.ms=+((m.ms*m.n+ms)/(m.n+1)).toFixed(2); m.fps=+((m.fps*m.n+fpsNow)/(m.n+1)).toFixed(1); m.pred=+((m.pred*m.n+pred)/(m.n+1)).toFixed(2); m.max=+Math.max(m.max,ms).toFixed(2); m.n++; LOG.dirty=true;
 }
 async function flushLog(){
@@ -969,12 +985,12 @@ function envInfo(){ let gpu=''; try{ const c=document.createElement('canvas'), g
   return {ua:navigator.userAgent,screen:screen.width+'x'+screen.height,dpr:window.devicePixelRatio||1,cores:navigator.hardwareConcurrency||0,mem:navigator.deviceMemory||0,gpu:String(gpu),win:innerWidth+'x'+innerHeight}; }
 async function initStore(){
   LOG.env=envInfo(); let saved=null;
-  try{ const t=localStorage.getItem('deixis-scene-v1'); if(t) saved=JSON.parse(t); }catch(e){}
+  try{ const t=localStorage.getItem('deixis-scene-v2'); if(t) saved=JSON.parse(t); }catch(e){}
   try{
     const db=window.claude&&await window.claude.use('db');
     if(!db){ setL('Журнал недоступен: нет доступа к хранилищу страницы'); }
     else{
-      LOG.doc=db.collection('log').doc(LOG.id); LOG.notes=db.collection('notes'); LOG.scDoc=db.doc('scenes/main');
+      LOG.doc=db.collection('log').doc(LOG.id); LOG.notes=db.collection('notes'); LOG.scDoc=db.doc('scenes/main2');
       try{ const sn=await LOG.scDoc.get(); if(sn.exists) saved=sn.data(); }catch(e){}
       logEvent('старт',LOG.env.win+' · '+LOG.env.gpu); setInterval(flushLog,5000); document.addEventListener('visibilitychange',()=>{ if(document.hidden) flushLog(); });
       try{ LOG.scDoc.onSnapshot(sn=>{ if(!sn.exists||sn.metadata.hasPendingWrites) return; const d=sn.data(); if(!d||d.by===LOG.id||(d.rev||0)<=(LOG.rev||0)) return; LOG.rev=d.rev; const r=normalizeScene(d.scene); applyScene(r.sc); setSave('Сцена обновлена извне','on'); },()=>{}); }catch(e){}
@@ -995,6 +1011,9 @@ chipsInto($('#budChips'),[[0,'Без ограничения'],[8,'8 мс'],[16,'
 chipsInto($('#fpsChips'),[[30,'30 к/с'],[60,'60 к/с']],()=>fps,v=>{ fps=v; });
 $('#enS').oninput=e=>{ autoEnergy=false; $('#enAuto').setAttribute('aria-pressed','false'); manualE=+e.target.value/100; $('#enO').textContent=fmt(manualE,2); };
 $('#enAuto').onclick=e=>{ autoEnergy=!autoEnergy; e.target.setAttribute('aria-pressed',String(autoEnergy)); logEvent('энергия',autoEnergy?'авто':'вручную'); };
+$('#quS').oninput=e=>{ QUIET=+e.target.value/100; SC.quiet=QUIET; $('#quO').textContent=e.target.value+' %'; touch(); logQuiet(); };
+let quT=null; function logQuiet(){ clearTimeout(quT); quT=setTimeout(()=>logEvent('тише',Math.round(QUIET*100)+' %'),700); }
+$('#strictB').onclick=e=>{ STRICT=!STRICT; SC.strict=STRICT; e.target.setAttribute('aria-pressed',String(STRICT)); replan(); renderPreflight(); renderLayerList(); touch(); logEvent('строгий режим',STRICT?'включён':'выключен'); };
 $('#bpmS').oninput=e=>{ SC.bpm=+e.target.value; $('#bpmO').textContent=SC.bpm; touch(); };
 $('#spdS').oninput=e=>{ SC.speed=+e.target.value/100; $('#spdO').textContent=e.target.value+' %'; touch(); };
 $('#pauseB').onclick=e=>{ paused=!paused; e.target.textContent=paused?'Продолжить':'Пауза'; logEvent('показ',paused?'пауза':'продолжение'); };
@@ -1013,7 +1032,7 @@ try{ const gc=document.createElement('canvas'); gc.width=gc.height=128; const gx
   for(let i=0;i<gd.data.length;i+=4){ const v=Math.random()*255; gd.data[i]=gd.data[i+1]=gd.data[i+2]=v; gd.data[i+3]=255; } gx.putImageData(gd,0,0); $('#grain').style.backgroundImage='url('+gc.toDataURL()+')'; }catch(e){}
 
 /* ================= старт ================= */
-SC=normalizeScene(LOOKS.praise.scene).sc; applyScene(SC); logEvent('Look','Прославление');
+SC=normalizeScene(LOOKS.calm.scene).sc; applyScene(SC); logEvent('Look','Тихий вечер');
 try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches){ paused=true; $('#pauseB').textContent='Продолжить'; } }catch(e){}
 requestAnimationFrame(frame);
 initStore();
