@@ -292,3 +292,30 @@ class SceneEditorFxTest {
         assertNull(app.deixis.core.effects.SceneText.sceneFor(un)!!.layer(bound.id)!!.bind[key])
     }
 }
+
+class SetlistTargetTest {
+    private fun op(s: String) = SceneOp.parse(Json.parseToJsonElement(s).jsonObject)!!
+    private val lib = listOf(SetEntry("a", "Господь мой Пастырь"), SetEntry("b", "Слава Ему"), SetEntry("c", "Псалом 22"))
+    private val target = SetlistTarget(lib)
+    private val start = SetlistDraft("Воскресенье", listOf(SetEntry("a", "Господь мой Пастырь")))
+
+    @Test
+    fun addsByTitleOrIdMovesRenamesAndRefusesUnknownItems() {
+        val out = target.applyAll(start, listOf(op("""{"op":"setlist.add","item":"Слава Ему"}"""), op("""{"op":"setlist.add","item":"c","at":0}"""), op("""{"op":"setlist.rename","title":"Пасха"}"""), op("""{"op":"setlist.move","index":2,"to":0}""")))
+        assertTrue(out.errors.isEmpty(), out.errors.toString())
+        assertEquals(listOf("b", "c", "a"), out.state!!.items.map { it.id })
+        assertEquals("Пасха", out.state!!.title)
+        assertFalse(out.dangerous)
+        assertNull(target.applyAll(start, listOf(op("""{"op":"setlist.add","item":"Нет такой"}"""))).state)
+        assertTrue(target.applyAll(start, listOf(op("""{"op":"setlist.clear"}"""))).dangerous)
+    }
+
+    @Test
+    fun engineWorksOnSetlistsToo() {
+        val e = ProposalEngine(start, target)
+        val p = (e.propose("добавить", listOf(op("""{"op":"setlist.add","item":"b"}"""))) as Proposed.Ok).proposal
+        assertEquals(1, e.state.items.size)
+        assertTrue(e.accept(p.id).isEmpty()); assertEquals(2, e.state.items.size)
+        assertTrue(e.undoLast()); assertEquals(1, e.state.items.size)
+    }
+}

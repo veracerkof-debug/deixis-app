@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -27,6 +28,9 @@ import app.deixis.core.ai.ProviderConfig
 import app.deixis.core.ai.OpTarget
 import app.deixis.core.ai.SceneEditor
 import app.deixis.core.ai.SceneTarget
+import app.deixis.core.ai.SetEntry
+import app.deixis.core.ai.SetlistDraft
+import app.deixis.core.ai.SetlistTarget
 import app.deixis.core.ai.SongTarget
 import app.deixis.core.SongSlide
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +93,18 @@ fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (Sce
 fun SongAssistantSheet(c: Controller, ui: Ui, slides: List<SongSlide>, onChange: (List<SongSlide>) -> Unit) {
     val engine = remember { ProposalEngine(slides, SongTarget) }
     AssistantPanel(c, ui, engine, SongTarget, AssistantPrompt.song) { onChange(it) }
+}
+
+/** Помощник для сетлиста: добавить, убрать, переставить, переименовать; брать можно только то, что есть в библиотеке. */
+@Composable
+fun SetlistAssistantSheet(c: Controller, ui: Ui, set: Setlist) {
+    val data = c.data.collectAsState().value
+    val byId = data.items.associateBy { it.id }
+    val library = remember { data.items.map { SetEntry(it.id, it.title) } }
+    val engine = remember { ProposalEngine(SetlistDraft(set.title, set.items.mapNotNull { id -> byId[id]?.let { SetEntry(it.id, it.title) } }), SetlistTarget(library)) }
+    AssistantPanel(c, ui, engine, SetlistTarget(library), AssistantPrompt.setlist) { made ->
+        c.saveSet(set.copy(title = made.title, items = made.items.map { it.id }))
+    }
 }
 
 /**

@@ -184,6 +184,7 @@ private fun SetMenu(c: Controller, ui: Ui, s: Setlist) {
                 Btn(L.save, kind = BtnKind.TINT, enabled = name.isNotBlank()) { c.saveSet(s.copy(title = name.trim())); ui.closeAll() }
             }
         }
+        Btn(L.assistant, icon = "media") { ui.push(L.assistant) { SetlistAssistantSheet(c, ui, s) } }
         Btn(L.delete, kind = BtnKind.RED) { ui.push(L.deleteSet) { DeleteSetSheet(c, ui, s) } }
     }
 }
