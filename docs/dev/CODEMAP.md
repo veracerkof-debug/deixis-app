@@ -485,3 +485,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 
 `core/.../ai/` — помощник: `SceneOps` (операции над сценой), `Proposals` (`ProposalEngine`: предложения, лимиты, откат), `Assistant` (цикл модели, `ScriptedProvider`), `OpenAiProvider` (chat/completions), `SceneEditor` (правка человеком). Тесты: `AssistantTest` (+ `SceneEditorTest`), `OpenAiProviderTest`.
 `core/.../ai/` дополнено: `OpTarget.kt` (общая цель правок, `SceneTarget`), `SongOps.kt` (`SongTarget`), `AnthropicProvider.kt`, `McpEndpoint.kt` (способ Б); пульт: `AssistantUi.kt` (`AssistantSheet`, `SongAssistantSheet`, общая панель). Тесты: `AssistantTest` (+ `SongTargetTest`, `SceneEditorFxTest`), `OpenAiProviderTest` (+ `AnthropicProviderTest`), `McpEndpointTest`.
+
+Студия фона: `pult/.../StudioSheet.kt` (страницы, `StudioState`, `StyleStore`), `StudioUi.kt` (ползунок, образцы формы, превью, образцы стилей), `core/.../ai/SceneStudio.kt` (разделы параметров, новые слои и эффекты, виды движения), `core/.../effects/SceneFrames.kt` (малые кадры и BMP). Тесты: `SceneStudioTest`, `desktop: StudioRenderTest` (снимки страниц и касание).

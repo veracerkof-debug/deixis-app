@@ -143,85 +143,15 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
             if (st.backgroundScene != null) Pill(L.remove) { onChange(st.copy(backgroundScene = null)) }
         }
         st.backgroundScene?.let { sb ->
-            // Крутилки сцены: яркость (энергия; в песне её задаёт часть — припев ярче) и «Тише» (гасит движение и блики под текстом).
-            fun pct(v: Float) = (v * 100).toInt()
-            fun step(v: Float, d: Int) = ((pct(v) + d).coerceIn(0, 100) / 100f)
-            val quiet = sb.quiet ?: app.deixis.core.effects.SceneText.sceneFor(sb)?.quiet?.toFloat() ?: 0f
+            // Студия: ручная правка (стили, слои, образы, эффекты, движение) с живым превью. Помощник правит то же самое по просьбе.
             Sep(T.gutter)
-            Cell(L.liveEnergy, L.liveEnergySub, chevron = null) {
-                Stepper("${pct(sb.energy)}", { onChange(st.copy(backgroundScene = sb.copy(energy = step(sb.energy, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(energy = step(sb.energy, 10)))) })
-            }
-            Sep(T.gutter)
-            Cell(L.liveQuiet, L.liveQuietSub, chevron = null) {
-                Stepper("${pct(quiet)}", { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, 10)))) })
-            }
+            Cell(L.studio, L.studioSub, kind = "brush", onClick = {
+                ui.push(L.studio) { StudioSheet(c.platform, sb, { next -> onChange(st.copy(backgroundScene = next)) }) }
+            })
             Sep(T.gutter)
             Cell(L.assistant, L.assistantSub, kind = "media", onClick = {
                 ui.push(L.assistant) { AssistantSheet(c, ui, sb) { next -> onChange(st.copy(backgroundScene = next)) } }
             })
-            // Редактор слоёв: те же операции, что у помощника (SceneEditor). Первая правка копирует готовую сцену в свою.
-            var layersOpen by remember { mutableStateOf(false) }
-            var tuning by remember { mutableStateOf<String?>(null) }
-            Sep(T.gutter)
-            Cell(L.liveLayers, L.liveLayersSub, open = layersOpen, chevron = if (layersOpen) "up" else "chev", onClick = { layersOpen = !layersOpen })
-            if (layersOpen) {
-                val scene = app.deixis.core.ai.SceneEditor.sceneOf(sb)
-                scene?.layers?.forEachIndexed { i, layer ->
-                    fun edit(next: app.deixis.core.SceneBackground?) { if (next != null) onChange(st.copy(backgroundScene = next)) }
-                    Sep(T.gutter)
-                    Cell(layer.name, L.layerType(layer.type), chevron = null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs), verticalAlignment = Alignment.CenterVertically) {
-                            if (i > 0) Pill(L.layerUp, "up") { edit(app.deixis.core.ai.SceneEditor.move(sb, layer.id, -1)) }
-                            if (i < scene.layers.size - 1) Pill(L.layerDown, "down") { edit(app.deixis.core.ai.SceneEditor.move(sb, layer.id, 1)) }
-                            Pill(L.layerCopy) { edit(app.deixis.core.ai.SceneEditor.duplicate(sb, layer.id)) }
-                            if (scene.layers.size > 1) Pill(L.remove) { edit(app.deixis.core.ai.SceneEditor.remove(sb, layer.id)) }
-                            Switch(layer.on, layer.name) { on -> edit(app.deixis.core.ai.SceneEditor.toggle(sb, layer.id, on)) }
-                        }
-                    }
-                    // Все числовые параметры слоя из каталога: шаг — двадцатая часть диапазона (но не меньше шага каталога).
-                    val kind = app.deixis.core.effects.SceneCatalog.layers[layer.type]
-                    Sep(T.gutter)
-                    Cell(L.layerParams, open = tuning == layer.id, chevron = if (tuning == layer.id) "up" else "chev", onClick = { tuning = if (tuning == layer.id) null else layer.id })
-                    if (tuning == layer.id) kind?.params?.filter { it.kind == app.deixis.core.effects.ParamKind.NUM && it.key != "opacity" && it.key != "avoid" }?.forEach { d ->
-                        val cur = if (layer.p[d.key] != null) layer.num(d.key) else d.def
-                        val stepBy = maxOf(d.step, (d.max - d.min) / 20.0)
-                        fun show(v: Double) = if (d.max - d.min > 5) "${Math.round(v)}" else "${Math.round(v * 100) / 100.0}"
-                        Sep(T.gutter)
-                        Cell(L.paramName(d.key, d.label), chevron = null) {
-                            Stepper(show(cur),
-                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, d.key, (cur - stepBy).coerceIn(d.min, d.max))) },
-                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, d.key, (cur + stepBy).coerceIn(d.min, d.max))) })
-                        }
-                    }
-                    // Эффекты слоя: включить, выключить, убрать. Привязки: показать и снять (добавляет помощник).
-                    layer.fx.forEachIndexed { fi, fx ->
-                        Sep(T.gutter)
-                        Cell(L.fxName(fx.type), L.fxLabel, chevron = null) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs), verticalAlignment = Alignment.CenterVertically) {
-                                Pill(L.remove) { edit(app.deixis.core.ai.SceneEditor.fxRemove(sb, layer.id, fi)) }
-                                Switch(!fx.off, L.fxName(fx.type)) { on -> edit(app.deixis.core.ai.SceneEditor.fxOff(sb, layer.id, fi, !on)) }
-                            }
-                        }
-                    }
-                    layer.bind.forEach { (param, b) ->
-                        Sep(T.gutter)
-                        Cell(L.paramName(param, param), if (b.expr.isNotEmpty()) b.expr else "${b.src} × ${b.amt}", chevron = null) {
-                            Pill(L.bindOff) { edit(app.deixis.core.ai.SceneEditor.unbind(sb, layer.id, param)) }
-                        }
-                    }
-                    // Главные ручки слоя: насколько он виден и насколько уступает тексту (остальное — через помощника).
-                    fun pctOf(v: Double) = Math.round(v * 100).toInt()
-                    for ((key, title) in listOf("opacity" to L.layerOpacity, "avoid" to L.layerAvoid)) {
-                        val v = layer.num(key).let { if (key == "opacity" && layer.p[key] == null) 1.0 else it }
-                        Sep(T.gutter)
-                        Cell(title, chevron = null) {
-                            Stepper("${pctOf(v)}",
-                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, key, (v - 0.1).coerceIn(0.0, 1.0))) },
-                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, key, (v + 0.1).coerceIn(0.0, 1.0))) })
-                        }
-                    }
-                }
-            }
         }
         Sep(T.gutter)
         Cell(L.textColor, chevron = null) {

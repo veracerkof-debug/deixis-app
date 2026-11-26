@@ -158,6 +158,10 @@ object T {
     val seekHeight = 28.dp
     val seekTrack = 4.dp
     val seekKnob = 18.dp
+    /** Студия фона: превью внизу шторки, образец формы, число колонок в сетке стилей. */
+    val studioPreviewW = 168.dp
+    val shapeChip = 56.dp
+    const val styleCols = 2
     val btnHero = 64.dp
     val barBtn = 50.dp
     /** Кнопка-значок полосы показа. */

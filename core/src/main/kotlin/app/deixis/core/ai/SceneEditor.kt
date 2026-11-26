@@ -47,6 +47,34 @@ object SceneEditor {
     fun setParam(bg: SceneBackground, layerId: String, key: String, value: Double) =
         edit(bg, listOf(SceneOp("layer.set", obj("id", layerId, "set" to JsonObject(mapOf(key to kotlinx.serialization.json.JsonPrimitive(Math.round(value * 100) / 100.0)))))))
 
+    /** Текст или выбор из списка (форма, шрифт, раскладка…) параметра слоя. */
+    fun setText(bg: SceneBackground, layerId: String, key: String, value: String) =
+        edit(bg, listOf(SceneOp("layer.set", obj("id", layerId, "set" to JsonObject(mapOf(key to kotlinx.serialization.json.JsonPrimitive(value)))))))
+
+    fun rename(bg: SceneBackground, layerId: String, name: String) =
+        edit(bg, listOf(SceneOp("layer.set", obj("id", layerId, "set" to JsonObject(mapOf("name" to kotlinx.serialization.json.JsonPrimitive(name.trim().take(40).ifEmpty { return null })))))))
+
+    /** Новый слой вида [type] с умолчаниями каталога; возвращает оформление и id слоя. */
+    fun addLayer(bg: SceneBackground, type: String): Pair<SceneBackground, String>? {
+        val scene = sceneOf(bg) ?: return null
+        if (!SceneStudio.canAdd(scene, type)) return null
+        val layer = SceneStudio.newLayer(scene, type)
+        val id = (layer["id"] as kotlinx.serialization.json.JsonPrimitive).content
+        return edit(bg, listOf(SceneOp("layer.add", obj("layer" to layer))))?.let { it to id }
+    }
+
+    fun addEffect(bg: SceneBackground, layerId: String, type: String) =
+        edit(bg, listOf(SceneOp("effect.add", obj("layer", layerId, "effect" to SceneStudio.newEffect(type)))))
+
+    fun fxParam(bg: SceneBackground, layerId: String, index: Int, key: String, value: Double) =
+        edit(bg, listOf(SceneOp("effect.set", obj("layer", layerId, "index" to kotlinx.serialization.json.JsonPrimitive(index), "set" to JsonObject(mapOf(key to kotlinx.serialization.json.JsonPrimitive(Math.round(value * 1000) / 1000.0)))))))
+
+    /** Включить у параметра готовое движение ([motion] = null — остановить). */
+    fun motion(bg: SceneBackground, layerId: String, key: String, motion: Motion?, strength: Double): SceneBackground? {
+        val scene = sceneOf(bg) ?: return null
+        return edit(bg, if (motion == null) SceneStudio.stillOps(layerId, key) else SceneStudio.motionOps(scene, layerId, key, motion, strength))
+    }
+
     /** Включить или выключить эффект [index] слоя. */
     fun fxOff(bg: SceneBackground, layerId: String, index: Int, off: Boolean) =
         edit(bg, listOf(SceneOp("effect.set", obj("layer", layerId, "index" to kotlinx.serialization.json.JsonPrimitive(index), "set" to JsonObject(mapOf("off" to kotlinx.serialization.json.JsonPrimitive(off)))))))
