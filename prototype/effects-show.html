@@ -343,6 +343,9 @@ const KN=[
   {k:'tsize',label:'Текст',min:60,max:150,def:100,f:v=>v+'%'},
   {k:'blur',label:'Размытие',min:0,max:16,def:5,f:v=>v===0?'нет':String(v)},
   {k:'crisp',label:'Чёткость',min:0,max:100,def:85,f:v=>v+'%'},
+  {k:'contour',label:'Контур',min:0,max:100,def:80,f:v=>v+'%'},
+  {k:'ring',label:'Кольца',min:30,max:200,def:100,f:v=>v+'%'},
+  {k:'irid',label:'Перелив',min:0,max:100,def:45,f:v=>v+'%'},
   {k:'bright',label:'Яркость',min:50,max:140,def:100,f:v=>v+'%'},
   {k:'sat',label:'Насыщ.',min:0,max:160,def:100,f:v=>v+'%'},
   {k:'hue',label:'Оттенок',min:-90,max:90,def:0,f:v=>(v>0?'+':'')+v+'°'},
@@ -563,7 +566,7 @@ function blurLine(s,d,st,step,n,r){
   }
 }
 const work=document.createElement('canvas'), wctx=work.getContext('2d',{willReadFrequently:true});
-const LAYERS=[{},{},{}], EMB_SRC={}, EMBG={}; let FXG=null;
+const LAYERS=[{},{},{},{}], EMB_SRC={}, EMBG={}, EMBSDF={}; let FXG=null;
 Object.keys(EMB_DEF).forEach(k=>{ EMB_SRC[k]=makeSrc(x=>drawEmblem(x,k,FW/2,FH/2,290)); });
 function grayOf(src,r){
   const n=LW*LH; wctx.drawImage(src,0,0,LW,LH);
@@ -575,10 +578,32 @@ function grayOf(src,r){
   }
   return a;
 }
+function chamfer(a,W,H){
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=y*W+x; let v=a[i];
+    if(x>0&&a[i-1]+1<v) v=a[i-1]+1;
+    if(y>0){ if(a[i-W]+1<v) v=a[i-W]+1; if(x>0&&a[i-W-1]+1.414<v) v=a[i-W-1]+1.414; if(x<W-1&&a[i-W+1]+1.414<v) v=a[i-W+1]+1.414; }
+    a[i]=v;
+  }
+  for(let y=H-1;y>=0;y--) for(let x=W-1;x>=0;x--){
+    const i=y*W+x; let v=a[i];
+    if(x<W-1&&a[i+1]+1<v) v=a[i+1]+1;
+    if(y<H-1){ if(a[i+W]+1<v) v=a[i+W]+1; if(x<W-1&&a[i+W+1]+1.414<v) v=a[i+W+1]+1.414; if(x>0&&a[i+W-1]+1.414<v) v=a[i+W-1]+1.414; }
+    a[i]=v;
+  }
+}
+/* знаковое расстояние до границы силуэта в долях высоты кадра: снаружи больше нуля, внутри меньше */
+function sdfOf(g,W,H){
+  const n=W*H, a=new Float32Array(n), b=new Float32Array(n), r=new Float32Array(n);
+  for(let i=0;i<n;i++){ const inside=g[i]>.55; a[i]=inside?0:1e6; b[i]=inside?1e6:0; }
+  chamfer(a,W,H); chamfer(b,W,H);
+  for(let i=0;i<n;i++) r[i]=(a[i]-b[i])/H;
+  return r;
+}
 function rebuild(){
   const out=$('#out'); out.width=LW; out.height=LH; work.width=LW; work.height=LH; wctx.imageSmoothingQuality='high';
   const mx=(Math.min(LW,LH)>>1)-1, rf=Math.min(Math.round(state.blur*LW/192),mx), re=Math.min(Math.floor((1-state.crisp/100)*5*LW/192),mx);
-  FXG=grayOf(SRC_FX,rf); Object.keys(EMB_SRC).forEach(k=>{ EMBG[k]=grayOf(EMB_SRC[k],re); });
+  FXG=grayOf(SRC_FX,rf); Object.keys(EMB_SRC).forEach(k=>{ EMBG[k]=grayOf(EMB_SRC[k],re); EMBSDF[k]=sdfOf(grayOf(EMB_SRC[k],0),LW,LH); });
   LAYERS.forEach(L=>{ if(!L.cv) L.cv=document.createElement('canvas'); L.cv.width=LW; L.cv.height=LH; L.cx=L.cv.getContext('2d'); L.img=L.cx.createImageData(LW,LH); });
 }
 let T=0,TS=.7;
@@ -604,6 +629,33 @@ function renderLayer(L,g,kind,tint,str,zoom,sx,sc,rot,gain){
       let val=(g[y0*LW+x0]*(1-fx)+g[y0*LW+x1]*fx)*(1-fy)+(g[y1*LW+x0]*(1-fx)+g[y1*LW+x1]*fx)*fy;
       val*=gain; if(val>1)val=1;
       px[o]=tr*val; px[o+1]=tg*val; px[o+2]=tb*val; px[o+3]=255; o+=4;
+    }
+  }
+  L.cx.putImageData(L.img,0,0);
+}
+
+/* Контурный слой: кольца и цвет по расстоянию до границы образа. Карта расстояний считается один раз. */
+function renderContour(L,sdf,cols,o){
+  const px=L.img.data,sw=LW-1,sh=LH-1,n=cols.length,TAU=6.2832; let q=0;
+  for(let y=0;y<LH;y++){
+    const uy=(y+.5)/LH, v=.5+((uy-.5)*o.zoom)/o.sc;
+    for(let x=0;x<LW;x++){
+      const ux=(x+.5)/LW, u=.5+(((ux-.5)*o.zoom)-o.sx)/o.sc;
+      const wu=u+.012*sin(v*9+T*.7), wv=v+.012*cos(u*8-T*.6);
+      let X=wu*sw,Y=wv*sh;
+      if(X<0)X=0;else if(X>sw)X=sw; if(Y<0)Y=0;else if(Y>sh)Y=sh;
+      const x0=X|0,y0=Y|0,x1=x0<sw?x0+1:x0,y1=y0<sh?y0+1:y0,fx=X-x0,fy=Y-y0;
+      const d=(sdf[y0*LW+x0]*(1-fx)+sdf[y0*LW+x1]*fx)*(1-fy)+(sdf[y1*LW+x0]*(1-fx)+sdf[y1*LW+x1]*fx)*fy;
+      const ad=d<0?-d:d, edge=Math.exp(-ad*38);
+      const rip=.5+.5*sin(d*o.ring-T*2.2), fall=Math.exp(-(d>0?d:0)*1.5)*(d<0?.5:1);
+      let val=.5*edge+.95*rip*rip*fall;
+      const ph=d*1.3-T*.07, ix=(((ph%1)+1)%1)*n, i0=ix|0, f=ix-i0, a=cols[i0%n], b=cols[(i0+1)%n];
+      const pr=a[0]+(b[0]-a[0])*f, pg=a[1]+(b[1]-a[1])*f, pb=a[2]+(b[2]-a[2])*f;
+      const rr=(127+128*cos(TAU*ph*1.6))*.75+64, rg=(127+128*cos(TAU*(ph*1.6+.33)))*.75+64, rb=(127+128*cos(TAU*(ph*1.6+.67)))*.75+64;
+      let r=pr+(rr-pr)*o.irid, g=pg+(rg-pg)*o.irid, bl=pb+(rb-pb)*o.irid;
+      const hl=edge*.55; r+=(255-r)*hl; g+=(255-g)*hl; bl+=(255-bl)*hl;
+      const dx=(ux-txc)/.3, dy=(uy-.43)/.22; val*=1-.7*o.read*o.tp*Math.exp(-(dx*dx+dy*dy));
+      px[q]=r*val; px[q+1]=g*val; px[q+2]=bl*val; px[q+3]=255; q+=4;
     }
   }
   L.cx.putImageData(L.img,0,0);
@@ -723,11 +775,17 @@ function render(now){
 
   const ci=Math.floor(T*.05), cf=(T*.05)%1, zoom=1-.04*P, pl=PLACE[effPlace()], sx=emx-.5;
   layersNow=0;
-  const aB=sstep(.4,.7,E)*.5*Bf;
+  const aB=sstep(.4,.7,E)*.5*Bf*(1-.5*state.contour/100*((embCur||embPrev)?1:0));
   if(aB>.02){
     const tint=mix(mix(cols[(ci+2)%cols.length],cols[(ci+3)%cols.length],cf),[255,255,255],.2);
     renderLayer(LAYERS[2],FXG,1,tint,.3+.5*E,zoom,sx,1,m.rot,1.1);
     octx.globalAlpha=Math.min(1,aB); octx.drawImage(LAYERS[2].cv,0,0); layersNow++;
+  }
+  const cname=(embPrev&&embMix<.5)?embPrev:embCur, cfade=embPrev?Math.abs(embMix*2-1):embMix;
+  const aC=sstep(.14,.36,E)*(state.contour/100)*.9*Bf*cfade;
+  if(cname&&aC>.02&&EMBSDF[cname]){
+    renderContour(LAYERS[3],EMBSDF[cname],cols,{zoom,sx,sc:pl.es,ring:state.ring/100*46,irid:state.irid/100,read,tp});
+    octx.globalAlpha=Math.min(1,aC); octx.drawImage(LAYERS[3].cv,0,0); layersNow++;
   }
   const ea=sstep(.08,.26,E)*.95*Bf;
   if((embCur||embPrev)&&ea>.02){
@@ -780,7 +838,7 @@ function loop(now){
   if(now-statT>500){
     const sec=(performance.now()-fpsT)/1000, fpsNow=frames/sec;
     $('#sMs').textContent=fmt(ema,1)+' мс'; $('#sFps').textContent=fmt(fpsNow,0);
-    $('#sE').textContent=fmt(E,2); $('#sL').textContent=layersNow+' из 3';
+    $('#sE').textContent=fmt(E,2); $('#sL').textContent=layersNow+' из 4';
     $('#timeTxt').textContent=mmss(pos)+' / '+mmss(total);
     const bi=bpmInfo(); $('#bpmTxt').textContent=audio.on?'Ритм задаёт бас из аудиофайла. Темп по песне: '+bi.v+' уд/мин':'Темп '+bi.v+' уд/мин · '+bi.src;
     if(!document.hidden) logMeasure(ema,fpsNow,layersNow,E);
