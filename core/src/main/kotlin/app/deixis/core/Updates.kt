@@ -223,8 +223,29 @@ interface ReleaseSource {
  * из файла `release.json` последнего выпуска: это обычная загрузка файла, лимита API у неё нет.
  */
 class GitHubReleases(private val repo: String = REPO) : ReleaseSource {
+    // Условный запрос (If-None-Match): ответ 304 в лимит GitHub (60 в час) не засчитывается — как в Melete.
+    private var etag: String? = null
+    private var cached: List<Release>? = null
+
+    private suspend fun apiReleases(): List<Release> = withContext(Dispatchers.IO) {
+        val c = URL("https://api.github.com/repos/$repo/releases?per_page=30").openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = TIMEOUT_MS; c.readTimeout = TIMEOUT_MS
+            c.setRequestProperty("Accept", "application/vnd.github+json"); c.setRequestProperty("User-Agent", "Deixis")
+            val known = etag
+            val have = cached
+            if (known != null && have != null) c.setRequestProperty("If-None-Match", known)
+            when (val code = c.responseCode) {
+                304 -> have ?: throw java.io.IOException("GitHub: нет сохранённого списка")
+                in 200..299 -> parseReleases(c.inputStream.use { it.readBytes().decodeToString() }).also { etag = c.getHeaderField("ETag"); cached = it }
+                403, 429 -> throw java.io.IOException("GitHub временно ограничил проверки, попробуйте позже")
+                else -> throw java.io.IOException("GitHub ответил $code")
+            }
+        } finally { c.disconnect() }
+    }
+
     override suspend fun releases(): List<Release> = releasesWithFallback(
-        { parseReleases(text("https://api.github.com/repos/$repo/releases?per_page=30")) },
+        { apiReleases() },
         { parseReleases(text("https://github.com/$repo/releases/latest/download/$RELEASE_FILE")) },
     )
 

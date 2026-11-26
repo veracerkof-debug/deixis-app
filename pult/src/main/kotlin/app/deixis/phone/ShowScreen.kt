@@ -102,6 +102,7 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     val holyricsRemote = c.settings.collectAsState().value.workMode == WorkMode.HOLYRICS
     Column(Modifier.fillMaxSize()) {
         TopBar(c, ui)
+        UpdateBar()
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val w = maxWidth
             val tall = maxHeight > 500.dp
@@ -169,7 +170,14 @@ private fun TopBar(c: Controller, ui: Ui) {
         }
         // С меткой профиля места мало: «Подключить» — одним значком, иначе он вытесняет «Настройки» за край.
         Pill(if (outputs.isEmpty() && book.list.size <= 1) L.connect else "", "wifi", tint = true, label = L.connect) { ui.sheet(L.connect) { ConnectSheet(c, ui) } }
-        IconBtn("gear", L.settings) { ui.sheet(L.settings) { SettingsSheet(c) } }
+        // Красная точка: есть новая версия, она скачивается или ждёт установки.
+        val upd by LocalHost.current.updates.state.collectAsState()
+        androidx.compose.foundation.layout.Box {
+            IconBtn("gear", L.settings) { ui.sheet(L.settings) { SettingsSheet(c) } }
+            if (updatePending(upd)) androidx.compose.foundation.layout.Box(
+                Modifier.align(Alignment.TopEnd).padding(top = T.gapS, end = T.gapS).size(T.gap).clip(RoundedCornerShape(T.rPill)).background(P.current.red),
+            )
+        }
     }
 }
 

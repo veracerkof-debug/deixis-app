@@ -663,6 +663,7 @@ object L {
     val setVolunteerOff: String get() = t("Выключить режим волонтёра", "Ko‘ngilli rejimini o‘chirish", "Turn volunteer mode off")
     val setVolunteerOffSub: String get() = t("Сейчас часть настроек скрыта", "Hozir ba’zi sozlamalar yashirin", "Some settings are hidden now")
     val setVolunteerOffNote: String get() = t("Вернутся данные, помощник и подключение", "Ma’lumotlar, yordamchi va ulanish qaytadi", "Data, the assistant and connections come back")
+    val updLater: String get() = t("Потом", "Keyinroq", "Later")
     val back: String get() = t("Назад", "Orqaga", "Back")
     val studioSample: String get() = t("Слава в вышних Богу", "Xudoga ulug‘lik", "Glory to God in the highest")
     val studio: String get() = t("Студия фона", "Fon studiyasi", "Background studio")

@@ -1,5 +1,7 @@
 package app.deixis.phone
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -253,4 +255,31 @@ fun ScreenOutputs(c: Controller, t: Target) {
         }
     }
     Note(L.layoutsNote)
+}
+
+/** Новая версия есть, скачивается или ждёт установки — по нему красная точка на шестерёнке и полоса на главном. */
+fun updatePending(s: UpdateState): Boolean = s.phase in setOf("available", "downloading", "ready", "installing")
+
+/**
+ * Полоса обновления на главном (по образцу Melete): «Доступна версия X — Потом / Скачать и установить», ход скачивания,
+ * «Готово — Установить». «Потом» убирает полосу до следующей версии. Не показывается, если приложение из магазина.
+ */
+@Composable
+fun UpdateBar() {
+    val host = LocalHost.current
+    if (host.updatesFromStore) return
+    val u = host.updates
+    val s by u.state.collectAsState()
+    var skipped by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    if (!updatePending(s) || (s.phase == "available" && skipped == s.available)) return
+    val p = P.current
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().padding(horizontal = T.gutter, vertical = T.gapS)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(T.rBtn)).background(p.tint.copy(alpha = T.devFill)).padding(start = T.gap, end = T.gapS, top = T.gapS, bottom = T.gapS),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(T.gapS),
+    ) {
+        Txt(updateStatus(s), T.fSub, modifier = Modifier.weight(1f), lines = 2)
+        if (s.phase == "available") Pill(L.updLater, label = L.updLater) { skipped = s.available }
+        updateAction(s)?.takeIf { it.second == "install" }?.let { (label, _) -> Pill(label, tint = true, label = label) { u.install() } }
+    }
 }
