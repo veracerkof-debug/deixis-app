@@ -60,7 +60,7 @@ class StudioRenderTest {
     @Test
     fun tappingAMotionBindsTheParameter() {
         var scene: androidx.compose.ui.ImageComposeScene? = null
-        val got = shot("tap", w = 760, h = 1000, tap = androidx.compose.ui.geometry.Offset(200f, 555f)) { bg, on -> StudioSheet(platform, bg, on, open = "move:$shapeId:size") }
+        val got = shot("tap", w = 760, h = 1000, tap = androidx.compose.ui.geometry.Offset(200f, 655f)) { bg, on -> StudioSheet(platform, bg, on, open = "move:$shapeId:size") }
         assertTrue(got > 0, "касание не изменило сцену")
         val b = app.deixis.core.effects.SceneText.sceneFor(last!!)!!.layer(shapeId)!!.bind["size"]
         assertTrue(b?.src == "beat", "ожидался пульс, а привязка: $b")

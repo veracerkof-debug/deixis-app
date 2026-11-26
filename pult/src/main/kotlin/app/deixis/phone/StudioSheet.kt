@@ -138,6 +138,7 @@ private fun PreviewBar(st: StudioState) {
             ParamSlider(L.studioEnergy, "${Math.round(st.bg.energy * 100)}", st.bg.energy, { st.set(st.bg.copy(energy = it)) }, { st.set(st.bg.copy(energy = SceneBackground("x").energy)) })
             val quiet = st.bg.quiet ?: st.scene?.quiet?.toFloat() ?: 0f
             ParamSlider(L.liveQuiet, "${Math.round(quiet * 100)}", quiet, { st.set(st.bg.copy(quiet = it)) }, { st.set(st.bg.copy(quiet = null)) })
+            ParamSlider(L.micReact, if (st.bg.mic <= 0f) L.micOff else "${Math.round(st.bg.mic * 100)}", st.bg.mic, { st.set(st.bg.copy(mic = it)) }, { st.set(st.bg.copy(mic = 0f)) })
         }
     }
 }

@@ -33,7 +33,35 @@ fun SceneLayer(bg: SceneBackground) {
     val metrics = LocalContext.current.resources.displayMetrics
     var tick by remember { mutableLongStateOf(0L) }
     val holder = remember { arrayOfNulls<Bitmap>(1) }
-    LaunchedEffect(bg.key, bg.energy, bg.quiet, bg.energyTo, bg.rampSec) {
+    // Реакция на звук: микрофон нужен только пока она включена; считается лишь громкость, запись не ведётся.
+    val ctx = LocalContext.current
+    val micLevel = remember { doubleArrayOf(0.0) }
+    var hasMic by remember { androidx.compose.runtime.mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
+    val askMic = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { hasMic = it }
+    val micWanted = bg.mic > 0f
+    LaunchedEffect(micWanted, hasMic) {
+        if (!micWanted) { micLevel[0] = 0.0; return@LaunchedEffect }
+        if (!hasMic) { runCatching { askMic.launch(android.Manifest.permission.RECORD_AUDIO) }; return@LaunchedEffect }
+        withContext(Dispatchers.IO) {
+            val rate = 16000
+            val min = android.media.AudioRecord.getMinBufferSize(rate, android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT)
+            val rec = try {
+                android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC, rate, android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT, maxOf(min, rate / 2))
+            } catch (e: Throwable) { return@withContext }
+            val meter = app.deixis.core.effects.MicMeter()
+            val buf = ShortArray(800)
+            try {
+                if (rec.state != android.media.AudioRecord.STATE_INITIALIZED) return@withContext
+                rec.startRecording()
+                while (isActive) {
+                    val n = rec.read(buf, 0, buf.size)
+                    if (n > 0) micLevel[0] = meter.feed(buf, n, n / rate.toDouble())
+                }
+            } catch (e: Throwable) { /* нет микрофона — фон работает как обычно */ }
+            finally { runCatching { rec.stop(); rec.release() }; micLevel[0] = 0.0 }
+        }
+    }
+    LaunchedEffect(bg.key, bg.energy, bg.quiet, bg.energyTo, bg.rampSec, bg.mic) {
         val scene = SceneText.sceneFor(bg) ?: return@LaunchedEffect
         val governor = QualityGovernor()
         var renderer: SceneRenderer? = null
@@ -66,7 +94,7 @@ fun SceneLayer(bg: SceneBackground) {
                     }
                     val r = renderer ?: break
                     r.quiet = bg.quiet?.toDouble() ?: scene.quiet
-                    r.advance((t0 - last) / 1e9, bg.energyAt((t0 - rampStart) / 1e9).coerceIn(0.0, 1.0))
+                    r.advance((t0 - last) / 1e9, bg.energyWithMic((t0 - rampStart) / 1e9, if (bg.mic > 0f) micLevel[0] else 0.0), energyTauSec = if (bg.mic > 0f) 0.25 else 1.2)
                     last = t0
                     r.render(pixels, null)
                     val bmp = holder[0]

@@ -47,6 +47,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     private var statNs = 0L
     private var calibration = 1.0
     private var failedOnce = false
+    private val mic = DesktopMic()
 
     /** Текущий уровень качества (для диагностики и проверок). */
     @Volatile var tierName: String = governor.tier.name
@@ -76,6 +77,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     fun stop() {
         task?.cancel(false); task = null
         cfg = null
+        mic.stop()
     }
 
     @Synchronized
@@ -96,7 +98,11 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
             val dt = (t0 - lastNs) / 1e9
             lastNs = t0
             r.quiet = c.quiet ?: r.scene.quiet
-            r.advance(dt, c.bg.energyAt((t0 - rampStart) / 1e9).coerceIn(0.0, 1.0))
+            // Реакция на звук: микрофон включается только пока она нужна слайду; энергия реагирует быстрее обычного.
+            val micOn = c.bg.mic > 0f
+            if (micOn) mic.start() else mic.stop()
+            val target = if (micOn) c.bg.energyWithMic((t0 - rampStart) / 1e9, mic.level) else c.bg.energyAt((t0 - rampStart) / 1e9).coerceIn(0.0, 1.0)
+            r.advance(dt, target, energyTauSec = if (micOn) 0.25 else 1.2)
             r.render(pixels, c.text)
             val img = buffers[next] ?: return
             System.arraycopy(pixels, 0, (img.raster.dataBuffer as DataBufferInt).data, 0, pixels.size)

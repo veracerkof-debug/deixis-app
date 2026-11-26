@@ -673,6 +673,8 @@ object L {
     val tuneBgOff: String get() = t("Убрать живой фон", "Jonli fonni olib tashlash", "Remove the live background")
     val tuneBgOn: String get() = t("Добавить живой фон", "Jonli fon qo‘shish", "Add a live background")
     val tuneBgOnSub: String get() = t("Начать с «Тихий вечер», дальше — в студии", "«Sokin oqshom»dan boshlash, keyin studiyada", "Start with Quiet evening, then refine in the studio")
+    val micReact: String get() = t("Реакция на звук", "Tovushga javob", "Sound reaction")
+    val micOff: String get() = t("выкл.", "o‘chiq", "off")
     val back: String get() = t("Назад", "Orqaga", "Back")
     val studioSample: String get() = t("Слава в вышних Богу", "Xudoga ulug‘lik", "Glory to God in the highest")
     val studio: String get() = t("Студия фона", "Fon studiyasi", "Background studio")

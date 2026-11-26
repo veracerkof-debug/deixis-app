@@ -225,9 +225,15 @@ data class SceneBackground(
     val look: String, val energy: Float = 0.6f, val quiet: Float? = null, val scene: String? = null,
     /** Плавная кривая части песни: за [rampSec] секунд после показа слайда энергия идёт от [energy] к [energyTo]. */
     val energyTo: Float? = null, val rampSec: Float = 0f,
+    /** Реакция на звук в зале: 0 — выключена, иначе во сколько раз уровень микрофона прибавляется к энергии фона (0…1). */
+    val mic: Float = 0f,
 ) {
     /** Ключ сцены: меняется, когда сменилась готовая сцена или правка своей, — по нему экран решает, что перестроить. */
     val key: String get() = if (scene == null) look else "$look#${scene.hashCode()}"
+
+    /** Энергия с учётом звука в зале: к энергии части прибавляется уровень микрофона [level] (0…1), умноженный на [mic]. */
+    fun energyWithMic(elapsedSec: Double, level: Double): Double =
+        (energyAt(elapsedSec) + mic * level.coerceIn(0.0, 1.0)).coerceIn(0.0, 1.0)
 
     /** Энергия через [elapsedSec] секунд после показа слайда: без кривой — постоянная [energy]. */
     fun energyAt(elapsedSec: Double): Double {

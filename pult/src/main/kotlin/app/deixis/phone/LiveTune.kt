@@ -67,6 +67,7 @@ fun LiveTuneSheet(c: Controller, ui: Ui) {
         Group {
             Column2 {
                 ParamSlider(L.studioEnergy, "${Math.round(sb.energy * 100)}", sb.energy, { c.tuneSet(st.copy(backgroundScene = sb.copy(energy = it, energyTo = null, rampSec = 0f))) }, { c.tuneSet(st.copy(backgroundScene = sb.copy(energy = SceneBackground("x").energy, energyTo = null, rampSec = 0f))) })
+                ParamSlider(L.micReact, if (sb.mic <= 0f) L.micOff else "${Math.round(sb.mic * 100)}", sb.mic, { c.tuneSet(st.copy(backgroundScene = sb.copy(mic = it))) }, { c.tuneSet(st.copy(backgroundScene = sb.copy(mic = 0f))) })
                 ParamSlider(L.liveQuiet, "${Math.round(quiet * 100)}", quiet, { c.tuneSet(st.copy(backgroundScene = sb.copy(quiet = it))) }, { c.tuneSet(st.copy(backgroundScene = sb.copy(quiet = null))) })
             }
             Sep(T.gutter)
