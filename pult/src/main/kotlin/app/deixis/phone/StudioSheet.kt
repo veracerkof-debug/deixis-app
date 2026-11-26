@@ -381,6 +381,18 @@ private fun MovePage(st: StudioState, layerId: String, key: String) {
             Cell(L.motionName(m), L.motionNote(m), chevron = if (cur == m) "check" else null, onClick = { st.set(SceneEditor.motion(st.bg, layerId, key, m, strength), step = true) })
         }
     }
+    // Для опытных: своя формула (переменные t, energy, beat, pi, base…). Проверяется тем же кодом, что файл сцены.
+    var formula by remember(layerId, key) { mutableStateOf(layer.bind[key]?.expr.orEmpty()) }
+    var formulaError by remember(layerId, key) { mutableStateOf(false) }
+    GHead(L.motionFormula)
+    Field(formula, L.motionFormulaHint) { formula = it; formulaError = false }
+    Row(Modifier.padding(top = T.gapS), horizontalArrangement = Arrangement.spacedBy(T.gapS)) {
+        Btn(L.motionFormulaApply, Modifier.weight(1f), enabled = formula.isNotBlank()) {
+            val next = SceneEditor.bindExpr(st.bg, layerId, key, formula)
+            if (next == null) formulaError = true else { formulaError = false; st.set(next, step = true) }
+        }
+    }
+    if (formulaError) Note(L.motionFormulaBad, Modifier.padding(top = T.gapS)) else Note(L.motionFormulaNote, Modifier.padding(top = T.gapS))
     if (custom != null) Note(L.motionCustom(if (custom.expr.isNotEmpty()) custom.expr else custom.src), Modifier.padding(top = T.gapS))
     if (cur != null) {
         Column(Modifier.padding(top = T.gap)) {

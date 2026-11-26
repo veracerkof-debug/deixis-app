@@ -75,6 +75,10 @@ object SceneEditor {
         return edit(bg, if (motion == null) SceneStudio.stillOps(layerId, key) else SceneStudio.motionOps(scene, layerId, key, motion, strength))
     }
 
+    /** Привязка параметра формулой (`0.5+0.5*sin(t*pi)*energy`); null — формула не прошла проверку (потолки, неизвестные имена). */
+    fun bindExpr(bg: SceneBackground, layerId: String, key: String, expr: String) =
+        edit(bg, listOf(SceneOp("layer.bind", obj("layer", layerId, "param", key, "expr", expr.trim()))))
+
     /** Включить или выключить эффект [index] слоя. */
     fun fxOff(bg: SceneBackground, layerId: String, index: Int, off: Boolean) =
         edit(bg, listOf(SceneOp("effect.set", obj("layer", layerId, "index" to kotlinx.serialization.json.JsonPrimitive(index), "set" to JsonObject(mapOf("off" to kotlinx.serialization.json.JsonPrimitive(off)))))))

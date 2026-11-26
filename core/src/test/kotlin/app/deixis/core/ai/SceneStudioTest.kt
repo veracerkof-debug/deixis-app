@@ -123,4 +123,14 @@ class SceneEditorStudioTest {
         assertEquals("dove", app.deixis.core.effects.SceneText.sceneFor(b6)!!.layer(shape.id)!!.str("kind"))
         assertNull(SceneEditor.addLayer(app.deixis.core.SceneBackground("mine", scene = app.deixis.core.DeixisJson.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), SceneOps.toTree(SceneStudio.blank()))), "contour"), "без образа контур не добавить")
     }
+
+    @Test
+    fun formulasAreAcceptedOrRefusedByTheSameValidator() {
+        val shape = app.deixis.core.effects.SceneText.sceneFor(bg)!!.layers.first { it.type == "shape" }
+        val ok = SceneEditor.bindExpr(bg, shape.id, "size", "0.5 + 0.5 * sin(t * pi) * energy")
+        assertTrue(ok != null, "верная формула отвергнута")
+        assertEquals("0.5 + 0.5 * sin(t * pi) * energy", app.deixis.core.effects.SceneText.sceneFor(ok!!)!!.layer(shape.id)!!.bind["size"]!!.expr)
+        assertNull(SceneEditor.bindExpr(bg, shape.id, "size", "evil(1)"))
+        assertNull(SceneEditor.bindExpr(bg, shape.id, "size", "1 +"))
+    }
 }
