@@ -103,6 +103,7 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
     Column(Modifier.fillMaxSize()) {
         TopBar(c, ui)
         UpdateBar()
+        TuneBar(c, ui)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val w = maxWidth
             val tall = maxHeight > 500.dp
@@ -618,7 +619,7 @@ fun ControlBar(c: Controller, ui: Ui) {
                     BarBtn("layers", L.layers, !layers.isEmpty) { ui.sheet(L.overlayTitle) { OverlaySheet(c, ui) } }
                     BarBtn("prev", L.prev) { c.step(-1) }
                     BarBtn("next", L.next) { c.step(1) }
-                    BarBtn("brush", L.look) { openStyle(c, ui) }
+                    BarBtn("brush", L.look) { if (c.live.value != null) openTune(c, ui) else openStyle(c, ui) }
                     // Уйти с экранов: окна Deixis прячутся, на экранах то, что было до него; ещё раз — вернуться.
                     BarBtn("away", L.awayLong, mode == Mode.AWAY) {
                         val back = mode == Mode.AWAY

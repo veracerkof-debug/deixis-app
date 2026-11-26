@@ -949,6 +949,8 @@ class Controller(val platform: Platform) {
     /** Оформление слайда: слайд → элемент → сетлист → всегда; правка видна только предпросмотру. */
     fun styleFor(cue: Cue?, withDraft: Boolean = false): TextStyle {
         if (withDraft) draft.value?.let { return it }
+        // Правка на ходу: пока она идёт, оформление в зале — правимое, для текущего и следующих слайдов.
+        if (cue != null) tune.value?.let { t -> return if (settings.value.caps) t.copy(caps = true) else t }
         val d = data.value
         val id = cue?.source?.itemId
         val base = (id?.let { d.styles["slide:$it:${cue?.index}"] ?: d.styles["item:$it"] ?: if (d.items.none { i -> i.id == it }) carriedStyles[it] else null })
@@ -980,13 +982,27 @@ class Controller(val platform: Platform) {
         live.value?.let(::deliver)
     }
 
+    /**
+     * Правка темы на ходу: оформление правится прямо во время показа, и каждое изменение сразу уходит в зал.
+     * Это явный режим (полоса «Тема правится в зале»): [tuneKeep] сохраняет, [tuneRevert] возвращает как было.
+     */
+    val tune = MutableStateFlow<TextStyle?>(null)
+    fun tuneStart() { if (tune.value == null) tune.value = styleFor(live.value) }
+    fun tuneSet(st: TextStyle) { tune.value = st; live.value?.let(::deliver) }
+    fun tuneRevert() { tune.value = null; live.value?.let(::deliver) }
+    fun tuneKeep(to: StyleScope) {
+        val st = tune.value ?: return
+        tune.value = null
+        draft.value = st
+        applyDraft(to, cue = live.value)
+    }
+
     fun startDraft() { draft.value = draft.value ?: styleFor(preview.value ?: live.value) }
     fun cancelDraft() { draft.value = null }
 
     /** Сохраняет правку оформления и показывает её в зале. */
-    fun applyDraft(to: StyleScope, deliverLive: Boolean = true) {
+    fun applyDraft(to: StyleScope, deliverLive: Boolean = true, cue: Cue? = preview.value ?: live.value) {
         val st = draft.value ?: return
-        val cue = preview.value ?: live.value
         val id = cue?.source?.itemId
         val key = when (to) {
             StyleScope.SLIDE -> id?.let { "slide:$it:${cue?.index}" }
