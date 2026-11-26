@@ -1,0 +1,620 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<title>Живые фоны Deixis</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Раскладка: сцена с ручками поверх картинки слева, панель справа; на телефоне друг под другом.
+   Токены — из prototype/index.html (светлая и тёмная темы Deixis). */
+:root{
+  --bg:#F3F2EE; --cell:#FFFFFF; --ink:#161514; --mut:#6C6963; --l3:#C6C3BC;
+  --tint:#9C7242; --tint-text:#765A38; --red:#A75750; --ok:#4F7A57;
+  --sep:rgba(60,55,45,.15); --fill:rgba(120,115,105,.12); --fill2:rgba(120,115,105,.2);
+  --t-fast:140ms; --t-mid:240ms; --e-out:cubic-bezier(.2,.8,.2,1);
+  --r-card:12px; --r-btn:10px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mark:"GFS Didot","Gentium Book Plus",Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000000; --cell:#1C1C1E; --ink:#FFFFFF; --mut:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --ok:#7FAE88;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000000; --cell:#1C1C1E; --ink:#FFFFFF; --mut:#8D8D93; --l3:#48484A;
+  --tint:#BC9361; --tint-text:#BC9361; --red:#B96E65; --ok:#7FAE88;
+  --sep:rgba(84,84,88,.55); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.36);
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+.mark{font-family:var(--mark);letter-spacing:.18em;font-size:20px;font-weight:400}
+header p{margin:0;color:var(--mut)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+.left{display:flex;flex-direction:column;gap:12px;min-width:0}
+
+/* сцена */
+.view{position:relative;background:#000;border-radius:var(--r-card);overflow:hidden;max-width:100%}
+.view:fullscreen{display:flex;flex-direction:column;justify-content:center;border-radius:0}
+.stage{aspect-ratio:16/9;width:100%}
+.stage canvas{width:100%;height:100%;display:block;object-fit:contain}
+.view.drag{outline:2px dashed var(--tint);outline-offset:-6px}
+.bar{position:absolute;top:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.bar button{background:rgba(0,0,0,.45);color:#fff;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);border-radius:var(--r-btn);padding:6px 12px;font:inherit;cursor:pointer;transition:background var(--t-fast)}
+.bar button:hover{background:rgba(0,0,0,.65)}
+button:focus-visible,label.btn:focus-within,input:focus-visible,textarea:focus-visible,.kn:focus-visible{outline:2px solid var(--tint);outline-offset:2px}
+
+/* ручки поверх картинки */
+.knobs{position:absolute;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;justify-content:center;gap:2px 4px;
+  padding:22px 10px 8px;background:linear-gradient(to top,rgba(0,0,0,.72),rgba(0,0,0,0));color:#fff}
+@media (max-width:700px){.knobs{position:static;background:#0c0c0e;padding:10px 6px}}
+.kn{display:flex;flex-direction:column;align-items:center;width:58px;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;padding:2px 0}
+.kn svg{display:block}
+.kn .kl{font-size:10px;line-height:1.1;color:rgba(255,255,255,.72);margin-top:1px;text-align:center;white-space:nowrap}
+.kn .kv{font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums;color:#fff}
+.kn .tr{stroke:rgba(255,255,255,.22)}
+.kn .va{stroke:#D9B07A}
+.kn .dot{fill:#fff}
+.kn:hover .kl{color:#fff}
+.kn.drag .kv{color:#D9B07A}
+.kreset{align-self:center;background:transparent;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.85);border-radius:var(--r-btn);
+  font:inherit;font-size:11px;padding:3px 8px;cursor:pointer;margin-left:4px}
+.kreset:hover{background:rgba(255,255,255,.12)}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--cell);border-radius:var(--r-card);padding:10px 12px;min-width:0}
+.stat small{display:block;color:var(--mut);font-size:12px}
+.stat b{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.budget{background:var(--cell);border-radius:var(--r-card);padding:12px;display:flex;flex-direction:column;gap:8px}
+.budget .row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--mut);font-size:12px}
+.track{height:8px;border-radius:4px;background:var(--fill);overflow:hidden}
+.fillbar{height:100%;width:0;background:var(--ok);border-radius:4px;transition:width var(--t-mid) var(--e-out),background var(--t-mid)}
+.fillbar.warn{background:var(--red)}
+.note{color:var(--mut);font-size:13px;margin:0}
+.note b{color:var(--ink);font-weight:600}
+.panel{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--cell);border-radius:var(--r-card);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.src{display:flex;gap:12px;align-items:center}
+.src canvas{width:112px;height:63px;border-radius:8px;background:#000;flex:none}
+.src p{margin:0;color:var(--mut);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip,label.btn{background:var(--fill);color:var(--ink);border:0;border-radius:var(--r-btn);padding:7px 12px;font:inherit;cursor:pointer;
+  transition:background var(--t-fast);display:inline-block}
+.chip:hover,label.btn:hover{background:var(--fill2)}
+.chip[aria-pressed="true"]{background:var(--tint);color:#fff}
+label.btn input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.opts{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:0;text-align:left;background:transparent;color:var(--ink);border:1px solid var(--sep);
+  border-radius:var(--r-btn);padding:8px 12px;font:inherit;cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast)}
+.opt span{color:var(--mut);font-size:12px}
+.opt:hover{background:var(--fill)}
+.opt[aria-pressed="true"]{border-color:var(--tint);background:var(--fill)}
+.opt[aria-pressed="true"] strong{color:var(--tint-text)}
+.env{height:4px;border-radius:2px;background:var(--fill);overflow:hidden}
+.env i{display:block;height:100%;width:0;background:var(--tint)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.seg .chip{padding:7px 4px;text-align:center;font-variant-numeric:tabular-nums}
+.seg2{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+.hint{color:var(--mut);font-size:12px;margin:0}
+textarea{width:100%;min-height:64px;resize:vertical;background:var(--fill);color:var(--ink);border:1px solid var(--sep);border-radius:var(--r-btn);padding:8px 10px;font:inherit}
+.dot2{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--l3);margin-right:6px}
+.dot2.on{background:var(--ok)}.dot2.err{background:var(--red)}
+.evl{margin:0;padding:0;list-style:none;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:2px}
+.evl li{overflow-wrap:anywhere}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=GFS+Didot&display=swap" rel="stylesheet">
+
+<div class="wrap">
+  <header>
+    <span class="mark">DEIXIS</span>
+    <p>Живые фоны · прототип. Всё считается здесь, на странице, без видео.</p>
+  </header>
+
+  <div class="app">
+    <div class="left">
+      <div class="view" id="view">
+        <div class="stage"><canvas id="out" aria-label="Живой фон"></canvas></div>
+        <div class="bar">
+          <button id="kToggle" type="button" aria-pressed="true">Ручки</button>
+          <button id="pause" type="button">Пауза</button>
+          <button id="full" type="button">На весь экран</button>
+        </div>
+        <div class="knobs" id="knobs" aria-label="Настройки эффекта"></div>
+      </div>
+      <p class="hint">Ручки: тянуть вверх-вправо или вниз-влево, колесо мыши или стрелки. Двойной щелчок возвращает значение. Shift — точнее.</p>
+
+      <div class="stats" aria-live="off">
+        <div class="stat"><small>Расчёт кадра</small><b id="sMs">—</b></div>
+        <div class="stat"><small>Кадров в секунду</small><b id="sFps">—</b></div>
+        <div class="stat"><small>Точек в кадре</small><b id="sPx">—</b></div>
+        <div class="stat"><small>Против 1920×1080</small><b id="sRatio">—</b></div>
+      </div>
+
+      <div class="budget">
+        <div class="row"><span>Загрузка процессора на кадр</span><span id="bTxt">—</span></div>
+        <div class="track"><div class="fillbar" id="bBar"></div></div>
+        <div class="env" aria-hidden="true"><i id="envBar"></i></div>
+        <p class="note" id="resNote"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <section class="card">
+        <h2>Картинка</h2>
+        <div class="src">
+          <canvas id="thumb" width="224" height="126" aria-label="Исходная картинка"></canvas>
+          <p>Любое изображение: перетащить на сцену или выбрать файл.</p>
+        </div>
+        <div class="chips">
+          <button class="chip" type="button" data-sample="cross" aria-pressed="true">Крест</button>
+          <button class="chip" type="button" data-sample="glass" aria-pressed="false">Витраж</button>
+          <button class="chip" type="button" data-sample="sunset" aria-pressed="false">Закат</button>
+          <label class="btn">Свой файл<input id="file" type="file" accept="image/*"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Эффект</h2>
+        <div class="opts" id="presets"></div>
+      </section>
+
+      <section class="card">
+        <h2>Разрешение расчёта</h2>
+        <div class="seg" id="res"></div>
+        <h2 style="margin-top:4px">Частота кадров</h2>
+        <div class="seg2" id="fps"></div>
+      </section>
+
+      <section class="card">
+        <h2>Музыка</h2>
+        <div class="chips">
+          <label class="btn">Аудиофайл<input id="audio" type="file" accept="audio/*"></label>
+          <button class="chip" id="stopAudio" type="button" hidden>Остановить</button>
+        </div>
+        <p class="hint" id="audioNote">Без музыки пульс идёт по темпу. С музыкой его задаёт низкий звук (бас).</p>
+      </section>
+
+      <section class="card">
+        <h2>Журнал и заметки</h2>
+        <p class="hint"><span class="dot2" id="lDot"></span><span id="lStat">Журнал запускается…</span></p>
+        <p class="hint">Журнал сохраняет устройство, настройки, события и замеры скорости, чтобы разобрать их потом. Заметка сохраняется вместе с текущими настройками.</p>
+        <textarea id="noteTxt" maxlength="1500" placeholder="Что видно, что тормозит, что нравится или нет"></textarea>
+        <div class="chips"><button class="chip" id="noteBtn" type="button">Сохранить заметку</button></div>
+        <ul class="evl" id="evl"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const fmt=(n,d=1)=>n.toLocaleString('ru-RU',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+/* ---------- ручки: описание ---------- */
+const KN=[
+  {k:'str',label:'Сила',min:0,max:100,def:70,f:v=>v+'%'},
+  {k:'speed',label:'Скорость',min:0,max:200,def:60,f:v=>v+'%'},
+  {k:'scale',label:'Волны',min:30,max:250,def:100,f:v=>v+'%'},
+  {k:'blur',label:'Размытие',min:0,max:20,def:6,f:v=>v===0?'нет':String(v)},
+  {k:'hue',label:'Оттенок',min:0,max:360,def:0,f:v=>v+'°'},
+  {k:'sat',label:'Насыщ.',min:0,max:200,def:100,f:v=>v+'%'},
+  {k:'bright',label:'Яркость',min:40,max:160,def:100,f:v=>v+'%'},
+  {k:'pulse',label:'Пульс',min:0,max:100,def:40,f:v=>v+'%'},
+  {k:'bpm',label:'Темп',min:0,max:160,def:72,f:v=>v===0?'выкл':String(v)}
+];
+const state={preset:'oil',fps:30,res:160,paused:false};
+KN.forEach(o=>state[o.k]=o.def);
+let W=160,H=90,sw=159,sh=89,bl=null,imgData=null,dirty=true,needs=true;
+try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches) state.paused=true; }catch(e){}
+
+/* ---------- журнал в хранилище страницы ---------- */
+const LOG={id:'s_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),t0:Date.now(),
+  events:[],measures:{},dirty:false,busy:false,doc:null,notes:null,err:false,env:null,key:'',skip:0};
+function envInfo(){
+  let gpu='';
+  try{ const c=document.createElement('canvas'), gl=c.getContext('webgl'), e=gl&&gl.getExtension('WEBGL_debug_renderer_info');
+    gpu=e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):(gl?'webgl без имени':'нет webgl'); }catch(e){ gpu='ошибка'; }
+  return {ua:navigator.userAgent,screen:screen.width+'x'+screen.height,dpr:window.devicePixelRatio||1,
+    cores:navigator.hardwareConcurrency||0,mem:navigator.deviceMemory||0,gpu:String(gpu),
+    win:innerWidth+'x'+innerHeight,lang:navigator.language||''};
+}
+function setLStat(txt,cls){ $('#lStat').textContent=txt; $('#lDot').className='dot2 '+(cls||''); }
+function logEvent(k,v){
+  LOG.events.push({t:+((Date.now()-LOG.t0)/1000).toFixed(1),k,v:String(v)});
+  if(LOG.events.length>300) LOG.events.shift();
+  LOG.dirty=true; renderEvents();
+}
+function renderEvents(){
+  const ul=$('#evl'); ul.textContent='';
+  LOG.events.slice(-5).reverse().forEach(e=>{ const li=document.createElement('li'); li.textContent=e.t+' с · '+e.k+': '+e.v; ul.appendChild(li); });
+}
+function logMeasure(ms,fps){
+  const key=state.preset+'|'+W+'x'+H+'|'+state.fps+'к/с'+(audio.on?'|музыка':'');
+  if(key!==LOG.key){ LOG.key=key; LOG.skip=3; return; }
+  if(LOG.skip>0){ LOG.skip--; return; }
+  const m=LOG.measures[key]||(LOG.measures[key]={n:0,ms:0,max:0,fps:0});
+  m.ms=+((m.ms*m.n+ms)/(m.n+1)).toFixed(2); m.fps=+((m.fps*m.n+fps)/(m.n+1)).toFixed(1);
+  m.max=+Math.max(m.max,ms).toFixed(2); m.n++; LOG.dirty=true;
+}
+async function flushLog(){
+  if(!LOG.doc||LOG.busy||!LOG.dirty) return;
+  LOG.busy=true; LOG.dirty=false;
+  try{
+    await LOG.doc.set({id:LOG.id,started:new Date(LOG.t0).toISOString(),updated:new Date().toISOString(),
+      env:LOG.env,state:Object.assign({},state),events:LOG.events,measures:LOG.measures});
+    LOG.err=false; setLStat('Журнал пишется · сессия '+LOG.id+' · событий '+LOG.events.length,'on');
+  }catch(e){ LOG.err=true; LOG.dirty=true; setLStat('Журнал не записался ('+(e&&e.code||'ошибка')+')','err'); }
+  LOG.busy=false;
+}
+async function logInit(){
+  LOG.env=envInfo();
+  try{
+    const db=window.claude&&await window.claude.use('db');
+    if(!db){ setLStat('Журнал недоступен: нет доступа к хранилищу страницы'); return; }
+    LOG.doc=db.collection('log').doc(LOG.id); LOG.notes=db.collection('notes');
+    logEvent('старт',LOG.env.win+' · '+LOG.env.gpu);
+    setInterval(flushLog,5000);
+    document.addEventListener('visibilitychange',()=>{ if(document.hidden) flushLog(); });
+    flushLog();
+  }catch(e){ setLStat('Журнал недоступен'); }
+}
+$('#noteBtn').onclick=async()=>{
+  const txt=$('#noteTxt').value.trim(); if(!txt) return;
+  if(!LOG.notes){ setLStat('Заметку некуда сохранить: нет доступа к хранилищу','err'); return; }
+  try{
+    await LOG.notes.add({session:LOG.id,at:new Date().toISOString(),text:txt,preset:state.preset,
+      res:W+'x'+H,state:Object.assign({},state),ms:+ema.toFixed(2)});
+    logEvent('заметка',txt.slice(0,80)); $('#noteTxt').value=''; flushLog();
+    setLStat('Заметка сохранена','on');
+  }catch(e){ setLStat('Заметка не сохранилась ('+(e&&e.code||'ошибка')+')','err'); }
+};
+const pending={};
+function logKnob(o){
+  clearTimeout(pending[o.k]);
+  pending[o.k]=setTimeout(()=>logEvent('ручка',o.label+' = '+o.f(state[o.k])),700);
+}
+
+/* ---------- исходная картинка ---------- */
+const FW=1280,FH=720;
+const srcFull=document.createElement('canvas'); srcFull.width=FW; srcFull.height=FH;
+const sctx=srcFull.getContext('2d');
+const thumb=$('#thumb'), tctx=thumb.getContext('2d');
+const work=document.createElement('canvas'), wctx=work.getContext('2d',{willReadFrequently:true});
+
+function rng(seed){return ()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
+const SAMPLES={
+  cross(){
+    const g=sctx.createLinearGradient(0,0,FW,FH); g.addColorStop(0,'#0a1330'); g.addColorStop(1,'#2a0f3a');
+    sctx.fillStyle=g; sctx.fillRect(0,0,FW,FH);
+    sctx.shadowColor='rgba(255,255,255,.9)'; sctx.shadowBlur=40; sctx.fillStyle='#fff';
+    sctx.fillRect(FW/2-36,100,72,520); sctx.fillRect(FW/2-170,230,340,72);
+    sctx.shadowBlur=0;
+  },
+  glass(){
+    sctx.fillStyle='#14101c'; sctx.fillRect(0,0,FW,FH);
+    const r=rng(7), pal=['#e8b04a','#c2372f','#2f6fb5','#2e9a73','#7a3fa0','#f2e6c9'];
+    for(let i=0;i<28;i++){
+      sctx.globalAlpha=.88; sctx.fillStyle=pal[(r()*pal.length)|0];
+      sctx.beginPath(); sctx.arc(r()*FW,r()*FH,60+r()*150,0,Math.PI*2); sctx.fill();
+    }
+    sctx.globalAlpha=1;
+  },
+  sunset(){
+    const g=sctx.createLinearGradient(0,0,0,FH);
+    g.addColorStop(0,'#1b1740'); g.addColorStop(.45,'#7b2d5e'); g.addColorStop(.72,'#e8743b'); g.addColorStop(1,'#f6c667');
+    sctx.fillStyle=g; sctx.fillRect(0,0,FW,FH);
+    sctx.fillStyle='#fff1c4'; sctx.beginPath(); sctx.arc(FW*.62,430,120,0,Math.PI*2); sctx.fill();
+    sctx.fillStyle='#120d1f'; sctx.beginPath(); sctx.moveTo(0,720); sctx.lineTo(0,520);
+    [[160,440],[300,540],[470,380],[640,560],[820,470],[1000,590],[1140,430],[1280,520]].forEach(p=>sctx.lineTo(p[0],p[1]));
+    sctx.lineTo(1280,720); sctx.closePath(); sctx.fill();
+  }
+};
+const SAMPLE_NAMES={cross:'крест',glass:'витраж',sunset:'закат'};
+function useSample(name,quiet){
+  sctx.globalAlpha=1; sctx.shadowBlur=0; SAMPLES[name](); afterSource();
+  document.querySelectorAll('[data-sample]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sample===name)));
+  if(!quiet) logEvent('картинка',SAMPLE_NAMES[name]);
+}
+function afterSource(){
+  tctx.imageSmoothingQuality='high'; tctx.drawImage(srcFull,0,0,thumb.width,thumb.height);
+  dirty=true; needs=true;
+}
+async function loadFile(f){
+  if(!f||!f.type.startsWith('image/')) return;
+  try{
+    const bmp=await createImageBitmap(f);
+    const s=Math.max(FW/bmp.width,FH/bmp.height), dw=bmp.width*s, dh=bmp.height*s;
+    sctx.globalAlpha=1; sctx.shadowBlur=0; sctx.fillStyle='#000'; sctx.fillRect(0,0,FW,FH);
+    sctx.drawImage(bmp,(FW-dw)/2,(FH-dh)/2,dw,dh);
+    const info='свой файл '+bmp.width+'×'+bmp.height+', '+Math.round(f.size/1024)+' КБ';
+    if(bmp.close) bmp.close();
+    document.querySelectorAll('[data-sample]').forEach(b=>b.setAttribute('aria-pressed','false'));
+    afterSource(); logEvent('картинка',info);
+  }catch(e){ $('#resNote').textContent='Не удалось открыть файл как картинку.'; logEvent('ошибка','файл не открылся как картинка'); }
+}
+
+/* ---------- размытие исходника (скользящая сумма, O(n)) ---------- */
+function blurLine(s,d,st,step,n,r){
+  const k=1/(2*r+1); let acc=0;
+  for(let i=-r;i<=r;i++){ const j=i<0?0:(i>=n?n-1:i); acc+=s[st+j*step]; }
+  for(let x=0;x<n;x++){
+    d[st+x*step]=acc*k;
+    const a=x+r+1,b=x-r;
+    acc+=s[st+(a>=n?n-1:a)*step]-s[st+(b<0?0:b)*step];
+  }
+}
+function rebuild(){
+  const o=$('#out'); o.width=W; o.height=H; sw=W-1; sh=H-1;
+  work.width=W; work.height=H; wctx.imageSmoothingQuality='high'; wctx.drawImage(srcFull,0,0,W,H);
+  const d=wctx.getImageData(0,0,W,H).data, n=W*H;
+  let a=new Float32Array(n*3), b=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ a[i*3]=d[i*4]; a[i*3+1]=d[i*4+1]; a[i*3+2]=d[i*4+2]; }
+  const r=Math.min(Math.round(state.blur*W/160),(Math.min(W,H)>>1)-1);
+  if(r>0){
+    for(let p=0;p<3;p++){
+      for(let y=0;y<H;y++) for(let c=0;c<3;c++) blurLine(a,b,y*W*3+c,3,W,r);
+      for(let x=0;x<W;x++) for(let c=0;c<3;c++) blurLine(b,a,x*3+c,W*3,H,r);
+    }
+  }
+  bl=a; imgData=o.getContext('2d').createImageData(W,H);
+  updateResNote();
+}
+
+/* ---------- выборка с билинейной интерполяцией ---------- */
+let sr=0,sg=0,sb=0;
+function samp(u,v){
+  let x=u*sw,y=v*sh;
+  if(x<0)x=0; else if(x>sw)x=sw;
+  if(y<0)y=0; else if(y>sh)y=sh;
+  const x0=x|0,y0=y|0,x1=x0<sw?x0+1:x0,y1=y0<sh?y0+1:y0,fx=x-x0,fy=y-y0;
+  const i00=(y0*W+x0)*3,i10=(y0*W+x1)*3,i01=(y1*W+x0)*3,i11=(y1*W+x1)*3;
+  const w00=(1-fx)*(1-fy),w10=fx*(1-fy),w01=(1-fx)*fy,w11=fx*fy;
+  sr=bl[i00]*w00+bl[i10]*w10+bl[i01]*w01+bl[i11]*w11;
+  sg=bl[i00+1]*w00+bl[i10+1]*w10+bl[i01+1]*w01+bl[i11+1]*w11;
+  sb=bl[i00+2]*w00+bl[i10+2]*w10+bl[i01+2]*w01+bl[i11+2]*w11;
+}
+
+/* ---------- сдвиг цвета (поворот оттенка) ---------- */
+const M=new Float32Array(9);
+function hueM(a){
+  const c=Math.cos(a),s=Math.sin(a);
+  M[0]=.213+c*.787-s*.213; M[1]=.715-c*.715-s*.715; M[2]=.072-c*.072+s*.928;
+  M[3]=.213-c*.213+s*.143; M[4]=.715+c*.285+s*.140; M[5]=.072-c*.072-s*.283;
+  M[6]=.213-c*.213-s*.787; M[7]=.715-c*.715+s*.715; M[8]=.072+c*.928+s*.072;
+}
+
+/* ---------- пресеты: куда смотреть в исходнике для точки (u,v) ---------- */
+let T=0,STR=.7,FQ=1,wu=0,wv=0,wu2=0,wv2=0,hl=0;
+const sin=Math.sin,cos=Math.cos;
+const PRESETS={
+  oil:{name:'Масляная краска',desc:'Цвет растекается завихрениями',fn(u,v){
+    const p=sin(v*4*FQ+T*.8+1.7*sin(u*3*FQ-T*.6)), q=cos(u*4*FQ-T*.7+1.7*cos(v*3*FQ+T*.5));
+    const u2=u+STR*.14*p, v2=v+STR*.14*q;
+    const p2=sin(v2*7*FQ+T*.5+q*2), q2=cos(u2*7*FQ-T*.4+p*2);
+    wu=u2+STR*.07*p2; wv=v2+STR*.07*q2;
+  }},
+  wave:{name:'Волна',desc:'Плавные волны по всей картинке',fn(u,v){
+    wu=u+STR*.07*sin(v*11*FQ+T*1.6)+STR*.03*sin(v*23*FQ-T*2.1);
+    wv=v+STR*.05*sin(u*7*FQ+T*1.2);
+  }},
+  chaos:{name:'Хаотичное размытие',desc:'Рваное течение с двоением',ghost:true,fn(u,v){
+    const a=sin(u*9.1*FQ+T*1.3+sin(v*7.3*FQ-T*1.7)*2.2), b=cos(v*8.7*FQ-T*1.1+cos(u*6.9*FQ+T*1.9)*2.2);
+    wu=u+STR*.2*a; wv=v+STR*.2*b;
+    wu2=wu+STR*.09*sin(T*2+v*5*FQ); wv2=wv+STR*.09*cos(T*1.7+u*5*FQ);
+  }},
+  breath:{name:'Дыхание',desc:'Круги расходятся от центра',fn(u,v){
+    const dx=u-.5, dy=v-.5, r=Math.sqrt(dx*dx+dy*dy);
+    const ang=STR*1.1*sin(T*.4)*(1-r*1.4), c=cos(ang), s=sin(ang);
+    const k=1+STR*.07*sin(r*14*FQ-T*1.5);
+    wu=.5+(dx*c-dy*s)*k; wv=.5+(dx*s+dy*c)*k;
+  }},
+  flow:{name:'Перелив',desc:'Почти неподвижно, цвет переливается',pixHue:true,fn(u,v){
+    const p=sin(v*3*FQ+T*.4+sin(u*2*FQ-T*.3)), q=cos(u*3*FQ-T*.35+cos(v*2*FQ+T*.25));
+    wu=u+STR*.06*p; wv=v+STR*.06*q;
+    hl=.9*sin(u*3*FQ+T*.3+q)+.6*cos(v*2.4*FQ-T*.25+p);
+  }}
+};
+
+/* ---------- пульс: по темпу или по музыке ---------- */
+const audio={on:false,ctx:null,src:null,an:null,buf:null,env:0,peak:.2};
+function envelope(now){
+  if(audio.on){
+    audio.an.getByteFrequencyData(audio.buf);
+    let s=0; for(let i=1;i<=5;i++) s+=audio.buf[i];
+    const bass=s/5/255; audio.peak=Math.max(audio.peak*.998,bass,.05);
+    const raw=Math.pow(bass/audio.peak,3);
+    audio.env=Math.max(raw,audio.env*.88); return audio.env;
+  }
+  if(!state.bpm) return 0;
+  const ph=(now/60000*state.bpm)%1, c=.5+.5*cos(ph*2*Math.PI);
+  return c*c;
+}
+
+/* ---------- кадр ---------- */
+function render(now){
+  const env=envelope(now), P=state.pulse/100*env;
+  $('#envBar').style.width=(env*100).toFixed(0)+'%';
+  const zoom=1-.12*P, bright=state.bright/100*(1+.45*P), S=state.sat/100;
+  const pr=PRESETS[state.preset], ghost=!!pr.ghost, pixHue=!!pr.pixHue;
+  STR=state.str/100; FQ=state.scale/100;
+  const hueBase=state.hue*Math.PI/180;
+  if(!pixHue) hueM(hueBase);
+  const px=imgData.data; let o=0;
+  for(let y=0;y<H;y++){
+    const v0=(y+.5)/H;
+    for(let x=0;x<W;x++){
+      const u=.5+((x+.5)/W-.5)*zoom, v=.5+(v0-.5)*zoom;
+      pr.fn(u,v);
+      samp(wu,wv); let r=sr,g=sg,b=sb;
+      if(ghost){ samp(wu2,wv2); r=(r+sr)*.5; g=(g+sg)*.5; b=(b+sb)*.5; }
+      if(pixHue) hueM(hueBase+hl);
+      let R=M[0]*r+M[1]*g+M[2]*b, G=M[3]*r+M[4]*g+M[5]*b, B=M[6]*r+M[7]*g+M[8]*b;
+      if(S!==1){ const l=.299*R+.587*G+.114*B; R=l+(R-l)*S; G=l+(G-l)*S; B=l+(B-l)*S; }
+      px[o]=R*bright; px[o+1]=G*bright; px[o+2]=B*bright; px[o+3]=255; o+=4;
+    }
+  }
+  $('#out').getContext('2d').putImageData(imgData,0,0);
+}
+
+let lastDraw=0,ema=0,frames=0,fpsT=performance.now(),statT=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  if(now-lastDraw<1000/state.fps-3) return;
+  const dt=Math.min((now-lastDraw)/1000,.1); lastDraw=now;
+  if(!state.paused) T+=dt*state.speed/100*1.6;
+  if(dirty){ rebuild(); dirty=false; }
+  if(state.paused&&!needs&&!audio.on) return;
+  needs=false;
+  const t0=performance.now(); render(now); const ms=performance.now()-t0;
+  ema=ema?ema*.9+ms*.1:ms; frames++;
+  if(now-statT>500){
+    const sec=(performance.now()-fpsT)/1000, fpsNow=frames/sec;
+    $('#sMs').textContent=fmt(ema,1)+' мс';
+    $('#sFps').textContent=state.paused?'пауза':fmt(fpsNow,0);
+    if(!state.paused&&!document.hidden) logMeasure(ema,fpsNow);
+    frames=0; fpsT=performance.now(); statT=now;
+    const budget=1000/state.fps, pc=Math.min(100,ema/budget*100);
+    $('#bBar').style.width=pc.toFixed(1)+'%'; $('#bBar').classList.toggle('warn',pc>60);
+    $('#bTxt').textContent=fmt(ema,1)+' мс из '+fmt(budget,0)+' мс на кадр ('+fmt(pc,0)+' %)';
+  }
+}
+
+/* ---------- ручки ---------- */
+const A0=135,SWEEP=270,R=15,CX=20,CY=20;
+function pt(deg){ const a=deg*Math.PI/180; return [CX+R*Math.cos(a),CY+R*Math.sin(a)]; }
+function arc(d0,d1){
+  const [x0,y0]=pt(d0),[x1,y1]=pt(d1);
+  return 'M'+x0.toFixed(2)+' '+y0.toFixed(2)+'A'+R+' '+R+' 0 '+((d1-d0)>180?1:0)+' 1 '+x1.toFixed(2)+' '+y1.toFixed(2);
+}
+const knobEls={};
+function drawKnob(o){
+  const el=knobEls[o.k], fr=(state[o.k]-o.min)/(o.max-o.min), end=A0+SWEEP*fr;
+  el.va.setAttribute('d',fr<.005?'':arc(A0,end));
+  const [dx,dy]=pt(end); el.dot.setAttribute('cx',dx.toFixed(2)); el.dot.setAttribute('cy',dy.toFixed(2));
+  el.val.textContent=o.f(state[o.k]);
+  el.root.setAttribute('aria-valuenow',String(state[o.k])); el.root.setAttribute('aria-valuetext',o.f(state[o.k]));
+}
+function setKnob(o,v){
+  v=Math.round(Math.min(o.max,Math.max(o.min,v)));
+  if(v===state[o.k]) return;
+  state[o.k]=v; drawKnob(o); needs=true; if(o.k==='blur') dirty=true; logKnob(o);
+}
+function buildKnobs(){
+  const host=$('#knobs'); const NS='http://www.w3.org/2000/svg';
+  KN.forEach(o=>{
+    const root=document.createElement('div'); root.className='kn'; root.tabIndex=0; root.setAttribute('role','slider');
+    root.setAttribute('aria-label',o.label); root.setAttribute('aria-valuemin',o.min); root.setAttribute('aria-valuemax',o.max);
+    const svg=document.createElementNS(NS,'svg'); svg.setAttribute('viewBox','0 0 40 40'); svg.setAttribute('width','36'); svg.setAttribute('height','36');
+    const mk=(cls)=>{ const p=document.createElementNS(NS,'path'); p.setAttribute('class',cls); p.setAttribute('fill','none');
+      p.setAttribute('stroke-width','3.5'); p.setAttribute('stroke-linecap','round'); svg.appendChild(p); return p; };
+    mk('tr').setAttribute('d',arc(A0,A0+SWEEP));
+    const va=mk('va'); const dot=document.createElementNS(NS,'circle'); dot.setAttribute('class','dot'); dot.setAttribute('r','3'); svg.appendChild(dot);
+    const lab=document.createElement('span'); lab.className='kl'; lab.textContent=o.label;
+    const val=document.createElement('span'); val.className='kv';
+    root.append(svg,lab,val); host.appendChild(root);
+    knobEls[o.k]={root,va,dot,val};
+    let drag=false,sx=0,sy=0,sv=0;
+    root.addEventListener('pointerdown',e=>{ drag=true; sx=e.clientX; sy=e.clientY; sv=state[o.k]; root.classList.add('drag');
+      root.setPointerCapture(e.pointerId); root.focus({preventScroll:true}); e.preventDefault(); });
+    root.addEventListener('pointermove',e=>{ if(!drag) return;
+      const d=((e.clientX-sx)-(e.clientY-sy))/(e.shiftKey?700:160); setKnob(o,sv+d*(o.max-o.min)); });
+    const end=()=>{ drag=false; root.classList.remove('drag'); };
+    root.addEventListener('pointerup',end); root.addEventListener('pointercancel',end);
+    root.addEventListener('wheel',e=>{ e.preventDefault(); const st=(o.max-o.min)/(e.shiftKey?200:50);
+      setKnob(o,state[o.k]+(e.deltaY<0?1:-1)*Math.max(1,st)); },{passive:false});
+    root.addEventListener('keydown',e=>{
+      const st=Math.max(1,(o.max-o.min)/50); let v=null;
+      if(e.key==='ArrowUp'||e.key==='ArrowRight') v=state[o.k]+st;
+      else if(e.key==='ArrowDown'||e.key==='ArrowLeft') v=state[o.k]-st;
+      else if(e.key==='PageUp') v=state[o.k]+st*5; else if(e.key==='PageDown') v=state[o.k]-st*5;
+      else if(e.key==='Home') v=o.min; else if(e.key==='End') v=o.max;
+      if(v!==null){ e.preventDefault(); setKnob(o,v); } });
+    root.addEventListener('dblclick',()=>setKnob(o,o.def));
+    drawKnob(o);
+  });
+  const rs=document.createElement('button'); rs.type='button'; rs.className='kreset'; rs.textContent='Сброс';
+  rs.onclick=()=>{ KN.forEach(o=>setKnob(o,o.def)); logEvent('ручки','сброс'); };
+  host.appendChild(rs);
+}
+
+/* ---------- панель ---------- */
+function updateResNote(){
+  const pts=W*H, ratio=1920*1080/pts;
+  $('#sPx').textContent=pts.toLocaleString('ru-RU');
+  $('#sRatio').textContent=ratio>=1.5?('в '+fmt(ratio,0)+' раз меньше'):'столько же';
+  $('#resNote').innerHTML='Кадр считается в <b>'+W+'×'+H+'</b> и растягивается браузером на весь экран. Размытая картинка при этом не теряет вида. Крупнее расчёт — тяжелее для слабых устройств.';
+}
+const presetsEl=$('#presets');
+Object.keys(PRESETS).forEach(k=>{
+  const b=document.createElement('button'); b.type='button'; b.className='opt'; b.dataset.p=k;
+  b.setAttribute('aria-pressed',String(k===state.preset));
+  b.innerHTML='<strong>'+PRESETS[k].name+'</strong><span>'+PRESETS[k].desc+'</span>';
+  b.onclick=()=>{ state.preset=k; presetsEl.querySelectorAll('.opt').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    needs=true; logEvent('эффект',PRESETS[k].name); };
+  presetsEl.appendChild(b);
+});
+function segment(el,items,key,label,onSet){
+  items.forEach(([val,text])=>{
+    const b=document.createElement('button'); b.type='button'; b.className='chip'; b.textContent=text;
+    b.setAttribute('aria-pressed',String(state[key]===val));
+    b.onclick=()=>{ state[key]=val; el.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+      onSet&&onSet(); needs=true; logEvent(label,text); };
+    el.appendChild(b);
+  });
+}
+segment($('#res'),[[64,'64×36'],[160,'160×90'],[320,'320×180'],[960,'960×540']],'res','разрешение',()=>{ W=state.res; H=Math.round(W*9/16); dirty=true; });
+segment($('#fps'),[[30,'30 к/с'],[60,'60 к/с']],'fps','частота кадров');
+
+document.querySelectorAll('[data-sample]').forEach(b=>b.onclick=()=>useSample(b.dataset.sample));
+$('#file').onchange=e=>{ loadFile(e.target.files[0]); e.target.value=''; };
+const view=$('#view');
+['dragenter','dragover'].forEach(t=>view.addEventListener(t,e=>{ e.preventDefault(); view.classList.add('drag'); }));
+['dragleave','drop'].forEach(t=>view.addEventListener(t,e=>{ e.preventDefault(); view.classList.remove('drag'); }));
+view.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
+$('#pause').onclick=e=>{ state.paused=!state.paused; e.target.textContent=state.paused?'Продолжить':'Пауза'; needs=true; logEvent('показ',state.paused?'пауза':'продолжение'); };
+$('#full').onclick=()=>{ try{ (view.requestFullscreen||view.webkitRequestFullscreen).call(view).catch(()=>{}); }catch(e){} };
+$('#kToggle').onclick=e=>{ const h=$('#knobs').hidden=!$('#knobs').hidden; e.target.setAttribute('aria-pressed',String(!h)); };
+if(state.paused) $('#pause').textContent='Продолжить';
+
+/* ---------- музыка ---------- */
+const AUDIO_IDLE='Без музыки пульс идёт по темпу. С музыкой его задаёт низкий звук (бас).';
+function stopAudio(quiet){
+  try{ if(audio.src) audio.src.stop(); }catch(e){}
+  const was=audio.on; audio.on=false; audio.src=null; $('#stopAudio').hidden=true; $('#audioNote').textContent=AUDIO_IDLE;
+  if(was&&!quiet) logEvent('музыка','остановлена');
+}
+async function playFile(f){
+  if(!f) return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    audio.ctx=audio.ctx||new AC(); await audio.ctx.resume();
+    const dec=await audio.ctx.decodeAudioData(await f.arrayBuffer());
+    stopAudio(true);
+    const s=audio.ctx.createBufferSource(); s.buffer=dec; s.loop=true;
+    const an=audio.ctx.createAnalyser(); an.fftSize=512; an.smoothingTimeConstant=.6;
+    s.connect(an); an.connect(audio.ctx.destination); s.start();
+    audio.src=s; audio.an=an; audio.buf=new Uint8Array(an.frequencyBinCount); audio.peak=.2; audio.on=true;
+    $('#stopAudio').hidden=false; $('#audioNote').textContent='Играет: '+f.name+'. Пульс идёт по басу.';
+    logEvent('музыка','играет, '+Math.round(dec.duration)+' с');
+  }catch(e){ $('#audioNote').textContent='Не удалось открыть аудиофайл.'; logEvent('ошибка','аудиофайл не открылся'); }
+}
+$('#audio').onchange=e=>{ playFile(e.target.files[0]); e.target.value=''; };
+$('#stopAudio').onclick=()=>stopAudio();
+
+/* ---------- старт ---------- */
+buildKnobs();
+useSample('cross',true);
+updateResNote();
+requestAnimationFrame(loop);
+logInit();
+})();
+</script>
