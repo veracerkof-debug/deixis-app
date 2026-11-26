@@ -86,6 +86,9 @@ fun SongEditor(c: Controller, ui: Ui, kind: Kind, item: LibItem? = null, quick: 
                 Pill(L.by2) { set(SongText.rechunk(slides.map { it.slide }, 2)) }
                 Pill(L.by4) { set(SongText.rechunk(slides.map { it.slide }, 4)) }
                 Pill(L.byTheme) { set(SongText.autoSplit(slides.map { it.slide }, style)) }
+                Pill(L.assistant, "edit") {
+                    ui.push(L.assistant) { SongAssistantSheet(c, ui, slides.map { it.slide }.filter { it.text.isNotBlank() || it.label != null }) { made -> set(made.ifEmpty { listOf(SongSlide()) }) } }
+                }
             }
             Note(L.splitNote)
         }

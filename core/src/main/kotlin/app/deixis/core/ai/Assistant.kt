@@ -1,8 +1,6 @@
 package app.deixis.core.ai
 
-import app.deixis.core.DeixisJson
-import app.deixis.core.effects.SceneCatalog
-import app.deixis.core.effects.SceneCost
+import app.deixis.core.effects.Scene
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -43,14 +41,14 @@ class ScriptedProvider(private val turns: List<ModelTurn>) : ModelProvider {
  * и она исправляется (не больше [MAX_FIXES] раз подряд). Показ и управление залом в каталоге отсутствуют.
  * Данные из сцены и результатов помечаются как данные (в сообщении роли `data`), а не как указания.
  */
-class Assistant(private val engine: ProposalEngine, private val provider: ModelProvider, private val system: String) {
+class Assistant<S : Any>(private val engine: ProposalEngine<S>, private val provider: ModelProvider, private val system: String, private val target: OpTarget<S>) {
     val transcript = ArrayList<Message>()
 
-    class Reply(val text: String, val proposals: List<Proposal>)
+    class Reply(val text: String, val proposals: List<Proposal<*>>)
 
     fun ask(request: String): Reply {
         transcript += Message("user", request)
-        val made = ArrayList<Proposal>()
+        val made = ArrayList<Proposal<*>>()
         var fixes = 0
         var steps = 0
         while (steps++ < MAX_STEPS) {
@@ -69,17 +67,12 @@ class Assistant(private val engine: ProposalEngine, private val provider: ModelP
         return Reply("Слишком много шагов без ответа", made)
     }
 
-    private data class Run(val text: String, val proposal: Proposal?, val failed: Boolean)
+    private data class Run(val text: String, val proposal: Proposal<*>?, val failed: Boolean)
 
-    private fun run(c: ToolCall): Run = when (c.name) {
-        "scene.get" -> Run(DeixisJson.encodeToString(JsonObject.serializer(), SceneOps.toTree(engine.scene)), null, false)
-        "scene.preflight" -> {
-            val plan = SceneCost.plan(engine.scene, 20.0, 1.0, 192)
-            Run("слоёв ${engine.scene.layers.size}; цена кадра около ${"%.1f".format(plan.keptMs)} мс; при нехватке отключатся: ${plan.dropped.joinToString().ifEmpty { "ничего" }}", null, false)
-        }
-        "catalog.get" -> Run(SceneCatalog.toJson().toString(), null, false)
-        "propose_change" -> propose(c.args)
-        else -> Run("Нет такого инструмента «${c.name}». Есть: scene.get, scene.preflight, catalog.get, propose_change", null, true)
+    private fun run(c: ToolCall): Run {
+        if (c.name == "propose_change") return propose(c.args)
+        target.read(c.name, engine.state)?.let { return Run(it, null, false) }
+        return Run("Нет такого инструмента «${c.name}». Есть: ${(target.readTools + "propose_change").joinToString()}", null, true)
     }
 
     private fun propose(a: JsonObject): Run {
@@ -97,3 +90,6 @@ class Assistant(private val engine: ProposalEngine, private val provider: ModelP
         const val MAX_FIXES = 3
     }
 }
+
+/** Помощник для сцены фона. */
+fun Assistant(engine: ProposalEngine<Scene>, provider: ModelProvider, system: String): Assistant<Scene> = Assistant(engine, provider, system, SceneTarget)

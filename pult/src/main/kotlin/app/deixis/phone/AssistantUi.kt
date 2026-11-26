@@ -23,7 +23,11 @@ import app.deixis.core.ai.OpenAiProvider
 import app.deixis.core.ai.Proposal
 import app.deixis.core.ai.ProposalEngine
 import app.deixis.core.ai.ProviderConfig
+import app.deixis.core.ai.OpTarget
 import app.deixis.core.ai.SceneEditor
+import app.deixis.core.ai.SceneTarget
+import app.deixis.core.ai.SongTarget
+import app.deixis.core.SongSlide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,24 +70,41 @@ private class Line(val mine: Boolean, val text: String)
  * Помощник для живого фона: чат, предложения «было → стало» и журнал. Правит сцену фона этой темы теми же операциями, что и редактор слоёв.
  * Ничего не меняется без «Принять» (кроме включённого вручную автоподтверждения; удаление и замена всей сцены подтверждаются всегда).
  */
+/** Помощник для живого фона темы. */
 @Composable
 fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (SceneBackground) -> Unit) {
-    val settings = remember { AssistantSettings(c.platform.prefs("assistant"), c.platform) }
-    val scope = rememberCoroutineScope()
     val scene = remember { SceneEditor.sceneOf(start) }
     if (scene == null) { Note(L.assistantNoScene); return }
     val engine = remember { ProposalEngine(scene) }
     var bg by remember { mutableStateOf(start) }
+    AssistantPanel(c, ui, engine, SceneTarget, AssistantPrompt.text) { made ->
+        val next = SceneEditor.withScene(bg, made)
+        bg = next; onChange(next)
+    }
+}
+
+/** Помощник для текста песни в редакторе: правит слайды (текст, подписи, порядок) теми же предложениями. */
+@Composable
+fun SongAssistantSheet(c: Controller, ui: Ui, slides: List<SongSlide>, onChange: (List<SongSlide>) -> Unit) {
+    val engine = remember { ProposalEngine(slides, SongTarget) }
+    AssistantPanel(c, ui, engine, SongTarget, AssistantPrompt.song) { onChange(it) }
+}
+
+/**
+ * Общая панель помощника: подключение, разговор, предложения «было → стало» и журнал. Правит [engine] только по «Принять»
+ * (кроме включённого вручную автоподтверждения; удаление и замена всего подтверждаются всегда); итог отдаёт в [publish].
+ */
+@Composable
+private fun <S : Any> AssistantPanel(c: Controller, ui: Ui, engine: ProposalEngine<S>, target: OpTarget<S>, system: String, onPublish: (S) -> Unit) {
+    val settings = remember { AssistantSettings(c.platform.prefs("assistant"), c.platform) }
+    val scope = rememberCoroutineScope()
     val chat = remember { mutableStateListOf<Line>() }
     var tick by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     var settingsOpen by remember { mutableStateOf(!settings.ready) }
 
-    fun publish() {
-        val next = SceneEditor.withScene(bg, engine.scene)
-        bg = next; onChange(next); tick++
-    }
+    fun publish() { onPublish(engine.state); tick++ }
 
     // Читаем состояние движка при каждой перерисовке: tick меняется после любой правки.
     @Suppress("UNUSED_VARIABLE") val t = tick
@@ -123,10 +144,10 @@ fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (Sce
                 val cfg = ProviderConfig(settings.url, settings.model, settings.key)
                 if (settings.anthropic) {
                     val prov = AnthropicProvider(cfg)
-                    try { Assistant(engine, prov, AssistantPrompt.text).ask(q) } finally { prov.close() }
+                    try { Assistant(engine, prov, system, target).ask(q) } finally { prov.close() }
                 } else {
                     val prov = OpenAiProvider(cfg)
-                    try { Assistant(engine, prov, AssistantPrompt.text).ask(q) } finally { prov.close() }
+                    try { Assistant(engine, prov, system, target).ask(q) } finally { prov.close() }
                 }
             }
             chat += Line(false, reply.text)
@@ -151,7 +172,7 @@ fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (Sce
 }
 
 @Composable
-private fun ProposalCard(p: Proposal, engine: ProposalEngine, publish: () -> Unit, ui: Ui) {
+private fun <S : Any> ProposalCard(p: Proposal<S>, engine: ProposalEngine<S>, publish: () -> Unit, ui: Ui) {
     // Какие операции отмечены (по умолчанию все).
     val chosen = remember(p.id) { mutableStateListOf<Boolean>().also { l -> repeat(p.ops.size) { l += true } } }
     GHead(p.summary)

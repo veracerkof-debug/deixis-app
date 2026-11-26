@@ -9,13 +9,13 @@ enum class ProposalState { PENDING, APPLIED, REJECTED, EXPIRED }
  * Предложение нейросети: пакет операций над сценой с описанием «было → стало». Пока не принято, сцена не меняется.
  * [dangerous] — есть удаление или замена целиком: такое подтверждается человеком всегда, даже при автоподтверждении.
  */
-class Proposal(
+class Proposal<S : Any>(
     val id: Int,
     val summary: String,
     val ops: List<SceneOp>,
     val lines: List<String>,
     val dangerous: Boolean,
-    val preview: Scene,
+    val preview: S,
     val warnings: List<String>,
     val createdMs: Long,
 ) {
@@ -24,12 +24,12 @@ class Proposal(
 }
 
 /** Запись журнала применённого: снимок сцены до применения — для «Отменить». */
-class JournalEntry(val proposal: Proposal, val before: Scene, val after: Scene, val auto: Boolean, var undone: Boolean = false)
+class JournalEntry<S : Any>(val proposal: Proposal<S>, val before: S, val after: S, val auto: Boolean, var undone: Boolean = false)
 
 /** Исход попытки предложить: либо предложение, либо понятные ошибки (они возвращаются нейросети, и она исправляется). */
-sealed interface Proposed {
-    data class Ok(val proposal: Proposal, val autoApplied: Boolean) : Proposed
-    data class Rejected(val errors: List<String>) : Proposed
+sealed interface Proposed<out S : Any> {
+    data class Ok<S : Any>(val proposal: Proposal<S>, val autoApplied: Boolean) : Proposed<S>
+    data class Rejected(val errors: List<String>) : Proposed<Nothing>
 }
 
 /**
@@ -37,20 +37,20 @@ sealed interface Proposed {
  * Лимиты: до [MAX_OPS] операций в предложении, до [MAX_PER_MINUTE] предложений в минуту, жизнь предложения [TTL_MS].
  * Автоподтверждение ([autoConfirm]) применяет обычные предложения сразу, опасные — никогда. [readOnly] — только советы.
  */
-class ProposalEngine(scene: Scene, private val now: () -> Long = System::currentTimeMillis) {
-    var scene: Scene = scene
+class ProposalEngine<S : Any>(initial: S, private val target: OpTarget<S>, private val now: () -> Long = System::currentTimeMillis) {
+    var state: S = initial
         private set
     var autoConfirm = false
     var readOnly = false
 
     private var nextId = 1
     private val stamps = ArrayDeque<Long>()
-    private val open = LinkedHashMap<Int, Proposal>()
-    val journal = ArrayList<JournalEntry>()
+    private val open = LinkedHashMap<Int, Proposal<S>>()
+    val journal = ArrayList<JournalEntry<S>>()
 
-    fun pending(): List<Proposal> { expire(); return open.values.toList() }
+    fun pending(): List<Proposal<S>> { expire(); return open.values.toList() }
 
-    fun propose(summary: String, ops: List<SceneOp>): Proposed {
+    fun propose(summary: String, ops: List<SceneOp>): Proposed<S> {
         expire()
         if (readOnly) return Proposed.Rejected(listOf("Включён режим «только чтение»: правки не принимаются"))
         if (ops.isEmpty()) return Proposed.Rejected(listOf("В предложении нет операций"))
@@ -58,8 +58,8 @@ class ProposalEngine(scene: Scene, private val now: () -> Long = System::current
         val t = now()
         while (stamps.isNotEmpty() && t - stamps.first() > 60_000) stamps.removeFirst()
         if (stamps.size >= MAX_PER_MINUTE) return Proposed.Rejected(listOf("Слишком много предложений за минуту (не больше $MAX_PER_MINUTE): подождите"))
-        val out = SceneOps.applyAll(scene, ops)
-        val made = out.scene ?: return Proposed.Rejected(out.errors)
+        val out = target.applyAll(state, ops)
+        val made = out.state ?: return Proposed.Rejected(out.errors)
         stamps.addLast(t)
         val dangerous = out.dangerous || ops.size > DANGEROUS_OPS
         val p = Proposal(nextId++, summary.take(120), ops, out.lines, dangerous, made, out.warnings, t)
@@ -77,8 +77,8 @@ class ProposalEngine(scene: Scene, private val now: () -> Long = System::current
         val p = open[id] ?: return listOf("Предложение уже не ждёт ответа")
         val ops = if (only == null) p.ops else p.ops.filterIndexed { i, _ -> i in only }
         if (ops.isEmpty()) return listOf("Ни одной операции не выбрано")
-        val out = SceneOps.applyAll(scene, ops)
-        val made = out.scene ?: return out.errors
+        val out = target.applyAll(state, ops)
+        val made = out.state ?: return out.errors
         open.remove(id)
         val applied = if (only == null) p else Proposal(p.id, p.summary, ops, out.lines, out.dangerous, made, out.warnings, p.createdMs)
         apply(applied, auto = false)
@@ -91,19 +91,19 @@ class ProposalEngine(scene: Scene, private val now: () -> Long = System::current
     /** «Отменить»: вернуть сцену, какой она была до записи. Работает с последней неотменённой записью, чтобы цепочка не ломалась. */
     fun undoLast(): Boolean {
         val e = journal.lastOrNull { !it.undone } ?: return false
-        scene = e.before
+        state = e.before
         e.undone = true
         return true
     }
 
     /** Человек сам поменял сцену (редактор слоёв): предложения, построенные на старой, больше не годятся. */
-    fun replaceScene(s: Scene) { scene = s; open.values.forEach { it.state = ProposalState.EXPIRED }; open.clear() }
+    fun replaceState(s: S) { state = s; open.values.forEach { it.state = ProposalState.EXPIRED }; open.clear() }
 
-    private fun apply(p: Proposal, auto: Boolean) {
-        val before = scene
-        scene = p.preview
+    private fun apply(p: Proposal<S>, auto: Boolean) {
+        val before = state
+        state = p.preview
         p.state = ProposalState.APPLIED
-        journal += JournalEntry(p, before, scene, auto)
+        journal += JournalEntry(p, before, state, auto)
         // сцена изменилась: остальные открытые предложения строились на прежней
         open.values.filter { it !== p }.forEach { it.state = ProposalState.EXPIRED }
         open.keys.retainAll { open[it] === p }
@@ -123,3 +123,8 @@ class ProposalEngine(scene: Scene, private val now: () -> Long = System::current
         const val TTL_MS = 10 * 60_000L
     }
 }
+
+/** Сцена фона: операции [SceneOps]. */
+fun ProposalEngine(scene: Scene, now: () -> Long = System::currentTimeMillis): ProposalEngine<Scene> = ProposalEngine(scene, SceneTarget, now)
+
+val ProposalEngine<Scene>.scene: Scene get() = state

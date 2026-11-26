@@ -225,3 +225,52 @@ class SceneEditorParamTest {
         assertEquals(1.0, app.deixis.core.effects.SceneText.sceneFor(over)!!.layer(id)!!.num("opacity"), 1e-9)
     }
 }
+
+class SongTargetTest {
+    private fun obj(s: String) = Json.parseToJsonElement(s).jsonObject
+    private fun op(s: String) = SceneOp.parse(obj(s))!!
+    private val song = app.deixis.core.SongText.parse("[Куплет 1]\nГосподь мой Пастырь\nЯ не буду нуждаться\n\n[Припев]\nСлава Ему")
+
+    @Test
+    fun editsSlidesAndDescribesBeforeAfter() {
+        val out = SongTarget.applyAll(song, listOf(
+            op("""{"op":"slide.update","index":0,"text":"Господь — мой Пастырь\nЯ не буду нуждаться"}"""),
+            op("""{"op":"slide.add","label":"Бридж","text":"Аллилуйя","at":1}"""),
+            op("""{"op":"slide.move","index":2,"to":0}"""),
+        ))
+        assertTrue(out.errors.isEmpty(), out.errors.toString())
+        assertEquals(listOf("Припев", "Куплет 1", "Бридж"), out.state!!.map { it.label })
+        assertTrue(out.lines.first().contains("→"))
+        assertFalse(out.dangerous)
+        // исходный список не тронут
+        assertEquals("Куплет 1", song.first().label)
+    }
+
+    @Test
+    fun deletingAndReplacingAreDangerousAndBadInputIsRefused() {
+        assertTrue(SongTarget.applyAll(song, listOf(op("""{"op":"slide.delete","index":1}"""))).dangerous)
+        assertTrue(SongTarget.applyAll(song, listOf(op("""{"op":"song.replace","text":"[А]\nб"}"""))).dangerous)
+        assertNull(SongTarget.applyAll(song, listOf(op("""{"op":"slide.delete","index":9}"""))).state)
+        assertNull(SongTarget.applyAll(song, listOf(op("""{"op":"slide.update","index":0,"text":"${"я".repeat(2001)}"}"""))).state)
+        assertNull(SongTarget.applyAll(song, listOf(op("""{"op":"scene.set","key":"quiet","value":1}"""))).state)
+    }
+
+    @Test
+    fun theSameEngineAndAssistantWorkOnSongText() {
+        val e = ProposalEngine(song, SongTarget)
+        val provider = ScriptedProvider(listOf(
+            ModelTurn.Calls(listOf(ToolCall("song.get"), ToolCall("scene.get"))),
+            ModelTurn.Calls(listOf(ToolCall("propose_change", obj("""{"summary":"Исправил","ops":[{"op":"slide.update","index":1,"label":"Хор"}]}""")))),
+            ModelTurn.Say("Готово"),
+        ))
+        val reply = Assistant(e, provider, "инструкция", SongTarget).ask("поправь подпись")
+        assertEquals(1, reply.proposals.size)
+        assertEquals("Припев", e.state[1].label, "пока не принято — без изменений")
+        assertTrue(e.accept(reply.proposals.single().id).isEmpty())
+        assertEquals("Хор", e.state[1].label)
+        assertTrue(e.undoLast()); assertEquals("Припев", e.state[1].label)
+        val seen = provider.seen.last().filter { it.role == "data" }.map { it.text }
+        assertTrue(seen.any { it.startsWith("[0] Куплет 1") })
+        assertTrue(seen.any { it.startsWith("Нет такого инструмента «scene.get»") }, "инструменты сцены песне недоступны")
+    }
+}
