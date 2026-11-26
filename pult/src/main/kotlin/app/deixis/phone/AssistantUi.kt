@@ -75,6 +75,25 @@ private class Line(val mine: Boolean, val text: String)
  * Помощник для живого фона: чат, предложения «было → стало» и журнал. Правит сцену фона этой темы теми же операциями, что и редактор слоёв.
  * Ничего не меняется без «Принять» (кроме включённого вручную автоподтверждения; удаление и замена всей сцены подтверждаются всегда).
  */
+/** Подключение помощника: адрес, модель, ключ, протокол, «принимать самому», «только советы». Общий блок для панели и настроек. */
+@Composable
+fun AssistantConnectionFields(settings: AssistantSettings, onSaved: () -> Unit) {
+        Column(verticalArrangement = Arrangement.spacedBy(T.gapS), modifier = Modifier.padding(vertical = T.gapS)) {
+            Field(settings.url, L.assistantUrlHint, keyboard = KeyboardType.Uri) { settings.url = it }
+            Field(settings.model, L.assistantModelHint) { settings.model = it }
+            Field(settings.key, L.assistantKeyHint, keyboard = KeyboardType.Password) { settings.key = it }
+            if (settings.key.isNotEmpty()) Note(if (settings.keyProtected) L.assistantKeySafe else L.assistantKeyPlain)
+        }
+        Group {
+            SwitchRow(L.assistantAnthropic, settings.anthropic, L.assistantAnthropicSub) { settings.anthropic = it; settings.save() }
+            Sep(T.gutter)
+            SwitchRow(L.assistantAuto, settings.auto, L.assistantAutoSub) { settings.auto = it; settings.save() }
+            Sep(T.gutter)
+            SwitchRow(L.assistantReadOnly, settings.readOnly, L.assistantReadOnlySub) { settings.readOnly = it; settings.save() }
+        }
+        Btn(L.save, kind = BtnKind.TINT, enabled = settings.ready) { settings.informed = true; settings.save(); onSaved() }
+}
+
 /** Помощник для живого фона темы. */
 @Composable
 fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (SceneBackground) -> Unit) {
@@ -135,22 +154,7 @@ private fun <S : Any> AssistantPanel(c: Controller, ui: Ui, engine: ProposalEngi
 
     Note(L.assistantPrivacy, Modifier.padding(bottom = T.gap))
     Cell(L.assistantConnection, if (settings.ready) settings.model else L.assistantNotSet, open = settingsOpen, chevron = if (settingsOpen) "up" else "chev", onClick = { settingsOpen = !settingsOpen })
-    if (settingsOpen) {
-        Column(verticalArrangement = Arrangement.spacedBy(T.gapS), modifier = Modifier.padding(vertical = T.gapS)) {
-            Field(settings.url, L.assistantUrlHint, keyboard = KeyboardType.Uri) { settings.url = it }
-            Field(settings.model, L.assistantModelHint) { settings.model = it }
-            Field(settings.key, L.assistantKeyHint, keyboard = KeyboardType.Password) { settings.key = it }
-            if (settings.key.isNotEmpty()) Note(if (settings.keyProtected) L.assistantKeySafe else L.assistantKeyPlain)
-        }
-        Group {
-            SwitchRow(L.assistantAnthropic, settings.anthropic, L.assistantAnthropicSub) { settings.anthropic = it; settings.save() }
-            Sep(T.gutter)
-            SwitchRow(L.assistantAuto, settings.auto, L.assistantAutoSub) { settings.auto = it; settings.save() }
-            Sep(T.gutter)
-            SwitchRow(L.assistantReadOnly, settings.readOnly, L.assistantReadOnlySub) { settings.readOnly = it; settings.save() }
-        }
-        Btn(L.save, kind = BtnKind.TINT, enabled = settings.ready) { settings.informed = true; settings.save(); settingsOpen = false }
-    }
+    if (settingsOpen) AssistantConnectionFields(settings) { settingsOpen = false }
 
     if (c.platform.features.desktop) {
         Group {
@@ -224,4 +228,14 @@ private fun <S : Any> ProposalCard(p: Proposal<S>, engine: ProposalEngine<S>, pu
         }
         Btn(L.assistantReject, Modifier.weight(1f)) { engine.reject(p.id); publish() }
     }
+}
+
+/** Настройки помощника отдельной страницей: подключение, режимы, внешняя нейросеть объясняется в самой панели. */
+@Composable
+fun SettingsAssistantPage(c: Controller) {
+    val settings = remember { AssistantSettings(c.platform.prefs("assistant"), c.platform) }
+    Note(L.assistantPrivacy, Modifier.padding(bottom = T.gap))
+    val ui = LocalUi.current
+    val saved = L.saved
+    AssistantConnectionFields(settings) { ui.toast(saved) }
 }

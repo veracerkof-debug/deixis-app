@@ -118,6 +118,8 @@ data class AppSettings(
     val volumeKeys: Boolean = false,
     val caps: Boolean = false,
     val church: Boolean = true,
+    /** Режим волонтёра: прячет данные, помощника и подключения. */
+    val volunteer: Boolean = false,
     /** Вид заставки «Логотип»: ΔΕΙΞΙΣ, большая Δ, δεῖξις или Deixis. */
     val logo: LogoStyle = LogoStyle.WORDMARK,
     /** Своя картинка на «Логотипе» вместо знака (логотип церкви, школы); файл — в localFiles. */

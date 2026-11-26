@@ -138,27 +138,50 @@ private fun ManualSheet(c: Controller, ui: Ui) {
 
 // ——— Настройки ———
 
+/** Настройки: страницы по смыслу (показ, оформление, помощник, профиль, данные, помощь). Режим волонтёра прячет лишнее. */
 @Composable
 fun SettingsSheet(c: Controller) {
     val st by c.settings.collectAsState()
-    val host = LocalHost.current
-    val themes = listOf("light" to L.uiLight, "dark" to L.uiDark, "paper" to L.paper, "oled" to "OLED")
     val ui = LocalUi.current
     val book by c.profiles.collectAsState()
-    GHead(L.profile)
+    fun page(title: String, body: @Composable () -> Unit) = ui.push(title) { body() }
+    GHead(L.setShow)
     Group {
-        Cell(book.current.name, L.profilesSub(book.list.size), book.current.kind.icon, onClick = { ui.push(L.profiles) { ProfilesSheet(c, ui) } })
+        Cell(L.setShowPage, L.setShowPageSub, kind = "show", onClick = { page(L.setShowPage) { SettingsShowPage(c) } })
+        Sep(T.gutter)
+        Cell(L.setLookPage, L.setLookPageSub, kind = "brush", onClick = { page(L.setLookPage) { SettingsLookPage(c) } })
     }
-    GHead(L.theme)
-    Seg(themes.map { it.second }, themes.indexOfFirst { it.first == st.theme }.coerceAtLeast(0), Modifier.fillMaxWidth().padding(bottom = 18.dp)) { i ->
-        c.setSettings { it.copy(theme = themes[i].first) }
+    if (!st.volunteer) {
+        GHead(L.assistant)
+        Group { Cell(L.assistant, L.setAssistantSub, kind = "media", onClick = { page(L.assistant) { SettingsAssistantPage(c) } }) }
     }
-    // Язык пульта: названия языков — на своём языке; «Как в системе» — по языку телефона.
-    GHead(L.language)
-    val langs = L.languages
-    Seg(langs.map { it.second }, langs.indexOfFirst { it.first == st.lang }.coerceAtLeast(0), Modifier.fillMaxWidth().padding(bottom = T.gutter), scroll = true) { i ->
-        c.setSettings { it.copy(lang = langs[i].first) }
+    GHead(L.setApp)
+    Group {
+        Cell(L.profile, book.current.name, book.current.kind.icon, onClick = { page(L.profile) { SettingsProfilePage(c) } })
+        if (!st.volunteer) {
+            Sep(T.gutter)
+            Cell(L.setDataPage, L.setDataPageSub, kind = "lib", onClick = { page(L.setDataPage) { SettingsDataPage(c) } })
+        }
+        Sep(T.gutter)
+        Cell(L.setHelpPage, L.setHelpPageSub, kind = "info", onClick = { page(L.setHelpPage) { SettingsHelpPage(c) } })
     }
+    // Режим волонтёра: прячет данные, помощника и подключения, чтобы случайный человек за пультом не сбил настройки.
+    GHead(L.setVolunteer)
+    Group {
+        if (!st.volunteer) SwitchRow(L.setVolunteer, false, L.setVolunteerSub) { v -> if (v) c.setSettings { it.copy(volunteer = true) } }
+        else Cell(L.setVolunteerOff, L.setVolunteerOffSub, kind = "away", onClick = {
+            ui.push(L.setVolunteerOff) { Note(L.setVolunteerOffNote, Modifier.padding(bottom = T.gap)); Btn(L.setVolunteerOff, kind = BtnKind.TINT) { c.setSettings { it.copy(volunteer = false) }; ui.closeAll() } }
+        })
+    }
+}
+
+/** Показ: окна, кликер, заглавные, экран «Логотип». */
+@Composable
+private fun SettingsShowPage(c: Controller) {
+    val st by c.settings.collectAsState()
+    val host = LocalHost.current
+    val ui = LocalUi.current
+    @Suppress("UNUSED_VARIABLE") val book by c.profiles.collectAsState()
     GHead(L.tabShow)
     Group {
         SwitchRow(L.alwaysPre, st.alwaysPreview, L.alwaysPreSub) { v -> c.setSettings { it.copy(alwaysPreview = v) } }
@@ -170,12 +193,6 @@ fun SettingsSheet(c: Controller) {
         SwitchRow(L.volumeKeys, st.volumeKeys) { v -> c.setSettings { it.copy(volumeKeys = v) } }
         Sep(T.gutter)
         SwitchRow(L.caps, st.caps, L.capsSub) { v -> c.setSettings { it.copy(caps = v) } }
-    }
-    GHead(L.style)
-    Group {
-        Cell(L.defaultStyle, L.defaultStyleSub, kind = "brush", onClick = {
-            ui.push(L.defaultStyle) { DefaultStyleEditor(c, ui) }
-        })
     }
     GHead(L.logoScreen)
     Seg(listOf("ΔΕΙΞΙΣ", "Δ", "δεῖξις", "Deixis"), LogoStyle.entries.indexOf(st.logo), Modifier.fillMaxWidth()) { i ->
@@ -202,10 +219,58 @@ fun SettingsSheet(c: Controller) {
     SlideView(null, null, c.styleFor(null), Modifier.padding(top = T.gapS), mode = Mode.LOGO, logo = st.logo)
     Note(if (st.logoImage != null) L.logoNoteImage
         else L.logoNote)
+}
+
+/** Оформление: цвет пульта, язык, оформление по умолчанию (темы презентаций, живые фоны). */
+@Composable
+private fun SettingsLookPage(c: Controller) {
+    val st by c.settings.collectAsState()
+    val host = LocalHost.current
+    val ui = LocalUi.current
+    @Suppress("UNUSED_VARIABLE") val book by c.profiles.collectAsState()
+    val themes = listOf("light" to L.uiLight, "dark" to L.uiDark, "paper" to L.paper, "oled" to "OLED")
+    GHead(L.theme)
+    Seg(themes.map { it.second }, themes.indexOfFirst { it.first == st.theme }.coerceAtLeast(0), Modifier.fillMaxWidth().padding(bottom = 18.dp)) { i ->
+        c.setSettings { it.copy(theme = themes[i].first) }
+    }
+    // Язык пульта: названия языков — на своём языке; «Как в системе» — по языку телефона.
+    GHead(L.language)
+    val langs = L.languages
+    Seg(langs.map { it.second }, langs.indexOfFirst { it.first == st.lang }.coerceAtLeast(0), Modifier.fillMaxWidth().padding(bottom = T.gutter), scroll = true) { i ->
+        c.setSettings { it.copy(lang = langs[i].first) }
+    }
+    GHead(L.style)
+    Group {
+        Cell(L.defaultStyle, L.defaultStyleSub, kind = "brush", onClick = {
+            ui.push(L.defaultStyle) { DefaultStyleEditor(c, ui) }
+        })
+    }
+}
+
+/** Профиль и разделы. */
+@Composable
+private fun SettingsProfilePage(c: Controller) {
+    val st by c.settings.collectAsState()
+    val host = LocalHost.current
+    val ui = LocalUi.current
+    @Suppress("UNUSED_VARIABLE") val book by c.profiles.collectAsState()
+    GHead(L.profile)
+    Group {
+        Cell(book.current.name, L.profilesSub(book.list.size), book.current.kind.icon, onClick = { ui.push(L.profiles) { ProfilesSheet(c, ui) } })
+    }
     GHead(L.sections)
     Group {
         SwitchRow(L.church, st.church, L.churchSub) { v -> c.setSettings { it.copy(church = v) } }
     }
+}
+
+/** Данные: песни из файла, демо-набор, копии. */
+@Composable
+private fun SettingsDataPage(c: Controller) {
+    val st by c.settings.collectAsState()
+    val host = LocalHost.current
+    val ui = LocalUi.current
+    @Suppress("UNUSED_VARIABLE") val book by c.profiles.collectAsState()
     @Suppress("UNUSED_VARIABLE") val data by c.data.collectAsState()
     // Песни из файла deixis-show (их пишет нейросеть или человек): части становятся слайдами с подписями.
     val showPick = rememberFilePicker { uris ->
@@ -233,6 +298,15 @@ fun SettingsSheet(c: Controller) {
         })
     }
     BackupsSection(c, LocalUi.current)
+}
+
+/** Помощь: обновления, диагностика, отзыв, версия. */
+@Composable
+private fun SettingsHelpPage(c: Controller) {
+    val st by c.settings.collectAsState()
+    val host = LocalHost.current
+    val ui = LocalUi.current
+    @Suppress("UNUSED_VARIABLE") val book by c.profiles.collectAsState()
     UpdatesSection()
     GHead(L.diagnostics)
     Group { Cell(L.diagnostics, L.diagnosticsSub, kind = "info", onClick = { ui.push(L.diagnostics) { DiagnosticsSheet(c, ui) } }) }
@@ -243,6 +317,7 @@ fun SettingsSheet(c: Controller) {
         Txt(" · $version · GPL-3.0 · " + L.ethics, T.fSub, P.current.l2)
     }
 }
+
 
 // ——— Плитки «Показать» ———
 
