@@ -956,7 +956,9 @@ class Controller(val platform: Platform) {
             ?: cue?.source?.style
             ?: d.styles["all"]
             ?: TextStyle()
-        return if (settings.value.caps) base.copy(caps = true) else base
+        val withCaps = if (settings.value.caps) base.copy(caps = true) else base
+        // Живой фон: энергия по части песни (припев ярче куплета).
+        return app.deixis.core.effects.SectionEnergy.styled(withCaps, (cue?.slide as? Slide.Text)?.label)
     }
 
     /**

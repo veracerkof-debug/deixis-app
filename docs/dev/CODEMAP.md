@@ -481,3 +481,4 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `pult/.../phone/QuizHostSession.kt` — ведущий живой игры на пульте (открыть игру на экране, команды, опрос хода); экран ведущего — `QuizHostPlay` в `QuizUi.kt`. Клиент — `SenderClient.quizOpen/quizCommand/quizState`.
 
 Живой фон на экранах: компьютер — `desktop/.../SceneBackdrop.kt` (+ `Backdrop` в `BackgroundVideo.kt`, `OutputWindow.applySceneBackdrop`), Android — `android/receiver/.../SceneLayer.kt`.
+`effects/SectionEnergy.kt` — подпись слайда песни → энергия живого фона (применяется в `Controller.styleFor`); тест `SectionEnergyTest`.
