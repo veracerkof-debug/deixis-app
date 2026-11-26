@@ -95,6 +95,14 @@ interface Platform {
     val visible: Boolean
     /** Вывод на телевизоры DLNA; null — устройство так не умеет. */
     val dlna: DlnaOut?
+
+    /**
+     * Защитить секрет (ключ нейросети) средствами системы: Android Keystore, Windows DPAPI. null — устройство так не умеет:
+     * тогда секрет лежит в хранилище пульта как есть, и пульт говорит об этом оператору.
+     */
+    fun protect(plain: String): String? = null
+    /** Обратно к [protect]; null — не удалось (другой пользователь, сброшенный ключ системы). */
+    fun unprotect(stored: String): String? = null
 }
 
 /** Имя, размер и тип файла оператора. */

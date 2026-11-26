@@ -140,6 +140,24 @@ class DesktopPlatform(
 
     // Компьютер не засыпает с открытым окном и сеть не теряет: ни службы, ни разрешений не нужно.
     override fun keepAlive() = Unit
+
+    // Windows: ключ нейросети шифрует DPAPI текущего пользователя (через PowerShell, секрет идёт по stdin, не в командной строке).
+    // На других системах защиты нет: null, пульт хранит как есть и говорит об этом.
+    override fun protect(plain: String): String? = dpapi(plain, protect = true)
+    override fun unprotect(stored: String): String? = dpapi(stored, protect = false)
+
+    private fun dpapi(input: String, protect: Boolean): String? {
+        if (!System.getProperty("os.name").orEmpty().startsWith("Windows")) return null
+        val script = "Add-Type -AssemblyName System.Security; \$t=[Console]::In.ReadToEnd().Trim(); " +
+            if (protect) "[Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes(\$t),\$null,'CurrentUser'))"
+            else "[Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String(\$t),\$null,'CurrentUser'))"
+        return try {
+            val p = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script).redirectErrorStream(false).start()
+            p.outputStream.use { it.write(input.toByteArray(Charsets.UTF_8)) }
+            val out = p.inputStream.readBytes().toString(Charsets.UTF_8).trim()
+            if (!p.waitFor(15, java.util.concurrent.TimeUnit.SECONDS) || p.exitValue() != 0) null else out.ifEmpty { null }
+        } catch (e: Exception) { null }
+    }
     override fun multicast(on: Boolean) = Unit
     override fun stopScreenShare() = Unit
     override val lanAddress: String? get() = lan()

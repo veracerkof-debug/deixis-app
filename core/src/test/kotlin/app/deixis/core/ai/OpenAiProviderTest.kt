@@ -66,3 +66,33 @@ class OpenAiProviderTest {
         assertTrue(turn is ModelTurn.Say && turn.text.startsWith("Нет связи"))
     }
 }
+
+class AnthropicProviderTest {
+    @Test
+    fun mergesSameRolesAndParsesTextBlocks() {
+        val body = AnthropicProvider.buildRequest("m", "сис", listOf(Message("user", "а"), Message("assistant", "call x"), Message("data", "итог"), Message("user", "б"))).toString()
+        assertTrue(body.contains("ДАННЫЕ: итог\\n\\nб"), body)
+        assertEquals("""{"say":"ok"}""", AnthropicProvider.extractContent("""{"content":[{"type":"text","text":"{\"say\":\"ok\"}"}]}"""))
+    }
+
+    @Test
+    fun talksToAnAnthropicCompatibleServer() {
+        var key: String? = null; var ver: String? = null
+        val server = embeddedServer(CIO, port = 0) {
+            routing {
+                post("/v1/messages") {
+                    key = call.request.header("x-api-key"); ver = call.request.header("anthropic-version"); call.receiveText()
+                    call.respondText("""{"content":[{"type":"text","text":"{\"say\":\"Привет\"}"}]}""", ContentType.Application.Json)
+                }
+            }
+        }.start(wait = false)
+        try {
+            val port = kotlinx.coroutines.runBlocking { server.engine.resolvedConnectors().first().port }
+            val p = AnthropicProvider(ProviderConfig("http://127.0.0.1:$port", "m", "k1"))
+            val turn = p.next("s", listOf(Message("user", "привет")))
+            p.close()
+            assertEquals("Привет", (turn as ModelTurn.Say).text)
+            assertEquals("k1", key); assertEquals(AnthropicProvider.VERSION, ver)
+        } finally { server.stop(100, 200) }
+    }
+}

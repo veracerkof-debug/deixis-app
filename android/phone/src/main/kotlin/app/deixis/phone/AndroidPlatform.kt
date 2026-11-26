@@ -219,6 +219,33 @@ class AndroidPlatform(private val app: Application) : Platform {
 
     override fun keepAlive() = ShowService.start(app)
 
+    // Ключ нейросети: AES-GCM, ключ шифрования живёт в Android Keystore и не покидает его.
+    override fun protect(plain: String): String? = try {
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey())
+        android.util.Base64.encodeToString(c.iv + c.doFinal(plain.toByteArray(Charsets.UTF_8)), android.util.Base64.NO_WRAP)
+    } catch (e: Exception) { null }
+
+    override fun unprotect(stored: String): String? = try {
+        val raw = android.util.Base64.decode(stored, android.util.Base64.NO_WRAP)
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.DECRYPT_MODE, secretKey(), javax.crypto.spec.GCMParameterSpec(128, raw.copyOfRange(0, 12)))
+        String(c.doFinal(raw.copyOfRange(12, raw.size)), Charsets.UTF_8)
+    } catch (e: Exception) { null }
+
+    private fun secretKey(): javax.crypto.SecretKey {
+        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getKey("deixis-secrets", null) as? javax.crypto.SecretKey)?.let { return it }
+        val gen = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        gen.init(
+            android.security.keystore.KeyGenParameterSpec.Builder("deixis-secrets", android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build(),
+        )
+        return gen.generateKey()
+    }
+
     private var multicastLock: WifiManager.MulticastLock? = null
 
     override fun multicast(on: Boolean) {

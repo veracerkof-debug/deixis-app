@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.deixis.core.SceneBackground
+import app.deixis.core.ai.AnthropicProvider
 import app.deixis.core.ai.Assistant
 import app.deixis.core.ai.AssistantPrompt
 import app.deixis.core.ai.OpenAiProvider
@@ -28,20 +29,35 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Настройки помощника на этом устройстве. Ключ лежит в хранилище пульта этого устройства и никуда, кроме выбранного провайдера, не уходит. */
-class AssistantSettings(private val prefs: Prefs) {
+class AssistantSettings(private val prefs: Prefs, private val platform: Platform) {
     var url by mutableStateOf(prefs.getString("url", "") ?: "")
     var model by mutableStateOf(prefs.getString("model", "") ?: "")
-    var key by mutableStateOf(prefs.getString("key", "") ?: "")
+    var key by mutableStateOf(readKey())
+    /** Протокол Anthropic вместо OpenAI-совместимого. */
+    var anthropic by mutableStateOf(prefs.getBoolean("anthropic", false))
     var auto by mutableStateOf(prefs.getBoolean("auto", false))
     var readOnly by mutableStateOf(prefs.getBoolean("readOnly", false))
     /** Оператор видел предупреждение, что тексты уйдут провайдеру. */
     var informed by mutableStateOf(prefs.getBoolean("informed", false))
 
-    fun save() = prefs.edit {
-        putString("url", url.trim()); putString("model", model.trim()); putString("key", key.trim())
-        putBoolean("auto", auto); putBoolean("readOnly", readOnly); putBoolean("informed", informed)
+    /** Ключ хранится под защитой системы (префикс p:), а если устройство так не умеет — как есть (t:) и это видно в [keyProtected]. */
+    private fun readKey(): String {
+        val v = prefs.getString("key", "") ?: ""
+        return when {
+            v.startsWith("p:") -> platform.unprotect(v.drop(2)).orEmpty()
+            v.startsWith("t:") -> v.drop(2)
+            else -> v // запись старого вида: при первом сохранении перейдёт на новый
+        }
     }
-    val ready get() = url.isNotBlank() && model.isNotBlank()
+    val keyProtected: Boolean get() = prefs.getString("key", "")?.startsWith("p:") == true
+
+    fun save() = prefs.edit {
+        val k = key.trim()
+        val sealed = if (k.isEmpty()) "" else platform.protect(k)?.let { "p:$it" } ?: "t:$k"
+        putString("url", url.trim()); putString("model", model.trim()); putString("key", sealed)
+        putBoolean("auto", auto); putBoolean("anthropic", anthropic); putBoolean("readOnly", readOnly); putBoolean("informed", informed)
+    }
+    val ready get() = (url.isNotBlank() || anthropic) && model.isNotBlank()
 }
 
 private class Line(val mine: Boolean, val text: String)
@@ -52,7 +68,7 @@ private class Line(val mine: Boolean, val text: String)
  */
 @Composable
 fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (SceneBackground) -> Unit) {
-    val settings = remember { AssistantSettings(c.platform.prefs("assistant")) }
+    val settings = remember { AssistantSettings(c.platform.prefs("assistant"), c.platform) }
     val scope = rememberCoroutineScope()
     val scene = remember { SceneEditor.sceneOf(start) }
     if (scene == null) { Note(L.assistantNoScene); return }
@@ -81,8 +97,11 @@ fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (Sce
             Field(settings.url, L.assistantUrlHint, keyboard = KeyboardType.Uri) { settings.url = it }
             Field(settings.model, L.assistantModelHint) { settings.model = it }
             Field(settings.key, L.assistantKeyHint, keyboard = KeyboardType.Password) { settings.key = it }
+            if (settings.key.isNotEmpty()) Note(if (settings.keyProtected) L.assistantKeySafe else L.assistantKeyPlain)
         }
         Group {
+            SwitchRow(L.assistantAnthropic, settings.anthropic, L.assistantAnthropicSub) { settings.anthropic = it; settings.save() }
+            Sep(T.gutter)
             SwitchRow(L.assistantAuto, settings.auto, L.assistantAutoSub) { settings.auto = it; settings.save() }
             Sep(T.gutter)
             SwitchRow(L.assistantReadOnly, settings.readOnly, L.assistantReadOnlySub) { settings.readOnly = it; settings.save() }
@@ -101,8 +120,14 @@ fun AssistantSheet(c: Controller, ui: Ui, start: SceneBackground, onChange: (Sce
         val q = input.trim(); input = ""; chat += Line(true, q); busy = true
         scope.launch {
             val reply = withContext(Dispatchers.IO) {
-                val prov = OpenAiProvider(ProviderConfig(settings.url, settings.model, settings.key))
-                try { Assistant(engine, prov, AssistantPrompt.text).ask(q) } finally { prov.close() }
+                val cfg = ProviderConfig(settings.url, settings.model, settings.key)
+                if (settings.anthropic) {
+                    val prov = AnthropicProvider(cfg)
+                    try { Assistant(engine, prov, AssistantPrompt.text).ask(q) } finally { prov.close() }
+                } else {
+                    val prov = OpenAiProvider(cfg)
+                    try { Assistant(engine, prov, AssistantPrompt.text).ask(q) } finally { prov.close() }
+                }
             }
             chat += Line(false, reply.text)
             busy = false
