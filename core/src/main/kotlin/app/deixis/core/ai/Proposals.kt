@@ -48,9 +48,9 @@ class ProposalEngine<S : Any>(initial: S, private val target: OpTarget<S>, priva
     private val open = LinkedHashMap<Int, Proposal<S>>()
     val journal = ArrayList<JournalEntry<S>>()
 
-    fun pending(): List<Proposal<S>> { expire(); return open.values.toList() }
+    @Synchronized fun pending(): List<Proposal<S>> { expire(); return open.values.toList() }
 
-    fun propose(summary: String, ops: List<SceneOp>): Proposed<S> {
+    @Synchronized fun propose(summary: String, ops: List<SceneOp>): Proposed<S> {
         expire()
         if (readOnly) return Proposed.Rejected(listOf("Включён режим «только чтение»: правки не принимаются"))
         if (ops.isEmpty()) return Proposed.Rejected(listOf("В предложении нет операций"))
@@ -72,7 +72,7 @@ class ProposalEngine<S : Any>(initial: S, private val target: OpTarget<S>, priva
     }
 
     /** Принять: [only] — номера операций («Принять частично»); null — все. Частичный набор проверяется заново, ошибка возвращается. */
-    fun accept(id: Int, only: Set<Int>? = null): List<String> {
+    @Synchronized fun accept(id: Int, only: Set<Int>? = null): List<String> {
         expire()
         val p = open[id] ?: return listOf("Предложение уже не ждёт ответа")
         val ops = if (only == null) p.ops else p.ops.filterIndexed { i, _ -> i in only }
@@ -86,10 +86,10 @@ class ProposalEngine<S : Any>(initial: S, private val target: OpTarget<S>, priva
         return emptyList()
     }
 
-    fun reject(id: Int) { open.remove(id)?.state = ProposalState.REJECTED }
+    @Synchronized fun reject(id: Int) { open.remove(id)?.state = ProposalState.REJECTED }
 
     /** «Отменить»: вернуть сцену, какой она была до записи. Работает с последней неотменённой записью, чтобы цепочка не ломалась. */
-    fun undoLast(): Boolean {
+    @Synchronized fun undoLast(): Boolean {
         val e = journal.lastOrNull { !it.undone } ?: return false
         state = e.before
         e.undone = true
@@ -97,7 +97,7 @@ class ProposalEngine<S : Any>(initial: S, private val target: OpTarget<S>, priva
     }
 
     /** Человек сам поменял сцену (редактор слоёв): предложения, построенные на старой, больше не годятся. */
-    fun replaceState(s: S) { state = s; open.values.forEach { it.state = ProposalState.EXPIRED }; open.clear() }
+    @Synchronized fun replaceState(s: S) { state = s; open.values.forEach { it.state = ProposalState.EXPIRED }; open.clear() }
 
     private fun apply(p: Proposal<S>, auto: Boolean) {
         val before = state

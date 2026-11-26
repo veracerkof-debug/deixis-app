@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import app.deixis.core.SceneBackground
 import app.deixis.core.ai.AnthropicProvider
 import app.deixis.core.ai.Assistant
+import app.deixis.core.ai.McpEndpoint
 import app.deixis.core.ai.AssistantPrompt
 import app.deixis.core.ai.OpenAiProvider
 import app.deixis.core.ai.Proposal
@@ -106,6 +107,11 @@ private fun <S : Any> AssistantPanel(c: Controller, ui: Ui, engine: ProposalEngi
 
     fun publish() { onPublish(engine.state); tick++ }
 
+    // Способ Б: внешняя нейросеть (агент с MCP) через локальный адрес; только на компьютере и только пока панель открыта.
+    var external by remember { mutableStateOf(false) }
+    val mcp = remember { McpEndpoint(engine, target, system) { tick++ } }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { mcp.stop() } }
+
     // Читаем состояние движка при каждой перерисовке: tick меняется после любой правки.
     @Suppress("UNUSED_VARIABLE") val t = tick
     engine.autoConfirm = settings.auto
@@ -128,6 +134,16 @@ private fun <S : Any> AssistantPanel(c: Controller, ui: Ui, engine: ProposalEngi
             SwitchRow(L.assistantReadOnly, settings.readOnly, L.assistantReadOnlySub) { settings.readOnly = it; settings.save() }
         }
         Btn(L.save, kind = BtnKind.TINT, enabled = settings.ready) { settings.informed = true; settings.save(); settingsOpen = false }
+    }
+
+    if (c.platform.features.desktop) {
+        Group {
+            SwitchRow(L.assistantExternal, external, L.assistantExternalSub) { on -> external = on; if (on) mcp.start() else mcp.stop() }
+        }
+        if (external) {
+            Note(L.assistantExternalHow(mcp.url))
+            Btn(L.assistantCopyConfig) { c.platform.copyText("{\"mcpServers\":{\"deixis\":{\"type\":\"http\",\"url\":\"${mcp.url}\",\"headers\":{\"Authorization\":\"Bearer ${mcp.token}\"}}}}"); ui.toast(L.copied) }
+        }
     }
 
     GHead(L.assistantChat)

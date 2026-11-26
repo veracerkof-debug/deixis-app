@@ -47,6 +47,17 @@ object SceneEditor {
     fun setParam(bg: SceneBackground, layerId: String, key: String, value: Double) =
         edit(bg, listOf(SceneOp("layer.set", obj("id", layerId, "set" to JsonObject(mapOf(key to kotlinx.serialization.json.JsonPrimitive(Math.round(value * 100) / 100.0)))))))
 
+    /** Включить или выключить эффект [index] слоя. */
+    fun fxOff(bg: SceneBackground, layerId: String, index: Int, off: Boolean) =
+        edit(bg, listOf(SceneOp("effect.set", obj("layer", layerId, "index" to kotlinx.serialization.json.JsonPrimitive(index), "set" to JsonObject(mapOf("off" to kotlinx.serialization.json.JsonPrimitive(off)))))))
+
+    fun fxRemove(bg: SceneBackground, layerId: String, index: Int) =
+        edit(bg, listOf(SceneOp("effect.remove", obj("layer", layerId, "index" to kotlinx.serialization.json.JsonPrimitive(index)))))
+
+    /** Строка `Binding` слоя: «параметр ← источник» — для показа человеку; снять — [unbind]. */
+    fun unbind(bg: SceneBackground, layerId: String, param: String) =
+        edit(bg, listOf(SceneOp("layer.unbind", obj("layer", layerId, "param", param))))
+
     fun remove(bg: SceneBackground, layerId: String) = edit(bg, listOf(SceneOp("layer.remove", obj("id", layerId))))
 
     private fun obj(vararg kv: Any): JsonObject {

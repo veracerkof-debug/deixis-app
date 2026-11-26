@@ -484,3 +484,4 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `effects/SectionEnergy.kt` — подпись слайда песни → энергия живого фона (применяется в `Controller.styleFor`); тест `SectionEnergyTest`.
 
 `core/.../ai/` — помощник: `SceneOps` (операции над сценой), `Proposals` (`ProposalEngine`: предложения, лимиты, откат), `Assistant` (цикл модели, `ScriptedProvider`), `OpenAiProvider` (chat/completions), `SceneEditor` (правка человеком). Тесты: `AssistantTest` (+ `SceneEditorTest`), `OpenAiProviderTest`.
+`core/.../ai/` дополнено: `OpTarget.kt` (общая цель правок, `SceneTarget`), `SongOps.kt` (`SongTarget`), `AnthropicProvider.kt`, `McpEndpoint.kt` (способ Б); пульт: `AssistantUi.kt` (`AssistantSheet`, `SongAssistantSheet`, общая панель). Тесты: `AssistantTest` (+ `SongTargetTest`, `SceneEditorFxTest`), `OpenAiProviderTest` (+ `AnthropicProviderTest`), `McpEndpointTest`.

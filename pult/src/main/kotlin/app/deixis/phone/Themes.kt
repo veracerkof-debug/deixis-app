@@ -161,6 +161,7 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
             })
             // Редактор слоёв: те же операции, что у помощника (SceneEditor). Первая правка копирует готовую сцену в свою.
             var layersOpen by remember { mutableStateOf(false) }
+            var tuning by remember { mutableStateOf<String?>(null) }
             Sep(T.gutter)
             Cell(L.liveLayers, L.liveLayersSub, open = layersOpen, chevron = if (layersOpen) "up" else "chev", onClick = { layersOpen = !layersOpen })
             if (layersOpen) {
@@ -175,6 +176,37 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
                             Pill(L.layerCopy) { edit(app.deixis.core.ai.SceneEditor.duplicate(sb, layer.id)) }
                             if (scene.layers.size > 1) Pill(L.remove) { edit(app.deixis.core.ai.SceneEditor.remove(sb, layer.id)) }
                             Switch(layer.on, layer.name) { on -> edit(app.deixis.core.ai.SceneEditor.toggle(sb, layer.id, on)) }
+                        }
+                    }
+                    // Все числовые параметры слоя из каталога: шаг — двадцатая часть диапазона (но не меньше шага каталога).
+                    val kind = app.deixis.core.effects.SceneCatalog.layers[layer.type]
+                    Sep(T.gutter)
+                    Cell(L.layerParams, open = tuning == layer.id, chevron = if (tuning == layer.id) "up" else "chev", onClick = { tuning = if (tuning == layer.id) null else layer.id })
+                    if (tuning == layer.id) kind?.params?.filter { it.kind == app.deixis.core.effects.ParamKind.NUM && it.key != "opacity" && it.key != "avoid" }?.forEach { d ->
+                        val cur = if (layer.p[d.key] != null) layer.num(d.key) else d.def
+                        val stepBy = maxOf(d.step, (d.max - d.min) / 20.0)
+                        fun show(v: Double) = if (d.max - d.min > 5) "${Math.round(v)}" else "${Math.round(v * 100) / 100.0}"
+                        Sep(T.gutter)
+                        Cell(L.paramName(d.key, d.label), chevron = null) {
+                            Stepper(show(cur),
+                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, d.key, (cur - stepBy).coerceIn(d.min, d.max))) },
+                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, d.key, (cur + stepBy).coerceIn(d.min, d.max))) })
+                        }
+                    }
+                    // Эффекты слоя: включить, выключить, убрать. Привязки: показать и снять (добавляет помощник).
+                    layer.fx.forEachIndexed { fi, fx ->
+                        Sep(T.gutter)
+                        Cell(L.fxName(fx.type), L.fxLabel, chevron = null) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs), verticalAlignment = Alignment.CenterVertically) {
+                                Pill(L.remove) { edit(app.deixis.core.ai.SceneEditor.fxRemove(sb, layer.id, fi)) }
+                                Switch(!fx.off, L.fxName(fx.type)) { on -> edit(app.deixis.core.ai.SceneEditor.fxOff(sb, layer.id, fi, !on)) }
+                            }
+                        }
+                    }
+                    layer.bind.forEach { (param, b) ->
+                        Sep(T.gutter)
+                        Cell(L.paramName(param, param), if (b.expr.isNotEmpty()) b.expr else "${b.src} × ${b.amt}", chevron = null) {
+                            Pill(L.bindOff) { edit(app.deixis.core.ai.SceneEditor.unbind(sb, layer.id, param)) }
                         }
                     }
                     // Главные ручки слоя: насколько он виден и насколько уступает тексту (остальное — через помощника).

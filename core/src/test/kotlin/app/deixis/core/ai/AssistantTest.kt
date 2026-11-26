@@ -274,3 +274,21 @@ class SongTargetTest {
         assertTrue(seen.any { it.startsWith("Нет такого инструмента «scene.get»") }, "инструменты сцены песне недоступны")
     }
 }
+
+class SceneEditorFxTest {
+    @Test
+    fun effectsToggleRemoveAndUnbindFromTheEditor() {
+        val look = SceneLooks.IDS.first { id -> SceneLooks.load(id).layers.any { it.fx.isNotEmpty() } && SceneLooks.load(id).layers.any { it.bind.isNotEmpty() } }
+        val bg = app.deixis.core.SceneBackground(look)
+        val scene = SceneEditor.sceneOf(bg)!!
+        val withFx = scene.layers.first { it.fx.isNotEmpty() }
+        val off = SceneEditor.fxOff(bg, withFx.id, 0, true)!!
+        assertTrue(app.deixis.core.effects.SceneText.sceneFor(off)!!.layer(withFx.id)!!.fx[0].off)
+        val rm = SceneEditor.fxRemove(off, withFx.id, 0)!!
+        assertEquals(withFx.fx.size - 1, app.deixis.core.effects.SceneText.sceneFor(rm)!!.layer(withFx.id)!!.fx.size)
+        val bound = scene.layers.first { it.bind.isNotEmpty() }
+        val key = bound.bind.keys.first()
+        val un = SceneEditor.unbind(bg, bound.id, key)!!
+        assertNull(app.deixis.core.effects.SceneText.sceneFor(un)!!.layer(bound.id)!!.bind[key])
+    }
+}

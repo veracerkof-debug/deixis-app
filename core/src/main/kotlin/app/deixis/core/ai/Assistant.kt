@@ -75,15 +75,7 @@ class Assistant<S : Any>(private val engine: ProposalEngine<S>, private val prov
         return Run("Нет такого инструмента «${c.name}». Есть: ${(target.readTools + "propose_change").joinToString()}", null, true)
     }
 
-    private fun propose(a: JsonObject): Run {
-        val summary = (a["summary"] as? JsonPrimitive)?.contentOrNull ?: "Правка сцены"
-        val ops = (a["ops"] as? JsonArray)?.map { SceneOp.parse(it) } ?: return Run("Нужен список ops", null, true)
-        if (ops.any { it == null }) return Run("В ops есть элемент без поля op", null, true)
-        return when (val r = engine.propose(summary, ops.filterNotNull())) {
-            is Proposed.Rejected -> Run("Отказ: ${r.errors.joinToString("; ")}", null, true)
-            is Proposed.Ok -> Run(if (r.autoApplied) "Применено автоматически (предложение ${r.proposal.id})" else "Предложение ${r.proposal.id} ждёт ответа человека", r.proposal, false)
-        }
-    }
+    private fun propose(a: JsonObject): Run = proposeTool(engine, a).let { Run(it.text, it.proposal, it.failed) }
 
     companion object {
         const val MAX_STEPS = 12
@@ -93,3 +85,17 @@ class Assistant<S : Any>(private val engine: ProposalEngine<S>, private val prov
 
 /** Помощник для сцены фона. */
 fun Assistant(engine: ProposalEngine<Scene>, provider: ModelProvider, system: String): Assistant<Scene> = Assistant(engine, provider, system, SceneTarget)
+
+/** Итог вызова `propose_change`: текст для модели, само предложение (если принято к рассмотрению) и признак ошибки. */
+class ToolResult(val text: String, val proposal: Proposal<*>?, val failed: Boolean)
+
+/** Общий разбор `propose_change` для цикла помощника и внешнего подключения (MCP). */
+fun <S : Any> proposeTool(engine: ProposalEngine<S>, a: JsonObject): ToolResult {
+    val summary = (a["summary"] as? JsonPrimitive)?.contentOrNull ?: "Правка"
+    val ops = (a["ops"] as? JsonArray)?.map { SceneOp.parse(it) } ?: return ToolResult("Нужен список ops", null, true)
+    if (ops.any { it == null }) return ToolResult("В ops есть элемент без поля op", null, true)
+    return when (val r = engine.propose(summary, ops.filterNotNull())) {
+        is Proposed.Rejected -> ToolResult("Отказ: ${r.errors.joinToString("; ")}", null, true)
+        is Proposed.Ok -> ToolResult(if (r.autoApplied) "Применено автоматически (предложение ${r.proposal.id})" else "Предложение ${r.proposal.id} ждёт ответа человека", r.proposal, false)
+    }
+}
