@@ -43,6 +43,10 @@ object SceneEditor {
         return edit(bg, listOf(SceneOp("layer.duplicate", obj("id", layerId, "newId", freeId(s)))))
     }
 
+    /** Число параметра слоя (`opacity`, `avoid`…): шаг в пределах каталога обеспечивает проверка сцены. */
+    fun setParam(bg: SceneBackground, layerId: String, key: String, value: Double) =
+        edit(bg, listOf(SceneOp("layer.set", obj("id", layerId, "set" to JsonObject(mapOf(key to kotlinx.serialization.json.JsonPrimitive(Math.round(value * 100) / 100.0)))))))
+
     fun remove(bg: SceneBackground, layerId: String) = edit(bg, listOf(SceneOp("layer.remove", obj("id", layerId))))
 
     private fun obj(vararg kv: Any): JsonObject {

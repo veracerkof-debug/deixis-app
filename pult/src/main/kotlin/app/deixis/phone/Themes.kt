@@ -177,6 +177,17 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
                             Switch(layer.on, layer.name) { on -> edit(app.deixis.core.ai.SceneEditor.toggle(sb, layer.id, on)) }
                         }
                     }
+                    // Главные ручки слоя: насколько он виден и насколько уступает тексту (остальное — через помощника).
+                    fun pctOf(v: Double) = Math.round(v * 100).toInt()
+                    for ((key, title) in listOf("opacity" to L.layerOpacity, "avoid" to L.layerAvoid)) {
+                        val v = layer.num(key).let { if (key == "opacity" && layer.p[key] == null) 1.0 else it }
+                        Sep(T.gutter)
+                        Cell(title, chevron = null) {
+                            Stepper("${pctOf(v)}",
+                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, key, (v - 0.1).coerceIn(0.0, 1.0))) },
+                                { edit(app.deixis.core.ai.SceneEditor.setParam(sb, layer.id, key, (v + 0.1).coerceIn(0.0, 1.0))) })
+                        }
+                    }
                 }
             }
         }

@@ -593,6 +593,8 @@ object L {
     val assistantDangerous: String get() = t("В предложении есть удаление или замена — подтверждается всегда", "Taklifda o'chirish yoki almashtirish bor — doim tasdiqlanadi", "The proposal deletes or replaces something — always confirmed")
     val assistantAccept: String get() = t("Принять", "Qabul qilish", "Accept")
     val assistantReject: String get() = t("Отклонить", "Rad etish", "Reject")
+    val layerOpacity: String get() = t("Видимость слоя", "Qatlam ko'rinishi", "Layer visibility")
+    val layerAvoid: String get() = t("Уступать тексту", "Matnga yo'l berish", "Yield to text")
     fun liveBgNamed(look: String): String = t("Живой фон: ${sceneName(look)}", "Jonli fon: ${sceneName(look)}", "Live background: ${sceneName(look)}")
     fun sceneName(look: String): String = when (look) {
         "evening" -> t("Тихий вечер", "Sokin oqshom", "Quiet evening")

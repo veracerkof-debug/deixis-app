@@ -213,3 +213,15 @@ class AssistantPromptTest {
         assertEquals(s.layers.map { it.id }, app.deixis.core.effects.SceneText.sceneFor(out)!!.layers.map { it.id })
     }
 }
+
+class SceneEditorParamTest {
+    @Test
+    fun setParamChangesOnlyThatLayerAndClampsToTheCatalog() {
+        val bg = app.deixis.core.SceneBackground("evening")
+        val id = SceneEditor.sceneOf(bg)!!.layers.first { it.type == "shape" }.id
+        val out = SceneEditor.setParam(bg, id, "opacity", 0.4)!!
+        assertEquals(0.4, app.deixis.core.effects.SceneText.sceneFor(out)!!.layer(id)!!.num("opacity"), 1e-9)
+        val over = SceneEditor.setParam(bg, id, "opacity", 7.0)!!
+        assertEquals(1.0, app.deixis.core.effects.SceneText.sceneFor(over)!!.layer(id)!!.num("opacity"), 1e-9)
+    }
+}
