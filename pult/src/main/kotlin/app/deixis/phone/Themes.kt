@@ -40,7 +40,10 @@ val BUILT_IN_THEMES: List<Theme> get() = listOf(
     Theme("gold", L.thGold, TextStyle(color = 0xFFFFD43B, outline = true, name = L.thGold), builtIn = true),
     Theme("paper", L.paper, TextStyle(background = 0xFFF4EFE6, color = 0xFF2B2620, shadow = false, name = L.paper), builtIn = true),
     Theme("lower", L.thLower, TextStyle(background = 0xFF000000, sizePercent = 12f, valign = VAlign.BOTTOM, box = 0xB4000000, name = L.thLower), builtIn = true),
-)
+) + app.deixis.core.effects.SceneLooks.IDS.map { id ->
+    // Живые фоны — темы для презентаций: рисуются на экране сами, текст уходит от образа.
+    Theme("live:$id", L.sceneName(id), TextStyle(color = 0xFFFFFFFF, shadow = true, backgroundScene = app.deixis.core.SceneBackground(id), name = L.sceneName(id)), builtIn = true)
+}
 
 /** Фон темы с телефона: хэш → адрес файла, для превью. */
 val LocalBackgrounds = staticCompositionLocalOf<(String) -> String?> { { null } }

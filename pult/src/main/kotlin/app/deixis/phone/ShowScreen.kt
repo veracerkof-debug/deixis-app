@@ -121,6 +121,7 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
                 Box(Modifier.weight(1f)) { if (holyricsRemote) HolyricsPlaylistPane(h, ui) else ShowBody(c, h, ui) }
             } else Column(Modifier.fillMaxSize()) {
                 if (holyricsRemote) HolyricsLiveCard(h) else Monitors(c, ui, stacked = false)
+                if (!holyricsRemote) AssistantBar(c, ui)
                 Box(Modifier.weight(1f)) { if (holyricsRemote) HolyricsPlaylistPane(h, ui) else ShowBody(c, h, ui) }
                 if (holyricsRemote) HolyricsKeys(h) else ControlBar(c, ui)
             }
