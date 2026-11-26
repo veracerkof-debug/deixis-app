@@ -229,6 +229,7 @@ details summary{cursor:pointer;color:var(--mut)}
       <div class="budget">
         <div class="row"><span>Загрузка процессора на кадр</span><span id="bTxt">—</span></div>
         <div class="track"><div class="fillbar" id="bBar"></div></div>
+        <p class="hint" id="qTxt">Качество —</p>
       </div>
     </div>
 
@@ -263,8 +264,9 @@ details summary{cursor:pointer;color:var(--mut)}
       <section class="card">
         <h2>Длина слайда</h2>
         <div class="seg" id="len"></div>
-        <h2 style="margin-top:4px">Разрешение расчёта</h2>
-        <div class="seg" id="res"></div>
+        <h2 style="margin-top:4px">Качество и разрешение</h2>
+        <div class="chips" id="res"></div>
+        <p class="hint">«Авто» само подбирает уровень по мощности устройства: сначала быстро проверяет, затем следит за временем кадра.</p>
         <h2 style="margin-top:4px">Частота кадров</h2>
         <div class="seg" id="fps"></div>
       </section>
@@ -351,10 +353,19 @@ const KN=[
   {k:'hue',label:'Оттенок',min:-90,max:90,def:0,f:v=>(v>0?'+':'')+v+'°'},
   {k:'pulse',label:'Пульс',min:0,max:100,def:60,f:v=>v+'%'}
 ];
-const state={mode:'praise',font:'cormorant',len:1,res:192,fps:30,playing:true,emb:'auto',place:'right',tapBpm:0};
+const state={mode:'praise',font:'cormorant',len:1,res:192,fps:30,playing:true,emb:'auto',place:'right',tapBpm:0,resMode:'auto'};
 KN.forEach(o=>state[o.k]=o.def);
 try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches) state.playing=false; }catch(e){}
 let LW=192,LH=108,dirty=true;
+/* Уровни качества. adj — поправка чёткости образа: на слабых уровнях края мягче, на сильных резче. */
+const TIERS=[
+  {name:'Минимум',w:96,fx:0,cont:0,part:.3,adj:-15},
+  {name:'Лёгкий',w:128,fx:1,cont:0,part:.6,adj:-10},
+  {name:'Обычный',w:192,fx:1,cont:1,part:1,adj:0},
+  {name:'Хороший',w:320,fx:1,cont:1,part:1,adj:7},
+  {name:'Лучший',w:480,fx:1,cont:1,part:1,adj:11}
+];
+let tier=2, Q=TIERS[2];
 
 /* ---------- журнал в хранилище страницы ---------- */
 const LOG={id:'s_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),t0:Date.now(),
@@ -602,7 +613,7 @@ function sdfOf(g,W,H){
 }
 function rebuild(){
   const out=$('#out'); out.width=LW; out.height=LH; work.width=LW; work.height=LH; wctx.imageSmoothingQuality='high';
-  const mx=(Math.min(LW,LH)>>1)-1, rf=Math.min(Math.round(state.blur*LW/192),mx), re=Math.min(Math.floor((1-state.crisp/100)*5*LW/192),mx);
+  const mx=(Math.min(LW,LH)>>1)-1, rf=Math.min(Math.round(state.blur*LW/192),mx), re=Math.min(Math.floor((1-clamp(state.crisp+Q.adj,0,100)/100)*5*LW/192),mx);
   FXG=grayOf(SRC_FX,rf); Object.keys(EMB_SRC).forEach(k=>{ EMBG[k]=grayOf(EMB_SRC[k],re); EMBSDF[k]=sdfOf(grayOf(EMB_SRC[k],0),LW,LH); });
   LAYERS.forEach(L=>{ if(!L.cv) L.cv=document.createElement('canvas'); L.cv.width=LW; L.cv.height=LH; L.cx=L.cv.getContext('2d'); L.img=L.cx.createImageData(LW,LH); });
 }
@@ -775,15 +786,15 @@ function render(now){
 
   const ci=Math.floor(T*.05), cf=(T*.05)%1, zoom=1-.04*P, pl=PLACE[effPlace()], sx=emx-.5;
   layersNow=0;
-  const aB=sstep(.4,.7,E)*.5*Bf*(1-.5*state.contour/100*((embCur||embPrev)?1:0));
-  if(aB>.02){
+  const aB=sstep(.4,.7,E)*.5*Bf*(1-.5*state.contour/100*Q.cont*((embCur||embPrev)?1:0));
+  if(aB>.02&&Q.fx){
     const tint=mix(mix(cols[(ci+2)%cols.length],cols[(ci+3)%cols.length],cf),[255,255,255],.2);
     renderLayer(LAYERS[2],FXG,1,tint,.3+.5*E,zoom,sx,1,m.rot,1.1);
     octx.globalAlpha=Math.min(1,aB); octx.drawImage(LAYERS[2].cv,0,0); layersNow++;
   }
   const cname=(embPrev&&embMix<.5)?embPrev:embCur, cfade=embPrev?Math.abs(embMix*2-1):embMix;
   const aC=sstep(.14,.36,E)*(state.contour/100)*.9*Bf*cfade;
-  if(cname&&aC>.02&&EMBSDF[cname]){
+  if(cname&&aC>.02&&Q.cont&&EMBSDF[cname]){
     renderContour(LAYERS[3],EMBSDF[cname],cols,{zoom,sx,sc:pl.es,ring:state.ring/100*46,irid:state.irid/100,read,tp});
     octx.globalAlpha=Math.min(1,aC); octx.drawImage(LAYERS[3].cv,0,0); layersNow++;
   }
@@ -801,7 +812,7 @@ function render(now){
     if(embCur) drawE(embCur,(embPrev?embMix:embMix)*ea,LAYERS[0]);
   }
 
-  const np=Math.floor(PARTS.length*Math.pow(E,1.5)*m.part);
+  const np=Math.floor(PARTS.length*Math.pow(E,1.5)*m.part*Q.part);
   for(let i=0;i<np;i++){
     const p=PARTS[i], fy=((T*.06*p.sp+p.ph)%1.2), y=(1.1-fy)*LH, x=(p.x+.03*sin(T*.6+p.ph*9))*LW;
     const rad=(p.r+.004*P)*LH*(1+.12*sin(T*.6+p.tw)), c=cols[p.ci%cols.length];
@@ -823,6 +834,28 @@ function render(now){
   octx.fillStyle=vg; octx.fillRect(0,0,LW,LH);
 }
 
+/* Сторож качества: вниз быстро, вверх медленно и по прогнозу; после спада подъём на этот уровень запрещён на минуту. */
+const GOV={hi:0,lo:0,cool:0,ban:{},ticks:0};
+function qLabel(){ return (state.resMode==='auto'?'авто · ':'вручную · ')+Q.name+' ('+LW+'×'+LH+')'; }
+function setTier(i,reason){
+  tier=i; Q=TIERS[i]; state.res=Q.w; LW=Q.w; LH=Math.round(LW*9/16); dirty=true; ema=0; LOG.skip=3;
+  logEvent('качество',Q.name+' '+LW+'×'+LH+' · '+reason);
+}
+function governor(ms,fpsNow,now){
+  if(state.resMode!=='auto') return;
+  const budget=1000/state.fps, load=ms/budget; GOV.ticks++; if(GOV.cool>0) GOV.cool--;
+  const bad=load>.6||fpsNow<.8*state.fps;
+  if(bad){ GOV.hi++; GOV.lo=0; } else if(load<.2){ GOV.lo++; GOV.hi=0; } else { GOV.hi=0; GOV.lo=0; }
+  if(GOV.hi>=2&&tier>0){
+    GOV.ban[tier]=now+60000; GOV.hi=0; GOV.cool=8;
+    setTier(tier-1,'нагрузка '+fmt(load*100,0)+' %, '+fmt(fpsNow,0)+' к/с'); return;
+  }
+  const need=GOV.ticks<14?2:6;
+  if(GOV.lo>=need&&GOV.cool<=0&&tier<TIERS.length-1&&!(GOV.ban[tier+1]>now)){
+    const nx=TIERS[tier+1], k=(nx.w/Q.w)*(nx.w/Q.w)*((nx.cont&&!Q.cont)?1.45:1)*((nx.fx&&!Q.fx)?1.2:1);
+    if(ms*k<.36*budget){ GOV.lo=0; GOV.cool=12; setTier(tier+1,'запас '+fmt((1-load)*100,0)+' %, прогноз '+fmt(ms*k,1)+' мс'); }
+  }
+}
 let lastDraw=0,ema=0,frames=0,fpsT=performance.now(),statT=0;
 function loop(now){
   requestAnimationFrame(loop);
@@ -842,6 +875,7 @@ function loop(now){
     $('#timeTxt').textContent=mmss(pos)+' / '+mmss(total);
     const bi=bpmInfo(); $('#bpmTxt').textContent=audio.on?'Ритм задаёт бас из аудиофайла. Темп по песне: '+bi.v+' уд/мин':'Темп '+bi.v+' уд/мин · '+bi.src;
     if(!document.hidden) logMeasure(ema,fpsNow,layersNow,E);
+    governor(ema,fpsNow,now); $('#qTxt').textContent='Качество: '+qLabel();
     frames=0; fpsT=performance.now(); statT=now;
     const budget=1000/state.fps, pc=Math.min(100,ema/budget*100);
     $('#bBar').style.width=pc.toFixed(1)+'%'; $('#bBar').classList.toggle('warn',pc>60);
@@ -931,7 +965,10 @@ function applyPlace(){ const pl=PLACE[effPlace()], v=$('#view'); v.style.setProp
 segment($('#embs'),[['auto','Авто'],['cross','Крест'],['dove','Голубь'],['angel','Ангел'],['flame','Пламя'],['star','Звезда'],['book','Книга'],['none','Без образа']],'emb','образ');
 segment($('#places'),[['right','Справа'],['left','Слева'],['center','По центру']],'place','расположение образа',applyPlace);
 segment($('#len'),[[.67,'Короче'],[1,'Обычная'],[1.6,'Длиннее']],'len','длина слайда',()=>layout(true));
-segment($('#res'),[[96,'96×54'],[192,'192×108'],[320,'320×180']],'res','разрешение',()=>{ LW=state.res; LH=Math.round(LW*9/16); dirty=true; });
+segment($('#res'),[['auto','Авто'],[96,'96×54'],[192,'192×108'],[320,'320×180'],[480,'480×270']],'resMode','качество',()=>{
+  if(state.resMode==='auto'){ GOV.hi=0; GOV.lo=0; GOV.cool=0; GOV.ticks=0; GOV.ban={}; setTier(2,'включён авто'); }
+  else{ Q={name:'Вручную',w:state.resMode,fx:1,cont:1,part:1,adj:0}; state.res=state.resMode; LW=state.res; LH=Math.round(LW*9/16); dirty=true; ema=0; LOG.skip=3; }
+});
 segment($('#fps'),[[30,'30 к/с'],[60,'60 к/с']],'fps','частота кадров');
 
 const view=$('#view');
