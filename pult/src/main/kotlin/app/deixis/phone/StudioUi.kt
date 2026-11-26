@@ -197,7 +197,7 @@ private val thumbs = HashMap<String, ImageBitmap?>()
 
 /** Образец стиля (один кадр на третьей секунде); считается один раз и держится в памяти. */
 @Composable
-fun SceneThumb(bg: SceneBackground, platform: Platform, modifier: Modifier = Modifier) {
+fun SceneThumb(bg: SceneBackground, platform: Platform, modifier: Modifier = Modifier, aspect: Boolean = true) {
     val p = P.current
     val img by produceState<ImageBitmap?>(null, bg.key) {
         value = synchronized(thumbs) { thumbs[bg.key] } ?: withContext(Dispatchers.Default) {
@@ -205,8 +205,11 @@ fun SceneThumb(bg: SceneBackground, platform: Platform, modifier: Modifier = Mod
             platform.decodeImage(SceneFrames.bmp(SceneFrames.still(scene, THUMB_W, THUMB_H, bg.energy.toDouble(), 3.0, bg.quiet?.toDouble()), THUMB_W, THUMB_H))
         }?.also { synchronized(thumbs) { thumbs[bg.key] = it } }
     }
-    Box(modifier.aspectRatio(T.wide).clip(RoundedCornerShape(T.rSlide)).background(p.fill)) {
+    Box((if (aspect) modifier.aspectRatio(T.wide).clip(RoundedCornerShape(T.rSlide)) else modifier).background(p.fill)) {
         img?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
     }
 }
 
+
+/** Платформа для кадров сцены в превью слайда; null — превью без живого фона (как раньше). */
+val LocalPlatform = androidx.compose.runtime.staticCompositionLocalOf<Platform?> { null }

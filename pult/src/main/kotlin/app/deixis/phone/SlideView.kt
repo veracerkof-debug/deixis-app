@@ -161,6 +161,8 @@ private const val AWAY_ALPHA = 0.5f
 /** Фото фона темы (только у слайдов с текстом), обрезка по экрану, как на выводе. */
 @Composable
 private fun BackgroundImage(style: SlideStyle) {
+    // Живой фон: в превью один кадр сцены (на экране зала она живая, а в превью хватает образа и цвета).
+    style.backgroundScene?.let { bg -> LocalPlatform.current?.let { pl -> SceneThumb(bg, pl, Modifier.fillMaxSize(), aspect = false) } }
     val ref = style.backgroundImage ?: return
     val uri = LocalBackgrounds.current(ref.sha256) ?: return
     Thumb(LibItem("bg", Kind.PHOTO, ref.name, uri = uri), ThumbKind.PHOTO, 0, ContentScale.Crop) {}

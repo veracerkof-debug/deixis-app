@@ -167,7 +167,7 @@ fun DeixisPhone(controller: Controller, holyrics: HolyricsSource, ui: Ui) {
     val testRatio by controller.testRatio.collectAsState()
     val profile by controller.profiles.collectAsState()
     val lang by I18n.flow.collectAsState()
-    CompositionLocalProvider(P provides paletteOf(theme, profile.current.accent), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
+    CompositionLocalProvider(P provides paletteOf(theme, profile.current.accent), LocalScreenRatio provides (testRatio ?: screenRatio(info)), LocalUi provides ui, LocalPlatform provides controller.platform, LocalActs provides rememberActs(controller, ui), LocalBackgrounds provides { sha -> controller.localFile(sha) }, LocalLogoStyle provides settings.logo, LocalLogoImage provides settings.logoImage) {
         // Другой профиль — экраны пульта начинаются заново: ничего из прежнего профиля не остаётся на виду.
         // Другой язык — тоже: все строки читаются заново.
         key(profile.current.id, lang) { Root(controller, holyrics, ui) }

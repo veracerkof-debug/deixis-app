@@ -775,6 +775,7 @@ object L {
         "water" -> t("Вода", "Suv", "Water")
         "word" -> t("Слово", "So'z", "The Word")
         "plain" -> t("Чистый", "Toza", "Plain")
+        "mine" -> t("Свой", "O‘zimniki", "Custom")
         else -> look
     }
     val defaultStyleNote: String get() = t("Своё оформление у песни, документа или сетлиста сильнее этого: «Вид» во время показа.", "Qo‘shiq, hujjat yoki ro‘yxatning o‘z bezagi bundan ustun: ko‘rsatish paytida «Ko‘rinish».", "A song, document or setlist look of its own wins over this one: “Look” during the show.")
