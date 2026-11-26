@@ -143,6 +143,9 @@ internal fun readableContent(content: Content): Content = when (content) {
 class OutputFrames(files: FileStore) {
     private val slides = SlideRenderer(files)
     private val chromaSlides = SlideRenderer(files, refAlpha = 1f)
+
+    /** Прямоугольник текста слайда в долях кадра (для живого фона). */
+    fun textBox(width: Int, height: Int, content: Content?): app.deixis.core.effects.TextBox? = slides.textBox(width, height, content)
     private val frc = FontRenderContext(null, true, true)
     private val clock = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 

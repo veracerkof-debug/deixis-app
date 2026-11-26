@@ -45,6 +45,8 @@ tasks.test {
     System.getProperty("deixis.dumpStream")?.let { systemProperty("deixis.dumpStream", it) }
     // Для ручной проверки перевода PPTX: -Ddeixis.render=папка сохраняет слайды в PNG.
     System.getProperty("deixis.render")?.let { systemProperty("deixis.render", it) }
+    // Для просмотра сцен глазами: -Ddeixis.sceneDump=папка сохраняет кадр каждой готовой сцены в PNG.
+    System.getProperty("deixis.sceneDump")?.let { systemProperty("deixis.sceneDump", it) }
     System.getProperty("deixis.renderFile")?.let { systemProperty("deixis.renderFile", it) }
     System.getProperty("deixis.pptDump")?.let { systemProperty("deixis.pptDump", it) }
     System.getProperty("deixis.docxPng")?.let { systemProperty("deixis.docxPng", it) }

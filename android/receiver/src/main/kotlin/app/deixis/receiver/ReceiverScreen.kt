@@ -124,6 +124,8 @@ fun ReceiverScreen(
         androidx.compose.animation.Crossfade(backdropRef?.sha256, label = "backdrop") { sha ->
             if (sha != null) BackdropVideo(runtime, sha)
         }
+        // Живой фон (сцена) — на том же месте, что видеофон; считает ядро, сбой гасит только его.
+        (content as? TextContent)?.style?.backgroundScene?.takeIf { mode == Mode.NORMAL || mode == Mode.CLEAR }?.let { SceneLayer(it) }
         if (video != null) VideoSurface(player, video)
         // Трансляция идёт и под «Чёрным» и «Логотипом»: картинка возвращается сразу.
         (content as? ScreenContent)?.let { ScreenSurface(runtime, it, sound = mode == Mode.NORMAL) }
@@ -334,7 +336,7 @@ private fun QrCode(text: String, modifier: Modifier) {
 
 @Composable
 private fun TextSlide(runtime: ReceiverRuntime, c: TextContent, clear: Boolean, overscan: Boolean) {
-    TextSlideCanvas(c.text, c.ref, c.style, clear, overscan, rememberBackground(runtime, c.style))
+    TextSlideCanvas(c.text, c.ref, app.deixis.core.effects.SceneText.styled(c.style), clear, overscan, rememberBackground(runtime, c.style))
 }
 
 @Composable
@@ -462,7 +464,7 @@ private fun rememberBackground(runtime: ReceiverRuntime, style: SlideStyle): Bit
 /** Цвет фона, поверх — картинка во весь экран с обрезкой краёв. */
 internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawStyleBackground(style: SlideStyle, bg: Bitmap?) {
     // Под слайдом видеофон: слайд прозрачный, фон — кадры видео.
-    if (style.backgroundVideo != null) return
+    if (style.backgroundVideo != null || style.backgroundScene != null) return
     drawRect(Color(style.background.toInt()))
     bg ?: return
     val scale = maxOf(size.width / bg.width, size.height / bg.height)

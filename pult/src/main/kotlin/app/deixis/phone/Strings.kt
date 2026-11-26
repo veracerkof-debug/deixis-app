@@ -544,6 +544,23 @@ object L {
     val photoBg: String get() = t("Фото на фон", "Fon uchun rasm", "Photo background")
     val videoBg: String get() = t("Видеофон", "Video fon", "Video background")
     val videoBgSub: String get() = t("Играет по кругу без звука, текст меняется поверх", "Ovozsiz takrorlanadi, matn ustida almashadi", "Loops without sound; text changes on top")
+    val liveBg: String get() = t("Живой фон", "Jonli fon", "Live background")
+    val liveBgSub: String get() = t("Рисуется на экране, без видеофайла. Нажатие — следующий вариант", "Ekranda chiziladi, video faylsiz. Bosish — keyingi variant", "Drawn on the screen, no video file. Tap for the next one")
+    fun liveBgNamed(look: String): String = t("Живой фон: ${sceneName(look)}", "Jonli fon: ${sceneName(look)}", "Live background: ${sceneName(look)}")
+    fun sceneName(look: String): String = when (look) {
+        "evening" -> t("Тихий вечер", "Sokin oqshom", "Quiet evening")
+        "dawn" -> t("Рассвет", "Tong", "Dawn")
+        "deep" -> t("Глубина", "Chuqurlik", "Depth")
+        "joy" -> t("Радость", "Quvonch", "Joy")
+        "glass" -> t("Витраж", "Vitraj", "Stained glass")
+        "bethlehem" -> t("Вифлеем", "Baytlahm", "Bethlehem")
+        "easter" -> t("Воскресение", "Tirilish", "Resurrection")
+        "fire" -> t("Огонь", "Olov", "Fire")
+        "water" -> t("Вода", "Suv", "Water")
+        "word" -> t("Слово", "So'z", "The Word")
+        "plain" -> t("Чистый", "Toza", "Plain")
+        else -> look
+    }
     val defaultStyleNote: String get() = t("Своё оформление у песни, документа или сетлиста сильнее этого: «Вид» во время показа.", "Qo‘shiq, hujjat yoki ro‘yxatning o‘z bezagi bundan ustun: ko‘rsatish paytida «Ko‘rinish».", "A song, document or setlist look of its own wins over this one: “Look” during the show.")
     val asBefore: String get() = t("Как было", "Avvalgidek", "As before")
     val defaultStyleSaved: String get() = t("Оформление по умолчанию сохранено", "Standart bezak saqlandi", "Default look saved")

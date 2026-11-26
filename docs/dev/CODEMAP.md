@@ -468,7 +468,7 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `Scene.kt` — модель сцены (слои, привязки, эффекты, источники движения); `SceneCatalog.kt` — каталог слоёв, эффектов, параметров и потолков (`SceneLimits`), он же
 описание для нейросети (`toJson()`); `SceneValidator.kt` — проверка файла `*.deixis-scene.json` с путями ошибок; `Expr.kt` — безопасные формулы для привязок (до 64 узлов);
 `SceneMath.kt` — хеш, шум, сглаживание (детерминировано, совпадает с прототипом); `Motion.kt` — темп (`Tempo`), часы доли (`BeatClock`), энергия (`Energy`), источники движения
-(`Modulation`), вычисление привязок (`Bindings`); `SceneCost.kt` — цена слоёв и порядок отключения под бюджет (`plan`); `QualityGovernor.kt` — сторож качества (уровни, подъём и спад);
+(`Modulation`), вычисление привязок (`Bindings`); `SceneCost.kt` — цена слоёв и порядок отключения под бюджет (`plan`); `SceneRenderer.kt` (кадр сцены: мягкие слои малого размера + резкие образы, затемнение под текстом), `SceneRaster.kt` (покрытие и поверхность), `SceneGlyphs.kt` (контуры образов), `SceneText.kt` (поля текста от образа, `styled`); `QualityGovernor.kt` — сторож качества (уровни, подъём и спад);
 `Show.kt` — песни и части (`deixis-show`), проверка (`ShowValidator`), время песни (`ShowTimeline`); `SceneLooks.kt` — готовые сцены из ресурсов `core/src/main/resources/effects/looks/`
 (11 штук: Тихий вечер, Рассвет, Глубина, Радость, Витраж, Вифлеем, Воскресение, Огонь, Вода, Слово, Чистый). Рисования ещё нет: оно в прототипе `prototype/effects-scene.html`.
 
@@ -479,3 +479,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 Живая игра: `core/.../quiz/QuizPlay.kt` — `QuizHub` (центр игры на приёмнике: зал, игроки, таймер) и сообщения `PlayIn`/`PlayOut`; `core/.../QuizRoutes.kt` — `/play`, `/play/ws`, `/api/quiz/…`; `core/src/main/resources/web/play.html` — страница игрока.
 
 `pult/.../phone/QuizHostSession.kt` — ведущий живой игры на пульте (открыть игру на экране, команды, опрос хода); экран ведущего — `QuizHostPlay` в `QuizUi.kt`. Клиент — `SenderClient.quizOpen/quizCommand/quizState`.
+
+Живой фон на экранах: компьютер — `desktop/.../SceneBackdrop.kt` (+ `Backdrop` в `BackgroundVideo.kt`, `OutputWindow.applySceneBackdrop`), Android — `android/receiver/.../SceneLayer.kt`.

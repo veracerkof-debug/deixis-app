@@ -11,12 +11,18 @@ import java.awt.image.DataBufferInt
 import java.io.File
 import java.nio.ByteBuffer
 
+/** Подложка слайда: окно рисует её кадр под прозрачным слайдом (видеофон или живой фон-сцена). */
+interface Backdrop {
+    /** Последний кадр; null — ещё нет. */
+    val frame: BufferedImage?
+}
+
 /**
  * Видеофон слайдов: VLC декодирует кадры в память, окно рисует их под текстом (поверх встроенного окна VLC
  * рисовать нельзя). Без звука, по кругу; тот же файл не начинается заново, когда меняется слайд.
  * Кадры — не больше [MAX_W] по ширине: фону хватает FullHD, а 4K так не грузит процессор.
  */
-class BackgroundVideo(private val onFrame: () -> Unit) {
+class BackgroundVideo(private val onFrame: () -> Unit) : Backdrop {
     val available: Boolean = VideoPlayer.vlcFound
     private val factory: MediaPlayerFactory? = if (available) MediaPlayerFactory("--no-osd", "--no-snapshot-preview", "--no-video-title-show", "--deinterlace=-1") else null
     private val player = factory?.mediaPlayers()?.newEmbeddedMediaPlayer()
@@ -24,8 +30,7 @@ class BackgroundVideo(private val onFrame: () -> Unit) {
     @Volatile var playingSha: String? = null
         private set
 
-    /** Последний кадр; null — ещё нет. */
-    val frame: BufferedImage? get() = image
+    override val frame: BufferedImage? get() = image
 
     init {
         player?.videoSurface()?.set(factory!!.videoSurfaces().newVideoSurface(object : BufferFormatCallback {

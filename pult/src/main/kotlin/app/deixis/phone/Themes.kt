@@ -134,6 +134,15 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
             if (st.backgroundVideo != null) Pill(L.remove) { onChange(st.copy(backgroundVideo = null)) }
         }
         Sep(T.gutter)
+        // Живой фон: сцена рисуется на экране самим приложением. Нажатие перебирает готовые сцены, «Убрать» возвращает обычный фон.
+        val looks = app.deixis.core.effects.SceneLooks.IDS
+        Cell(st.backgroundScene?.let { L.liveBgNamed(it.look) } ?: L.liveBg, L.liveBgSub, kind = "media", chevron = null, onClick = {
+            val i = looks.indexOf(st.backgroundScene?.look)
+            onChange(st.copy(backgroundScene = app.deixis.core.SceneBackground(looks[(i + 1) % looks.size])))
+        }) {
+            if (st.backgroundScene != null) Pill(L.remove) { onChange(st.copy(backgroundScene = null)) }
+        }
+        Sep(T.gutter)
         Cell(L.textColor, chevron = null) {
             Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) { inks.forEach { (v, n) -> Swatch(Color(v), st.color == v, L.colorNamed(n)) { onChange(st.copy(color = v)) } } }
         }

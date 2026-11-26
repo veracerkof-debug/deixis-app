@@ -52,7 +52,7 @@ class SlideRenderer(
         logoImage: app.deixis.core.FileRef? = null,
     ): BufferedImage {
         // Слайд поверх видеофона — прозрачный: фон рисует окно из кадров видео, здесь только текст.
-        val overVideo = content?.style?.backgroundVideo != null && (mode == Mode.NORMAL || mode == Mode.CLEAR)
+        val overVideo = (content?.style?.backgroundVideo != null || content?.style?.backgroundScene != null) && (mode == Mode.NORMAL || mode == Mode.CLEAR)
         val img = BufferedImage(width.coerceAtLeast(1), height.coerceAtLeast(1), if (overVideo) BufferedImage.TYPE_INT_ARGB else BufferedImage.TYPE_INT_RGB)
         transparentBackground = overVideo
         val g = img.createGraphics()
@@ -280,9 +280,37 @@ class SlideRenderer(
         g.fill(java.awt.geom.RoundRectangle2D.Float(x, y, w, h, size * 0.2f, size * 0.2f))
     }
 
-    private fun drawText(g: Graphics2D, w: Int, h: Int, c: TextContent, clear: Boolean) {
-        drawBackground(g, w, h, c.style)
+    /**
+     * Оформление с учётом живого фона: образ сцены стоит сбоку, поэтому у слайда без своих полей текст уходит в другую сторону.
+     * Поля темы, заданные автором, главнее.
+     */
+    private fun effectiveStyle(style: TextStyle): TextStyle {
+        val bg = style.backgroundScene ?: return style
+        if (style.margins != null) return style
+        val m = app.deixis.core.effects.SceneText.sceneFor(bg)?.let { app.deixis.core.effects.SceneText.margins(it) } ?: return style
+        return style.copy(margins = m)
+    }
+
+    /** Где текст слайда на кадре (доли кадра) — по нему живой фон гасит слои под словами. null — текста нет. */
+    fun textBox(width: Int, height: Int, content: Content?): app.deixis.core.effects.TextBox? {
+        val c = content as? TextContent ?: return null
+        val st = effectiveStyle(c.style)
+        val base = Fonts.slide
+        val layout = layoutSlideText(
+            c.text, c.ref, width.toFloat(), height.toFloat(), st,
+            measure = { s, size -> base.deriveFont(size).getStringBounds(s, frc).width.toFloat() },
+            ascent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).ascent },
+            descent = { size -> base.deriveFont(size).getLineMetrics("Ag", frc).descent },
+        )
+        val b = layout.block ?: return null
+        if (layout.lines.isEmpty() || b.width <= 0f) return null
+        return app.deixis.core.effects.TextBox(((b.left + b.right) / 2f / width).toDouble(), ((b.top + b.bottom) / 2f / height).toDouble(), (b.width / 2f / width).toDouble(), (b.height / 2f / height).toDouble())
+    }
+
+    private fun drawText(g: Graphics2D, w: Int, h: Int, content: TextContent, clear: Boolean) {
+        drawBackground(g, w, h, content.style)
         if (clear) return
+        val c = content.copy(style = effectiveStyle(content.style))
         val color = Color(c.style.color.toInt(), true)
         val base = Fonts.slide
         val layout = layoutSlideText(

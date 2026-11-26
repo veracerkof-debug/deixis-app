@@ -45,9 +45,13 @@ data class ParamDef(
 class LayerKind(val type: String, val name: String, val rendering: Rendering, val own: List<ParamDef>) {
     /** Все параметры: общие для слоёв (непрозрачность, «не мешать тексту») и собственные. */
     val params: List<ParamDef> = SceneCatalog.COMMON + own
+    /** Параметры по ключу: быстрый доступ при рисовании кадра. */
+    val byKey: Map<String, ParamDef> = params.associateBy { it.key }
 }
 
-class EffectKind(val type: String, val name: String, val cost: Double, val pixel: Boolean, val params: List<ParamDef>)
+class EffectKind(val type: String, val name: String, val cost: Double, val pixel: Boolean, val params: List<ParamDef>) {
+    val byKey: Map<String, ParamDef> = params.associateBy { it.key }
+}
 
 /** Жёсткие потолки формата. Превышение — ошибка проверки с путём, а не молчаливая обрезка. */
 object SceneLimits {

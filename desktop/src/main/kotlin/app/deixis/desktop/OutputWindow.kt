@@ -203,7 +203,7 @@ class OutputWindow(
         })
         if (shared && mode != WindowMode.OVERLAY) listenMouse(slide)
         slide.addComponentListener(object : ComponentAdapter() {
-            override fun componentResized(e: ComponentEvent?) { drawnKey = null; state?.let(::redraw) }
+            override fun componentResized(e: ComponentEvent?) { drawnKey = null; state?.let { applyBackdrop(it); redraw(it) } }
         })
         place()
     }
@@ -542,7 +542,9 @@ class OutputWindow(
 
     private fun releaseBackdrop() {
         runCatching { backdrop?.release() }
+        runCatching { sceneBackdrop?.release() }
         backdrop = null
+        sceneBackdrop = null
         slide.backdrop = null
     }
 
@@ -571,8 +573,10 @@ class OutputWindow(
     fun release() {
         runCatching { video?.release() }
         runCatching { backdrop?.release() }
+        runCatching { sceneBackdrop?.release() }
         video = null
         backdrop = null
+        sceneBackdrop = null
         slide.backdrop = null
     }
 
@@ -583,7 +587,7 @@ class OutputWindow(
     private class SlideView : JPanel() {
         var frame: BufferedImage? = null
             set(value) { field = value; repaint() }
-        var backdrop: BackgroundVideo? = null
+        var backdrop: Backdrop? = null
         /** Слой поверх показа: рисуется поверх кадра при каждой перерисовке, кадр слайда не пересчитывается. */
         var overlay: ((Graphics2D, Int, Int) -> Unit)? = null
             set(v) { field = v; repaint() }
@@ -631,8 +635,14 @@ class OutputWindow(
     // Видеофон: живёт, пока у слайдов тот же фон; только на мониторах «Зал».
     private var backdrop: BackgroundVideo? = null
 
+    // Живой фон (сцена): считается самим компьютером; слабее видеофона.
+    private var sceneBackdrop: SceneBackdrop? = null
+
     private fun applyBackdrop(s: FrameState) {
-        val ref = s.content?.style?.backgroundVideo?.takeIf { layout == OutputLayout.HALL && s.mode != Mode.BLACK && s.mode != Mode.LOGO }
+        val hall = layout == OutputLayout.HALL && (s.mode == Mode.NORMAL || s.mode == Mode.CLEAR)
+        val style = s.content?.style
+        val ref = style?.backgroundVideo?.takeIf { layout == OutputLayout.HALL && s.mode != Mode.BLACK && s.mode != Mode.LOGO }
+        applySceneBackdrop(style?.backgroundScene?.takeIf { hall && ref == null }, s)
         val b = backdrop
         if (ref == null) {
             if (b?.playingSha != null) { slide.fadeOut(); b.stop() }
@@ -643,6 +653,21 @@ class OutputWindow(
         if (!bg.available) return
         if (bg.playingSha != null && bg.playingSha != ref.sha256) slide.fadeOut()
         bg.play(file, ref.sha256)
+    }
+
+    private fun applySceneBackdrop(bg: app.deixis.core.SceneBackground?, s: FrameState) {
+        val sb = sceneBackdrop
+        val known = bg != null && app.deixis.core.effects.SceneText.sceneFor(bg) != null
+        if (!known) {
+            sb?.stop()
+            if (slide.backdrop === sb) slide.backdrop = backdrop?.takeIf { it.playingSha != null }
+            return
+        }
+        val w = slide.width.takeIf { it > 0 } ?: return
+        val h = slide.height.takeIf { it > 0 } ?: return
+        val live = sb ?: SceneBackdrop { slide.repaint() }.also { sceneBackdrop = it }
+        slide.backdrop = live
+        live.show(bg!!, w, h, frames.textBox(w, h, s.content))
     }
 
     internal companion object {

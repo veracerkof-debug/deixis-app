@@ -197,6 +197,11 @@ data class TextStyle(
      * пока у следующих слайдов тот же фон; текст меняется поверх. Сильнее картинки фона.
      */
     val backgroundVideo: FileRef? = null,
+    /**
+     * Живой фон: сцена, которую экран рисует сам (готовая сцена [SceneBackground.look]); текст меняется поверх. Слабее видеофона
+     * и сильнее картинки. Поле добавочное: старый экран его не знает и покажет обычный фон темы.
+     */
+    val backgroundScene: SceneBackground? = null,
     /** Название оформления для пульта, например тема Holyrics. */
     val name: String? = null,
 )
@@ -209,6 +214,14 @@ enum class VAlign { TOP, MIDDLE, BOTTOM }
 
 @Serializable
 data class Margins(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+/**
+ * Живой фон слайда: готовая сцена из `app.deixis.core.effects.SceneLooks` ([look] — её id, например `evening`).
+ * [energy] — сила движения 0…1 (пока одна на весь слайд; кривую по частям песни задаёт показ песни); [quiet] — мастер «тише»
+ * 0…1, null — как в сцене.
+ */
+@Serializable
+data class SceneBackground(val look: String, val energy: Float = 0.6f, val quiet: Float? = null)
 
 /**
  * Режим вывода поверх слайда. [AWAY] — Deixis ушёл с экрана: окно зала спрятано, и на экране то, что было
