@@ -221,7 +221,10 @@ data class Margins(val left: Float, val top: Float, val right: Float, val bottom
  * 0…1, null — как в сцене.
  */
 @Serializable
-data class SceneBackground(val look: String, val energy: Float = 0.6f, val quiet: Float? = null)
+data class SceneBackground(val look: String, val energy: Float = 0.6f, val quiet: Float? = null, val scene: String? = null) {
+    /** Ключ сцены: меняется, когда сменилась готовая сцена или правка своей, — по нему экран решает, что перестроить. */
+    val key: String get() = if (scene == null) look else "$look#${scene.hashCode()}"
+}
 
 /**
  * Режим вывода поверх слайда. [AWAY] — Deixis ушёл с экрана: окно зала спрятано, и на экране то, что было

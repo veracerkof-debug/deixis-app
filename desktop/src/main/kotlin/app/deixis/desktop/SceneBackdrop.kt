@@ -25,7 +25,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     @Volatile private var image: BufferedImage? = null
     override val frame: BufferedImage? get() = image
 
-    private class Config(val look: String, val energy: Double, val quiet: Double?, val w: Int, val h: Int, val text: TextBox?)
+    private class Config(val bg: SceneBackground, val look: String, val energy: Double, val quiet: Double?, val w: Int, val h: Int, val text: TextBox?)
 
     @Volatile private var cfg: Config? = null
     private val exec = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "scene-backdrop").apply { isDaemon = true } }
@@ -61,7 +61,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     @Synchronized
     fun show(bg: SceneBackground, w: Int, h: Int, text: TextBox?) {
         if (released || w < 16 || h < 16) return
-        cfg = Config(bg.look, bg.energy.toDouble().coerceIn(0.0, 1.0), bg.quiet?.toDouble(), w, h, text)
+        cfg = Config(bg, bg.key, bg.energy.toDouble().coerceIn(0.0, 1.0), bg.quiet?.toDouble(), w, h, text)
         if (task == null) {
             lastNs = System.nanoTime(); statNs = lastNs; frames = 0
             task = exec.scheduleAtFixedRate({ tick() }, 0, FRAME_MS, TimeUnit.MILLISECONDS)
@@ -112,7 +112,7 @@ class SceneBackdrop(private val onFrame: () -> Unit) : Backdrop {
     }
 
     private fun rebuild(c: Config) {
-        val sc = SceneText.sceneFor(SceneBackground(c.look)) ?: run { renderer = null; built = c; return }
+        val sc = SceneText.sceneFor(c.bg) ?: run { renderer = null; built = c; return }
         val tier = governor.tier
         val w = (tier.width * CRISP_FACTOR).coerceIn(MIN_W, MAX_W).coerceAtMost(c.w.coerceAtLeast(MIN_W))
         val h = (w.toLong() * c.h / c.w).toInt().coerceAtLeast(MIN_W * 9 / 16)

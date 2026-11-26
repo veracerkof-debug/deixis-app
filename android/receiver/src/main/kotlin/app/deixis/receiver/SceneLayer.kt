@@ -33,7 +33,7 @@ fun SceneLayer(bg: SceneBackground) {
     val metrics = LocalContext.current.resources.displayMetrics
     var tick by remember { mutableLongStateOf(0L) }
     val holder = remember { arrayOfNulls<Bitmap>(1) }
-    LaunchedEffect(bg.look, bg.energy, bg.quiet) {
+    LaunchedEffect(bg.key, bg.energy, bg.quiet) {
         val scene = SceneText.sceneFor(bg) ?: return@LaunchedEffect
         val governor = QualityGovernor()
         var renderer: SceneRenderer? = null

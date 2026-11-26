@@ -550,6 +550,23 @@ object L {
     val liveEnergySub: String get() = t("В песне её задаёт часть: припев ярче куплета", "Qo'shiqda uni qism belgilaydi: naqarot baytdan yorqinroq", "In a song the section sets it: chorus is brighter than verse")
     val liveQuiet: String get() = t("Тише", "Sekinroq", "Quieter")
     val liveQuietSub: String get() = t("Меньше движения и бликов под текстом", "Matn ostida harakat va yaltirash kamroq", "Less motion and glare under the text")
+    val liveLayers: String get() = t("Слои фона", "Fon qatlamlari", "Background layers")
+    val liveLayersSub: String get() = t("Включить, переставить, копировать, убрать", "Yoqish, o'rnini almashtirish, nusxalash, olib tashlash", "Turn on, reorder, copy, remove")
+    val layerUp: String get() = t("Выше", "Yuqoriga", "Up")
+    val layerDown: String get() = t("Ниже", "Pastga", "Down")
+    val layerCopy: String get() = t("Копия", "Nusxa", "Copy")
+    fun layerType(type: String): String = when (type) {
+        "gradient" -> t("Подложка", "Taglik", "Backdrop")
+        "field" -> t("Краски", "Ranglar", "Paint")
+        "shape" -> t("Образ", "Timsol", "Emblem")
+        "emitter" -> t("Огоньки", "Chaqnashlar", "Sparks")
+        "rays" -> t("Лучи", "Nurlar", "Rays")
+        "rings" -> t("Кольца", "Halqalar", "Rings")
+        "thread" -> t("Нить", "Ip", "Thread")
+        "contour" -> t("Контур", "Kontur", "Contour")
+        "text" -> t("Текст", "Matn", "Text")
+        else -> type
+    }
     fun liveBgNamed(look: String): String = t("Живой фон: ${sceneName(look)}", "Jonli fon: ${sceneName(look)}", "Live background: ${sceneName(look)}")
     fun sceneName(look: String): String = when (look) {
         "evening" -> t("Тихий вечер", "Sokin oqshom", "Quiet evening")

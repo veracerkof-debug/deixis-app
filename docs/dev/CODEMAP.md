@@ -482,3 +482,5 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 
 Живой фон на экранах: компьютер — `desktop/.../SceneBackdrop.kt` (+ `Backdrop` в `BackgroundVideo.kt`, `OutputWindow.applySceneBackdrop`), Android — `android/receiver/.../SceneLayer.kt`.
 `effects/SectionEnergy.kt` — подпись слайда песни → энергия живого фона (применяется в `Controller.styleFor`); тест `SectionEnergyTest`.
+
+`core/.../ai/` — помощник: `SceneOps` (операции над сценой), `Proposals` (`ProposalEngine`: предложения, лимиты, откат), `Assistant` (цикл модели, `ScriptedProvider`), `OpenAiProvider` (chat/completions), `SceneEditor` (правка человеком). Тесты: `AssistantTest` (+ `SceneEditorTest`), `OpenAiProviderTest`.

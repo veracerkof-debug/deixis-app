@@ -41,5 +41,13 @@ object SceneText {
 
     /** Сцена для живого фона слайда с поправками из [bg] (тише); null — такой сцены нет. */
     fun sceneFor(bg: SceneBackground): Scene? =
-        if (bg.look in SceneLooks.IDS) SceneLooks.load(bg.look) else null
+        if (bg.scene != null) custom(bg.scene) else if (bg.look in SceneLooks.IDS) SceneLooks.load(bg.look) else null
+
+    private val customCache = object : LinkedHashMap<String, Scene?>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Scene?>?) = size > 8
+    }
+
+    /** Своя сцена (правка человека или нейросети) идёт через ту же проверку, что и файл; негодная — null, экран не меняется. */
+    @Synchronized
+    private fun custom(json: String): Scene? = customCache.getOrPut(json) { SceneValidator.validate(json).scene }
 }

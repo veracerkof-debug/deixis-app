@@ -155,6 +155,26 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
             Cell(L.liveQuiet, L.liveQuietSub, chevron = null) {
                 Stepper("${pct(quiet)}", { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, 10)))) })
             }
+            // Редактор слоёв: те же операции, что у помощника (SceneEditor). Первая правка копирует готовую сцену в свою.
+            var layersOpen by remember { mutableStateOf(false) }
+            Sep(T.gutter)
+            Cell(L.liveLayers, L.liveLayersSub, open = layersOpen, chevron = if (layersOpen) "up" else "chev", onClick = { layersOpen = !layersOpen })
+            if (layersOpen) {
+                val scene = app.deixis.core.ai.SceneEditor.sceneOf(sb)
+                scene?.layers?.forEachIndexed { i, layer ->
+                    fun edit(next: app.deixis.core.SceneBackground?) { if (next != null) onChange(st.copy(backgroundScene = next)) }
+                    Sep(T.gutter)
+                    Cell(layer.name, L.layerType(layer.type), chevron = null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs), verticalAlignment = Alignment.CenterVertically) {
+                            if (i > 0) Pill(L.layerUp, "up") { edit(app.deixis.core.ai.SceneEditor.move(sb, layer.id, -1)) }
+                            if (i < scene.layers.size - 1) Pill(L.layerDown, "down") { edit(app.deixis.core.ai.SceneEditor.move(sb, layer.id, 1)) }
+                            Pill(L.layerCopy) { edit(app.deixis.core.ai.SceneEditor.duplicate(sb, layer.id)) }
+                            if (scene.layers.size > 1) Pill(L.remove) { edit(app.deixis.core.ai.SceneEditor.remove(sb, layer.id)) }
+                            Switch(layer.on, layer.name) { on -> edit(app.deixis.core.ai.SceneEditor.toggle(sb, layer.id, on)) }
+                        }
+                    }
+                }
+            }
         }
         Sep(T.gutter)
         Cell(L.textColor, chevron = null) {
