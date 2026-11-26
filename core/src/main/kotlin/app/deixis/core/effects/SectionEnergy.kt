@@ -8,7 +8,7 @@ object SectionEnergy {
     fun forLabel(label: String?): Double? {
         val l = label?.trim()?.lowercase() ?: return null
         return when {
-            l.startsWith("припев") || l.startsWith("chorus") || l.startsWith("ko'shiq") -> 0.85
+            l.startsWith("припев") || l.startsWith("chorus") || l.startsWith("naqarot") -> 0.85
             l.startsWith("пред") || l.startsWith("pre") -> 0.6
             l.startsWith("бридж") || l.startsWith("мост") || l.startsWith("bridge") -> 0.7
             l.startsWith("куплет") || l.startsWith("verse") || l.startsWith("bayt") -> 0.45

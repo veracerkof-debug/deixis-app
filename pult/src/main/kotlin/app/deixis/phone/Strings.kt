@@ -546,6 +546,10 @@ object L {
     val videoBgSub: String get() = t("Играет по кругу без звука, текст меняется поверх", "Ovozsiz takrorlanadi, matn ustida almashadi", "Loops without sound; text changes on top")
     val liveBg: String get() = t("Живой фон", "Jonli fon", "Live background")
     val liveBgSub: String get() = t("Рисуется на экране, без видеофайла. Нажатие — следующий вариант", "Ekranda chiziladi, video faylsiz. Bosish — keyingi variant", "Drawn on the screen, no video file. Tap for the next one")
+    val liveEnergy: String get() = t("Яркость фона", "Fon yorqinligi", "Background energy")
+    val liveEnergySub: String get() = t("В песне её задаёт часть: припев ярче куплета", "Qo'shiqda uni qism belgilaydi: naqarot baytdan yorqinroq", "In a song the section sets it: chorus is brighter than verse")
+    val liveQuiet: String get() = t("Тише", "Sekinroq", "Quieter")
+    val liveQuietSub: String get() = t("Меньше движения и бликов под текстом", "Matn ostida harakat va yaltirash kamroq", "Less motion and glare under the text")
     fun liveBgNamed(look: String): String = t("Живой фон: ${sceneName(look)}", "Jonli fon: ${sceneName(look)}", "Live background: ${sceneName(look)}")
     fun sceneName(look: String): String = when (look) {
         "evening" -> t("Тихий вечер", "Sokin oqshom", "Quiet evening")

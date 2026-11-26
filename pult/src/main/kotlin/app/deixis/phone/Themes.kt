@@ -142,6 +142,20 @@ fun StyleControls(c: Controller, ui: Ui, st: TextStyle, onChange: (TextStyle) ->
         }) {
             if (st.backgroundScene != null) Pill(L.remove) { onChange(st.copy(backgroundScene = null)) }
         }
+        st.backgroundScene?.let { sb ->
+            // Крутилки сцены: яркость (энергия; в песне её задаёт часть — припев ярче) и «Тише» (гасит движение и блики под текстом).
+            fun pct(v: Float) = (v * 100).toInt()
+            fun step(v: Float, d: Int) = ((pct(v) + d).coerceIn(0, 100) / 100f)
+            val quiet = sb.quiet ?: app.deixis.core.effects.SceneText.sceneFor(sb)?.quiet?.toFloat() ?: 0f
+            Sep(T.gutter)
+            Cell(L.liveEnergy, L.liveEnergySub, chevron = null) {
+                Stepper("${pct(sb.energy)}", { onChange(st.copy(backgroundScene = sb.copy(energy = step(sb.energy, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(energy = step(sb.energy, 10)))) })
+            }
+            Sep(T.gutter)
+            Cell(L.liveQuiet, L.liveQuietSub, chevron = null) {
+                Stepper("${pct(quiet)}", { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, -10)))) }, { onChange(st.copy(backgroundScene = sb.copy(quiet = step(quiet, 10)))) })
+            }
+        }
         Sep(T.gutter)
         Cell(L.textColor, chevron = null) {
             Row(horizontalArrangement = Arrangement.spacedBy(T.gapXs)) { inks.forEach { (v, n) -> Swatch(Color(v), st.color == v, L.colorNamed(n)) { onChange(st.copy(color = v)) } } }
