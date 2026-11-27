@@ -120,6 +120,8 @@ data class AppSettings(
     /** Мышь на компьютере: двойной щелчок («live» — в зал, «preview» — в предпросмотр) и средняя кнопка («black», «next», «none»). */
     val mouseDouble: String = "live",
     val mouseMiddle: String = "black",
+    /** Ширина плитки слайда в сетке на компьютере, dp (Ctrl + колесо). */
+    val deskTile: Int = 210,
     val volumeKeys: Boolean = false,
     val caps: Boolean = false,
     val church: Boolean = true,

@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -75,7 +76,22 @@ fun DesktopShow(c: Controller, h: HolyricsSource, ui: Ui) {
 
 private val DESK_SIDE = 280.dp
 private val DESK_RIGHT = 400.dp
-private val DESK_TILE = 210.dp
+private const val TILE_MIN = 120
+private const val TILE_MAX = 420
+private const val TILE_STEP = 20
+
+/** Ctrl + колесо над сеткой — размер слайдов (запоминается в настройках). */
+private fun Modifier.ctrlWheel(onStep: (Int) -> Unit): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val e = awaitPointerEvent()
+            if (e.type == PointerEventType.Scroll && e.keyboardModifiers.isCtrlPressed) {
+                val dy = e.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                if (dy != 0f) { onStep(if (dy < 0) 1 else -1); e.changes.forEach { it.consume() } }
+            }
+        }
+    }
+}
 
 // ——— Слева: сетлист и библиотека ———
 
@@ -106,6 +122,7 @@ private fun DeskSidebar(c: Controller, ui: Ui, modifier: Modifier) {
                 Row(
                     Modifier.fillMaxWidth().background(if (selected) p.tint.copy(alpha = T.devFill) else androidx.compose.ui.graphics.Color.Transparent)
                         .combinedClick(onClick = { ui.open = it.id }, onDouble = { c.toPreview(Cue(c.sourceOf(it), 0)) })
+                        .mouseButtons(onRight = { ui.sheet(it.title) { ItemMenu(c, ui, it, inSet = true) } }, onMiddle = {})
                         .padding(horizontal = T.gap, vertical = T.gapS),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(T.gapS),
                 ) {
@@ -149,7 +166,7 @@ private fun DeskSlides(c: Controller, ui: Ui, modifier: Modifier) {
             Pill(L.edit, "edit", label = L.edit) { ui.sheet(item.title) { ItemMenu(c, ui, item, inSet = true) } }
         }
         LazyVerticalGrid(
-            GridCells.Adaptive(DESK_TILE), Modifier.weight(1f).fillMaxWidth(),
+            GridCells.Adaptive(st.deskTile.coerceIn(TILE_MIN, TILE_MAX).dp), Modifier.weight(1f).fillMaxWidth().ctrlWheel { d -> c.setSettings { it.copy(deskTile = (it.deskTile + d * TILE_STEP).coerceIn(TILE_MIN, TILE_MAX)) } },
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = T.gutter, vertical = T.gapS),
             horizontalArrangement = Arrangement.spacedBy(T.gap), verticalArrangement = Arrangement.spacedBy(T.gap),
         ) {
