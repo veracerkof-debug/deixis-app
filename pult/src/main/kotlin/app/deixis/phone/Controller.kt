@@ -1535,6 +1535,16 @@ class Controller(val platform: Platform) {
             morning?.let { theme("Утренний туман", TextStyle(backgroundImage = it, color = 0xFF14232E, shadow = false, valign = VAlign.TOP)) },
             glow?.let { theme("Тёплые огни", TextStyle(backgroundVideo = it, color = 0xFFFFF4E6, shadow = true)) },
         )
+        // Живые фоны — часть демо-набора: песни с частями (куплет, припев, бридж) на интерактивных темах; «Вернуть демо» ставит их заново.
+        val liveDemo = listOf(
+            Triple("Господь — мой Пастырь", "evening", listOf("Куплет 1" to "Господь — мой Пастырь,\nя ни в чём не буду нуждаться", "Припев" to "Слава Ему вовеки,\nОн — наш Бог и Спаситель", "Бридж" to "Аллилуйя,\nАллилуйя")),
+            Triple("Слава в вышних", "dawn", listOf("Куплет 1" to "Слава в вышних Богу,\nи на земли мир", "Припев" to "В человецех благоволение,\nславим Имя Твоё")),
+            Triple("Огонь Твой", "fire", listOf("Куплет 1" to "Огонь Твой сошёл на нас,\nмы горим для Тебя", "Припев" to "Свят, свят, свят,\nГосподь Саваоф")),
+            Triple("Тихая ночь", "bethlehem", listOf("Куплет 1" to "Тихая ночь, святая ночь,\nвсё спит, лишь звезда горит")),
+        )
+        val liveSongs = liveDemo.map { (title, _, parts) -> LibItem(Store.newId(), Kind.SONG, title, slides = parts.map { it.second }, labels = parts.map { it.first }).copy(demo = true) }
+        val liveThemes = liveDemo.map { (_, look, _) -> theme(L.sceneName(look), TextStyle(color = 0xFFFFFFFF, shadow = true, backgroundScene = app.deixis.core.SceneBackground(look))) }
+        val liveStyles = liveSongs.mapIndexed { i, song -> "item:${song.id}" to liveThemes[i].style }.toMap()
         fun styleOf(name: String) = themes.firstOrNull { it.name == name }?.style
         val styles = listOfNotNull(
             styleOf("Звёздная ночь")?.let { "item:${star.id}" to it },
@@ -1546,10 +1556,10 @@ class Controller(val platform: Platform) {
 
         // Сетлист — как настоящая встреча: объявления, песни, Писание, лекция, фото, видео.
         fun file(prefix: String) = files.firstOrNull { it.title.startsWith(prefix) }
-        val order = listOfNotNull(news, star, john, grace, psalm, file("Лекция"), file("Город"), file("Конспект"),
+        val order = liveSongs + listOfNotNull(news, star, john, grace, psalm, file("Лекция"), file("Город"), file("Конспект"),
             file("Горы на закате"), file("Звёздная ночь"), file("Утро"), file("Тёплые"), file("Огни"))
         // i18n:on
-        val all = texts + files
+        val all = liveSongs + texts + files
         val demo = Setlist(Store.newId(), DEMO_SET, LocalDate.now().toString(), (order + all).map { it.id }.distinct())
         edit { d ->
             d.copy(
@@ -1557,8 +1567,8 @@ class Controller(val platform: Platform) {
                 // Первый запуск: пустой «Сегодня» уступает место «Демо»; при «Вернуть демо» своё не трогаем.
                 setlists = d.setlists.filter { force || it.items.isNotEmpty() || it.id != d.active } + demo,
                 active = demo.id,
-                themes = d.themes + themes,
-                styles = d.styles + styles,
+                themes = d.themes + themes + liveThemes,
+                styles = d.styles + styles + liveStyles,
             )
         }
     }
