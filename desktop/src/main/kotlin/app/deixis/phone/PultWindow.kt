@@ -54,7 +54,7 @@ class PultWindow(
                     Modifier.fillMaxSize()
                         .onPreviewKeyEvent { e -> e.type == KeyEventType.KeyDown && e.key == Key.Escape && DesktopBack.back() }
                         // После полей ввода: стрелки и пробел в тексте остаются тексту.
-                        .onKeyEvent { e -> e.type == KeyEventType.KeyDown && clicker(e.key) },
+                        .onKeyEvent { e -> e.type == KeyEventType.KeyDown && hotkey(e) },
                 ) {
                     DeixisPhone(controller, host.holyrics, ui)
                 }
@@ -78,14 +78,15 @@ class PultWindow(
         javax.swing.Timer(RAISE_MS) { w.isAlwaysOnTop = false }.apply { isRepeats = false }.start()
     }
 
-    private fun clicker(key: Key): Boolean {
-        if (!controller.settings.value.clicker) return false
-        when (key) {
-            Key.DirectionRight, Key.Spacebar, Key.PageDown, Key.MediaNext -> controller.step(1)
-            Key.DirectionLeft, Key.PageUp, Key.MediaPrevious -> controller.step(-1)
-            Key.B -> controller.mode(Mode.BLACK)
-            else -> return false
-        }
+    /** Клавиши показа: сочетание берётся из настроек («Управление»), по умолчанию — как кликер. */
+    private fun hotkey(e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+        val st = controller.settings.value
+        if (!st.clicker) return false
+        val combo = Hotkeys.comboOf(e)
+        if (combo == "MediaNext") { controller.step(1); return true }
+        if (combo == "MediaPrevious") { controller.step(-1); return true }
+        val action = combo?.let { Hotkeys.actionOf(it, st.keys) } ?: return false
+        Hotkeys.run(controller, ui, action)
         return true
     }
 

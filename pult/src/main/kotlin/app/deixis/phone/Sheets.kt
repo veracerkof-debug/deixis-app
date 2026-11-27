@@ -151,6 +151,9 @@ fun SettingsSheet(c: Controller) {
         Sep(T.gutter)
         Cell(L.setLookPage, L.setLookPageSub, kind = "brush", onClick = { page(L.setLookPage) { SettingsLookPage(c) } })
     }
+    if (c.platform.features.desktop) Group(Modifier.padding(top = T.gap)) {
+        Cell(L.ctlPage, L.ctlPageSub, kind = "devs", onClick = { page(L.ctlPage) { SettingsControlsPage(c) } })
+    }
     if (!st.volunteer) {
         GHead(L.assistant)
         Group { Cell(L.assistant, L.setAssistantSub, kind = "media", onClick = { page(L.assistant) { SettingsAssistantPage(c) } }) }

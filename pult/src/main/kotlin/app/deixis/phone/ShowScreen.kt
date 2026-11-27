@@ -108,7 +108,8 @@ fun ShowScreen(c: Controller, h: HolyricsSource, ui: Ui) {
             val w = maxWidth
             val tall = maxHeight > 500.dp
             val height = maxHeight
-            if (w >= 700.dp) Row(Modifier.fillMaxSize()) {
+            if (w >= 900.dp && c.platform.features.desktop && !holyricsRemote) DesktopShow(c, h, ui)
+            else if (w >= 700.dp) Row(Modifier.fillMaxSize()) {
                 Column(Modifier.width(minOf(w * 0.42f, 440.dp)).fillMaxHeight()) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         // Два окна друг под другом должны поместиться в колонку вместе с панелью кнопок.
@@ -209,7 +210,7 @@ private fun Dev(icon: String, state: OutState, label: String, count: Int = -1, o
 // ——— «Сейчас» и «Предпросмотр» ———
 
 @Composable
-private fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
+internal fun Monitors(c: Controller, ui: Ui, stacked: Boolean) {
     val p = P.current
     val live by c.live.collectAsState()
     val preview by c.preview.collectAsState()
@@ -317,7 +318,7 @@ private data class TileSpec(val title: String, val icon: String, val action: () 
  * плюсом рядом с поиском: главный экран остаётся за показом, без ряда плиток.
  */
 @Composable
-private fun ShowMenu(c: Controller, ui: Ui) {
+internal fun ShowMenu(c: Controller, ui: Ui) {
     val host = LocalHost.current
     val features = host.platform.features
     val acts = LocalActs.current

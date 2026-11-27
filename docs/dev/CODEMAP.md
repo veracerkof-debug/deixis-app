@@ -490,3 +490,4 @@ diag  ←api─  core  ←implementation─  desktop  (+ исходники pult
 `core/.../ai/SetlistOps.kt` — `SetlistTarget` (сетлист для помощника), тест `SetlistTargetTest`; пульт: `SetlistAssistantSheet`.
 `Show.kt: ShowImport` — песни из `deixis-show` в слайды библиотеки (пульт: «Песни из файла» в настройках); `Protocol.kt: SceneBackground.energyAt` — плавная кривая энергии части.
 `effects/MicMeter.kt` — громкость из отсчётов микрофона (0…1, автоподстройка); `desktop/.../DesktopMic.kt` — микрофон компьютера; Android — в `SceneLayer.kt`; `SceneBackground.mic/energyWithMic` — прибавка к энергии. Тест `MicMeterTest`.
+Компьютер: `pult/.../DesktopShow.kt` (три панели, сетка слайдов, меню слайда), `Hotkeys.kt` (клавиши, переназначение), `ControlsUi.kt` («Настройки → Управление»); обработка клавиш — `desktop/.../PultWindow.kt`. Тест `HotkeysTest`.

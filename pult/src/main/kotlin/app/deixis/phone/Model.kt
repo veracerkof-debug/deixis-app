@@ -115,6 +115,11 @@ data class AppSettings(
      */
     val darkDuringShow: Boolean = false,
     val clicker: Boolean = true,
+    /** Клавиши компьютера: действие → сочетания через запятую (переназначения; см. [Hotkeys]). */
+    val keys: Map<String, String> = emptyMap(),
+    /** Мышь на компьютере: двойной щелчок («live» — в зал, «preview» — в предпросмотр) и средняя кнопка («black», «next», «none»). */
+    val mouseDouble: String = "live",
+    val mouseMiddle: String = "black",
     val volumeKeys: Boolean = false,
     val caps: Boolean = false,
     val church: Boolean = true,
